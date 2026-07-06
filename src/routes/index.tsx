@@ -381,7 +381,7 @@ function Dashboard() {
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
               {journal.length} fills · Net {realizedPnl >= 0 ? "+" : ""}
-              {fmtINR(realizedPnl)} · Fees {fmtINR(feesTotal, 4)}
+              {fmtUSD(realizedPnl)} · Fees {fmtUSD(feesTotal, 4)}
             </span>
           </CardHeader>
           <CardContent>

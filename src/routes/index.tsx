@@ -344,7 +344,11 @@ function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Metric label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}/${decided} closes`} tone="long" />
           <Metric label="LOSS RATE" value={`${lossRate.toFixed(1)}%`} sub={`${losses}/${decided} closes`} tone="short" />
-          <Metric label="INITIAL CAPITAL" value={fmtINR(INITIAL_CAPITAL_INR)} />
+          <Metric
+            label="INITIAL CAPITAL"
+            value={fmtINR(netDeposits)}
+            sub={netDepositsFromTx > 0 ? "from deposits" : "fallback"}
+          />
           <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />
         </div>
 

@@ -60,7 +60,18 @@ export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
-  getKlines(symbol: string, interval?: string, limit?: number): Promise<Kline[]>;
+  getKlines(
+    symbol: string,
+    interval?: string,
+    limit?: number,
+    opts?: { startTime?: number; endTime?: number },
+  ): Promise<Kline[]>;
+  getKlinesRange(
+    symbol: string,
+    interval: string,
+    fromMs: number,
+    toMs: number,
+  ): Promise<Kline[]>;
   getLastPrice(symbol: string): Promise<number>;
 }
 
@@ -250,12 +261,19 @@ export function createSharkClient(): ExchangeClient {
       return snap;
     },
 
-    async getKlines(symbol, interval = "1h", limit = 100) {
+    async getKlines(symbol, interval = "1h", limit = 100, opts) {
       const url = `${BASE_URL}/v1/market/klines`;
+      const body: Record<string, unknown> = {
+        pair: symbol.toUpperCase(),
+        interval,
+        limit: Math.min(Math.max(1, limit), 1500),
+      };
+      if (opts?.startTime) body.startTime = opts.startTime;
+      if (opts?.endTime) body.endTime = opts.endTime;
       const res = await fetch(url, {
         method: "POST",
         headers: { accept: "application/json", "content-type": "application/json" },
-        body: JSON.stringify({ pair: symbol.toUpperCase(), interval, limit }),
+        body: JSON.stringify(body),
       });
       const text = await res.text();
       if (!res.ok) {
@@ -291,6 +309,45 @@ export function createSharkClient(): ExchangeClient {
           closeTime: Number(o.closeTime ?? o.endTime ?? o.T ?? o.close_time ?? 0),
         } as Kline;
       });
+    },
+
+    async getKlinesRange(symbol, interval, fromMs, toMs) {
+      // SharkExchange caps each call at 1500 bars — page forward from fromMs.
+      const intervalMs =
+        interval === "1m" ? 60_000 :
+        interval === "5m" ? 5 * 60_000 :
+        interval === "15m" ? 15 * 60_000 :
+        interval === "30m" ? 30 * 60_000 :
+        interval === "1h" ? 3_600_000 :
+        interval === "4h" ? 4 * 3_600_000 :
+        interval === "1d" ? 86_400_000 : 3_600_000;
+      const PAGE = 1500;
+      const out: Kline[] = [];
+      const seen = new Set<number>();
+      let cursor = fromMs;
+      let guard = 0;
+      while (cursor < toMs && guard < 20) {
+        guard++;
+        const chunk = await this.getKlines(symbol, interval, PAGE, {
+          startTime: cursor,
+          endTime: toMs,
+        });
+        if (chunk.length === 0) break;
+        for (const k of chunk) {
+          if (k.openTime < fromMs || k.openTime > toMs) continue;
+          if (!seen.has(k.openTime)) {
+            seen.add(k.openTime);
+            out.push(k);
+          }
+        }
+        const lastOpen = chunk[chunk.length - 1].openTime;
+        const nextCursor = lastOpen + intervalMs;
+        if (nextCursor <= cursor) break; // no forward progress
+        cursor = nextCursor;
+        if (chunk.length < PAGE) break; // fewer than a full page means we've caught up
+      }
+      out.sort((a, b) => a.openTime - b.openTime);
+      return out;
     },
 
     async getLastPrice(symbol) {

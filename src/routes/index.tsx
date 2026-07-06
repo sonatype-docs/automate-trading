@@ -159,13 +159,12 @@ function Dashboard() {
     .filter((t) => t.time > 0)
     .sort((a, b) => a.time - b.time);
 
-  // Every metric below uses the same per-fill net = pnl - fee that drives the equity curve.
+  // Per-fill net used for win/loss stats and today's P&L.
   const pnlTrades = tradeFills
     .filter((t) => Number.isFinite(t.pnl))
     .map((t) => ({ ...t, net: t.pnl - t.fee }));
 
   const grossPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
-  const realizedPnl = pnlTrades.reduce((s, t) => s + t.net, 0);
 
   // A fill is only counted as a win/loss if it actually closed something (has non-zero P&L).
   const closingFills = pnlTrades.filter((t) => t.pnl !== 0);
@@ -182,9 +181,32 @@ function Dashboard() {
     .reduce((s, t) => s + t.net, 0);
 
   const hasWallet = Boolean(fw);
-  const equity = INITIAL_CAPITAL_INR + realizedPnl;
-  const equityChange = equity - INITIAL_CAPITAL_INR;
-  const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
+
+  // Net deposits from transactionHistory (fallback to INITIAL_CAPITAL_INR).
+  // Anything that moved cash IN/OUT of the futures wallet without being a trade.
+  const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT"]);
+  const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT"]);
+  let depositsIn = 0;
+  let depositsOut = 0;
+  for (const x of exTxns) {
+    const type = String(x.type ?? "").toUpperCase();
+    const amt = Number(x.amount ?? 0);
+    if (!Number.isFinite(amt)) continue;
+    if (DEPOSIT_TYPES.has(type)) depositsIn += Math.abs(amt);
+    else if (WITHDRAW_TYPES.has(type)) depositsOut += Math.abs(amt);
+  }
+  const netDepositsFromTx = depositsIn - depositsOut;
+  const netDeposits = netDepositsFromTx > 0 ? netDepositsFromTx : INITIAL_CAPITAL_INR;
+
+  // Definitive realized P&L when there are no open positions:
+  //   wallet_now - net_deposits.  Falls back to trade-history sum only when wallet is unknown.
+  const tradeHistoryRealized = pnlTrades.reduce((s, t) => s + t.net, 0);
+  const realizedPnl = hasWallet ? walletTotal - netDeposits : tradeHistoryRealized;
+
+  const equity = hasWallet ? walletTotal : netDeposits + realizedPnl;
+  const equityChange = equity - netDeposits;
+  const equityChangePct = netDeposits > 0 ? (equityChange / netDeposits) * 100 : 0;
+
 
 
   // Equity curve in INR: start at initial capital, then cumulate realized PnL minus fees per fill.

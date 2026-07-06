@@ -209,8 +209,10 @@ function Dashboard() {
 
 
 
-  // Equity curve in INR: start at initial capital, then cumulate realized PnL minus fees per fill.
-  let eqRun = INITIAL_CAPITAL_INR;
+  // Equity curve in INR: start at net deposits, cumulate trade-history net per fill,
+  // then anchor the final point to the true current wallet so the chart reconciles
+  // with the top-level EQUITY / REALIZED P&L metrics.
+  let eqRun = netDeposits;
   const equityCurve: Array<{ t: number; eq: number }> = [];
   const journal: Array<{
     time: number;
@@ -224,16 +226,21 @@ function Dashboard() {
     id: string;
   }> = [];
   if (pnlTrades.length > 0) {
-    equityCurve.push({ t: pnlTrades[0].time - 60_000, eq: INITIAL_CAPITAL_INR });
+    equityCurve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits });
   } else {
-    equityCurve.push({ t: Date.now() - 86_400_000, eq: INITIAL_CAPITAL_INR });
-    equityCurve.push({ t: Date.now(), eq: INITIAL_CAPITAL_INR });
+    equityCurve.push({ t: Date.now() - 86_400_000, eq: netDeposits });
+    equityCurve.push({ t: Date.now(), eq: equity });
   }
   for (const t of pnlTrades) {
     eqRun += t.pnl - t.fee;
     equityCurve.push({ t: t.time, eq: eqRun });
     journal.push({ ...t, equity: eqRun });
   }
+  // Reconcile last point with real wallet if there's drift (trade history may be paged).
+  if (hasWallet && pnlTrades.length > 0 && Math.abs(equity - eqRun) > 0.01) {
+    equityCurve.push({ t: Date.now(), eq: equity });
+  }
+
 
   const fmtINR = (n: number, digits = 2) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;

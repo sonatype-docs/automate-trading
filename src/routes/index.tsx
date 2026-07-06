@@ -1055,13 +1055,17 @@ function WalletCard({
 
 
 type BacktestData = Awaited<ReturnType<typeof backtestToday>>;
+type RangeData = Awaited<ReturnType<typeof backtestRange>>;
 
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
   const runBacktest = useServerFn(backtestToday);
+  const runRange = useServerFn(backtestRange);
   const [bt, setBt] = useState<BacktestData | null>(null);
+  const [range, setRange] = useState<RangeData | null>(null);
+  const [rangeDays, setRangeDays] = useState<number>(30);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1081,6 +1085,15 @@ function StrategyCard() {
     onSuccess: (r) => { setBt(r); toast.success(`Backtest: ${r.outcome.status}`); },
     onError: (e: Error) => toast.error(e.message),
   });
+  const rangeMut = useMutation({
+    mutationFn: () => runRange({ data: { days: rangeDays } }),
+    onSuccess: (r) => {
+      setRange(r);
+      toast.success(`Backtest ${rangeDays}d — ${r.summary.tp}W / ${r.summary.sl}L`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
 
   const s = q.data?.settings as

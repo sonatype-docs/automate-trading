@@ -1237,6 +1237,16 @@ function StrategyCard() {
             <option value={180}>180d</option>
             <option value={365}>365d</option>
           </select>
+          <label className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={skipWeekends}
+              onChange={(e) => setSkipWeekends(e.target.checked)}
+              disabled={rangeMut.isPending}
+              className="accent-primary"
+            />
+            skip S/S
+          </label>
           <Button size="sm" variant="secondary" disabled={rangeMut.isPending} onClick={() => rangeMut.mutate()}>
             {rangeMut.isPending ? "Replaying…" : `Backtest ${rangeDays}d`}
           </Button>

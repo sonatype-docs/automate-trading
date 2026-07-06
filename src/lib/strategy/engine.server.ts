@@ -389,12 +389,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)}`);
   }
 
-  // Expire leftover armed setups from previous IST days
-  await supabaseAdmin
-    .from("strategy_setups")
-    .update({ status: "expired", updated_at: new Date().toISOString() })
-    .lt("ist_date", todayIst)
-    .eq("status", "armed");
+  // (Prior-day armed setups are expired at the top of the tick.)
+
+
 
   return { ok: true, ist_date: todayIst, session, actions };
 }

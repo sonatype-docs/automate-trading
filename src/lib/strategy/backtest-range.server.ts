@@ -117,6 +117,9 @@ export async function runBacktestRange(opts: {
       trigger_at: null,
       outcome: "no_session",
       pnl_usd: 0,
+      final_sl: null,
+      peak_r: 0,
+      exit_r: null,
     };
 
     if (!sessionCandle || sessionCandle.closeTime > now) {

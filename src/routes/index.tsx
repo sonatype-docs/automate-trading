@@ -102,22 +102,6 @@ function Dashboard() {
     onError: (e) => toast.error(e.message),
   });
 
-  const [testForm, setTestForm] = useState({
-    symbol: "BTCUSDT",
-    action: "buy" as "buy" | "sell" | "close",
-    price: 60000,
-    size_usd: 50,
-  });
-  const testMut = useMutation({
-    mutationFn: () => sendTest({ data: testForm }),
-    onSuccess: (r) => {
-      toast[r.status === "executed" ? "success" : "warning"](
-        `Test signal: ${r.status}${r.reason ? ` (${r.reason})` : ""}`,
-      );
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e) => toast.error(e.message),
-  });
 
   if (!dashQ.data) {
     return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;

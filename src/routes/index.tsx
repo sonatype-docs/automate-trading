@@ -191,12 +191,9 @@ function Dashboard() {
   const equityChange = equity - INITIAL_CAPITAL_INR;
   const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
 
-  // Equity curve: start at initial capital, cumulate realized PnL after each closing fill.
-  let eqRun = INITIAL_CAPITAL_INR;
-  const firstT = pnlTrades[0]?.time ?? Date.now() - 86400000;
-  const equityCurve: Array<{ t: number; eq: number }> = [
-    { t: firstT - 60_000, eq: INITIAL_CAPITAL_INR },
-  ];
+  // Cumulative realized P&L curve in USD (SharkExchange returns pnl/fee in quote currency = USD).
+  let pnlRun = 0;
+  const pnlCurve: Array<{ t: number; eq: number }> = [];
   const journal: Array<{
     time: number;
     symbol: string;
@@ -208,18 +205,20 @@ function Dashboard() {
     equity: number;
     id: string;
   }> = [];
+  if (pnlTrades.length > 0) {
+    pnlCurve.push({ t: pnlTrades[0].time - 60_000, eq: 0 });
+  }
   for (const t of pnlTrades) {
-    eqRun += t.pnl - t.fee;
-    equityCurve.push({ t: t.time, eq: eqRun });
-    journal.push({ ...t, equity: eqRun });
+    pnlRun += t.pnl - t.fee;
+    pnlCurve.push({ t: t.time, eq: pnlRun });
+    journal.push({ ...t, equity: pnlRun });
   }
-  if (hasWallet && Math.abs(walletTotal - eqRun) > 0.0001) {
-    equityCurve.push({ t: Date.now(), eq: walletTotal });
-  }
-
 
   const fmtINR = (n: number, digits = 2) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  const fmtUSD = (n: number, digits = 2) =>
+    `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
 
   return (
     <div className="min-h-screen">

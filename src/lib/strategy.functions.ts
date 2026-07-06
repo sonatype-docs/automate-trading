@@ -85,6 +85,11 @@ const RangeSchema = z.object({
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
   skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  // advanced overrides (fall back to saved settings)
+  symbol: z.string().min(3).max(24).optional(),
+  session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  sl_risk_usd: z.number().positive().optional(),
+  rr: z.number().positive().optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -102,10 +107,10 @@ export const backtestRange = createServerFn({ method: "POST" })
     const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
     const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
     return runBacktestRange({
-      symbol: settings.symbol,
-      sessionStartIst: String(settings.session_start_ist).slice(0, 5),
-      slRiskUsd: Number(settings.sl_risk_usd),
-      rr: Number(settings.rr),
+      symbol: data.symbol ?? settings.symbol,
+      sessionStartIst: (data.session_start_ist ?? String(settings.session_start_ist)).slice(0, 5),
+      slRiskUsd: data.sl_risk_usd ?? Number(settings.sl_risk_usd),
+      rr: data.rr ?? Number(settings.rr),
       days: data.days,
       trailEnabled,
       trailActivateR,

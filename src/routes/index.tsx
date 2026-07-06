@@ -7,7 +7,7 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow, backtestToday, backtestRange, updateStrategySettings } from "@/lib/strategy.functions";
+import { getStrategyState, runStrategyTickNow, updateStrategySettings } from "@/lib/strategy.functions";
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import {
   Zap,
   Shield,
   BookOpen,
+  Beaker,
 } from "lucide-react";
 import {
   LineChart,
@@ -260,6 +261,11 @@ function Dashboard() {
             />
           </div>
           <div className="flex items-center gap-2">
+            <Link to="/backtest">
+              <Button variant="ghost" size="sm">
+                <Beaker className="w-4 h-4 mr-2" /> Backtest
+              </Button>
+            </Link>
             <Link to="/docs">
               <Button variant="ghost" size="sm">
                 <BookOpen className="w-4 h-4 mr-2" /> Webhook setup
@@ -1087,22 +1093,11 @@ function WalletCard({
 }
 
 
-type BacktestData = Awaited<ReturnType<typeof backtestToday>>;
-type RangeData = Awaited<ReturnType<typeof backtestRange>>;
-
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
-  const runBacktest = useServerFn(backtestToday);
-  const runRange = useServerFn(backtestRange);
   const updateStrat = useServerFn(updateStrategySettings);
-  const [bt, setBt] = useState<BacktestData | null>(null);
-  const [range, setRange] = useState<RangeData | null>(null);
-  const [rangeDays, setRangeDays] = useState<number>(30);
-  const [skipWeekends, setSkipWeekends] = useState<boolean>(true);
-  // Trailing-SL overrides for the NEXT backtest run. Null = use saved settings.
-  const [trailOverride, setTrailOverride] = useState<{ enabled: boolean; activateR: number; stepR: number } | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1114,32 +1109,6 @@ function StrategyCard() {
       toast.success(`Tick ok — ${(r.actions ?? []).length} action(s)`);
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const btMut = useMutation({
-    mutationFn: () => runBacktest(),
-    onSuccess: (r) => { setBt(r); toast.success(`Backtest: ${r.outcome.status}`); },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const rangeMut = useMutation({
-    mutationFn: () =>
-      runRange({
-        data: {
-          days: rangeDays,
-          skip_weekdays: skipWeekends ? [0, 6] : [],
-          ...(trailOverride
-            ? {
-                trail_enabled: trailOverride.enabled,
-                trail_activate_r: trailOverride.activateR,
-                trail_step_r: trailOverride.stepR,
-              }
-            : {}),
-        },
-      }),
-    onSuccess: (r) => {
-      setRange(r);
-      toast.success(`Backtest ${rangeDays}d — ${r.summary.tp}W / ${r.summary.sl}L`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1156,6 +1125,8 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  // Trailing SL uses saved values for live; no per-run override on the dashboard.
+  const [trailOverride, setTrailOverride] = useState<TrailOverride>(null);
 
   const s = q.data?.settings as
     | {
@@ -1227,34 +1198,11 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
-          <Button size="sm" variant="secondary" disabled={btMut.isPending} onClick={() => btMut.mutate()}>
-            {btMut.isPending ? "Replaying…" : "Run today"}
-          </Button>
-          <select
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-mono"
-            value={rangeDays}
-            onChange={(e) => setRangeDays(Number(e.target.value))}
-            disabled={rangeMut.isPending}
-          >
-            <option value={7}>7d</option>
-            <option value={30}>30d</option>
-            <option value={90}>90d</option>
-            <option value={180}>180d</option>
-            <option value={365}>365d</option>
-          </select>
-          <label className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={skipWeekends}
-              onChange={(e) => setSkipWeekends(e.target.checked)}
-              disabled={rangeMut.isPending}
-              className="accent-primary"
-            />
-            skip S/S
-          </label>
-          <Button size="sm" variant="secondary" disabled={rangeMut.isPending} onClick={() => rangeMut.mutate()}>
-            {rangeMut.isPending ? "Replaying…" : `Backtest ${rangeDays}d`}
-          </Button>
+          <Link to="/backtest">
+            <Button size="sm" variant="secondary">
+              <Beaker className="w-4 h-4 mr-1" /> Backtest Lab
+            </Button>
+          </Link>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1285,8 +1233,11 @@ function StrategyCard() {
             />
           </label>
         </div>
-        {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
-        {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
+
+
+
+
+
 
 
 
@@ -1359,216 +1310,8 @@ function ZoneCell({ label, value, highlight }: { label: string; value: number; h
   );
 }
 
-function BacktestPanel({ data, onClose }: { data: BacktestData; onClose: () => void }) {
-  const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2));
-  const fmtTime = (ms: number | null | undefined) =>
-    !ms ? "—" : new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
-  const outcome = data.outcome;
-  const tone =
-    outcome.status === "tp"
-      ? "text-long"
-      : outcome.status === "sl"
-        ? "text-short"
-        : "text-muted-foreground";
-  const label: Record<string, string> = {
-    tp: "TP HIT",
-    sl: "SL HIT",
-    open: "TRIGGERED · STILL OPEN",
-    armed_no_trigger: "BROKE · ENTRY NEVER TOUCHED",
-    no_break: "NO BREAK YET",
-    no_session_candle: "SESSION CANDLE NOT YET CLOSED",
-  };
-  return (
-    <div className="border border-border rounded p-3 bg-muted/30 font-mono text-xs space-y-2">
-      <div className="flex items-center justify-between">
-        <div className={`tracking-widest ${tone}`}>
-          BACKTEST · {data.ist_date} · {label[outcome.status] ?? outcome.status.toUpperCase()}
-        </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
-      </div>
-      {data.session_candle && data.zone && (
-        <div className="grid grid-cols-4 gap-2">
-          <BtCell k="session candle" v={fmtTime(data.session_candle.openTime)} />
-          <BtCell k="high / low" v={`${fmt(data.session_candle.high)} / ${fmt(data.session_candle.low)}`} />
-          <BtCell k="fib 0.75 (short entry)" v={fmt(data.zone.fib_25)} />
-          <BtCell k="fib 0.25 (long entry)" v={fmt(data.zone.fib_75)} />
-        </div>
-      )}
-      {data.break && data.setup && (
-        <div className="grid grid-cols-4 gap-2">
-          <BtCell
-            k="break"
-            v={`${data.break.side.toUpperCase()} @ ${fmt(data.break.close)}`}
-            tone={data.break.side === "long" ? "text-long" : "text-short"}
-          />
-          <BtCell k="broke at" v={fmtTime(data.break.at)} />
-          <BtCell k="entry / sl / tp" v={`${fmt(data.setup.entry)} / ${fmt(data.setup.sl)} / ${fmt(data.setup.tp)}`} />
-          <BtCell k="qty" v={data.setup.qty.toFixed(4)} />
-        </div>
-      )}
-      {data.trigger && (
-        <div className="grid grid-cols-4 gap-2">
-          <BtCell k="entry filled at" v={fmtTime(data.trigger.hit_at)} />
-          <BtCell k="trigger bar L/H" v={`${fmt(data.trigger.bar_low)} / ${fmt(data.trigger.bar_high)}`} />
-          {"pnl_usd" in outcome && (
-            <BtCell
-              k="p&l (usd)"
-              v={`${outcome.pnl_usd >= 0 ? "+" : ""}${outcome.pnl_usd.toFixed(2)}`}
-              tone={outcome.pnl_usd >= 0 ? "text-long" : "text-short"}
-            />
-          )}
-          {"hit_at" in outcome && <BtCell k="closed at" v={fmtTime(outcome.hit_at)} />}
-        </div>
-      )}
-      {"note" in outcome && outcome.note && (
-        <p className="text-muted-foreground">{outcome.note}</p>
-      )}
-      <p className="text-muted-foreground text-[10px]">
-        Read-only replay of the last {data.bars_scanned} 1H bars using current fib rules. Does not touch orders.
-      </p>
-    </div>
-  );
-}
 
-function BtCell({ k, v, tone }: { k: string; v: string; tone?: string }) {
-  return (
-    <div className="border border-border rounded px-2 py-1.5 bg-background">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k}</div>
-      <div className={`text-xs ${tone ?? ""}`}>{v}</div>
-    </div>
-  );
-}
 
-function RangeBacktestPanel({ data, onClose }: { data: RangeData; onClose: () => void }) {
-  const s = data.summary;
-  const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
-  const fmtTime = (ms: number | null) =>
-    ms == null ? "—" : new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const outcomeCls = (o: string) =>
-    o === "tp" ? "text-long" :
-    o === "sl" ? "text-short" :
-    o === "open" ? "text-warning" : "text-muted-foreground";
-  const totalTone = s.total_pnl_usd >= 0 ? "text-long" : "text-short";
-  return (
-    <div className="border border-border rounded p-3 space-y-3 font-mono text-xs bg-muted/40">
-      <div className="flex items-center justify-between">
-        <div className="text-muted-foreground tracking-widest">
-          BACKTEST · {data.days_requested}D · {new Date(data.from_ms).toISOString().slice(0, 10)} → {new Date(data.to_ms).toISOString().slice(0, 10)}
-        </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <BtCell k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
-        <BtCell k="breaks" v={String(s.breaks)} />
-        <BtCell k="triggered" v={String(s.triggered)} />
-        <BtCell k="wins / losses" v={`${s.tp} / ${s.sl}`} />
-        <BtCell k="win rate" v={`${s.win_rate_pct.toFixed(1)}%`} tone={s.win_rate_pct >= 50 ? "text-long" : "text-short"} />
-        <BtCell k="avg R" v={s.avg_r.toFixed(2)} tone={s.avg_r >= 0 ? "text-long" : "text-short"} />
-        <BtCell
-          k="total p&l (usd)"
-          v={`${s.total_pnl_usd >= 0 ? "+" : ""}${s.total_pnl_usd.toFixed(2)}`}
-          tone={totalTone}
-        />
-        <BtCell k="best / worst" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
-        <BtCell k="skipped days" v={String(s.skipped_days)} />
-        <BtCell
-          k="best day"
-          v={s.best_weekday ? `${s.best_weekday.label} ${s.best_weekday.total_pnl_usd >= 0 ? "+" : ""}${s.best_weekday.total_pnl_usd.toFixed(0)}` : "—"}
-          tone="text-long"
-        />
-        <BtCell
-          k="worst day"
-          v={s.worst_weekday ? `${s.worst_weekday.label} ${s.worst_weekday.total_pnl_usd >= 0 ? "+" : ""}${s.worst_weekday.total_pnl_usd.toFixed(0)}` : "—"}
-          tone="text-short"
-        />
-      </div>
-
-      <div>
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">By weekday</div>
-        <div className="border border-border rounded overflow-hidden">
-          <table className="w-full text-[11px]">
-            <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60">
-              <tr>
-                <th className="text-left px-2 py-1">Day</th>
-                <th className="text-right px-2 py-1">Trades</th>
-                <th className="text-right px-2 py-1">W / L</th>
-                <th className="text-right px-2 py-1">Win %</th>
-                <th className="text-right px-2 py-1">Total $</th>
-                <th className="text-right px-2 py-1">Avg $</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.weekdays.map((w) => {
-                const skipped = data.skip_weekdays.includes(w.weekday);
-                const tone =
-                  w.trades === 0 ? "text-muted-foreground" :
-                  w.total_pnl_usd > 0 ? "text-long" :
-                  w.total_pnl_usd < 0 ? "text-short" : "";
-                return (
-                  <tr key={w.weekday} className="border-t border-border">
-                    <td className="px-2 py-1">
-                      {w.label}
-                      {skipped && <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">(skipped)</span>}
-                    </td>
-                    <td className="text-right px-2 py-1">{w.trades}</td>
-                    <td className="text-right px-2 py-1">{w.wins} / {w.losses}</td>
-                    <td className="text-right px-2 py-1">{w.trades > 0 ? `${w.win_rate_pct.toFixed(0)}%` : "—"}</td>
-                    <td className={`text-right px-2 py-1 ${tone}`}>
-                      {w.trades > 0 ? `${w.total_pnl_usd >= 0 ? "+" : ""}${w.total_pnl_usd.toFixed(2)}` : "—"}
-                    </td>
-                    <td className={`text-right px-2 py-1 ${tone}`}>
-                      {w.trades > 0 ? `${w.avg_pnl_usd >= 0 ? "+" : ""}${w.avg_pnl_usd.toFixed(2)}` : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="max-h-72 overflow-y-auto border border-border rounded">
-        <table className="w-full text-[11px]">
-          <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60 sticky top-0">
-            <tr>
-              <th className="text-left px-2 py-1">Date</th>
-              <th className="text-right px-2 py-1">H/L</th>
-              <th className="text-right px-2 py-1">Break</th>
-              <th className="text-right px-2 py-1">Entry/SL/TP</th>
-              <th className="text-right px-2 py-1">Trig</th>
-              <th className="text-left px-2 py-1">Outcome</th>
-              <th className="text-right px-2 py-1">P&amp;L $</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.days.slice().reverse().map((d) => (
-              <tr key={d.ist_date} className="border-t border-border">
-                <td className="px-2 py-1">{d.ist_date}</td>
-                <td className="text-right px-2 py-1">
-                  {d.zone_high != null ? `${fmt(d.zone_high)}/${fmt(d.zone_low)}` : "—"}
-                </td>
-                <td className={`text-right px-2 py-1 ${d.break_side === "long" ? "text-long" : d.break_side === "short" ? "text-short" : ""}`}>
-                  {d.break_side ? `${d.break_side.toUpperCase()} @ ${fmt(d.break_close)}` : "—"}
-                </td>
-                <td className="text-right px-2 py-1">
-                  {d.entry != null ? `${fmt(d.entry)} / ${fmt(d.sl)} / ${fmt(d.tp)}` : "—"}
-                </td>
-                <td className="text-right px-2 py-1">{fmtTime(d.trigger_at)}</td>
-                <td className={`px-2 py-1 uppercase ${outcomeCls(d.outcome)}`}>{d.outcome.replace(/_/g, " ")}</td>
-                <td className={`text-right px-2 py-1 ${d.pnl_usd > 0 ? "text-long" : d.pnl_usd < 0 ? "text-short" : ""}`}>
-                  {d.pnl_usd === 0 ? "—" : `${d.pnl_usd > 0 ? "+" : ""}${d.pnl_usd.toFixed(2)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-muted-foreground text-[10px]">
-        Read-only replay of {data.bars_scanned} 1H bars using current fib/entry/SL rules. Does not touch orders. Same-bar TP+SL is treated as SL (conservative).
-      </p>
-    </div>
-  );
-}
 
 type TrailOverride = { enabled: boolean; activateR: number; stepR: number } | null;
 

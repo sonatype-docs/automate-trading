@@ -113,8 +113,8 @@ async function signedJson(
 }
 
 function requireCreds(): { apiKey: string; apiSecret: string } {
-  const apiKey = process.env.SHARKEXCHANGE_API_KEY;
-  const apiSecret = process.env.SHARKEXCHANGE_API_SECRET;
+  const apiKey = process.env.SHARKEXCHANGE_API_KEY?.trim();
+  const apiSecret = process.env.SHARKEXCHANGE_API_SECRET?.trim();
   if (!apiKey || !apiSecret) {
     throw new Error(
       "SharkExchange API credentials are not configured. Add SHARKEXCHANGE_API_KEY and SHARKEXCHANGE_API_SECRET.",
@@ -122,6 +122,7 @@ function requireCreds(): { apiKey: string; apiSecret: string } {
   }
   return { apiKey, apiSecret };
 }
+
 
 export function createSharkClient(): ExchangeClient {
   return {

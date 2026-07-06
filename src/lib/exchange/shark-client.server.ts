@@ -36,9 +36,20 @@ export interface TestConnectionResult {
   sample?: unknown;
 }
 
+export interface AccountSnapshot {
+  futuresWallet: unknown;
+  fundingWallet: unknown;
+  openPositions: unknown;
+  openOrders: unknown;
+  tradeHistory: unknown;
+  transactionHistory: unknown;
+  errors: Record<string, string>;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
+  getAccountSnapshot(): Promise<AccountSnapshot>;
 }
 
 const BASE_URL = "https://api.sharkexchange.in";
@@ -190,5 +201,41 @@ export function createSharkClient(): ExchangeClient {
       };
     },
 
+    async getAccountSnapshot() {
+      const { apiKey, apiSecret } = requireCreds();
+      const endpoints: Array<{ key: keyof AccountSnapshot; path: string; params: Record<string, string> }> = [
+        { key: "futuresWallet", path: "/v1/wallet/futures-wallet/details", params: {} },
+        { key: "fundingWallet", path: "/v1/wallet/funding-wallet/details", params: {} },
+        { key: "openPositions", path: "/v1/positions/OPEN", params: { sortOrder: "desc", pageSize: "50" } },
+        { key: "openOrders", path: "/v1/order/open-orders", params: { sortOrder: "desc", pageSize: "50" } },
+        { key: "tradeHistory", path: "/v1/user-data/trade-history", params: { sortOrder: "desc", pageSize: "25" } },
+        { key: "transactionHistory", path: "/v1/user-data/transaction-history", params: { sortOrder: "desc", pageSize: "25" } },
+      ];
+      const snap: AccountSnapshot = {
+        futuresWallet: null,
+        fundingWallet: null,
+        openPositions: null,
+        openOrders: null,
+        tradeHistory: null,
+        transactionHistory: null,
+        errors: {},
+      };
+      await Promise.all(
+        endpoints.map(async ({ key, path, params }) => {
+          try {
+            const res = await signedGet(apiKey, apiSecret, path, params);
+            if (res.ok) {
+              (snap as unknown as Record<string, unknown>)[key] = res.json ?? res.body;
+            } else {
+              snap.errors[key] = `[${res.status}] ${res.body.slice(0, 200)}`;
+            }
+          } catch (e) {
+            snap.errors[key] = e instanceof Error ? e.message : String(e);
+          }
+        }),
+      );
+      return snap;
+    },
   };
 }
+

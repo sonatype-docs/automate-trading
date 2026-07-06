@@ -1160,7 +1160,7 @@ function StrategyCard() {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono">
-            Session candle not yet closed. Zone will appear after {s?.session_start_ist?.slice(0, 5) ?? "05:30"} IST candle closes.
+            Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "05:30"}–06:30 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
           </p>
         )}
 

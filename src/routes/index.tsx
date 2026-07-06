@@ -1087,22 +1087,11 @@ function WalletCard({
 }
 
 
-type BacktestData = Awaited<ReturnType<typeof backtestToday>>;
-type RangeData = Awaited<ReturnType<typeof backtestRange>>;
-
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
-  const runBacktest = useServerFn(backtestToday);
-  const runRange = useServerFn(backtestRange);
   const updateStrat = useServerFn(updateStrategySettings);
-  const [bt, setBt] = useState<BacktestData | null>(null);
-  const [range, setRange] = useState<RangeData | null>(null);
-  const [rangeDays, setRangeDays] = useState<number>(30);
-  const [skipWeekends, setSkipWeekends] = useState<boolean>(true);
-  // Trailing-SL overrides for the NEXT backtest run. Null = use saved settings.
-  const [trailOverride, setTrailOverride] = useState<{ enabled: boolean; activateR: number; stepR: number } | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1114,32 +1103,6 @@ function StrategyCard() {
       toast.success(`Tick ok — ${(r.actions ?? []).length} action(s)`);
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const btMut = useMutation({
-    mutationFn: () => runBacktest(),
-    onSuccess: (r) => { setBt(r); toast.success(`Backtest: ${r.outcome.status}`); },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const rangeMut = useMutation({
-    mutationFn: () =>
-      runRange({
-        data: {
-          days: rangeDays,
-          skip_weekdays: skipWeekends ? [0, 6] : [],
-          ...(trailOverride
-            ? {
-                trail_enabled: trailOverride.enabled,
-                trail_activate_r: trailOverride.activateR,
-                trail_step_r: trailOverride.stepR,
-              }
-            : {}),
-        },
-      }),
-    onSuccess: (r) => {
-      setRange(r);
-      toast.success(`Backtest ${rangeDays}d — ${r.summary.tp}W / ${r.summary.sl}L`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1156,6 +1119,8 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  // Trailing SL uses saved values for live; no per-run override on the dashboard.
+  const [trailOverride, setTrailOverride] = useState<TrailOverride>(null);
 
   const s = q.data?.settings as
     | {
@@ -1227,34 +1192,11 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
-          <Button size="sm" variant="secondary" disabled={btMut.isPending} onClick={() => btMut.mutate()}>
-            {btMut.isPending ? "Replaying…" : "Run today"}
-          </Button>
-          <select
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-mono"
-            value={rangeDays}
-            onChange={(e) => setRangeDays(Number(e.target.value))}
-            disabled={rangeMut.isPending}
-          >
-            <option value={7}>7d</option>
-            <option value={30}>30d</option>
-            <option value={90}>90d</option>
-            <option value={180}>180d</option>
-            <option value={365}>365d</option>
-          </select>
-          <label className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={skipWeekends}
-              onChange={(e) => setSkipWeekends(e.target.checked)}
-              disabled={rangeMut.isPending}
-              className="accent-primary"
-            />
-            skip S/S
-          </label>
-          <Button size="sm" variant="secondary" disabled={rangeMut.isPending} onClick={() => rangeMut.mutate()}>
-            {rangeMut.isPending ? "Replaying…" : `Backtest ${rangeDays}d`}
-          </Button>
+          <Link to="/backtest">
+            <Button size="sm" variant="secondary">
+              <Beaker className="w-4 h-4 mr-1" /> Backtest Lab
+            </Button>
+          </Link>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1285,8 +1227,11 @@ function StrategyCard() {
             />
           </label>
         </div>
-        {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
-        {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
+
+
+
+
+
 
 
 

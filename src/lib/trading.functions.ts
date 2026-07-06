@@ -150,7 +150,11 @@ export const getExchangeAccount = createServerFn({ method: "GET" }).handler(asyn
   try {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
     const snapshot = await createSharkClient().getAccountSnapshot();
-    return { ok: true as const, message: "ok", snapshot };
+    return {
+      ok: true as const,
+      message: "ok",
+      snapshot: JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>,
+    };
   } catch (e) {
     return {
       ok: false as const,

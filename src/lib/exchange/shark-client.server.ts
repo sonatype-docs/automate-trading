@@ -251,8 +251,12 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getKlines(symbol, interval = "1h", limit = 100) {
-      const url = `${BASE_URL}/v1/market/klines/${encodeURIComponent(symbol.toUpperCase())}?interval=${interval}&limit=${limit}`;
-      const res = await fetch(url, { headers: { accept: "application/json" } });
+      const url = `${BASE_URL}/v1/market/klines`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ pair: symbol.toUpperCase(), interval, limit }),
+      });
       const text = await res.text();
       if (!res.ok) {
         throw new Error(`Klines failed [${res.status}]: ${text.slice(0, 300)}`);

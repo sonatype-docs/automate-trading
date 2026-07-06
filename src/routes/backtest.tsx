@@ -454,6 +454,10 @@ function ResultsView({ data }: { data: RangeData }) {
           </div>
         </div>
 
+        <CalendarView data={data} />
+
+
+
         <div className="max-h-96 overflow-y-auto border border-border rounded">
           <table className="w-full text-[11px]">
             <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60 sticky top-0">
@@ -525,3 +529,222 @@ function Kv({ k, v, tone }: { k: string; v: string; tone?: string }) {
     </div>
   );
 }
+
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+] as const;
+
+type DayRow = RangeData["days"][number];
+
+function CalendarView({ data }: { data: RangeData }) {
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+
+  const months = useMemo(() => {
+    const byMonth = new Map<string, { year: number; month: number; days: Map<number, DayRow> }>();
+    for (const d of data.days) {
+      const [y, m, dd] = d.ist_date.split("-").map((n) => parseInt(n, 10));
+      const key = `${y}-${String(m).padStart(2, "0")}`;
+      let bucket = byMonth.get(key);
+      if (!bucket) {
+        bucket = { year: y, month: m, days: new Map() };
+        byMonth.set(key, bucket);
+      }
+      bucket.days.set(dd, d);
+    }
+    return [...byMonth.entries()]
+      .sort(([a], [b]) => (a < b ? 1 : -1))
+      .map(([, v]) => v);
+  }, [data.days]);
+
+  const monthTotals = useMemo(
+    () =>
+      months.map((m) => {
+        const rows = [...m.days.values()];
+        const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
+        const wins = rows.filter((r) => r.outcome === "tp").length;
+        const losses = rows.filter((r) => r.outcome === "sl").length;
+        return { year: m.year, month: m.month, total, wins, losses, trades: wins + losses };
+      }),
+    [months],
+  );
+
+  const bestMonth = monthTotals.reduce<typeof monthTotals[number] | null>(
+    (b, m) => (b == null || m.total > b.total ? m : b),
+    null,
+  );
+  const worstMonth = monthTotals.reduce<typeof monthTotals[number] | null>(
+    (b, m) => (b == null || m.total < b.total ? m : b),
+    null,
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Calendar — daily P&amp;L
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Kv k="months covered" v={String(monthTotals.length)} />
+        <Kv
+          k="best month"
+          v={
+            bestMonth
+              ? `${MONTH_LABELS[bestMonth.month - 1].slice(0, 3)} ${bestMonth.year} ${fmtUsd(bestMonth.total)}`
+              : "—"
+          }
+          tone="text-long"
+        />
+        <Kv
+          k="worst month"
+          v={
+            worstMonth
+              ? `${MONTH_LABELS[worstMonth.month - 1].slice(0, 3)} ${worstMonth.year} ${fmtUsd(worstMonth.total)}`
+              : "—"
+          }
+          tone="text-short"
+        />
+        <Kv
+          k="avg month"
+          v={
+            monthTotals.length
+              ? fmtUsd(monthTotals.reduce((s, m) => s + m.total, 0) / monthTotals.length)
+              : "—"
+          }
+        />
+      </div>
+
+      <div className="border border-border rounded overflow-hidden">
+        <table className="w-full text-[11px]">
+          <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60">
+            <tr>
+              <th className="text-left px-2 py-1">Month</th>
+              <th className="text-right px-2 py-1">Trades</th>
+              <th className="text-right px-2 py-1">W / L</th>
+              <th className="text-right px-2 py-1">Win %</th>
+              <th className="text-right px-2 py-1">Total $</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthTotals.map((m) => {
+              const winRate = m.trades > 0 ? (m.wins / m.trades) * 100 : 0;
+              const tone =
+                m.total > 0 ? "text-long" : m.total < 0 ? "text-short" : "text-muted-foreground";
+              return (
+                <tr key={`${m.year}-${m.month}`} className="border-t border-border">
+                  <td className="px-2 py-1">
+                    {MONTH_LABELS[m.month - 1]} {m.year}
+                  </td>
+                  <td className="text-right px-2 py-1">{m.trades}</td>
+                  <td className="text-right px-2 py-1">
+                    {m.wins} / {m.losses}
+                  </td>
+                  <td className="text-right px-2 py-1">
+                    {m.trades > 0 ? `${winRate.toFixed(0)}%` : "—"}
+                  </td>
+                  <td className={`text-right px-2 py-1 ${tone}`}>
+                    {m.trades > 0 ? fmtUsd(m.total) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {months.map((m) => (
+          <MonthGrid key={`${m.year}-${m.month}`} year={m.year} month={m.month} days={m.days} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MonthGrid({
+  year,
+  month,
+  days,
+}: {
+  year: number;
+  month: number;
+  days: Map<number, DayRow>;
+}) {
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(0)}`;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=Sun
+  const rows = [...days.values()];
+  const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
+  const wins = rows.filter((r) => r.outcome === "tp").length;
+  const losses = rows.filter((r) => r.outcome === "sl").length;
+  const totalTone = total > 0 ? "text-long" : total < 0 ? "text-short" : "text-muted-foreground";
+
+  // Extremes for color intensity scaling.
+  const maxAbs = rows.reduce((m, r) => Math.max(m, Math.abs(r.pnl_usd)), 0) || 1;
+
+  const cells: (DayRow | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(days.get(d) ?? null);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="border border-border rounded p-2 bg-muted/20">
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-mono text-[11px] tracking-widest uppercase">
+          {MONTH_LABELS[month - 1]} {year}
+        </div>
+        <div className={`font-mono text-[11px] ${totalTone}`}>
+          {fmtUsd(total)} · {wins}W/{losses}L
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {(["S", "M", "T", "W", "T", "F", "S"] as const).map((d, i) => (
+          <div
+            key={i}
+            className="text-[9px] uppercase text-muted-foreground text-center tracking-widest"
+          >
+            {d}
+          </div>
+        ))}
+        {cells.map((c, i) => {
+          if (!c) return <div key={i} className="h-11 rounded bg-transparent" />;
+          const dayNum = parseInt(c.ist_date.slice(8, 10), 10);
+          const pnl = c.pnl_usd;
+          const intensity = Math.min(1, Math.abs(pnl) / maxAbs);
+          const alpha = 0.15 + intensity * 0.55;
+          let bg = "transparent";
+          let textCls = "text-muted-foreground";
+          if (c.outcome === "tp") {
+            bg = `hsl(var(--primary) / ${alpha})`;
+            textCls = "text-long";
+          } else if (c.outcome === "sl") {
+            bg = `hsl(var(--destructive) / ${alpha})`;
+            textCls = "text-short";
+          } else if (c.skipped) {
+            bg = "hsl(var(--muted) / 0.4)";
+          } else if (c.outcome === "open") {
+            bg = "hsl(var(--warning, var(--primary)) / 0.15)";
+            textCls = "text-warning";
+          }
+          const title = `${c.ist_date} · ${c.outcome.replace(/_/g, " ")}${
+            pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""
+          }`;
+          return (
+            <div
+              key={i}
+              title={title}
+              className="h-11 rounded border border-border/60 px-1 py-0.5 flex flex-col justify-between"
+              style={{ backgroundColor: bg }}
+            >
+              <div className="text-[9px] font-mono text-foreground/70">{dayNum}</div>
+              <div className={`text-[9px] font-mono text-right ${textCls}`}>
+                {pnl !== 0 ? fmtUsd(pnl) : c.skipped ? "·" : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+

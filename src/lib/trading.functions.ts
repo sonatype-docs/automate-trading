@@ -140,3 +140,58 @@ export const testExchangeConnection = createServerFn({ method: "POST" }).handler
     };
   }
 });
+
+// ------------------------------------------------------------------
+// Live market ticker (public — no API key required)
+// SharkExchange: GET https://api.sharkexchange.in/v1/market/ticker24Hr/{pair}
+// ------------------------------------------------------------------
+const TickerInputSchema = z.object({
+  symbol: z
+    .string()
+    .min(3)
+    .max(24)
+    .regex(/^[A-Z0-9]+$/, "Symbol must be uppercase alphanumeric (e.g. XAUUSDT)"),
+});
+
+export const getMarketTicker = createServerFn({ method: "GET" })
+  .inputValidator((input: { symbol: string }) => TickerInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const url = `https://api.sharkexchange.in/v1/market/ticker24Hr/${encodeURIComponent(data.symbol)}`;
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Ticker request failed [${res.status}]: ${text.slice(0, 300)}`);
+    }
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(`Ticker response was not JSON: ${text.slice(0, 300)}`);
+    }
+    // Response is shaped as { data: { ...binance-style fields... } }
+    const t =
+      (parsed as { data?: Record<string, unknown> } | null)?.data ??
+      (parsed as Record<string, unknown>);
+    const num = (v: unknown) =>
+      v === undefined || v === null ? null : Number(v);
+    return {
+      symbol: (t?.s as string) ?? data.symbol,
+      lastPrice: num(t?.c),
+      priceChange: num(t?.p),
+      priceChangePct: num(t?.P),
+      weightedAvg: num(t?.w),
+      open: num(t?.o),
+      high: num(t?.h),
+      low: num(t?.l),
+      volume: num(t?.v),
+      quoteVolume: num(t?.q),
+      trades: num(t?.n),
+      lastTradeQty: num(t?.Q),
+      eventTime: (t?.E as number) ?? Date.now(),
+      openTime: (t?.O as number) ?? null,
+      closeTime: (t?.C as number) ?? null,
+    };
+  });
+

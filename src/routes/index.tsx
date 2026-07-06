@@ -5,7 +5,9 @@ import {
   getDashboard,
   updateSettings,
   sendTestSignal,
+  getMarketTicker,
 } from "@/lib/trading.functions";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -192,6 +194,10 @@ function Dashboard() {
           <Metric label="OPEN POS" value={metrics.openPositions.toString()} />
           <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
         </div>
+
+        <LiveTicker defaultSymbol="XAUUSDT" />
+
+
 
         <Card>
           <CardHeader className="pb-2">
@@ -437,3 +443,123 @@ function Metric({
     </Card>
   );
 }
+
+function LiveTicker({ defaultSymbol }: { defaultSymbol: string }) {
+  const [symbol, setSymbol] = useState(defaultSymbol);
+  const [input, setInput] = useState(defaultSymbol);
+  const getTicker = useServerFn(getMarketTicker);
+  const q = useQuery({
+    queryKey: ["ticker", symbol],
+    queryFn: () => getTicker({ data: { symbol } }),
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+  });
+
+  const fmt = (v: number | null | undefined, digits = 2) =>
+    v === null || v === undefined || Number.isNaN(v)
+      ? "—"
+      : v.toLocaleString(undefined, {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        });
+
+  const t = q.data;
+  const pct = t?.priceChangePct ?? 0;
+  const up = pct >= 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="text-sm font-mono tracking-wide flex items-center gap-2">
+            LIVE TICKER · {symbol}
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            <span className="text-[10px] text-muted-foreground">
+              {q.isFetching ? "updating…" : "live"}
+            </span>
+          </CardTitle>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const s = input.trim().toUpperCase();
+              if (/^[A-Z0-9]{3,24}$/.test(s)) setSymbol(s);
+              else toast.error("Symbol must be uppercase alphanumeric (e.g. XAUUSDT)");
+            }}
+            className="flex items-center gap-2"
+          >
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value.toUpperCase())}
+              className="h-8 w-32 font-mono text-xs"
+              placeholder="XAUUSDT"
+            />
+            <Button type="submit" size="sm" variant="secondary" className="h-8">
+              Load
+            </Button>
+          </form>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {q.isError ? (
+          <div className="text-xs text-destructive font-mono py-4">
+            {q.error instanceof Error ? q.error.message : "Failed to load ticker."}
+          </div>
+        ) : !t ? (
+          <div className="text-xs text-muted-foreground py-4">Loading ticker…</div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-4 flex-wrap">
+              <div className={`text-4xl font-mono ${up ? "text-long" : "text-short"}`}>
+                {fmt(t.lastPrice, 2)}
+              </div>
+              <div
+                className={`text-sm font-mono ${up ? "text-long" : "text-short"} flex items-center gap-1`}
+              >
+                {up ? (
+                  <ArrowUpRight className="w-4 h-4" />
+                ) : (
+                  <ArrowDownRight className="w-4 h-4" />
+                )}
+                {up ? "+" : ""}
+                {fmt(t.priceChange, 2)} ({up ? "+" : ""}
+                {fmt(t.priceChangePct, 2)}%)
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono ml-auto">
+                {t.eventTime ? new Date(t.eventTime).toLocaleTimeString() : ""}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-2 mt-4 text-xs font-mono">
+              <TickerStat label="24H OPEN" value={fmt(t.open, 2)} />
+              <TickerStat label="24H HIGH" value={fmt(t.high, 2)} tone="long" />
+              <TickerStat label="24H LOW" value={fmt(t.low, 2)} tone="short" />
+              <TickerStat label="24H VOL" value={fmt(t.volume, 3)} />
+              <TickerStat label="TRADES" value={fmt(t.trades, 0)} />
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TickerStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "long" | "short";
+}) {
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground tracking-widest">{label}</div>
+      <div
+        className={`mt-0.5 ${tone === "long" ? "text-long" : tone === "short" ? "text-short" : ""}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+

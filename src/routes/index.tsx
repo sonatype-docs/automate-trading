@@ -1198,9 +1198,14 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
+          <Button size="sm" variant="secondary" disabled={btMut.isPending} onClick={() => btMut.mutate()}>
+            {btMut.isPending ? "Replaying…" : "Run today"}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
+
         {session ? (
           <div className="grid grid-cols-4 gap-2 font-mono text-xs">
             <ZoneCell label="HIGH · fib 0" value={session.zone_high} />

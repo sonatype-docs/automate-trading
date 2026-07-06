@@ -578,6 +578,26 @@ function CalendarView({ data }: { data: RangeData }) {
     null,
   );
 
+  // Month navigation (most recent first).
+  const [monthIdx, setMonthIdx] = useState(0);
+  const activeIdx = Math.min(monthIdx, Math.max(0, months.length - 1));
+  const active = months[activeIdx];
+  const [selected, setSelected] = useState<DayRow | null>(null);
+
+  const jumpYear = (dir: 1 | -1) => {
+    if (!active) return;
+    const target = active.year - dir; // dir=1 = older year (higher idx)
+    const found = months.findIndex((m) => m.year === target);
+    if (found >= 0) setMonthIdx(found);
+    else {
+      // fallback: nearest month whose year <= target (older) or >= target (newer)
+      const idx = dir === 1
+        ? months.findIndex((m) => m.year <= target)
+        : [...months].reverse().findIndex((m) => m.year >= target);
+      if (idx >= 0) setMonthIdx(dir === 1 ? idx : months.length - 1 - idx);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -626,12 +646,19 @@ function CalendarView({ data }: { data: RangeData }) {
             </tr>
           </thead>
           <tbody>
-            {monthTotals.map((m) => {
+            {monthTotals.map((m, i) => {
               const winRate = m.trades > 0 ? (m.wins / m.trades) * 100 : 0;
               const tone =
                 m.total > 0 ? "text-long" : m.total < 0 ? "text-short" : "text-muted-foreground";
+              const isActive = i === activeIdx;
               return (
-                <tr key={`${m.year}-${m.month}`} className="border-t border-border">
+                <tr
+                  key={`${m.year}-${m.month}`}
+                  className={`border-t border-border cursor-pointer hover:bg-muted/40 ${
+                    isActive ? "bg-muted/40" : ""
+                  }`}
+                  onClick={() => setMonthIdx(i)}
+                >
                   <td className="px-2 py-1">
                     {MONTH_LABELS[m.month - 1]} {m.year}
                   </td>
@@ -652,12 +679,214 @@ function CalendarView({ data }: { data: RangeData }) {
         </table>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {months.map((m) => (
-          <MonthGrid key={`${m.year}-${m.month}`} year={m.year} month={m.month} days={m.days} />
-        ))}
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-muted-foreground border border-border rounded px-3 py-2 bg-muted/20">
+        <span className="uppercase tracking-widest">Legend</span>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--primary) / 0.2)" }} />
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--primary) / 0.45)" }} />
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--primary) / 0.7)" }} />
+          <span className="text-long">Win (darker = bigger $)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--destructive) / 0.2)" }} />
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--destructive) / 0.45)" }} />
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--destructive) / 0.7)" }} />
+          <span className="text-short">Loss (darker = bigger $)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--warning, var(--primary)) / 0.15)" }} />
+          <span className="text-warning">Open</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-border" style={{ backgroundColor: "hsl(var(--muted) / 0.4)" }} />
+          <span>Skipped</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-border bg-transparent" />
+          <span>No trade / no data</span>
+        </div>
       </div>
+
+      {/* Month nav */}
+      {active && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => jumpYear(1)} disabled={activeIdx >= months.length - 1}>
+              « Year
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMonthIdx(Math.min(months.length - 1, activeIdx + 1))}
+              disabled={activeIdx >= months.length - 1}
+            >
+              ‹ Prev
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-mono"
+              value={activeIdx}
+              onChange={(e) => setMonthIdx(Number(e.target.value))}
+            >
+              {months.map((m, i) => (
+                <option key={`${m.year}-${m.month}`} value={i}>
+                  {MONTH_LABELS[m.month - 1]} {m.year}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMonthIdx(Math.max(0, activeIdx - 1))}
+              disabled={activeIdx <= 0}
+            >
+              Next ›
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => jumpYear(-1)} disabled={activeIdx <= 0}>
+              Year »
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {active && (
+        <div className="max-w-md">
+          <MonthGrid
+            year={active.year}
+            month={active.month}
+            days={active.days}
+            onDayClick={(d) => setSelected(d)}
+          />
+        </div>
+      )}
+
+      <DayDetailSheet
+        day={selected}
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        symbol={data.symbol}
+        rr={data.rr}
+      />
     </div>
+  );
+}
+
+function DayDetailSheet({
+  day,
+  open,
+  onOpenChange,
+  symbol,
+  rr,
+}: {
+  day: DayRow | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  symbol: string;
+  rr: number;
+}) {
+  const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2));
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+  const fmtTime = (ms: number | null | undefined) =>
+    ms == null ? "—" : new Date(ms).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "2-digit" });
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="font-mono text-sm tracking-widest">
+            {day ? `${day.ist_date} · ${day.weekday_label}` : "Trade detail"}
+          </SheetTitle>
+          <SheetDescription className="text-xs">
+            {symbol} · target 1:{rr}
+          </SheetDescription>
+        </SheetHeader>
+
+        {day && (
+          <div className="mt-4 space-y-3 font-mono text-xs">
+            {day.outcome === "no_session" || day.outcome === "skipped" || day.zone_high == null ? (
+              <p className="text-muted-foreground">
+                {day.skipped
+                  ? "Weekday excluded from the simulation — no trade taken."
+                  : "No session candle available for this day."}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Kv
+                    k="outcome"
+                    v={day.outcome.replace(/_/g, " ").toUpperCase()}
+                    tone={
+                      day.outcome === "tp"
+                        ? "text-long"
+                        : day.outcome === "sl"
+                          ? "text-short"
+                          : day.outcome === "open"
+                            ? "text-warning"
+                            : "text-muted-foreground"
+                    }
+                  />
+                  <Kv
+                    k="p&l"
+                    v={day.pnl_usd === 0 ? "—" : fmtUsd(day.pnl_usd)}
+                    tone={day.pnl_usd > 0 ? "text-long" : day.pnl_usd < 0 ? "text-short" : ""}
+                  />
+                  <Kv
+                    k="side"
+                    v={day.break_side ? day.break_side.toUpperCase() : "—"}
+                    tone={day.break_side === "long" ? "text-long" : day.break_side === "short" ? "text-short" : ""}
+                  />
+                  <Kv k="peak R" v={day.peak_r > 0 ? day.peak_r.toFixed(2) : "—"} />
+                </div>
+
+                <div className="border border-border rounded">
+                  <table className="w-full text-[11px]">
+                    <tbody>
+                      <Row k="Zone High / Low" v={`${fmt(day.zone_high)} / ${fmt(day.zone_low)}`} />
+                      <Row k="Fib 25% / 75%" v={`${fmt(day.fib_25)} / ${fmt(day.fib_75)}`} />
+                      <Row
+                        k="Break"
+                        v={day.break_side ? `${day.break_side.toUpperCase()} @ ${fmt(day.break_close)}` : "—"}
+                      />
+                      <Row k="Break time" v={fmtTime(day.break_at)} />
+                      <Row k="Entry" v={fmt(day.entry)} />
+                      <Row k="Initial SL" v={fmt(day.sl)} />
+                      <Row k="Final SL" v={fmt(day.final_sl)} />
+                      <Row k="TP" v={fmt(day.tp)} />
+                      <Row k="Qty" v={day.qty != null ? day.qty.toFixed(4) : "—"} />
+                      <Row k="Triggered at" v={fmtTime(day.trigger_at)} />
+                      <Row k="Exit R" v={day.exit_r != null ? day.exit_r.toFixed(2) : "—"} />
+                    </tbody>
+                  </table>
+                </div>
+
+                {day.outcome === "no_break" && (
+                  <p className="text-muted-foreground">Price never closed outside the session range — no setup armed.</p>
+                )}
+                {day.outcome === "armed_no_trigger" && (
+                  <p className="text-muted-foreground">Setup armed but price never pulled back to the entry.</p>
+                )}
+                {day.outcome === "open" && (
+                  <p className="text-warning">Trade is still open in this replay window.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <tr className="border-t border-border first:border-t-0">
+      <td className="px-2 py-1 text-muted-foreground">{k}</td>
+      <td className="px-2 py-1 text-right">{v}</td>
+    </tr>
   );
 }
 
@@ -665,10 +894,12 @@ function MonthGrid({
   year,
   month,
   days,
+  onDayClick,
 }: {
   year: number;
   month: number;
   days: Map<number, DayRow>;
+  onDayClick?: (d: DayRow) => void;
 }) {
   const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(0)}`;
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -729,18 +960,23 @@ function MonthGrid({
           const title = `${c.ist_date} · ${c.outcome.replace(/_/g, " ")}${
             pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""
           }`;
+          const clickable = !!onDayClick;
           return (
-            <div
+            <button
               key={i}
+              type="button"
               title={title}
-              className="h-11 rounded border border-border/60 px-1 py-0.5 flex flex-col justify-between"
+              onClick={clickable ? () => onDayClick!(c) : undefined}
+              className={`h-11 rounded border border-border/60 px-1 py-0.5 flex flex-col justify-between text-left transition ${
+                clickable ? "hover:ring-1 hover:ring-primary/50 cursor-pointer" : "cursor-default"
+              }`}
               style={{ backgroundColor: bg }}
             >
               <div className="text-[9px] font-mono text-foreground/70">{dayNum}</div>
               <div className={`text-[9px] font-mono text-right ${textCls}`}>
                 {pnl !== 0 ? fmtUsd(pnl) : c.skipped ? "·" : ""}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

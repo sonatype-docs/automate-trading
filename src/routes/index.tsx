@@ -292,9 +292,9 @@ function Dashboard() {
             tone={equityChange >= 0 ? "long" : "short"}
           />
           <Metric
-            label="REALIZED P&L"
-            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
-            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
+            label="REALIZED P&L (USD)"
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtUSD(realizedPnl)}`}
+            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`}
             tone={realizedPnl >= 0 ? "long" : "short"}
           />
           <Metric
@@ -303,8 +303,8 @@ function Dashboard() {
             sub={`Free ${fmtINR(walletFree)}`}
           />
           <Metric
-            label="TOTAL FEES"
-            value={fmtINR(feesTotal, 4)}
+            label="TOTAL FEES (USD)"
+            value={fmtUSD(feesTotal, 4)}
             sub={`${exTrades.length} trades`}
             tone="short"
           />

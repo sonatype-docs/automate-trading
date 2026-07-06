@@ -261,6 +261,11 @@ function Dashboard() {
             />
           </div>
           <div className="flex items-center gap-2">
+            <Link to="/backtest">
+              <Button variant="ghost" size="sm">
+                <Beaker className="w-4 h-4 mr-2" /> Backtest
+              </Button>
+            </Link>
             <Link to="/docs">
               <Button variant="ghost" size="sm">
                 <BookOpen className="w-4 h-4 mr-2" /> Webhook setup

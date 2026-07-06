@@ -8,7 +8,7 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow } from "@/lib/strategy.functions";
+import { getStrategyState, runStrategyTickNow, backtestToday } from "@/lib/strategy.functions";
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -221,11 +221,11 @@ export function createSharkClient(): ExchangeClient {
         errors: {},
       };
       await Promise.all(
-        endpoints.map(async ([key, path, params]) => {
+        endpoints.map(async ({ key, path, params }) => {
           try {
             const res = await signedGet(apiKey, apiSecret, path, params);
             if (res.ok) {
-              snap[key] = res.json ?? res.body;
+              (snap as Record<string, unknown>)[key] = res.json ?? res.body;
             } else {
               snap.errors[key] = `[${res.status}] ${res.body.slice(0, 200)}`;
             }

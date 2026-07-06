@@ -201,5 +201,41 @@ export function createSharkClient(): ExchangeClient {
       };
     },
 
+    async getAccountSnapshot() {
+      const { apiKey, apiSecret } = requireCreds();
+      const endpoints: Array<[keyof AccountSnapshot, string, Record<string, string>]> = [
+        ["futuresWallet", "/v1/wallet/futures-wallet/details", {}],
+        ["fundingWallet", "/v1/wallet/funding-wallet/details", {}],
+        ["openPositions", "/v1/positions/OPEN", { sortOrder: "desc", pageSize: "50" }],
+        ["openOrders", "/v1/order/open-orders", { sortOrder: "desc", pageSize: "50" }],
+        ["tradeHistory", "/v1/user-data/trade-history", { sortOrder: "desc", pageSize: "25" }],
+        ["transactionHistory", "/v1/user-data/transaction-history", { sortOrder: "desc", pageSize: "25" }],
+      ];
+      const snap: AccountSnapshot = {
+        futuresWallet: null,
+        fundingWallet: null,
+        openPositions: null,
+        openOrders: null,
+        tradeHistory: null,
+        transactionHistory: null,
+        errors: {},
+      };
+      await Promise.all(
+        endpoints.map(async ([key, path, params]) => {
+          try {
+            const res = await signedGet(apiKey, apiSecret, path, params);
+            if (res.ok) {
+              snap[key] = res.json ?? res.body;
+            } else {
+              snap.errors[key] = `[${res.status}] ${res.body.slice(0, 200)}`;
+            }
+          } catch (e) {
+            snap.errors[key] = e instanceof Error ? e.message : String(e);
+          }
+        }),
+      );
+      return snap;
+    },
   };
 }
+

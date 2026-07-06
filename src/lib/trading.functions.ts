@@ -1,96 +1,52 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function assertOwner(context: { supabase: any; userId: string }) {
-  const { data, error } = await context.supabase.rpc("is_owner");
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden — not the app owner");
+async function admin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
 }
 
-export const getOwnerStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: ownerRow } = await context.supabase
-      .from("owner")
-      .select("user_id")
-      .maybeSingle();
-    return {
-      hasOwner: !!ownerRow,
-      isOwner: ownerRow?.user_id === context.userId,
-    };
-  });
+export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
+  const supabase = await admin();
 
-export const claimOwnership = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("claim_ownership");
-    if (error) throw new Error(error.message);
-    return { isOwner: !!data };
-  });
+  const [settingsRes, ordersRes, tradesRes, positionsRes, logsRes, eventsRes] =
+    await Promise.all([
+      supabase.from("settings").select("*").eq("id", true).single(),
+      supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(25),
+      supabase.from("trades").select("*").order("closed_at", { ascending: false }).limit(100),
+      supabase.from("positions").select("*"),
+      supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(30),
+      supabase.from("webhook_events").select("*").order("received_at", { ascending: false }).limit(15),
+    ]);
 
-export const getDashboard = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertOwner(context);
-    const { supabase } = context;
+  const now = new Date();
+  const dayStart = new Date(now);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const trades = tradesRes.data ?? [];
+  const todaysPnl = trades
+    .filter((t) => new Date(t.closed_at) >= dayStart)
+    .reduce((a, t) => a + Number(t.pnl_usd), 0);
+  const totalPnl = trades.reduce((a, t) => a + Number(t.pnl_usd), 0);
+  const wins = trades.filter((t) => Number(t.pnl_usd) > 0).length;
+  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
 
-    const [settingsRes, ordersRes, tradesRes, positionsRes, logsRes, eventsRes] =
-      await Promise.all([
-        supabase.from("settings").select("*").eq("id", true).single(),
-        supabase
-          .from("orders")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(25),
-        supabase
-          .from("trades")
-          .select("*")
-          .order("closed_at", { ascending: false })
-          .limit(100),
-        supabase.from("positions").select("*"),
-        supabase
-          .from("activity_log")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(30),
-        supabase
-          .from("webhook_events")
-          .select("*")
-          .order("received_at", { ascending: false })
-          .limit(15),
-      ]);
-
-    const now = new Date();
-    const dayStart = new Date(now);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const trades = tradesRes.data ?? [];
-    const todaysPnl = trades
-      .filter((t) => new Date(t.closed_at) >= dayStart)
-      .reduce((a, t) => a + Number(t.pnl_usd), 0);
-    const totalPnl = trades.reduce((a, t) => a + Number(t.pnl_usd), 0);
-    const wins = trades.filter((t) => Number(t.pnl_usd) > 0).length;
-    const winRate = trades.length ? (wins / trades.length) * 100 : 0;
-
-    return {
-      settings: settingsRes.data,
-      orders: ordersRes.data ?? [],
-      trades,
-      positions: positionsRes.data ?? [],
-      logs: logsRes.data ?? [],
-      events: eventsRes.data ?? [],
-      metrics: {
-        equity:
-          Number(settingsRes.data?.paper_starting_equity ?? 0) + totalPnl,
-        totalPnl,
-        todaysPnl,
-        winRate,
-        openPositions: (positionsRes.data ?? []).length,
-        totalTrades: trades.length,
-      },
-    };
-  });
+  return {
+    settings: settingsRes.data,
+    orders: ordersRes.data ?? [],
+    trades,
+    positions: positionsRes.data ?? [],
+    logs: logsRes.data ?? [],
+    events: eventsRes.data ?? [],
+    metrics: {
+      equity: Number(settingsRes.data?.paper_starting_equity ?? 0) + totalPnl,
+      totalPnl,
+      todaysPnl,
+      winRate,
+      openPositions: (positionsRes.data ?? []).length,
+      totalTrades: trades.length,
+    },
+  };
+});
 
 const SettingsSchema = z.object({
   kill_switch: z.boolean().optional(),
@@ -103,11 +59,10 @@ const SettingsSchema = z.object({
 });
 
 export const updateSettings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SettingsSchema.parse(input))
-  .handler(async ({ data, context }) => {
-    await assertOwner(context);
-    const { data: row, error } = await context.supabase
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: row, error } = await supabase
       .from("settings")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", true)
@@ -117,19 +72,14 @@ export const updateSettings = createServerFn({ method: "POST" })
     return row;
   });
 
-export const getWebhookInfo = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertOwner(context);
-    const hasSecret = !!process.env.TRADINGVIEW_WEBHOOK_SECRET;
-    const hasExchangeKey =
-      !!process.env.SHARKEXCHANGE_API_KEY &&
-      !!process.env.SHARKEXCHANGE_API_SECRET;
-    return { hasSecret, hasExchangeKey };
-  });
+export const getWebhookInfo = createServerFn({ method: "GET" }).handler(async () => {
+  const hasSecret = !!process.env.TRADINGVIEW_WEBHOOK_SECRET;
+  const hasExchangeKey =
+    !!process.env.SHARKEXCHANGE_API_KEY && !!process.env.SHARKEXCHANGE_API_SECRET;
+  return { hasSecret, hasExchangeKey };
+});
 
 export const sendTestSignal = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z
       .object({
@@ -140,14 +90,11 @@ export const sendTestSignal = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
-    await assertOwner(context);
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
+  .handler(async ({ data }) => {
+    const supabase = await admin();
     const { processSignal } = await import("@/lib/trading/engine.server");
     const alertId = `test-${Date.now()}-${data.symbol}`;
-    const { data: eventRow, error } = await supabaseAdmin
+    const { data: eventRow, error } = await supabase
       .from("webhook_events")
       .insert({
         alert_id: alertId,
@@ -157,11 +104,8 @@ export const sendTestSignal = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
-    const result = await processSignal(
-      { ...data, alert_id: alertId },
-      eventRow.id,
-    );
-    await supabaseAdmin
+    const result = await processSignal({ ...data, alert_id: alertId }, eventRow.id);
+    await supabase
       .from("webhook_events")
       .update({ status: result.status, reason: result.reason ?? null })
       .eq("id", eventRow.id);

@@ -9,36 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedDocsRouteImport } from './routes/_authenticated/docs'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as DocsRouteImport } from './routes/docs'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDocsRoute = AuthenticatedDocsRouteImport.update({
+const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
-  getParentRoute: () => AuthenticatedRouteRoute,
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
@@ -48,90 +37,66 @@ const ApiPublicWebhookTradingviewRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedIndexRoute
-  '/auth': typeof AuthRoute
-  '/docs': typeof AuthenticatedDocsRoute
-  '/settings': typeof AuthenticatedSettingsRoute
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/settings': typeof SettingsRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesByTo {
-  '/auth': typeof AuthRoute
-  '/docs': typeof AuthenticatedDocsRoute
-  '/settings': typeof AuthenticatedSettingsRoute
-  '/': typeof AuthenticatedIndexRoute
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/settings': typeof SettingsRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
-  '/_authenticated/docs': typeof AuthenticatedDocsRoute
-  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/settings': typeof SettingsRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/auth'
-    | '/docs'
-    | '/settings'
-    | '/api/public/webhook/tradingview'
+  fullPaths: '/' | '/docs' | '/settings' | '/api/public/webhook/tradingview'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/docs' | '/settings' | '/' | '/api/public/webhook/tradingview'
+  to: '/' | '/docs' | '/settings' | '/api/public/webhook/tradingview'
   id:
     | '__root__'
-    | '/_authenticated'
-    | '/auth'
-    | '/_authenticated/docs'
-    | '/_authenticated/settings'
-    | '/_authenticated/'
+    | '/'
+    | '/docs'
+    | '/settings'
     | '/api/public/webhook/tradingview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  IndexRoute: typeof IndexRoute
+  DocsRoute: typeof DocsRoute
+  SettingsRoute: typeof SettingsRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/': {
-      id: '/_authenticated/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
+    '/settings': {
+      id: '/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/docs': {
-      id: '/_authenticated/docs'
+    '/docs': {
+      id: '/docs'
       path: '/docs'
       fullPath: '/docs'
-      preLoaderRoute: typeof AuthenticatedDocsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
@@ -143,36 +108,12 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedRouteRouteChildren {
-  AuthenticatedDocsRoute: typeof AuthenticatedDocsRoute
-  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-}
-
-const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedDocsRoute: AuthenticatedDocsRoute,
-  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-}
-
-const AuthenticatedRouteRouteWithChildren =
-  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
-  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  IndexRoute: IndexRoute,
+  DocsRoute: DocsRoute,
+  SettingsRoute: SettingsRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

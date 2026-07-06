@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/docs")({
+export const Route = createFileRoute("/docs")({
   component: Docs,
   head: () => ({
     meta: [{ title: "Webhook setup — Shark Auto-Trader" }],

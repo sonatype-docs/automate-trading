@@ -1,14 +1,11 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDashboard,
   updateSettings,
-  claimOwnership,
-  getOwnerStatus,
   sendTestSignal,
 } from "@/lib/trading.functions";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -16,16 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  LogOut,
   Settings as SettingsIcon,
   Zap,
-  ShieldOff,
   Shield,
   BookOpen,
 } from "lucide-react";
@@ -38,7 +33,7 @@ import {
   YAxis,
 } from "recharts";
 
-export const Route = createFileRoute("/_authenticated/")({
+export const Route = createFileRoute("/")({
   component: Dashboard,
   head: () => ({
     meta: [
@@ -73,30 +68,14 @@ function StatusBar({
 }
 
 function Dashboard() {
-  const router = useRouter();
   const qc = useQueryClient();
-  const getStatus = useServerFn(getOwnerStatus);
-  const claim = useServerFn(claimOwnership);
   const getDash = useServerFn(getDashboard);
   const updateSettingsFn = useServerFn(updateSettings);
   const sendTest = useServerFn(sendTestSignal);
 
-  const statusQ = useQuery({
-    queryKey: ["owner-status"],
-    queryFn: () => getStatus(),
-  });
-
-  useEffect(() => {
-    if (statusQ.data && !statusQ.data.hasOwner) {
-      // First user — claim ownership
-      claim().then(() => qc.invalidateQueries({ queryKey: ["owner-status"] }));
-    }
-  }, [statusQ.data, claim, qc]);
-
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDash(),
-    enabled: !!statusQ.data?.isOwner,
     refetchInterval: 5000,
   });
 
@@ -127,43 +106,12 @@ function Dashboard() {
     onError: (e) => toast.error(e.message),
   });
 
-  if (statusQ.isLoading) {
-    return <div className="p-8 text-muted-foreground">Loading…</div>;
-  }
-  if (statusQ.data && !statusQ.data.isOwner && statusQ.data.hasOwner) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldOff className="w-5 h-5 text-destructive" />
-              No access
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-4">
-            <p>This trading bot is locked to a single owner and someone else claimed it first.</p>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.navigate({ to: "/auth" });
-              }}
-            >
-              Sign out
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
   if (!dashQ.data) {
     return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;
   }
 
-  const { settings, orders, trades, positions, logs, events, metrics } =
-    dashQ.data;
+  const { settings, orders, trades, positions, logs, events, metrics } = dashQ.data;
 
-  // Build equity curve
   const start = Number(settings?.paper_starting_equity ?? 10000);
   let eq = start;
   const equityCurve = [...trades]
@@ -173,7 +121,6 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -195,22 +142,11 @@ function Dashboard() {
                 <SettingsIcon className="w-4 h-4 mr-2" /> Settings
               </Button>
             </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.navigate({ to: "/auth" });
-              }}
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        {/* Toggles */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardContent className="pt-6 flex items-center justify-between">
@@ -219,9 +155,7 @@ function Dashboard() {
                   <Shield className="w-4 h-4 text-destructive" /> KILL SWITCH
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {settings?.kill_switch
-                    ? "Blocking all new orders."
-                    : "Orders will execute normally."}
+                  {settings?.kill_switch ? "Blocking all new orders." : "Orders will execute normally."}
                 </p>
               </div>
               <Switch
@@ -237,9 +171,7 @@ function Dashboard() {
                   <Zap className="w-4 h-4 text-warning" /> PAPER MODE
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {settings?.paper_mode
-                    ? "Simulated fills, no exchange calls."
-                    : "LIVE — real orders on SharkExchange."}
+                  {settings?.paper_mode ? "Simulated fills, no exchange calls." : "LIVE — real orders on SharkExchange."}
                 </p>
               </div>
               <Switch
@@ -250,7 +182,6 @@ function Dashboard() {
           </Card>
         </div>
 
-        {/* Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Metric label="EQUITY" value={`$${metrics.equity.toFixed(2)}`} />
           <Metric
@@ -262,7 +193,6 @@ function Dashboard() {
           <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
         </div>
 
-        {/* Equity curve */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
@@ -289,7 +219,6 @@ function Dashboard() {
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Positions */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-mono tracking-wide">POSITIONS</CardTitle>
@@ -322,7 +251,6 @@ function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Test signal */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-mono tracking-wide">SEND TEST SIGNAL</CardTitle>
@@ -361,7 +289,6 @@ function Dashboard() {
           </Card>
         </div>
 
-        {/* Recent orders */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-mono tracking-wide">RECENT ORDERS</CardTitle>
@@ -410,7 +337,6 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Two-column activity + events */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="pb-2">

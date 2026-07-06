@@ -1153,10 +1153,10 @@ function StrategyCard() {
 
         {session ? (
           <div className="grid grid-cols-4 gap-2 font-mono text-xs">
-            <ZoneCell label="HIGH · fib 0" value={session.zone_high} />
-            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_25} highlight={session.break_side === "long"} />
-            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_75} highlight={session.break_side === "short"} />
-            <ZoneCell label="LOW · fib 1" value={session.zone_low} />
+            <ZoneCell label="HIGH · fib 1" value={session.zone_high} />
+            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_25} highlight={session.break_side === "short"} />
+            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_75} highlight={session.break_side === "long"} />
+            <ZoneCell label="LOW · fib 0" value={session.zone_low} />
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono">

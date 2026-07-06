@@ -1250,8 +1250,8 @@ function BacktestPanel({ data, onClose }: { data: BacktestData; onClose: () => v
         <div className="grid grid-cols-4 gap-2">
           <BtCell k="session candle" v={fmtTime(data.session_candle.openTime)} />
           <BtCell k="high / low" v={`${fmt(data.session_candle.high)} / ${fmt(data.session_candle.low)}`} />
-          <BtCell k="fib 0.25" v={fmt(data.zone.fib_25)} />
-          <BtCell k="fib 0.75" v={fmt(data.zone.fib_75)} />
+          <BtCell k="fib 0.75 (short entry)" v={fmt(data.zone.fib_25)} />
+          <BtCell k="fib 0.25 (long entry)" v={fmt(data.zone.fib_75)} />
         </div>
       )}
       {data.break && data.setup && (

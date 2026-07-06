@@ -300,7 +300,7 @@ function Dashboard() {
                 <ReTooltip
                   contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
                   labelFormatter={(v) => new Date(v).toLocaleString()}
-                  formatter={(v: number) => [`$${v.toFixed(2)}`, "Equity"]}
+                  formatter={(v: number) => [fmtINR(v), "Equity"]}
                 />
                 <Line type="monotone" dataKey="eq" stroke="var(--primary)" strokeWidth={2} dot={false} />
               </LineChart>

@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
+import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -35,17 +36,25 @@ const ApiPublicWebhookTradingviewRoute =
     path: '/api/public/webhook/tradingview',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksStrategyTickRoute =
+  ApiPublicHooksStrategyTickRouteImport.update({
+    id: '/api/public/hooks/strategy-tick',
+    path: '/api/public/hooks/strategy-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesById {
@@ -53,18 +62,30 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/docs' | '/settings' | '/api/public/webhook/tradingview'
+  fullPaths:
+    | '/'
+    | '/docs'
+    | '/settings'
+    | '/api/public/hooks/strategy-tick'
+    | '/api/public/webhook/tradingview'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/docs' | '/settings' | '/api/public/webhook/tradingview'
+  to:
+    | '/'
+    | '/docs'
+    | '/settings'
+    | '/api/public/hooks/strategy-tick'
+    | '/api/public/webhook/tradingview'
   id:
     | '__root__'
     | '/'
     | '/docs'
     | '/settings'
+    | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesById: FileRoutesById
 }
@@ -72,6 +93,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DocsRoute: typeof DocsRoute
   SettingsRoute: typeof SettingsRoute
+  ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
 }
 
@@ -105,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhookTradingviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/strategy-tick': {
+      id: '/api/public/hooks/strategy-tick'
+      path: '/api/public/hooks/strategy-tick'
+      fullPath: '/api/public/hooks/strategy-tick'
+      preLoaderRoute: typeof ApiPublicHooksStrategyTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -112,6 +141,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocsRoute: DocsRoute,
   SettingsRoute: SettingsRoute,
+  ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,
 }
 export const routeTree = rootRouteImport

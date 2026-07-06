@@ -299,8 +299,8 @@ function Dashboard() {
           />
           <Metric
             label="REALIZED P&L (USD)"
-            value={`${realizedPnl >= 0 ? "+" : ""}${fmtUSD(realizedPnl)}`}
-            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`}
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
+            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
             tone={realizedPnl >= 0 ? "long" : "short"}
           />
           <Metric
@@ -310,7 +310,7 @@ function Dashboard() {
           />
           <Metric
             label="TOTAL FEES (USD)"
-            value={fmtUSD(feesTotal, 4)}
+            value={fmtINR(feesTotal, 4)}
             sub={`${exTrades.length} trades`}
             tone="short"
           />
@@ -338,17 +338,17 @@ function Dashboard() {
               CUMULATIVE REALIZED P&amp;L (USD)
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
-              Net {fmtUSD(pnlRun)} · {pnlTrades.length} fills
+              Net {fmtINR(eqRun)} · {pnlTrades.length} fills
             </span>
           </CardHeader>
           <CardContent className="h-56">
-            {pnlCurve.length === 0 ? (
+            {equityCurve.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
                 No realized P&amp;L yet.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={pnlCurve}>
+                <LineChart data={equityCurve}>
                   <XAxis
                     dataKey="t"
                     tickFormatter={(v) => new Date(v).toLocaleDateString()}
@@ -359,12 +359,12 @@ function Dashboard() {
                     stroke="var(--muted-foreground)"
                     fontSize={10}
                     domain={["auto", "auto"]}
-                    tickFormatter={(v) => fmtUSD(Number(v), 0)}
+                    tickFormatter={(v) => fmtINR(Number(v), 0)}
                   />
                   <ReTooltip
                     contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
                     labelFormatter={(v) => new Date(v).toLocaleString()}
-                    formatter={(v: number) => [fmtUSD(v), "P&L"]}
+                    formatter={(v: number) => [fmtINR(v), "P&L"]}
                   />
                   <Line
                     type="monotone"
@@ -387,7 +387,7 @@ function Dashboard() {
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
               {journal.length} fills · Net {realizedPnl >= 0 ? "+" : ""}
-              {fmtUSD(realizedPnl)} · Fees {fmtUSD(feesTotal, 4)}
+              {fmtINR(realizedPnl)} · Fees {fmtINR(feesTotal, 4)}
             </span>
           </CardHeader>
           <CardContent>
@@ -430,11 +430,11 @@ function Dashboard() {
                         <td className="text-right">
                           {j.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                         </td>
-                        <td className="text-right text-short">{fmtUSD(j.fee, 4)}</td>
+                        <td className="text-right text-short">{fmtINR(j.fee, 4)}</td>
                         <td className={`text-right ${j.pnl > 0 ? "text-long" : j.pnl < 0 ? "text-short" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
+                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
                         </td>
-                        <td className="text-right">{fmtUSD(j.equity)}</td>
+                        <td className="text-right">{fmtINR(j.equity)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -70,16 +70,24 @@ function StatusBar({
   );
 }
 
+const INITIAL_CAPITAL_INR = 51770;
+
 function Dashboard() {
   const qc = useQueryClient();
   const getDash = useServerFn(getDashboard);
   const updateSettingsFn = useServerFn(updateSettings);
   const sendTest = useServerFn(sendTestSignal);
+  const getAcct = useServerFn(getExchangeAccount);
 
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDash(),
     refetchInterval: 5000,
+  });
+  const acctQ = useQuery({
+    queryKey: ["exchange-account"],
+    queryFn: () => getAcct(),
+    refetchInterval: 15000,
   });
 
   const settingsMut = useMutation({

@@ -251,8 +251,12 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getKlines(symbol, interval = "1h", limit = 100) {
-      const url = `${BASE_URL}/v1/market/klines/${encodeURIComponent(symbol.toUpperCase())}?interval=${interval}&limit=${limit}`;
-      const res = await fetch(url, { headers: { accept: "application/json" } });
+      const url = `${BASE_URL}/v1/market/klines`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ pair: symbol.toUpperCase(), interval, limit }),
+      });
       const text = await res.text();
       if (!res.ok) {
         throw new Error(`Klines failed [${res.status}]: ${text.slice(0, 300)}`);
@@ -278,13 +282,13 @@ export function createSharkClient(): ExchangeClient {
         }
         const o = r as Record<string, unknown>;
         return {
-          openTime: Number(o.openTime ?? o.t ?? o.open_time ?? 0),
+          openTime: Number(o.openTime ?? o.startTime ?? o.t ?? o.open_time ?? 0),
           open: toNum(o.open ?? o.o),
           high: toNum(o.high ?? o.h),
           low: toNum(o.low ?? o.l),
           close: toNum(o.close ?? o.c),
           volume: toNum(o.volume ?? o.v ?? 0),
-          closeTime: Number(o.closeTime ?? o.T ?? o.close_time ?? 0),
+          closeTime: Number(o.closeTime ?? o.endTime ?? o.T ?? o.close_time ?? 0),
         } as Kline;
       });
     },

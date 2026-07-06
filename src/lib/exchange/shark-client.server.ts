@@ -282,13 +282,13 @@ export function createSharkClient(): ExchangeClient {
         }
         const o = r as Record<string, unknown>;
         return {
-          openTime: Number(o.openTime ?? o.t ?? o.open_time ?? 0),
+          openTime: Number(o.openTime ?? o.startTime ?? o.t ?? o.open_time ?? 0),
           open: toNum(o.open ?? o.o),
           high: toNum(o.high ?? o.h),
           low: toNum(o.low ?? o.l),
           close: toNum(o.close ?? o.c),
           volume: toNum(o.volume ?? o.v ?? 0),
-          closeTime: Number(o.closeTime ?? o.T ?? o.close_time ?? 0),
+          closeTime: Number(o.closeTime ?? o.endTime ?? o.T ?? o.close_time ?? 0),
         } as Kline;
       });
     },

@@ -195,6 +195,10 @@ function Dashboard() {
           <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
         </div>
 
+        <LiveTicker defaultSymbol="XAUUSDT" />
+
+
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>

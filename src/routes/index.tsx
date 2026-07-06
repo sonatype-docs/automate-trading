@@ -8,6 +8,8 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
+import { getStrategyState, runStrategyTickNow } from "@/lib/strategy.functions";
+
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -295,6 +297,10 @@ function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        <StrategyCard />
+
+
 
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1102,3 +1108,153 @@ function WalletCard({
   );
 }
 
+
+function StrategyCard() {
+  const qc = useQueryClient();
+  const getState = useServerFn(getStrategyState);
+  const runNow = useServerFn(runStrategyTickNow);
+  const q = useQuery({
+    queryKey: ["strategy-state"],
+    queryFn: () => getState(),
+    refetchInterval: 30_000,
+  });
+  const mut = useMutation({
+    mutationFn: () => runNow(),
+    onSuccess: (r) => {
+      toast.success(`Tick ok — ${(r.actions ?? []).length} action(s)`);
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const s = q.data?.settings as
+    | { enabled: boolean; symbol: string; sl_risk_usd: number; rr: number; session_start_ist: string }
+    | null
+    | undefined;
+  const session = q.data?.session as
+    | {
+        ist_date: string;
+        zone_high: number;
+        zone_low: number;
+        fib_25: number;
+        fib_75: number;
+        break_side: "long" | "short" | null;
+      }
+    | null
+    | undefined;
+  const setups = (q.data?.setups ?? []) as Array<{
+    id: string;
+    ist_date: string;
+    side: "long" | "short";
+    entry_price: number;
+    sl_price: number;
+    tp_price: number;
+    qty: number;
+    status: string;
+    pnl_usd: number | null;
+    close_reason: string | null;
+  }>;
+
+  const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
+  const closed = setups.filter((x) => x.status === "closed" || x.status === "expired");
+
+  const status = !s?.enabled
+    ? { label: "DISABLED", cls: "bg-muted" }
+    : !session
+      ? { label: "WAITING FOR ZONE", cls: "bg-warning-soft" }
+      : !session.break_side
+        ? { label: "ZONE SET · NO BREAK", cls: "bg-warning-soft" }
+        : active.some((a) => a.status === "triggered")
+          ? { label: "IN TRADE", cls: "bg-success-soft" }
+          : { label: `BROKEN ${session.break_side.toUpperCase()}`, cls: "bg-success-soft" };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <div>
+          <CardTitle className="text-sm font-mono tracking-widest">
+            STRATEGY — {s?.symbol ?? "XAUUSDT"} · 1H
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 20} · RR 1:{s?.rr ?? 3}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${status.cls}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+            {status.label}
+          </span>
+          <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
+            {mut.isPending ? "Running…" : "Run tick"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {session ? (
+          <div className="grid grid-cols-4 gap-2 font-mono text-xs">
+            <ZoneCell label="HIGH · fib 0" value={session.zone_high} />
+            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_25} highlight={session.break_side === "long"} />
+            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_75} highlight={session.break_side === "short"} />
+            <ZoneCell label="LOW · fib 1" value={session.zone_low} />
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground font-mono">
+            Session candle not yet closed. Zone will appear after {s?.session_start_ist?.slice(0, 5) ?? "05:30"} IST candle closes.
+          </p>
+        )}
+
+        {active.length > 0 && (
+          <div>
+            <div className="text-xs font-mono text-muted-foreground mb-2">ACTIVE SETUPS</div>
+            <div className="border border-border rounded divide-y divide-border">
+              {active.map((a) => (
+                <div key={a.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                  <span className={a.side === "long" ? "text-long" : "text-short"}>
+                    {a.side.toUpperCase()}
+                  </span>
+                  <span>entry {a.entry_price.toFixed(2)}</span>
+                  <span>sl {a.sl_price.toFixed(2)}</span>
+                  <span>tp {a.tp_price.toFixed(2)}</span>
+                  <span>qty {a.qty.toFixed(4)}</span>
+                  <span className="uppercase text-muted-foreground">{a.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {closed.length > 0 && (
+          <div>
+            <div className="text-xs font-mono text-muted-foreground mb-2">RECENT SETUPS</div>
+            <div className="border border-border rounded divide-y divide-border">
+              {closed.slice(0, 8).map((c) => (
+                <div key={c.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                  <span>{c.ist_date}</span>
+                  <span className={c.side === "long" ? "text-long" : "text-short"}>
+                    {c.side.toUpperCase()}
+                  </span>
+                  <span>entry {c.entry_price.toFixed(2)}</span>
+                  <span className="uppercase text-muted-foreground">{c.status}</span>
+                  <span className="uppercase text-muted-foreground">{c.close_reason ?? "—"}</span>
+                  <span className={((c.pnl_usd ?? 0) >= 0) ? "text-long" : "text-short"}>
+                    {c.pnl_usd == null ? "—" : `${c.pnl_usd >= 0 ? "+" : ""}${c.pnl_usd.toFixed(2)}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ZoneCell({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <div className={`border rounded px-2 py-1.5 ${highlight ? "border-primary bg-primary/5" : "border-border"}`}>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="text-sm">{value.toFixed(2)}</div>
+    </div>
+  );
+}

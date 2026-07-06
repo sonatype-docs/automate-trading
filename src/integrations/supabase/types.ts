@@ -178,6 +178,138 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_sessions: {
+        Row: {
+          break_close_price: number | null
+          break_detected_at: string | null
+          break_side: string | null
+          created_at: string
+          fib_25: number
+          fib_75: number
+          ist_date: string
+          symbol: string
+          updated_at: string
+          zone_high: number
+          zone_low: number
+        }
+        Insert: {
+          break_close_price?: number | null
+          break_detected_at?: string | null
+          break_side?: string | null
+          created_at?: string
+          fib_25: number
+          fib_75: number
+          ist_date: string
+          symbol: string
+          updated_at?: string
+          zone_high: number
+          zone_low: number
+        }
+        Update: {
+          break_close_price?: number | null
+          break_detected_at?: string | null
+          break_side?: string | null
+          created_at?: string
+          fib_25?: number
+          fib_75?: number
+          ist_date?: string
+          symbol?: string
+          updated_at?: string
+          zone_high?: number
+          zone_low?: number
+        }
+        Relationships: []
+      }
+      strategy_settings: {
+        Row: {
+          enabled: boolean
+          id: boolean
+          rr: number
+          session_start_ist: string
+          sl_risk_usd: number
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: boolean
+          rr?: number
+          session_start_ist?: string
+          sl_risk_usd?: number
+          symbol?: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: boolean
+          rr?: number
+          session_start_ist?: string
+          sl_risk_usd?: number
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      strategy_setups: {
+        Row: {
+          close_order_id: string | null
+          close_reason: string | null
+          closed_at: string | null
+          created_at: string
+          entry_price: number
+          filled_at: string | null
+          id: string
+          ist_date: string
+          order_id: string | null
+          pnl_usd: number | null
+          qty: number
+          side: string
+          sl_price: number
+          status: string
+          symbol: string
+          tp_price: number
+          updated_at: string
+        }
+        Insert: {
+          close_order_id?: string | null
+          close_reason?: string | null
+          closed_at?: string | null
+          created_at?: string
+          entry_price: number
+          filled_at?: string | null
+          id?: string
+          ist_date: string
+          order_id?: string | null
+          pnl_usd?: number | null
+          qty: number
+          side: string
+          sl_price: number
+          status?: string
+          symbol: string
+          tp_price: number
+          updated_at?: string
+        }
+        Update: {
+          close_order_id?: string | null
+          close_reason?: string | null
+          closed_at?: string | null
+          created_at?: string
+          entry_price?: number
+          filled_at?: string | null
+          id?: string
+          ist_date?: string
+          order_id?: string | null
+          pnl_usd?: number | null
+          qty?: number
+          side?: string
+          sl_price?: number
+          status?: string
+          symbol?: string
+          tp_price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           closed_at: string

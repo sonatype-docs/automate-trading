@@ -1,107 +1,110 @@
+# XAUUSDT Strategy Engine
 
-# TradingView → SharkExchange Auto-Trader
+Auto-run your 1H IST-anchored fib strategy from the server. No TradingView needed.
 
-A single-user web app that receives TradingView alert webhooks, applies risk rules, and places orders on SharkExchange via its REST API. Includes a dashboard with kill switch, trade history, P&L, and paper-trading mode.
+## Strategy rules (locked in)
 
-## ⚠️ One thing I need from you before/while building
-
-I couldn't find public API docs for "SharkExchange". Please share:
-- Link to their REST API docs
-- Auth scheme (API key + secret? HMAC signature? Passphrase?)
-- Endpoints for: place order, cancel order, get balances, get positions, get order status
-
-I'll scaffold the app with a clean `SharkExchangeClient` interface. Once you send docs, I'll fill in the signing + endpoints. If you have paper/testnet URLs, share those too.
+- **Instrument**: XAUUSDT on SharkExchange, 1H timeframe
+- **Reference candle**: the 1H IST candle at 05:30–06:30 (`00:00–01:00 UTC`), captured once per IST day
+- **Zone**: `high` = fib 0, `low` = fib 1 → fib levels priced as `high - (high-low)*level`
+  - `0.25` = high − 25% of range
+  - `0.75` = high − 75% of range
+- **Trigger**: a subsequent 1H candle must **close fully outside** the zone (close > high → bullish break, close < low → bearish break)
+- **Entries** (pending, filled by later 1H close crossing the level):
+  - **Long**: entry at `0.25`, SL at `0.75`  (buy the pullback after bullish break)
+  - **Short**: entry at `0.75`, SL at `0.25` (sell the pullback after bearish break)
+- **TP**: 1:3 R:R (configurable, default 3.0)
+- **Sizing**: qty auto-computed so `|entry − SL| × qty ≈ $20` (configurable `sl_risk_usd`, default 20)
+- **Lifecycle**: one long + one short setup per IST day max; setups expire at next 05:30 IST or when TP/SL hits; kill switch + existing risk caps still apply
 
 ## Architecture
 
 ```text
-TradingView alert
-      │  (JSON webhook + shared secret)
+pg_cron (every 5 min)
+      │
       ▼
-POST /api/public/webhook/tradingview
-      │  verify secret → parse signal → risk checks
+POST /api/public/hooks/strategy-tick   (public, apikey header)
+      │
       ▼
-Trade engine (server fn)
-      │  → SharkExchangeClient  ──► SharkExchange REST API
-      │  → Supabase (trades, positions, settings, logs)
+strategy engine (server)
+  1. load/refresh today's IST zone from 1H candles
+  2. detect break-close since last tick
+  3. arm pending setups (long @0.25 / short @0.75)
+  4. check price vs pending entries → trigger via processSignal()
+  5. monitor open positions → close at TP/SL via processSignal({action:"close"})
+      │
       ▼
-Dashboard (React, live via Supabase realtime)
+existing orders / trades / positions tables
+      │
+      ▼
+dashboard (new "Strategy" card)
 ```
 
-## Features
+Reuses your existing `processSignal` / order + position machinery — the engine just decides *when* to fire buy/sell/close signals.
 
-**Webhook receiver** — `/api/public/webhook/tradingview` (public prefix so TradingView can reach it). Verifies a shared secret in the JSON body, validates schema with Zod, dedupes by alert ID.
+## What gets built
 
-**Trade engine** — Applies settings before submitting:
-- Kill switch (blocks all new orders)
-- Paper mode (simulates fills at last price, records to DB, skips exchange)
-- Max position size, max open positions, max daily loss / drawdown cutoff
-- Symbol allow-list
+### 1. DB (one migration)
 
-**SharkExchange client** — Server-only module: signed requests, place/cancel/status/balances, retries with backoff, error surfacing.
+- `strategy_settings` (singleton): `enabled bool`, `symbol text default 'XAUUSDT'`, `sl_risk_usd numeric default 20`, `rr numeric default 3`, `session_start_ist time default '05:30'`, `updated_at`
+- `strategy_sessions`: `ist_date date pk`, `zone_high numeric`, `zone_low numeric`, `break_side text null` (`long`|`short`|null), `break_detected_at timestamptz`, `created_at`
+- `strategy_setups`: `id uuid`, `ist_date date`, `side text` (`long`|`short`), `entry_price`, `sl_price`, `tp_price`, `qty`, `status text` (`armed`|`triggered`|`expired`|`cancelled`), `order_id uuid null`, `filled_at`, `closed_at`, `close_reason text` (`tp`|`sl`|`manual`|`session_end`), `pnl_usd numeric null`
+- Full GRANTs + RLS (owner-read same as existing tables); writes via service role from the engine
 
-**Dashboard** (`/`)
-- Big status: Live / Paper / Killed
-- Toggle: kill switch, paper mode
-- Cards: equity, today's P&L, open positions, win rate
-- Tables: open orders, recent trades, webhook log
-- Equity curve chart
+### 2. Market data
 
-**Settings** (`/settings`)
-- Risk parameters
-- Symbol allow-list
-- Webhook URL + secret (with regenerate)
-- SharkExchange API key status (stored as project secrets, not shown)
+Add to `shark-client.server.ts`:
+- `getKlines(symbol, interval='1h', limit=48)` → hits SharkExchange public candles endpoint (same base as the ticker you already use); returns `[{openTime, open, high, low, close, closeTime}]`
+- `getLastPrice(symbol)` — reuse the existing ticker fetch
 
-**Auth** — Single-user email/password via Lovable Cloud. First signup becomes the owner; further signups blocked.
+### 3. Engine (`src/lib/strategy/engine.server.ts`)
 
-## Data model (Lovable Cloud / Postgres)
+Pure function `runStrategyTick()`:
+1. Read `strategy_settings`; bail if `!enabled` or global `kill_switch`
+2. Compute today's IST date; upsert `strategy_sessions` row using the 00:00–01:00 UTC 1H candle (`high`, `low`)
+3. Since last tick, scan 1H **closed** candles; if `close > zone_high` set `break_side='long'`, if `close < zone_low` set `break_side='short'` (first break wins per day per side)
+4. On new break, insert an `armed` setup with computed `entry/sl/tp/qty` (qty = `20 / |entry-sl|`)
+5. For each `armed` setup, check current price:
+   - long: if `low_of_current_1h <= entry` → trigger buy via `processSignal({action:'buy', price:entry, size_usd: qty*entry})`, mark `triggered`
+   - short: mirror with sell
+6. For each `triggered` setup with an open position: if price ≥ tp (long) or ≤ sl → close via `processSignal({action:'close', price: currentPrice})`, record `pnl_usd`, `close_reason`
+7. Expire any leftover `armed` setups at next session start
 
-- `settings` (singleton): kill_switch, paper_mode, max_position_usd, max_open_positions, max_daily_loss_usd, allowed_symbols[]
-- `webhook_events`: id, received_at, raw_payload, alert_id (unique), status, reason
-- `orders`: id, exchange_order_id, symbol, side, qty, price, status, paper, created_at
-- `trades`: id, order_id, symbol, side, qty, entry, exit, pnl, closed_at
-- `positions`: symbol, qty, avg_entry, unrealized_pnl, updated_at
-- `activity_log`: severity, message, context, created_at
+### 4. Cron
 
-All tables RLS-locked to the owner user; service_role used by server functions.
+`src/routes/api/public/hooks/strategy-tick.ts` — POST, validates `apikey` header against publishable key, calls `runStrategyTick()`, returns summary.
 
-## Secrets
+`pg_cron` job every 5 min hitting the stable `project--<id>.lovable.app` URL.
 
-- `TRADINGVIEW_WEBHOOK_SECRET` — auto-generated
-- `SHARKEXCHANGE_API_KEY` — you paste (via secure form)
-- `SHARKEXCHANGE_API_SECRET` — you paste
-- `SHARKEXCHANGE_API_PASSPHRASE` — if required (depends on their auth)
+### 5. Server fns (in `trading.functions.ts`)
 
-## TradingView alert format
+- `getStrategySettings` / `updateStrategySettings`
+- `getStrategyState` → today's session (zone + break), armed/triggered setups, recent closed setups
+- `runStrategyTickNow` → manual trigger button
 
-You'll paste this JSON into TradingView's alert message field:
+### 6. UI
 
-```json
-{
-  "secret": "{{WEBHOOK_SECRET}}",
-  "alert_id": "{{timenow}}-{{ticker}}",
-  "symbol": "{{ticker}}",
-  "action": "buy",
-  "price": {{close}},
-  "size_pct": 100
-}
-```
+**Dashboard (`src/routes/index.tsx`)** — new "Strategy" card above the equity curve:
+- Status pill: Disabled / Waiting for zone / Zone set (no break) / Broken long / Broken short / In trade
+- Zone: high / 0.25 / 0.75 / low with current price marker
+- Active setups table: side, entry, SL, TP, qty, status
+- "Run tick now" button
 
-## Build order
+**Settings (`src/routes/settings.tsx`)** — new section:
+- Enable/disable toggle
+- Symbol (default XAUUSDT)
+- SL risk USD (default 20)
+- R:R (default 3)
+- Session start IST time (default 05:30)
 
-1. Enable Lovable Cloud, auth, migrations for tables above (with GRANTs + RLS)
-2. Settings singleton + dashboard shell with kill switch and paper toggle
-3. Webhook route with secret verification, dedupe, activity log
-4. `SharkExchangeClient` interface + paper-mode implementation (works end-to-end without real API)
-5. Risk engine + order placement server functions
-6. Trade/position tracking + P&L calculation
-7. Dashboard tables, equity chart, settings page
-8. Real SharkExchange client — filled in once you share docs
-9. Test flow: send simulated webhook → verify paper trade appears → then live with tiny size
+## Technical notes
 
-## Risks / notes
+- IST = UTC+5:30, no DST — safe to compute IST date via `Date` + offset
+- SharkExchange returns Binance-style klines; array items indexed `[openTime, open, high, low, close, volume, closeTime, ...]`
+- Only act on **closed** candles for break detection (skip the currently-forming 1H bar)
+- Setups reuse `processSignal`, so kill switch, symbol allow-list, max positions, daily-loss cap, and paper/live mode all apply automatically
+- Cron polling every 5 min means worst-case 5 min slippage on entries; acceptable for a 1H strategy. Bump to every 1 min if you want tighter fills
 
-- **You are responsible for the strategy's real-money behavior.** I'll add safety rails (kill switch, caps, paper mode) but can't guarantee exchange fills or prevent losses.
-- Cloudflare Workers runtime (where server functions run) has no persistent background loop — position monitoring runs on webhook triggers and dashboard polls, not a always-on process. If your strategy needs continuous polling (e.g. trailing stops managed server-side), we'll need to add a cron via Supabase `pg_cron` hitting a public endpoint.
-- Without API docs, step 8 is a blocker for live trading. Steps 1–7 are fully buildable in paper mode meanwhile.
+## Open items before build
+
+None blocking — I'll wire it up with these defaults and you can tweak in Settings. If SharkExchange's klines endpoint path differs from the standard `/v1/market/klines/{pair}?interval=1h`, I'll adjust after the first live call.

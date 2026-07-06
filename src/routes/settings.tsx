@@ -2,13 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDashboard, updateSettings, getWebhookInfo, testExchangeConnection } from "@/lib/trading.functions";
+import { getStrategyState, updateStrategySettings } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -115,7 +118,10 @@ function SettingsPage() {
           </CardContent>
         </Card>
 
+        <StrategySettingsCard />
+
         <Card>
+
           <CardHeader>
             <CardTitle>Integration status</CardTitle>
             <CardDescription>Secrets are stored server-side and never shown.</CardDescription>
@@ -181,5 +187,115 @@ function StatusRow({ label, ok }: { label: string; ok: boolean }) {
         <span className="flex items-center gap-1 text-short"><XCircle className="w-4 h-4" /> missing</span>
       )}
     </div>
+  );
+}
+
+function StrategySettingsCard() {
+  const qc = useQueryClient();
+  const getState = useServerFn(getStrategyState);
+  const updateStrat = useServerFn(updateStrategySettings);
+  const q = useQuery({ queryKey: ["strategy-state"], queryFn: () => getState() });
+  const [form, setForm] = useState({
+    enabled: false,
+    symbol: "XAUUSDT",
+    sl_risk_usd: 20,
+    rr: 3,
+    session_start_ist: "05:30",
+  });
+  useEffect(() => {
+    if (q.data?.settings) {
+      const s = q.data.settings;
+      setForm({
+        enabled: !!s.enabled,
+        symbol: s.symbol,
+        sl_risk_usd: Number(s.sl_risk_usd),
+        rr: Number(s.rr),
+        session_start_ist: String(s.session_start_ist).slice(0, 5),
+      });
+    }
+  }, [q.data]);
+
+  const mut = useMutation({
+    mutationFn: (patch: Partial<typeof form>) => updateStrat({ data: patch }),
+    onSuccess: () => {
+      toast.success("Strategy settings saved");
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>XAUUSDT strategy engine</CardTitle>
+        <CardDescription>
+          IST 5:30 session zone → fib break → auto long @0.25 / short @0.75 with 1:3 TP.
+          Runs on a 5-minute cron. Respects the kill switch.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2 flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <Label className="text-xs">Engine enabled</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              {form.enabled ? "Engine will fire signals on the next tick." : "Engine is idle."}
+            </p>
+          </div>
+          <Switch
+            checked={form.enabled}
+            onCheckedChange={(v) => {
+              setForm({ ...form, enabled: v });
+              mut.mutate({ enabled: v });
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs">Symbol</Label>
+          <Input
+            value={form.symbol}
+            onChange={(e) => setForm({ ...form, symbol: e.target.value.toUpperCase() })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs">Session start (IST, HH:MM)</Label>
+          <Input
+            value={form.session_start_ist}
+            onChange={(e) => setForm({ ...form, session_start_ist: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs">SL risk per trade (USD)</Label>
+          <Input
+            type="number"
+            value={form.sl_risk_usd}
+            onChange={(e) => setForm({ ...form, sl_risk_usd: Number(e.target.value) })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs">R:R multiple (TP)</Label>
+          <Input
+            type="number"
+            step="0.1"
+            value={form.rr}
+            onChange={(e) => setForm({ ...form, rr: Number(e.target.value) })}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <Button
+            onClick={() =>
+              mut.mutate({
+                symbol: form.symbol,
+                sl_risk_usd: form.sl_risk_usd,
+                rr: form.rr,
+                session_start_ist: form.session_start_ist,
+              })
+            }
+            disabled={mut.isPending}
+          >
+            {mut.isPending ? "Saving…" : "Save strategy settings"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

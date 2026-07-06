@@ -46,11 +46,24 @@ export interface AccountSnapshot {
   errors: Record<string, string>;
 }
 
+export interface Kline {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  closeTime: number;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
+  getKlines(symbol: string, interval?: string, limit?: number): Promise<Kline[]>;
+  getLastPrice(symbol: string): Promise<number>;
 }
+
 
 const BASE_URL = "https://api.sharkexchange.in";
 
@@ -236,6 +249,58 @@ export function createSharkClient(): ExchangeClient {
       );
       return snap;
     },
+
+    async getKlines(symbol, interval = "1h", limit = 100) {
+      const url = `${BASE_URL}/v1/market/klines/${encodeURIComponent(symbol.toUpperCase())}?interval=${interval}&limit=${limit}`;
+      const res = await fetch(url, { headers: { accept: "application/json" } });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Klines failed [${res.status}]: ${text.slice(0, 300)}`);
+      }
+      let parsed: unknown = null;
+      try { parsed = JSON.parse(text); } catch { throw new Error(`Klines not JSON: ${text.slice(0, 200)}`); }
+      const rows =
+        (parsed as { data?: unknown[] } | null)?.data ??
+        (parsed as unknown[]);
+      if (!Array.isArray(rows)) throw new Error(`Klines: unexpected shape`);
+      const toNum = (v: unknown) => Number(v);
+      return rows.map((r) => {
+        if (Array.isArray(r)) {
+          return {
+            openTime: Number(r[0]),
+            open: toNum(r[1]),
+            high: toNum(r[2]),
+            low: toNum(r[3]),
+            close: toNum(r[4]),
+            volume: toNum(r[5]),
+            closeTime: Number(r[6] ?? r[0]),
+          } as Kline;
+        }
+        const o = r as Record<string, unknown>;
+        return {
+          openTime: Number(o.openTime ?? o.t ?? o.open_time ?? 0),
+          open: toNum(o.open ?? o.o),
+          high: toNum(o.high ?? o.h),
+          low: toNum(o.low ?? o.l),
+          close: toNum(o.close ?? o.c),
+          volume: toNum(o.volume ?? o.v ?? 0),
+          closeTime: Number(o.closeTime ?? o.T ?? o.close_time ?? 0),
+        } as Kline;
+      });
+    },
+
+    async getLastPrice(symbol) {
+      const url = `${BASE_URL}/v1/market/ticker24Hr/${encodeURIComponent(symbol.toUpperCase())}`;
+      const res = await fetch(url, { headers: { accept: "application/json" } });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`Ticker failed [${res.status}]: ${text.slice(0, 200)}`);
+      const parsed = JSON.parse(text) as { data?: Record<string, unknown> };
+      const t = parsed?.data ?? (JSON.parse(text) as Record<string, unknown>);
+      const price = Number((t as Record<string, unknown>)?.c);
+      if (!Number.isFinite(price)) throw new Error("No last price in ticker");
+      return price;
+    },
   };
 }
+
 

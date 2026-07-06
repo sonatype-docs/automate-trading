@@ -18,8 +18,8 @@ export interface DayResult {
   session_open: number | null;
   zone_high: number | null;
   zone_low: number | null;
-  fib_25: number | null; // 25% down from top (near high)
-  fib_75: number | null; // 75% down from top (near low)
+  fib_25: number | null;
+  fib_75: number | null;
   break_side: "long" | "short" | null;
   break_at: number | null;
   break_close: number | null;
@@ -36,6 +36,9 @@ export interface DayResult {
     | "sl"
     | "open";
   pnl_usd: number;
+  final_sl: number | null;
+  peak_r: number;
+  exit_r: number | null;
 }
 
 export interface RangeBacktestResult {
@@ -45,6 +48,7 @@ export interface RangeBacktestResult {
   from_ms: number;
   to_ms: number;
   bars_scanned: number;
+  trail: { enabled: boolean; activate_r: number; step_r: number };
   days: DayResult[];
   summary: {
     total_days: number;
@@ -55,9 +59,9 @@ export interface RangeBacktestResult {
     sl: number;
     open: number;
     armed_no_trigger: number;
-    win_rate_pct: number; // wins / decided
+    win_rate_pct: number;
     total_pnl_usd: number;
-    avg_r: number; // average R multiple across decided trades
+    avg_r: number;
     best_pnl_usd: number;
     worst_pnl_usd: number;
   };
@@ -69,7 +73,13 @@ export async function runBacktestRange(opts: {
   slRiskUsd: number;
   rr: number;
   days: number;
+  trailEnabled?: boolean;
+  trailActivateR?: number;
+  trailStepR?: number;
 }): Promise<RangeBacktestResult> {
+  const trailEnabled = !!opts.trailEnabled;
+  const trailActivateR = Math.max(0.1, opts.trailActivateR ?? 2);
+  const trailStepR = Math.max(0.1, opts.trailStepR ?? 1);
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
@@ -107,6 +117,9 @@ export async function runBacktestRange(opts: {
       trigger_at: null,
       outcome: "no_session",
       pnl_usd: 0,
+      final_sl: null,
+      peak_r: 0,
+      exit_r: null,
     };
 
     if (!sessionCandle || sessionCandle.closeTime > now) {
@@ -161,6 +174,8 @@ export async function runBacktestRange(opts: {
     const post = laterSameDay.filter((k) => k.openTime > breakBar.openTime);
     let triggered = false;
     let resolved = false;
+    let dynSl = sl;
+    let peakR = 0;
     for (const k of post) {
       if (!triggered) {
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
@@ -171,27 +186,47 @@ export async function runBacktestRange(opts: {
           continue;
         }
       }
+      // Update peak-R using bar extremes in the favorable direction.
+      const favorableExtreme = breakSide === "long" ? k.high : k.low;
+      const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
+      if (barR > peakR) peakR = barR;
+
+      // Advance trailing SL if enabled.
+      if (trailEnabled && peakR >= trailActivateR) {
+        const steps = Math.floor((peakR - trailActivateR) / trailStepR);
+        const slR = steps * trailStepR; // 0, step, 2*step, ...
+        const newSl = breakSide === "long" ? entry + slR * risk : entry - slR * risk;
+        if (breakSide === "long" ? newSl > dynSl : newSl < dynSl) dynSl = newSl;
+      }
+
       const hitTp = breakSide === "long" ? k.high >= tp : k.low <= tp;
-      const hitSl = breakSide === "long" ? k.low <= sl : k.high >= sl;
+      const hitSl = breakSide === "long" ? k.low <= dynSl : k.high >= dynSl;
+      const slR = ((dynSl - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (hitTp && hitSl) {
-        dr.outcome = "sl"; // conservative same-bar assumption
-        dr.pnl_usd = -opts.slRiskUsd;
+        // Conservative same-bar assumption: SL first.
+        dr.outcome = "sl";
+        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.exit_r = slR;
         resolved = true;
         break;
       }
       if (hitTp) {
         dr.outcome = "tp";
         dr.pnl_usd = opts.slRiskUsd * opts.rr;
+        dr.exit_r = opts.rr;
         resolved = true;
         break;
       }
       if (hitSl) {
         dr.outcome = "sl";
-        dr.pnl_usd = -opts.slRiskUsd;
+        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.exit_r = slR;
         resolved = true;
         break;
       }
     }
+    dr.final_sl = dynSl;
+    dr.peak_r = peakR;
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }
@@ -210,7 +245,7 @@ export async function runBacktestRange(opts: {
   const totalPnl = days.reduce((s, d) => s + d.pnl_usd, 0);
   const rMultiples = days
     .filter((d) => d.outcome === "tp" || d.outcome === "sl")
-    .map((d) => (d.outcome === "tp" ? opts.rr : -1));
+    .map((d) => (d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1)));
   const avgR = rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0;
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
@@ -222,6 +257,7 @@ export async function runBacktestRange(opts: {
     from_ms: fromMs,
     to_ms: now,
     bars_scanned: klines.length,
+    trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
     days,
     summary: {
       total_days: days.length,

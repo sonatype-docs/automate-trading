@@ -37,6 +37,9 @@ const StrategySettingsSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}(:\d{2})?$/)
     .optional(),
+  trail_enabled: z.boolean().optional(),
+  trail_activate_r: z.number().positive().optional(),
+  trail_step_r: z.number().positive().optional(),
 });
 
 export const updateStrategySettings = createServerFn({ method: "POST" })
@@ -75,7 +78,12 @@ export const backtestToday = createServerFn({ method: "POST" }).handler(async ()
   });
 });
 
-const RangeSchema = z.object({ days: z.number().int().min(1).max(365) });
+const RangeSchema = z.object({
+  days: z.number().int().min(1).max(365),
+  trail_enabled: z.boolean().optional(),
+  trail_activate_r: z.number().positive().optional(),
+  trail_step_r: z.number().positive().optional(),
+});
 
 export const backtestRange = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RangeSchema.parse(input))
@@ -88,11 +96,18 @@ export const backtestRange = createServerFn({ method: "POST" })
       .single();
     if (!settings) throw new Error("Strategy settings not found");
     const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
+    // Fall back to stored trail settings when not overridden in the request.
+    const trailEnabled = data.trail_enabled ?? Boolean((settings as { trail_enabled?: boolean }).trail_enabled);
+    const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
+    const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
     return runBacktestRange({
       symbol: settings.symbol,
       sessionStartIst: String(settings.session_start_ist).slice(0, 5),
       slRiskUsd: Number(settings.sl_risk_usd),
       rr: Number(settings.rr),
       days: data.days,
+      trailEnabled,
+      trailActivateR,
+      trailStepR,
     });
   });

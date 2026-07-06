@@ -7,7 +7,7 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow, backtestToday, backtestRange } from "@/lib/strategy.functions";
+import { getStrategyState, runStrategyTickNow, backtestToday, backtestRange, updateStrategySettings } from "@/lib/strategy.functions";
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1096,9 +1096,12 @@ function StrategyCard() {
   const runNow = useServerFn(runStrategyTickNow);
   const runBacktest = useServerFn(backtestToday);
   const runRange = useServerFn(backtestRange);
+  const updateStrat = useServerFn(updateStrategySettings);
   const [bt, setBt] = useState<BacktestData | null>(null);
   const [range, setRange] = useState<RangeData | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(30);
+  // Trailing-SL overrides for the NEXT backtest run. Null = use saved settings.
+  const [trailOverride, setTrailOverride] = useState<{ enabled: boolean; activateR: number; stepR: number } | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1119,18 +1122,46 @@ function StrategyCard() {
     onError: (e: Error) => toast.error(e.message),
   });
   const rangeMut = useMutation({
-    mutationFn: () => runRange({ data: { days: rangeDays } }),
+    mutationFn: () =>
+      runRange({
+        data: {
+          days: rangeDays,
+          ...(trailOverride
+            ? {
+                trail_enabled: trailOverride.enabled,
+                trail_activate_r: trailOverride.activateR,
+                trail_step_r: trailOverride.stepR,
+              }
+            : {}),
+        },
+      }),
     onSuccess: (r) => {
       setRange(r);
       toast.success(`Backtest ${rangeDays}d — ${r.summary.tp}W / ${r.summary.sl}L`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-
+  const trailSaveMut = useMutation({
+    mutationFn: (patch: { trail_enabled?: boolean; trail_activate_r?: number; trail_step_r?: number }) =>
+      updateStrat({ data: patch }),
+    onSuccess: () => {
+      toast.success("Trailing SL saved");
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const s = q.data?.settings as
-    | { enabled: boolean; symbol: string; sl_risk_usd: number; rr: number; session_start_ist: string }
+    | {
+        enabled: boolean;
+        symbol: string;
+        sl_risk_usd: number;
+        rr: number;
+        session_start_ist: string;
+        trail_enabled?: boolean;
+        trail_activate_r?: number;
+        trail_step_r?: number;
+      }
     | null
     | undefined;
   const session = q.data?.session as
@@ -1210,8 +1241,21 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <TrailingSlControls
+          saved={{
+            enabled: !!s?.trail_enabled,
+            activateR: Number(s?.trail_activate_r ?? 2),
+            stepR: Number(s?.trail_step_r ?? 1),
+          }}
+          override={trailOverride}
+          onOverrideChange={setTrailOverride}
+          onSave={(patch) => trailSaveMut.mutate(patch)}
+          saving={trailSaveMut.isPending}
+        />
         {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
         {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
+
+
 
 
         {session ? (
@@ -1436,3 +1480,96 @@ function RangeBacktestPanel({ data, onClose }: { data: RangeData; onClose: () =>
     </div>
   );
 }
+
+type TrailOverride = { enabled: boolean; activateR: number; stepR: number } | null;
+
+function TrailingSlControls({
+  saved,
+  override,
+  onOverrideChange,
+  onSave,
+  saving,
+}: {
+  saved: { enabled: boolean; activateR: number; stepR: number };
+  override: TrailOverride;
+  onOverrideChange: (v: TrailOverride) => void;
+  onSave: (patch: { trail_enabled: boolean; trail_activate_r: number; trail_step_r: number }) => void;
+  saving: boolean;
+}) {
+  const active = override ?? saved;
+  const dirty =
+    override != null &&
+    (override.enabled !== saved.enabled ||
+      override.activateR !== saved.activateR ||
+      override.stepR !== saved.stepR);
+  const set = (patch: Partial<{ enabled: boolean; activateR: number; stepR: number }>) =>
+    onOverrideChange({ ...active, ...patch });
+  return (
+    <div className="border border-border rounded p-3 font-mono text-xs bg-muted/30 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="tracking-widest text-muted-foreground">TRAILING SL</div>
+        <label className="flex items-center gap-2">
+          <span className="text-muted-foreground">Enable</span>
+          <Switch checked={active.enabled} onCheckedChange={(v) => set({ enabled: v })} />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Activate at (R)</Label>
+          <Input
+            type="number"
+            step="0.1"
+            min="0.1"
+            value={active.activateR}
+            onChange={(e) => set({ activateR: Number(e.target.value) || 0.1 })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Step (R)</Label>
+          <Input
+            type="number"
+            step="0.1"
+            min="0.1"
+            value={active.stepR}
+            onChange={(e) => set({ stepR: Number(e.target.value) || 0.1 })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="md:col-span-2 flex gap-2 justify-end">
+          {dirty && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onOverrideChange(null)}
+              disabled={saving}
+            >
+              Reset
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={saving || !override}
+            onClick={() =>
+              onSave({
+                trail_enabled: active.enabled,
+                trail_activate_r: active.activateR,
+                trail_step_r: active.stepR,
+              })
+            }
+          >
+            {saving ? "Saving…" : "Save (live)"}
+          </Button>
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Once price reaches {active.activateR}R, SL moves to breakeven. Each additional {active.stepR}R gain moves SL up
+        by {active.stepR}R (e.g. 1:{active.activateR}→BE, 1:{active.activateR + active.stepR}→{active.stepR}R,
+        1:{active.activateR + 2 * active.stepR}→{2 * active.stepR}R, …). Applies to live triggers and backtests.
+        {override ? " · Backtest is using the values above." : " · Backtest uses saved values."}
+      </p>
+    </div>
+  );
+}
+

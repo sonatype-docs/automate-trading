@@ -46,11 +46,24 @@ export interface AccountSnapshot {
   errors: Record<string, string>;
 }
 
+export interface Kline {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  closeTime: number;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
+  getKlines(symbol: string, interval?: string, limit?: number): Promise<Kline[]>;
+  getLastPrice(symbol: string): Promise<number>;
 }
+
 
 const BASE_URL = "https://api.sharkexchange.in";
 

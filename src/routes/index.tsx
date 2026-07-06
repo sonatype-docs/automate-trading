@@ -1449,7 +1449,63 @@ function RangeBacktestPanel({ data, onClose }: { data: RangeData; onClose: () =>
           tone={totalTone}
         />
         <BtCell k="best / worst" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
+        <BtCell k="skipped days" v={String(s.skipped_days)} />
+        <BtCell
+          k="best day"
+          v={s.best_weekday ? `${s.best_weekday.label} ${s.best_weekday.total_pnl_usd >= 0 ? "+" : ""}${s.best_weekday.total_pnl_usd.toFixed(0)}` : "—"}
+          tone="text-long"
+        />
+        <BtCell
+          k="worst day"
+          v={s.worst_weekday ? `${s.worst_weekday.label} ${s.worst_weekday.total_pnl_usd >= 0 ? "+" : ""}${s.worst_weekday.total_pnl_usd.toFixed(0)}` : "—"}
+          tone="text-short"
+        />
       </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">By weekday</div>
+        <div className="border border-border rounded overflow-hidden">
+          <table className="w-full text-[11px]">
+            <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60">
+              <tr>
+                <th className="text-left px-2 py-1">Day</th>
+                <th className="text-right px-2 py-1">Trades</th>
+                <th className="text-right px-2 py-1">W / L</th>
+                <th className="text-right px-2 py-1">Win %</th>
+                <th className="text-right px-2 py-1">Total $</th>
+                <th className="text-right px-2 py-1">Avg $</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.weekdays.map((w) => {
+                const skipped = data.skip_weekdays.includes(w.weekday);
+                const tone =
+                  w.trades === 0 ? "text-muted-foreground" :
+                  w.total_pnl_usd > 0 ? "text-long" :
+                  w.total_pnl_usd < 0 ? "text-short" : "";
+                return (
+                  <tr key={w.weekday} className="border-t border-border">
+                    <td className="px-2 py-1">
+                      {w.label}
+                      {skipped && <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">(skipped)</span>}
+                    </td>
+                    <td className="text-right px-2 py-1">{w.trades}</td>
+                    <td className="text-right px-2 py-1">{w.wins} / {w.losses}</td>
+                    <td className="text-right px-2 py-1">{w.trades > 0 ? `${w.win_rate_pct.toFixed(0)}%` : "—"}</td>
+                    <td className={`text-right px-2 py-1 ${tone}`}>
+                      {w.trades > 0 ? `${w.total_pnl_usd >= 0 ? "+" : ""}${w.total_pnl_usd.toFixed(2)}` : "—"}
+                    </td>
+                    <td className={`text-right px-2 py-1 ${tone}`}>
+                      {w.trades > 0 ? `${w.avg_pnl_usd >= 0 ? "+" : ""}${w.avg_pnl_usd.toFixed(2)}` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="max-h-72 overflow-y-auto border border-border rounded">
         <table className="w-full text-[11px]">
           <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60 sticky top-0">

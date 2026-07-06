@@ -77,14 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Shark Auto-Trader — Automated TradingView execution" },
+      { name: "description", content: "Automated trading bot for SharkExchange with TradingView webhook alerts, kill switch, risk controls, and paper mode." },
+      { name: "author", content: "Shark Auto-Trader" },
+      { property: "og:title", content: "Shark Auto-Trader" },
+      { property: "og:description", content: "Automated trading on SharkExchange from TradingView alerts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {

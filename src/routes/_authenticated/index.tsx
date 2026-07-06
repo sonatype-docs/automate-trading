@@ -1,0 +1,513 @@
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getDashboard,
+  updateSettings,
+  claimOwnership,
+  getOwnerStatus,
+  sendTestSignal,
+} from "@/lib/trading.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  LogOut,
+  Settings as SettingsIcon,
+  Zap,
+  ShieldOff,
+  Shield,
+  BookOpen,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip as ReTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+export const Route = createFileRoute("/_authenticated/")({
+  component: Dashboard,
+  head: () => ({
+    meta: [
+      { title: "Dashboard — Shark Auto-Trader" },
+      { name: "description", content: "Live trading control panel." },
+    ],
+  }),
+});
+
+function StatusBar({
+  paperMode,
+  killSwitch,
+}: {
+  paperMode: boolean;
+  killSwitch: boolean;
+}) {
+  const state = killSwitch ? "KILLED" : paperMode ? "PAPER" : "LIVE";
+  const cls =
+    state === "KILLED"
+      ? "bg-destructive-soft"
+      : state === "PAPER"
+        ? "bg-warning-soft"
+        : "bg-success-soft";
+  return (
+    <div
+      className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${cls}`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+      {state}
+    </div>
+  );
+}
+
+function Dashboard() {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const getStatus = useServerFn(getOwnerStatus);
+  const claim = useServerFn(claimOwnership);
+  const getDash = useServerFn(getDashboard);
+  const updateSettingsFn = useServerFn(updateSettings);
+  const sendTest = useServerFn(sendTestSignal);
+
+  const statusQ = useQuery({
+    queryKey: ["owner-status"],
+    queryFn: () => getStatus(),
+  });
+
+  useEffect(() => {
+    if (statusQ.data && !statusQ.data.hasOwner) {
+      // First user — claim ownership
+      claim().then(() => qc.invalidateQueries({ queryKey: ["owner-status"] }));
+    }
+  }, [statusQ.data, claim, qc]);
+
+  const dashQ = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => getDash(),
+    enabled: !!statusQ.data?.isOwner,
+    refetchInterval: 5000,
+  });
+
+  const settingsMut = useMutation({
+    mutationFn: (patch: Record<string, unknown>) =>
+      updateSettingsFn({ data: patch as never }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Settings updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [testForm, setTestForm] = useState({
+    symbol: "BTCUSDT",
+    action: "buy" as "buy" | "sell" | "close",
+    price: 60000,
+    size_usd: 50,
+  });
+  const testMut = useMutation({
+    mutationFn: () => sendTest({ data: testForm }),
+    onSuccess: (r) => {
+      toast[r.status === "executed" ? "success" : "warning"](
+        `Test signal: ${r.status}${r.reason ? ` (${r.reason})` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (statusQ.isLoading) {
+    return <div className="p-8 text-muted-foreground">Loading…</div>;
+  }
+  if (statusQ.data && !statusQ.data.isOwner && statusQ.data.hasOwner) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldOff className="w-5 h-5 text-destructive" />
+              No access
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-4">
+            <p>This trading bot is locked to a single owner and someone else claimed it first.</p>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.navigate({ to: "/auth" });
+              }}
+            >
+              Sign out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  if (!dashQ.data) {
+    return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;
+  }
+
+  const { settings, orders, trades, positions, logs, events, metrics } =
+    dashQ.data;
+
+  // Build equity curve
+  const start = Number(settings?.paper_starting_equity ?? 10000);
+  let eq = start;
+  const equityCurve = [...trades]
+    .reverse()
+    .map((t) => ({ t: new Date(t.closed_at).getTime(), eq: (eq += Number(t.pnl_usd)) }));
+  if (equityCurve.length === 0) equityCurve.push({ t: Date.now(), eq: start });
+
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-primary" />
+            <span className="font-mono text-sm tracking-widest">SHARK.AUTO</span>
+            <StatusBar
+              paperMode={!!settings?.paper_mode}
+              killSwitch={!!settings?.kill_switch}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/docs">
+              <Button variant="ghost" size="sm">
+                <BookOpen className="w-4 h-4 mr-2" /> Webhook setup
+              </Button>
+            </Link>
+            <Link to="/settings">
+              <Button variant="ghost" size="sm">
+                <SettingsIcon className="w-4 h-4 mr-2" /> Settings
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.navigate({ to: "/auth" });
+              }}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
+        {/* Toggles */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-mono tracking-wide">
+                  <Shield className="w-4 h-4 text-destructive" /> KILL SWITCH
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {settings?.kill_switch
+                    ? "Blocking all new orders."
+                    : "Orders will execute normally."}
+                </p>
+              </div>
+              <Switch
+                checked={!!settings?.kill_switch}
+                onCheckedChange={(v) => settingsMut.mutate({ kill_switch: v })}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-mono tracking-wide">
+                  <Zap className="w-4 h-4 text-warning" /> PAPER MODE
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {settings?.paper_mode
+                    ? "Simulated fills, no exchange calls."
+                    : "LIVE — real orders on SharkExchange."}
+                </p>
+              </div>
+              <Switch
+                checked={!!settings?.paper_mode}
+                onCheckedChange={(v) => settingsMut.mutate({ paper_mode: v })}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Metric label="EQUITY" value={`$${metrics.equity.toFixed(2)}`} />
+          <Metric
+            label="TODAY P&L"
+            value={`${metrics.todaysPnl >= 0 ? "+" : ""}$${metrics.todaysPnl.toFixed(2)}`}
+            tone={metrics.todaysPnl >= 0 ? "long" : "short"}
+          />
+          <Metric label="OPEN POS" value={metrics.openPositions.toString()} />
+          <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
+        </div>
+
+        {/* Equity curve */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={equityCurve}>
+                <XAxis
+                  dataKey="t"
+                  tickFormatter={(v) => new Date(v).toLocaleDateString()}
+                  stroke="var(--muted-foreground)"
+                  fontSize={10}
+                />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={["auto", "auto"]} />
+                <ReTooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                  labelFormatter={(v) => new Date(v).toLocaleString()}
+                  formatter={(v: number) => [`$${v.toFixed(2)}`, "Equity"]}
+                />
+                <Line type="monotone" dataKey="eq" stroke="var(--primary)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Positions */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono tracking-wide">POSITIONS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {positions.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-6 text-center">No open positions.</p>
+              ) : (
+                <table className="w-full text-sm font-mono">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr>
+                      <th className="text-left py-1">Symbol</th>
+                      <th className="text-right py-1">Qty</th>
+                      <th className="text-right py-1">Avg Entry</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((p) => (
+                      <tr key={p.symbol} className="border-t border-border">
+                        <td className="py-2">{p.symbol}</td>
+                        <td className={`text-right ${Number(p.qty) > 0 ? "text-long" : "text-short"}`}>
+                          {Number(p.qty).toFixed(6)}
+                        </td>
+                        <td className="text-right">${Number(p.avg_entry_price).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Test signal */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono tracking-wide">SEND TEST SIGNAL</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Symbol</Label>
+                  <Input value={testForm.symbol} onChange={(e) => setTestForm({ ...testForm, symbol: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Action</Label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                    value={testForm.action}
+                    onChange={(e) => setTestForm({ ...testForm, action: e.target.value as "buy" | "sell" | "close" })}
+                  >
+                    <option value="buy">buy</option>
+                    <option value="sell">sell</option>
+                    <option value="close">close</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Price</Label>
+                  <Input type="number" value={testForm.price} onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Size (USD)</Label>
+                  <Input type="number" value={testForm.size_usd} onChange={(e) => setTestForm({ ...testForm, size_usd: Number(e.target.value) })} />
+                </div>
+              </div>
+              <Button onClick={() => testMut.mutate()} disabled={testMut.isPending} className="w-full">
+                {testMut.isPending ? "Sending…" : "Fire signal"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent orders */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono tracking-wide">RECENT ORDERS</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            {orders.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">No orders yet.</p>
+            ) : (
+              <table className="w-full text-sm font-mono">
+                <thead className="text-xs text-muted-foreground">
+                  <tr>
+                    <th className="text-left py-1">Time</th>
+                    <th className="text-left py-1">Symbol</th>
+                    <th className="text-left py-1">Side</th>
+                    <th className="text-right py-1">Qty</th>
+                    <th className="text-right py-1">Price</th>
+                    <th className="text-left py-1 pl-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((o) => (
+                    <tr key={o.id} className="border-t border-border">
+                      <td className="py-2 text-xs text-muted-foreground">
+                        {new Date(o.created_at).toLocaleTimeString()}
+                      </td>
+                      <td>{o.symbol}</td>
+                      <td>
+                        <span className={o.side === "buy" ? "text-long" : "text-short"}>
+                          {o.side === "buy" ? <ArrowUpRight className="inline w-3 h-3" /> : <ArrowDownRight className="inline w-3 h-3" />}{" "}
+                          {o.side}
+                        </span>
+                      </td>
+                      <td className="text-right">{Number(o.qty).toFixed(6)}</td>
+                      <td className="text-right">${Number(o.filled_price ?? o.price ?? 0).toFixed(2)}</td>
+                      <td className="pl-3">
+                        <Badge variant={o.status === "filled" ? "default" : o.status === "rejected" ? "destructive" : "secondary"}>
+                          {o.status}
+                        </Badge>
+                        {o.paper && <span className="ml-2 text-xs text-warning">paper</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Two-column activity + events */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono tracking-wide">ACTIVITY LOG</CardTitle>
+            </CardHeader>
+            <CardContent className="max-h-80 overflow-y-auto">
+              {logs.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-6 text-center">Quiet.</p>
+              ) : (
+                <ul className="space-y-2 text-xs font-mono">
+                  {logs.map((l) => (
+                    <li key={l.id} className="flex gap-2">
+                      <span className="text-muted-foreground shrink-0">
+                        {new Date(l.created_at).toLocaleTimeString()}
+                      </span>
+                      <span
+                        className={
+                          l.severity === "error"
+                            ? "text-destructive"
+                            : l.severity === "warn"
+                              ? "text-warning"
+                              : ""
+                        }
+                      >
+                        [{l.severity}]
+                      </span>
+                      <span>{l.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono tracking-wide">WEBHOOK EVENTS</CardTitle>
+            </CardHeader>
+            <CardContent className="max-h-80 overflow-y-auto">
+              {events.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-6 text-center space-y-2">
+                  <AlertTriangle className="w-4 h-4 mx-auto" />
+                  <p>No alerts received yet.</p>
+                  <p>
+                    <Link to="/docs" className="underline">Wire up TradingView →</Link>
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2 text-xs font-mono">
+                  {events.map((e) => (
+                    <li key={e.id} className="border-t border-border pt-2">
+                      <div className="flex justify-between">
+                        <span>{(e.raw_payload as { symbol?: string })?.symbol ?? "—"} · {(e.raw_payload as { action?: string })?.action ?? "—"}</span>
+                        <Badge
+                          variant={
+                            e.status === "executed" ? "default" : e.status === "rejected" ? "destructive" : "secondary"
+                          }
+                        >
+                          {e.status}
+                        </Badge>
+                      </div>
+                      {e.reason && <div className="text-muted-foreground">{e.reason}</div>}
+                      <div className="text-muted-foreground">
+                        {new Date(e.received_at).toLocaleString()}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "long" | "short";
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="text-xs font-mono text-muted-foreground tracking-widest">{label}</div>
+        <div
+          className={`text-2xl font-mono mt-1 ${
+            tone === "long" ? "text-long" : tone === "short" ? "text-short" : ""
+          }`}
+        >
+          {value}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

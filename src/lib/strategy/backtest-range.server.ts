@@ -174,6 +174,8 @@ export async function runBacktestRange(opts: {
     const post = laterSameDay.filter((k) => k.openTime > breakBar.openTime);
     let triggered = false;
     let resolved = false;
+    let dynSl = sl;
+    let peakR = 0;
     for (const k of post) {
       if (!triggered) {
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
@@ -184,27 +186,47 @@ export async function runBacktestRange(opts: {
           continue;
         }
       }
+      // Update peak-R using bar extremes in the favorable direction.
+      const favorableExtreme = breakSide === "long" ? k.high : k.low;
+      const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
+      if (barR > peakR) peakR = barR;
+
+      // Advance trailing SL if enabled.
+      if (trailEnabled && peakR >= trailActivateR) {
+        const steps = Math.floor((peakR - trailActivateR) / trailStepR);
+        const slR = steps * trailStepR; // 0, step, 2*step, ...
+        const newSl = breakSide === "long" ? entry + slR * risk : entry - slR * risk;
+        if (breakSide === "long" ? newSl > dynSl : newSl < dynSl) dynSl = newSl;
+      }
+
       const hitTp = breakSide === "long" ? k.high >= tp : k.low <= tp;
-      const hitSl = breakSide === "long" ? k.low <= sl : k.high >= sl;
+      const hitSl = breakSide === "long" ? k.low <= dynSl : k.high >= dynSl;
+      const slR = ((dynSl - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (hitTp && hitSl) {
-        dr.outcome = "sl"; // conservative same-bar assumption
-        dr.pnl_usd = -opts.slRiskUsd;
+        // Conservative same-bar assumption: SL first.
+        dr.outcome = "sl";
+        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.exit_r = slR;
         resolved = true;
         break;
       }
       if (hitTp) {
         dr.outcome = "tp";
         dr.pnl_usd = opts.slRiskUsd * opts.rr;
+        dr.exit_r = opts.rr;
         resolved = true;
         break;
       }
       if (hitSl) {
         dr.outcome = "sl";
-        dr.pnl_usd = -opts.slRiskUsd;
+        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.exit_r = slR;
         resolved = true;
         break;
       }
     }
+    dr.final_sl = dynSl;
+    dr.peak_r = peakR;
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }

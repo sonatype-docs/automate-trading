@@ -146,11 +146,11 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     actions.push(`expired_prev_day=${expiredRows.length}`);
   }
 
-  // Optional: no trading on weekends
+  // Optional: skip Sunday (low volume). Sat/Fri etc. remain tradeable.
   if (s.skip_weekends) {
     const wd = istWeekday(todayIst);
-    if (wd === 0 || wd === 6) {
-      return { ok: true, reason: "weekend_skip", ist_date: todayIst, actions };
+    if (wd === 0) {
+      return { ok: true, reason: "sunday_skip", ist_date: todayIst, actions };
     }
   }
 

@@ -166,17 +166,20 @@ export function createSharkClient(): ExchangeClient {
 
     async testConnection() {
       const { apiKey, apiSecret } = requireCreds();
-      // Read-only, auth-required endpoint — safe way to prove the key + signature work.
-      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {
-        pageSize: 1,
-        sortOrder: "desc",
-      });
+      // Minimal signed probe: only `timestamp` in the querystring.
+      // Matches the Python example in SharkExchange docs and rules out
+      // any URLSearchParams encoding differences.
+      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {});
       if (res.ok) {
-        const count = Array.isArray(res.json) ? res.json.length : 0;
+        const rows = Array.isArray(res.json)
+          ? res.json.length
+          : Array.isArray((res.json as { data?: unknown[] } | null)?.data)
+            ? (res.json as { data: unknown[] }).data.length
+            : 0;
         return {
           ok: true,
           status: res.status,
-          message: `Authenticated with SharkExchange. Trade-history probe returned ${count} row(s).`,
+          message: `Authenticated with SharkExchange. Trade-history probe returned ${rows} row(s).`,
           sample: res.json,
         };
       }
@@ -186,5 +189,6 @@ export function createSharkClient(): ExchangeClient {
         message: `SharkExchange rejected the request [${res.status}]: ${res.body.slice(0, 300)}`,
       };
     },
+
   };
 }

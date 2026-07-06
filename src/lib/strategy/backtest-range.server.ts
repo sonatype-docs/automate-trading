@@ -67,6 +67,8 @@ export interface WeekdayStat {
 export interface RangeBacktestResult {
   symbol: string;
   session_start_ist: string;
+  sl_risk_usd: number;
+  rr: number;
   days_requested: number;
   from_ms: number;
   to_ms: number;
@@ -75,6 +77,7 @@ export interface RangeBacktestResult {
   skip_weekdays: Weekday[];
   days: DayResult[];
   weekdays: WeekdayStat[];
+  equity: { ist_date: string; cum_pnl_usd: number }[];
   summary: {
     total_days: number;
     days_with_session: number;
@@ -92,6 +95,13 @@ export interface RangeBacktestResult {
     worst_pnl_usd: number;
     best_weekday: { label: string; total_pnl_usd: number } | null;
     worst_weekday: { label: string; total_pnl_usd: number } | null;
+    profit_factor: number;   // gross wins / gross losses
+    expectancy_usd: number;  // avg $ per decided trade
+    avg_win_usd: number;
+    avg_loss_usd: number;
+    max_drawdown_usd: number;
+    max_consec_wins: number;
+    max_consec_losses: number;
   };
 }
 

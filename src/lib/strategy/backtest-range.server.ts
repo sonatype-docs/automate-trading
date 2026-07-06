@@ -324,9 +324,36 @@ export async function runBacktestRange(opts: {
   const bestWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd > a.total_pnl_usd ? b : a)) : null;
   const worstWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd < a.total_pnl_usd ? b : a)) : null;
 
+  // Advanced stats over chronological decided trades.
+  const decidedRows = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
+  const grossWin = decidedRows.filter((d) => d.pnl_usd > 0).reduce((s, d) => s + d.pnl_usd, 0);
+  const grossLoss = Math.abs(decidedRows.filter((d) => d.pnl_usd < 0).reduce((s, d) => s + d.pnl_usd, 0));
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+  const expectancy = decidedRows.length > 0 ? (grossWin - grossLoss) / decidedRows.length : 0;
+  const winRows = decidedRows.filter((d) => d.pnl_usd > 0);
+  const lossRows = decidedRows.filter((d) => d.pnl_usd < 0);
+  const avgWin = winRows.length ? grossWin / winRows.length : 0;
+  const avgLoss = lossRows.length ? grossLoss / lossRows.length : 0;
+
+  // Streaks + equity curve + drawdown, walk chronologically.
+  let curWin = 0, curLoss = 0, maxWin = 0, maxLoss = 0;
+  let cum = 0, peak = 0, maxDd = 0;
+  const equity: { ist_date: string; cum_pnl_usd: number }[] = [];
+  for (const d of days) {
+    if (d.outcome === "tp") { curWin += 1; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
+    else if (d.outcome === "sl") { curLoss += 1; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    cum += d.pnl_usd;
+    if (cum > peak) peak = cum;
+    const dd = peak - cum;
+    if (dd > maxDd) maxDd = dd;
+    equity.push({ ist_date: d.ist_date, cum_pnl_usd: cum });
+  }
+
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
+    sl_risk_usd: opts.slRiskUsd,
+    rr: opts.rr,
     days_requested: opts.days,
     from_ms: fromMs,
     to_ms: now,
@@ -335,6 +362,7 @@ export async function runBacktestRange(opts: {
     skip_weekdays: opts.skipWeekdays ?? [],
     days,
     weekdays,
+    equity,
     summary: {
       total_days: days.length,
       days_with_session: daysWithSession,
@@ -352,6 +380,13 @@ export async function runBacktestRange(opts: {
       worst_pnl_usd: worstPnl,
       best_weekday: bestWd ? { label: bestWd.label, total_pnl_usd: bestWd.total_pnl_usd } : null,
       worst_weekday: worstWd ? { label: worstWd.label, total_pnl_usd: worstWd.total_pnl_usd } : null,
+      profit_factor: profitFactor,
+      expectancy_usd: expectancy,
+      avg_win_usd: avgWin,
+      avg_loss_usd: avgLoss,
+      max_drawdown_usd: maxDd,
+      max_consec_wins: maxWin,
+      max_consec_losses: maxLoss,
     },
   };
 }

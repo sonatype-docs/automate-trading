@@ -1096,9 +1096,12 @@ function StrategyCard() {
   const runNow = useServerFn(runStrategyTickNow);
   const runBacktest = useServerFn(backtestToday);
   const runRange = useServerFn(backtestRange);
+  const updateStrat = useServerFn(updateStrategySettings);
   const [bt, setBt] = useState<BacktestData | null>(null);
   const [range, setRange] = useState<RangeData | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(30);
+  // Trailing-SL overrides for the NEXT backtest run. Null = use saved settings.
+  const [trailOverride, setTrailOverride] = useState<{ enabled: boolean; activateR: number; stepR: number } | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1119,18 +1122,46 @@ function StrategyCard() {
     onError: (e: Error) => toast.error(e.message),
   });
   const rangeMut = useMutation({
-    mutationFn: () => runRange({ data: { days: rangeDays } }),
+    mutationFn: () =>
+      runRange({
+        data: {
+          days: rangeDays,
+          ...(trailOverride
+            ? {
+                trail_enabled: trailOverride.enabled,
+                trail_activate_r: trailOverride.activateR,
+                trail_step_r: trailOverride.stepR,
+              }
+            : {}),
+        },
+      }),
     onSuccess: (r) => {
       setRange(r);
       toast.success(`Backtest ${rangeDays}d — ${r.summary.tp}W / ${r.summary.sl}L`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-
+  const trailSaveMut = useMutation({
+    mutationFn: (patch: { trail_enabled?: boolean; trail_activate_r?: number; trail_step_r?: number }) =>
+      updateStrat({ data: patch }),
+    onSuccess: () => {
+      toast.success("Trailing SL saved");
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const s = q.data?.settings as
-    | { enabled: boolean; symbol: string; sl_risk_usd: number; rr: number; session_start_ist: string }
+    | {
+        enabled: boolean;
+        symbol: string;
+        sl_risk_usd: number;
+        rr: number;
+        session_start_ist: string;
+        trail_enabled?: boolean;
+        trail_activate_r?: number;
+        trail_step_r?: number;
+      }
     | null
     | undefined;
   const session = q.data?.session as

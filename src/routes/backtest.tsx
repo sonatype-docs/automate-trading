@@ -388,7 +388,7 @@ function ResultsView({ data }: { data: RangeData }) {
                   <Line
                     type="monotone"
                     dataKey="pnl"
-                    stroke={s.total_pnl_usd >= 0 ? "hsl(var(--long))" : "hsl(var(--short))"}
+                    stroke={s.total_pnl_usd >= 0 ? "hsl(var(--primary))" : "hsl(var(--destructive))"}
                     dot={false}
                     strokeWidth={2}
                   />

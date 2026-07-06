@@ -273,12 +273,51 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     .from("strategy_setups")
     .select("*")
     .eq("status", "triggered");
+  const trailEnabled = !!s.trail_enabled;
+  const trailActivateR = Math.max(0.1, Number(s.trail_activate_r ?? 2));
+  const trailStepR = Math.max(0.1, Number(s.trail_step_r ?? 1));
   for (const setup of (triggered ?? []) as SetupRow[]) {
     if (lastPrice == null) break;
+    const initialSl = Number(setup.initial_sl_price ?? setup.sl_price);
+    const risk = Math.abs(setup.entry_price - initialSl);
+
+    // Update peak-R using both the current bar's favorable extreme AND lastPrice.
+    const favBar =
+      setup.side === "long"
+        ? Math.max(currentBar?.high ?? lastPrice, lastPrice)
+        : Math.min(currentBar?.low ?? lastPrice, lastPrice);
+    const curR = risk > 0 ? ((favBar - setup.entry_price) * (setup.side === "long" ? 1 : -1)) / risk : 0;
+    const peakR = Math.max(Number(setup.peak_r ?? 0), curR);
+
+    // Compute the trailed SL, if trailing is armed.
+    let dynSl = Number(setup.sl_price);
+    if (trailEnabled && peakR >= trailActivateR && risk > 0) {
+      const steps = Math.floor((peakR - trailActivateR) / trailStepR);
+      const slR = steps * trailStepR;
+      const newSl =
+        setup.side === "long" ? setup.entry_price + slR * risk : setup.entry_price - slR * risk;
+      if (setup.side === "long" ? newSl > dynSl : newSl < dynSl) dynSl = newSl;
+    }
+
+    // Persist trailing progress if it advanced or peak changed.
+    if (peakR > Number(setup.peak_r ?? 0) || dynSl !== Number(setup.sl_price)) {
+      await supabaseAdmin
+        .from("strategy_setups")
+        .update({
+          peak_r: peakR,
+          sl_price: dynSl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+      if (dynSl !== Number(setup.sl_price)) {
+        actions.push(`trail ${setup.side} peak=${peakR.toFixed(2)}R sl→${dynSl.toFixed(2)}`);
+      }
+    }
+
     const hitTp =
       setup.side === "long" ? lastPrice >= setup.tp_price : lastPrice <= setup.tp_price;
     const hitSl =
-      setup.side === "long" ? lastPrice <= setup.sl_price : lastPrice >= setup.sl_price;
+      setup.side === "long" ? lastPrice <= dynSl : lastPrice >= dynSl;
     if (!hitTp && !hitSl) continue;
     const reason: "tp" | "sl" = hitTp ? "tp" : "sl";
     const result = await processSignal(

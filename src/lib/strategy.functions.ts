@@ -40,6 +40,7 @@ const StrategySettingsSchema = z.object({
   trail_enabled: z.boolean().optional(),
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
+  skip_weekends: z.boolean().optional(),
 });
 
 export const updateStrategySettings = createServerFn({ method: "POST" })

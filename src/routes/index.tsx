@@ -1159,10 +1159,27 @@ function StrategyCard() {
           <Button size="sm" variant="secondary" disabled={btMut.isPending} onClick={() => btMut.mutate()}>
             {btMut.isPending ? "Replaying…" : "Run today"}
           </Button>
+          <select
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-mono"
+            value={rangeDays}
+            onChange={(e) => setRangeDays(Number(e.target.value))}
+            disabled={rangeMut.isPending}
+          >
+            <option value={7}>7d</option>
+            <option value={30}>30d</option>
+            <option value={90}>90d</option>
+            <option value={180}>180d</option>
+            <option value={365}>365d</option>
+          </select>
+          <Button size="sm" variant="secondary" disabled={rangeMut.isPending} onClick={() => rangeMut.mutate()}>
+            {rangeMut.isPending ? "Replaying…" : `Backtest ${rangeDays}d`}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
+        {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
+
 
         {session ? (
           <div className="grid grid-cols-4 gap-2 font-mono text-xs">

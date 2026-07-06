@@ -25,9 +25,11 @@ function SettingsPage() {
   const getDash = useServerFn(getDashboard);
   const getInfo = useServerFn(getWebhookInfo);
   const update = useServerFn(updateSettings);
+  const testConn = useServerFn(testExchangeConnection);
 
   const dashQ = useQuery({ queryKey: ["dashboard"], queryFn: () => getDash() });
   const infoQ = useQuery({ queryKey: ["webhook-info"], queryFn: () => getInfo() });
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [form, setForm] = useState({
     max_position_usd: 100,

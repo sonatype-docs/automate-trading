@@ -309,7 +309,7 @@ function Dashboard() {
             sub={`Free ${fmtINR(walletFree)}`}
           />
           <Metric
-            label="TOTAL FEES (USD)"
+            label="TOTAL FEES"
             value={fmtINR(feesTotal, 4)}
             sub={`${exTrades.length} trades`}
             tone="short"

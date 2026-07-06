@@ -1100,6 +1100,7 @@ function StrategyCard() {
   const [bt, setBt] = useState<BacktestData | null>(null);
   const [range, setRange] = useState<RangeData | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(30);
+  const [skipWeekends, setSkipWeekends] = useState<boolean>(true);
   // Trailing-SL overrides for the NEXT backtest run. Null = use saved settings.
   const [trailOverride, setTrailOverride] = useState<{ enabled: boolean; activateR: number; stepR: number } | null>(null);
   const q = useQuery({
@@ -1126,6 +1127,7 @@ function StrategyCard() {
       runRange({
         data: {
           days: rangeDays,
+          skip_weekdays: skipWeekends ? [0, 6] : [],
           ...(trailOverride
             ? {
                 trail_enabled: trailOverride.enabled,

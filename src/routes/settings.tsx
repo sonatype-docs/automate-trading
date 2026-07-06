@@ -2,13 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDashboard, updateSettings, getWebhookInfo, testExchangeConnection } from "@/lib/trading.functions";
+import { getStrategyState, updateStrategySettings } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,

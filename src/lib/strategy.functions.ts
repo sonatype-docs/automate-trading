@@ -57,3 +57,20 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
   const { runStrategyTick } = await import("@/lib/strategy/engine.server");
   return runStrategyTick();
 });
+
+export const backtestToday = createServerFn({ method: "POST" }).handler(async () => {
+  const supabase = await admin();
+  const { data: settings } = await supabase
+    .from("strategy_settings")
+    .select("*")
+    .eq("id", true)
+    .single();
+  if (!settings) throw new Error("Strategy settings not found");
+  const { runBacktestToday } = await import("@/lib/strategy/backtest.server");
+  return runBacktestToday({
+    symbol: settings.symbol,
+    sessionStartIst: String(settings.session_start_ist).slice(0, 5),
+    slRiskUsd: Number(settings.sl_risk_usd),
+    rr: Number(settings.rr),
+  });
+});

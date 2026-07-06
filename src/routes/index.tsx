@@ -8,7 +8,7 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow } from "@/lib/strategy.functions";
+import { getStrategyState, runStrategyTickNow, backtestToday } from "@/lib/strategy.functions";
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1109,10 +1109,14 @@ function WalletCard({
 }
 
 
+type BacktestData = Awaited<ReturnType<typeof backtestToday>>;
+
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
+  const runBacktest = useServerFn(backtestToday);
+  const [bt, setBt] = useState<BacktestData | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1127,6 +1131,12 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const btMut = useMutation({
+    mutationFn: () => runBacktest(),
+    onSuccess: (r) => { setBt(r); toast.success(`Backtest: ${r.outcome.status}`); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const s = q.data?.settings as
     | { enabled: boolean; symbol: string; sl_risk_usd: number; rr: number; session_start_ist: string }
@@ -1188,9 +1198,14 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
+          <Button size="sm" variant="secondary" disabled={btMut.isPending} onClick={() => btMut.mutate()}>
+            {btMut.isPending ? "Replaying…" : "Run today"}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
+
         {session ? (
           <div className="grid grid-cols-4 gap-2 font-mono text-xs">
             <ZoneCell label="HIGH · fib 0" value={session.zone_high} />
@@ -1255,6 +1270,86 @@ function ZoneCell({ label, value, highlight }: { label: string; value: number; h
     <div className={`border rounded px-2 py-1.5 ${highlight ? "border-primary bg-primary/5" : "border-border"}`}>
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="text-sm">{value.toFixed(2)}</div>
+    </div>
+  );
+}
+
+function BacktestPanel({ data, onClose }: { data: BacktestData; onClose: () => void }) {
+  const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2));
+  const fmtTime = (ms: number | null | undefined) =>
+    !ms ? "—" : new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+  const outcome = data.outcome;
+  const tone =
+    outcome.status === "tp"
+      ? "text-long"
+      : outcome.status === "sl"
+        ? "text-short"
+        : "text-muted-foreground";
+  const label: Record<string, string> = {
+    tp: "TP HIT",
+    sl: "SL HIT",
+    open: "TRIGGERED · STILL OPEN",
+    armed_no_trigger: "BROKE · ENTRY NEVER TOUCHED",
+    no_break: "NO BREAK YET",
+    no_session_candle: "SESSION CANDLE NOT YET CLOSED",
+  };
+  return (
+    <div className="border border-border rounded p-3 bg-muted/30 font-mono text-xs space-y-2">
+      <div className="flex items-center justify-between">
+        <div className={`tracking-widest ${tone}`}>
+          BACKTEST · {data.ist_date} · {label[outcome.status] ?? outcome.status.toUpperCase()}
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+      </div>
+      {data.session_candle && data.zone && (
+        <div className="grid grid-cols-4 gap-2">
+          <BtCell k="session candle" v={fmtTime(data.session_candle.openTime)} />
+          <BtCell k="high / low" v={`${fmt(data.session_candle.high)} / ${fmt(data.session_candle.low)}`} />
+          <BtCell k="fib 0.25" v={fmt(data.zone.fib_25)} />
+          <BtCell k="fib 0.75" v={fmt(data.zone.fib_75)} />
+        </div>
+      )}
+      {data.break && data.setup && (
+        <div className="grid grid-cols-4 gap-2">
+          <BtCell
+            k="break"
+            v={`${data.break.side.toUpperCase()} @ ${fmt(data.break.close)}`}
+            tone={data.break.side === "long" ? "text-long" : "text-short"}
+          />
+          <BtCell k="broke at" v={fmtTime(data.break.at)} />
+          <BtCell k="entry / sl / tp" v={`${fmt(data.setup.entry)} / ${fmt(data.setup.sl)} / ${fmt(data.setup.tp)}`} />
+          <BtCell k="qty" v={data.setup.qty.toFixed(4)} />
+        </div>
+      )}
+      {data.trigger && (
+        <div className="grid grid-cols-4 gap-2">
+          <BtCell k="entry filled at" v={fmtTime(data.trigger.hit_at)} />
+          <BtCell k="trigger bar L/H" v={`${fmt(data.trigger.bar_low)} / ${fmt(data.trigger.bar_high)}`} />
+          {"pnl_usd" in outcome && (
+            <BtCell
+              k="p&l (usd)"
+              v={`${outcome.pnl_usd >= 0 ? "+" : ""}${outcome.pnl_usd.toFixed(2)}`}
+              tone={outcome.pnl_usd >= 0 ? "text-long" : "text-short"}
+            />
+          )}
+          {"hit_at" in outcome && <BtCell k="closed at" v={fmtTime(outcome.hit_at)} />}
+        </div>
+      )}
+      {"note" in outcome && outcome.note && (
+        <p className="text-muted-foreground">{outcome.note}</p>
+      )}
+      <p className="text-muted-foreground text-[10px]">
+        Read-only replay of the last {data.bars_scanned} 1H bars using current fib rules. Does not touch orders.
+      </p>
+    </div>
+  );
+}
+
+function BtCell({ k, v, tone }: { k: string; v: string; tone?: string }) {
+  return (
+    <div className="border border-border rounded px-2 py-1.5 bg-background">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k}</div>
+      <div className={`text-xs ${tone ?? ""}`}>{v}</div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
+import { getStrategyState, runStrategyTickNow } from "@/lib/strategy.functions";
+
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -1153,10 +1153,10 @@ function StrategyCard() {
 
         {session ? (
           <div className="grid grid-cols-4 gap-2 font-mono text-xs">
-            <ZoneCell label="HIGH · fib 0" value={session.zone_high} />
-            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_25} highlight={session.break_side === "long"} />
-            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_75} highlight={session.break_side === "short"} />
-            <ZoneCell label="LOW · fib 1" value={session.zone_low} />
+            <ZoneCell label="HIGH · fib 1" value={session.zone_high} />
+            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_25} highlight={session.break_side === "short"} />
+            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_75} highlight={session.break_side === "long"} />
+            <ZoneCell label="LOW · fib 0" value={session.zone_low} />
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono">
@@ -1250,8 +1250,8 @@ function BacktestPanel({ data, onClose }: { data: BacktestData; onClose: () => v
         <div className="grid grid-cols-4 gap-2">
           <BtCell k="session candle" v={fmtTime(data.session_candle.openTime)} />
           <BtCell k="high / low" v={`${fmt(data.session_candle.high)} / ${fmt(data.session_candle.low)}`} />
-          <BtCell k="fib 0.25" v={fmt(data.zone.fib_25)} />
-          <BtCell k="fib 0.75" v={fmt(data.zone.fib_75)} />
+          <BtCell k="fib 0.75 (short entry)" v={fmt(data.zone.fib_25)} />
+          <BtCell k="fib 0.25 (long entry)" v={fmt(data.zone.fib_75)} />
         </div>
       )}
       {data.break && data.setup && (

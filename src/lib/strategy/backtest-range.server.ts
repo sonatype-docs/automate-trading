@@ -13,8 +13,18 @@ function sessionOpenUtcMs(istDateStr: string, sessionStartIst: string): number {
   return Math.floor(openMs / 3_600_000) * 3_600_000;
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+function istWeekday(dateStr: string): Weekday {
+  const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() as Weekday;
+}
+
 export interface DayResult {
   ist_date: string;
+  weekday: Weekday;
+  weekday_label: string;
+  skipped: boolean;
   session_open: number | null;
   zone_high: number | null;
   zone_low: number | null;
@@ -34,12 +44,25 @@ export interface DayResult {
     | "armed_no_trigger"
     | "tp"
     | "sl"
-    | "open";
+    | "open"
+    | "skipped";
   pnl_usd: number;
   final_sl: number | null;
   peak_r: number;
   exit_r: number | null;
 }
+
+export interface WeekdayStat {
+  weekday: Weekday;
+  label: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number;
+  total_pnl_usd: number;
+  avg_pnl_usd: number;
+}
+
 
 export interface RangeBacktestResult {
   symbol: string;

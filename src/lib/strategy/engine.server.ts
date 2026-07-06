@@ -29,6 +29,9 @@ interface StrategySettingsRow {
   sl_risk_usd: number;
   rr: number;
   session_start_ist: string;
+  trail_enabled?: boolean;
+  trail_activate_r?: number;
+  trail_step_r?: number;
 }
 
 interface SessionRow {
@@ -59,6 +62,8 @@ interface SetupRow {
   pnl_usd: number | null;
   filled_at: string | null;
   closed_at: string | null;
+  peak_r?: number;
+  initial_sl_price?: number | null;
 }
 
 export interface StrategyTickResult {

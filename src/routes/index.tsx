@@ -77,7 +77,7 @@ function Dashboard() {
   const qc = useQueryClient();
   const getDash = useServerFn(getDashboard);
   const updateSettingsFn = useServerFn(updateSettings);
-  const sendTest = useServerFn(sendTestSignal);
+  
   const getAcct = useServerFn(getExchangeAccount);
 
   const dashQ = useQuery({

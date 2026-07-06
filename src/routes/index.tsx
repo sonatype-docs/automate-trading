@@ -198,6 +198,10 @@ function Dashboard() {
 
         <LiveTicker defaultSymbol="XAUUSDT" />
 
+        <ExchangeAccount />
+
+
+
 
 
         <Card>

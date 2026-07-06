@@ -457,76 +457,38 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-mono tracking-wide">POSITIONS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {positions.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-6 text-center">No open positions.</p>
-              ) : (
-                <table className="w-full text-sm font-mono">
-                  <thead className="text-xs text-muted-foreground">
-                    <tr>
-                      <th className="text-left py-1">Symbol</th>
-                      <th className="text-right py-1">Qty</th>
-                      <th className="text-right py-1">Avg Entry</th>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono tracking-wide">POSITIONS</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {positions.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">No open positions.</p>
+            ) : (
+              <table className="w-full text-sm font-mono">
+                <thead className="text-xs text-muted-foreground">
+                  <tr>
+                    <th className="text-left py-1">Symbol</th>
+                    <th className="text-right py-1">Qty</th>
+                    <th className="text-right py-1">Avg Entry</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((p) => (
+                    <tr key={p.symbol} className="border-t border-border">
+                      <td className="py-2">{p.symbol}</td>
+                      <td className={`text-right ${Number(p.qty) > 0 ? "text-long" : "text-short"}`}>
+                        {Number(p.qty).toFixed(6)}
+                      </td>
+                      <td className="text-right">${Number(p.avg_entry_price).toFixed(2)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((p) => (
-                      <tr key={p.symbol} className="border-t border-border">
-                        <td className="py-2">{p.symbol}</td>
-                        <td className={`text-right ${Number(p.qty) > 0 ? "text-long" : "text-short"}`}>
-                          {Number(p.qty).toFixed(6)}
-                        </td>
-                        <td className="text-right">${Number(p.avg_entry_price).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-mono tracking-wide">SEND TEST SIGNAL</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Symbol</Label>
-                  <Input value={testForm.symbol} onChange={(e) => setTestForm({ ...testForm, symbol: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Action</Label>
-                  <select
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={testForm.action}
-                    onChange={(e) => setTestForm({ ...testForm, action: e.target.value as "buy" | "sell" | "close" })}
-                  >
-                    <option value="buy">buy</option>
-                    <option value="sell">sell</option>
-                    <option value="close">close</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Price</Label>
-                  <Input type="number" value={testForm.price} onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Size (USD)</Label>
-                  <Input type="number" value={testForm.size_usd} onChange={(e) => setTestForm({ ...testForm, size_usd: Number(e.target.value) })} />
-                </div>
-              </div>
-              <Button onClick={() => testMut.mutate()} disabled={testMut.isPending} className="w-full">
-                {testMut.isPending ? "Sending…" : "Fire signal"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
 
         <Card>
           <CardHeader className="pb-2">

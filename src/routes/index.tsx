@@ -1241,8 +1241,21 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <TrailingSlControls
+          saved={{
+            enabled: !!s?.trail_enabled,
+            activateR: Number(s?.trail_activate_r ?? 2),
+            stepR: Number(s?.trail_step_r ?? 1),
+          }}
+          override={trailOverride}
+          onOverrideChange={setTrailOverride}
+          onSave={(patch) => trailSaveMut.mutate(patch)}
+          saving={trailSaveMut.isPending}
+        />
         {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
         {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
+
+
 
 
         {session ? (

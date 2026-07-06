@@ -137,11 +137,14 @@ function Dashboard() {
   const walletTotal = walletLocked + walletFree;
   const walletAsset = String(fw?.asset ?? "INR");
 
-  const totalFees = exTrades.reduce((s, t) => s + Math.abs(Number(t.fee ?? 0)), 0);
-  const commissionTx = exTxns
+  const tradeFeesSum = exTrades.reduce((s, t) => s + Math.abs(Number(t.fee ?? 0)), 0);
+  const commissionTxSum = exTxns
     .filter((x) => String(x.type ?? "").toUpperCase() === "COMMISSION")
     .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
-  const feesTotal = totalFees + commissionTx;
+  // Commissions in transactionHistory and fees on trades represent the same charges —
+  // pick the higher of the two to avoid double counting while still catching any fills
+  // that fell outside the trade-history page.
+  const feesTotal = Math.max(tradeFeesSum, commissionTxSum);
 
   const parseTime = (v: unknown): number => {
     if (v == null || v === "") return 0;
@@ -173,6 +176,7 @@ function Dashboard() {
 
   const pnlTrades = tradeFills.filter((t) => Number.isFinite(t.pnl));
   const realizedPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
+  const netAfterFees = realizedPnl - tradeFeesSum;
 
   const wins = pnlTrades.filter((t) => t.pnl > 0).length;
   const losses = pnlTrades.filter((t) => t.pnl < 0).length;
@@ -187,13 +191,13 @@ function Dashboard() {
     .reduce((s, t) => s + t.pnl, 0);
 
   const hasWallet = Boolean(fw);
-  const equity = hasWallet ? walletTotal : INITIAL_CAPITAL_INR + realizedPnl;
+  const equity = INITIAL_CAPITAL_INR + netAfterFees;
   const equityChange = equity - INITIAL_CAPITAL_INR;
   const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
 
-  // Cumulative realized P&L curve in USD (SharkExchange returns pnl/fee in quote currency = USD).
-  let pnlRun = 0;
-  const pnlCurve: Array<{ t: number; eq: number }> = [];
+  // Equity curve in INR: start at initial capital, then cumulate realized PnL minus fees per fill.
+  let eqRun = INITIAL_CAPITAL_INR;
+  const equityCurve: Array<{ t: number; eq: number }> = [];
   const journal: Array<{
     time: number;
     symbol: string;
@@ -206,18 +210,20 @@ function Dashboard() {
     id: string;
   }> = [];
   if (pnlTrades.length > 0) {
-    pnlCurve.push({ t: pnlTrades[0].time - 60_000, eq: 0 });
+    equityCurve.push({ t: pnlTrades[0].time - 60_000, eq: INITIAL_CAPITAL_INR });
+  } else {
+    equityCurve.push({ t: Date.now() - 86_400_000, eq: INITIAL_CAPITAL_INR });
+    equityCurve.push({ t: Date.now(), eq: INITIAL_CAPITAL_INR });
   }
   for (const t of pnlTrades) {
-    pnlRun += t.pnl - t.fee;
-    pnlCurve.push({ t: t.time, eq: pnlRun });
-    journal.push({ ...t, equity: pnlRun });
+    eqRun += t.pnl - t.fee;
+    equityCurve.push({ t: t.time, eq: eqRun });
+    journal.push({ ...t, equity: eqRun });
   }
 
   const fmtINR = (n: number, digits = 2) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-  const fmtUSD = (n: number, digits = 2) =>
-    `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
 
 
   return (
@@ -292,9 +298,9 @@ function Dashboard() {
             tone={equityChange >= 0 ? "long" : "short"}
           />
           <Metric
-            label="REALIZED P&L (USD)"
-            value={`${realizedPnl >= 0 ? "+" : ""}${fmtUSD(realizedPnl)}`}
-            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`}
+            label="REALIZED P&L"
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
+            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
             tone={realizedPnl >= 0 ? "long" : "short"}
           />
           <Metric
@@ -303,8 +309,8 @@ function Dashboard() {
             sub={`Free ${fmtINR(walletFree)}`}
           />
           <Metric
-            label="TOTAL FEES (USD)"
-            value={fmtUSD(feesTotal, 4)}
+            label="TOTAL FEES"
+            value={fmtINR(feesTotal, 4)}
             sub={`${exTrades.length} trades`}
             tone="short"
           />
@@ -329,20 +335,20 @@ function Dashboard() {
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-mono tracking-wide">
-              CUMULATIVE REALIZED P&amp;L (USD)
+              EQUITY CURVE
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
-              Net {fmtUSD(pnlRun)} · {pnlTrades.length} fills
+              {fmtINR(equity)} · {pnlTrades.length} fills
             </span>
           </CardHeader>
           <CardContent className="h-56">
-            {pnlCurve.length === 0 ? (
+            {equityCurve.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
                 No realized P&amp;L yet.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={pnlCurve}>
+                <LineChart data={equityCurve}>
                   <XAxis
                     dataKey="t"
                     tickFormatter={(v) => new Date(v).toLocaleDateString()}
@@ -353,12 +359,12 @@ function Dashboard() {
                     stroke="var(--muted-foreground)"
                     fontSize={10}
                     domain={["auto", "auto"]}
-                    tickFormatter={(v) => fmtUSD(Number(v), 0)}
+                    tickFormatter={(v) => fmtINR(Number(v), 0)}
                   />
                   <ReTooltip
                     contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
                     labelFormatter={(v) => new Date(v).toLocaleString()}
-                    formatter={(v: number) => [fmtUSD(v), "P&L"]}
+                    formatter={(v: number) => [fmtINR(v), "P&L"]}
                   />
                   <Line
                     type="monotone"
@@ -381,7 +387,7 @@ function Dashboard() {
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
               {journal.length} fills · Net {realizedPnl >= 0 ? "+" : ""}
-              {fmtUSD(realizedPnl)} · Fees {fmtUSD(feesTotal, 4)}
+              {fmtINR(realizedPnl)} · Fees {fmtINR(feesTotal, 4)}
             </span>
           </CardHeader>
           <CardContent>
@@ -424,11 +430,11 @@ function Dashboard() {
                         <td className="text-right">
                           {j.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                         </td>
-                        <td className="text-right text-short">{fmtUSD(j.fee, 4)}</td>
+                        <td className="text-right text-short">{fmtINR(j.fee, 4)}</td>
                         <td className={`text-right ${j.pnl > 0 ? "text-long" : j.pnl < 0 ? "text-short" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
+                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
                         </td>
-                        <td className="text-right">{fmtUSD(j.equity)}</td>
+                        <td className="text-right">{fmtINR(j.equity)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -290,6 +290,29 @@ export async function runBacktestRange(opts: {
   const avgR = rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0;
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
+  const skippedDays = days.filter((d) => d.skipped).length;
+
+  // Per-weekday stats — count only decided trades (tp/sl).
+  const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {
+    const rows = days.filter((d) => d.weekday === wd && (d.outcome === "tp" || d.outcome === "sl"));
+    const wins = rows.filter((d) => d.outcome === "tp").length;
+    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
+    const trades = rows.length;
+    return {
+      weekday: wd,
+      label: WEEKDAY_LABELS[wd],
+      trades,
+      wins,
+      losses,
+      win_rate_pct: trades > 0 ? (wins / trades) * 100 : 0,
+      total_pnl_usd: total,
+      avg_pnl_usd: trades > 0 ? total / trades : 0,
+    };
+  });
+  const withTrades = weekdays.filter((w) => w.trades > 0);
+  const bestWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd > a.total_pnl_usd ? b : a)) : null;
+  const worstWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd < a.total_pnl_usd ? b : a)) : null;
 
   return {
     symbol: opts.symbol,
@@ -299,10 +322,13 @@ export async function runBacktestRange(opts: {
     to_ms: now,
     bars_scanned: klines.length,
     trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
+    skip_weekdays: opts.skipWeekdays ?? [],
     days,
+    weekdays,
     summary: {
       total_days: days.length,
       days_with_session: daysWithSession,
+      skipped_days: skippedDays,
       breaks,
       triggered,
       tp,
@@ -314,6 +340,8 @@ export async function runBacktestRange(opts: {
       avg_r: avgR,
       best_pnl_usd: bestPnl,
       worst_pnl_usd: worstPnl,
+      best_weekday: bestWd ? { label: bestWd.label, total_pnl_usd: bestWd.total_pnl_usd } : null,
+      worst_weekday: worstWd ? { label: worstWd.label, total_pnl_usd: worstWd.total_pnl_usd } : null,
     },
   };
 }

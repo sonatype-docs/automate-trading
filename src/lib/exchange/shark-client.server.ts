@@ -312,7 +312,9 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getKlinesRange(symbol, interval, fromMs, toMs) {
-      // SharkExchange caps each call at 1500 bars — page forward from fromMs.
+      // SharkExchange returns at most 1500 bars per call and, when startTime is far
+      // in the past, silently returns only the most-recent bars anchored to endTime.
+      // So we must page BACKWARD by walking endTime toward fromMs.
       const intervalMs =
         interval === "1m" ? 60_000 :
         interval === "5m" ? 5 * 60_000 :
@@ -324,27 +326,31 @@ export function createSharkClient(): ExchangeClient {
       const PAGE = 1500;
       const out: Kline[] = [];
       const seen = new Set<number>();
-      let cursor = fromMs;
+      let endCursor = toMs;
       let guard = 0;
-      while (cursor < toMs && guard < 20) {
+      while (endCursor > fromMs && guard < 50) {
         guard++;
+        const startWindow = Math.max(fromMs, endCursor - PAGE * intervalMs);
         const chunk = await this.getKlines(symbol, interval, PAGE, {
-          startTime: cursor,
-          endTime: toMs,
+          startTime: startWindow,
+          endTime: endCursor,
         });
         if (chunk.length === 0) break;
+        let earliest = Infinity;
+        let added = 0;
         for (const k of chunk) {
           if (k.openTime < fromMs || k.openTime > toMs) continue;
           if (!seen.has(k.openTime)) {
             seen.add(k.openTime);
             out.push(k);
+            added++;
           }
+          if (k.openTime < earliest) earliest = k.openTime;
         }
-        const lastOpen = chunk[chunk.length - 1].openTime;
-        const nextCursor = lastOpen + intervalMs;
-        if (nextCursor <= cursor) break; // no forward progress
-        cursor = nextCursor;
-        if (chunk.length < PAGE) break; // fewer than a full page means we've caught up
+        if (added === 0 || earliest === Infinity) break;
+        const nextEnd = earliest - 1;
+        if (nextEnd >= endCursor) break; // no backward progress
+        endCursor = nextEnd;
       }
       out.sort((a, b) => a.openTime - b.openTime);
       return out;

@@ -121,14 +121,62 @@ function Dashboard() {
     return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;
   }
 
-  const { settings, orders, trades, positions, logs, events, metrics } = dashQ.data;
+  const { settings, orders, positions, logs, events } = dashQ.data;
 
-  const start = Number(settings?.paper_starting_equity ?? 10000);
-  let eq = start;
-  const equityCurve = [...trades]
-    .reverse()
-    .map((t) => ({ t: new Date(t.closed_at).getTime(), eq: (eq += Number(t.pnl_usd)) }));
-  if (equityCurve.length === 0) equityCurve.push({ t: Date.now(), eq: start });
+  // Live metrics from SharkExchange account snapshot
+  const snap = (acctQ.data?.snapshot ?? null) as Snap | null;
+  const fw = asObject(snap?.futuresWallet);
+  const exTrades = asArray(snap?.tradeHistory);
+  const exTxns = asArray(snap?.transactionHistory);
+  const exPositions = asArray(snap?.openPositions);
+
+  const walletLocked = Number(fw?.lockedBalance ?? 0);
+  const walletFree = Number(
+    fw?.withdrawableBalance ?? fw?.availableBalance ?? fw?.balance ?? 0,
+  );
+  const walletTotal = walletLocked + walletFree;
+  const walletAsset = String(fw?.asset ?? "INR");
+
+  const totalFees = exTrades.reduce((s, t) => s + Math.abs(Number(t.fee ?? 0)), 0);
+  const commissionTx = exTxns
+    .filter((x) => String(x.type ?? "").toUpperCase() === "COMMISSION")
+    .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
+  const feesTotal = totalFees + commissionTx;
+
+  const pnlTrades = exTrades
+    .map((t) => ({
+      time: t.time ? new Date(String(t.time)).getTime() : 0,
+      pnl: Number(t.realizedProfit ?? 0),
+    }))
+    .filter((t) => Number.isFinite(t.pnl))
+    .sort((a, b) => a.time - b.time);
+  const realizedPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
+
+  const wins = pnlTrades.filter((t) => t.pnl > 0).length;
+  const losses = pnlTrades.filter((t) => t.pnl < 0).length;
+  const decided = wins + losses;
+  const winRate = decided ? (wins / decided) * 100 : 0;
+  const lossRate = decided ? (losses / decided) * 100 : 0;
+
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const todaysPnl = pnlTrades
+    .filter((t) => t.time >= dayStart.getTime())
+    .reduce((s, t) => s + t.pnl, 0);
+
+  const hasWallet = Boolean(fw);
+  const equity = hasWallet ? walletTotal : INITIAL_CAPITAL_INR + realizedPnl;
+  const equityChange = equity - INITIAL_CAPITAL_INR;
+  const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
+
+  // Equity curve: initial capital + cumulative realized PnL over time
+  let eq = INITIAL_CAPITAL_INR;
+  const equityCurve = pnlTrades.map((t) => ({ t: t.time, eq: (eq += t.pnl) }));
+  equityCurve.unshift({ t: pnlTrades[0]?.time ? pnlTrades[0].time - 1 : Date.now() - 86400000, eq: INITIAL_CAPITAL_INR });
+  if (hasWallet) equityCurve.push({ t: Date.now(), eq: walletTotal });
+
+  const fmtINR = (n: number, digits = 2) =>
+    `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 
   return (
     <div className="min-h-screen">

@@ -327,29 +327,52 @@ function Dashboard() {
 
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-mono tracking-wide">
+              CUMULATIVE REALIZED P&amp;L (USD)
+            </CardTitle>
+            <span className="text-xs font-mono text-muted-foreground">
+              Net {fmtUSD(pnlRun)} · {pnlTrades.length} fills
+            </span>
           </CardHeader>
           <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={equityCurve}>
-                <XAxis
-                  dataKey="t"
-                  tickFormatter={(v) => new Date(v).toLocaleDateString()}
-                  stroke="var(--muted-foreground)"
-                  fontSize={10}
-                />
-                <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={["auto", "auto"]} />
-                <ReTooltip
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
-                  labelFormatter={(v) => new Date(v).toLocaleString()}
-                  formatter={(v: number) => [fmtINR(v), "Equity"]}
-                />
-                <Line type="monotone" dataKey="eq" stroke="var(--primary)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {pnlCurve.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                No realized P&amp;L yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={pnlCurve}>
+                  <XAxis
+                    dataKey="t"
+                    tickFormatter={(v) => new Date(v).toLocaleDateString()}
+                    stroke="var(--muted-foreground)"
+                    fontSize={10}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={10}
+                    domain={["auto", "auto"]}
+                    tickFormatter={(v) => fmtUSD(Number(v), 0)}
+                  />
+                  <ReTooltip
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                    labelFormatter={(v) => new Date(v).toLocaleString()}
+                    formatter={(v: number) => [fmtUSD(v), "P&L"]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="eq"
+                    stroke="var(--primary)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">

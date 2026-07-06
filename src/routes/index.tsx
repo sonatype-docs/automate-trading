@@ -305,7 +305,7 @@ function Dashboard() {
             tone={equityChange >= 0 ? "long" : "short"}
           />
           <Metric
-            label="REALIZED P&L"
+            label="REALIZED P&L (NET)"
             value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
             sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
             tone={realizedPnl >= 0 ? "long" : "short"}

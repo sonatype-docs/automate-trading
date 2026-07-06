@@ -99,10 +99,12 @@ export async function runBacktestRange(opts: {
   trailEnabled?: boolean;
   trailActivateR?: number;
   trailStepR?: number;
+  skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
 }): Promise<RangeBacktestResult> {
   const trailEnabled = !!opts.trailEnabled;
   const trailActivateR = Math.max(0.1, opts.trailActivateR ?? 2);
   const trailStepR = Math.max(0.1, opts.trailStepR ?? 1);
+  const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
@@ -123,8 +125,13 @@ export async function runBacktestRange(opts: {
   for (const dateStr of sortedDates) {
     const sessionOpen = sessionOpenUtcMs(dateStr, opts.sessionStartIst);
     const sessionCandle = byOpen.get(sessionOpen);
+    const weekday = istWeekday(dateStr);
+    const skipped = skipSet.has(weekday);
     const dr: DayResult = {
       ist_date: dateStr,
+      weekday,
+      weekday_label: WEEKDAY_LABELS[weekday],
+      skipped,
       session_open: sessionCandle?.openTime ?? null,
       zone_high: null,
       zone_low: null,
@@ -138,12 +145,17 @@ export async function runBacktestRange(opts: {
       tp: null,
       qty: null,
       trigger_at: null,
-      outcome: "no_session",
+      outcome: skipped ? "skipped" : "no_session",
       pnl_usd: 0,
       final_sl: null,
       peak_r: 0,
       exit_r: null,
     };
+
+    if (skipped) {
+      days.push(dr);
+      continue;
+    }
 
     if (!sessionCandle || sessionCandle.closeTime > now) {
       days.push(dr);

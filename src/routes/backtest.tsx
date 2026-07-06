@@ -454,6 +454,10 @@ function ResultsView({ data }: { data: RangeData }) {
           </div>
         </div>
 
+        <CalendarView data={data} />
+
+
+
         <div className="max-h-96 overflow-y-auto border border-border rounded">
           <table className="w-full text-[11px]">
             <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60 sticky top-0">

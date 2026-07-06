@@ -1144,10 +1144,14 @@ function StrategyCard() {
     onError: (e: Error) => toast.error(e.message),
   });
   const trailSaveMut = useMutation({
-    mutationFn: (patch: { trail_enabled?: boolean; trail_activate_r?: number; trail_step_r?: number }) =>
-      updateStrat({ data: patch }),
+    mutationFn: (patch: {
+      trail_enabled?: boolean;
+      trail_activate_r?: number;
+      trail_step_r?: number;
+      skip_weekends?: boolean;
+    }) => updateStrat({ data: patch }),
     onSuccess: () => {
-      toast.success("Trailing SL saved");
+      toast.success("Strategy settings saved");
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1163,6 +1167,7 @@ function StrategyCard() {
         trail_enabled?: boolean;
         trail_activate_r?: number;
         trail_step_r?: number;
+        skip_weekends?: boolean;
       }
     | null
     | undefined;

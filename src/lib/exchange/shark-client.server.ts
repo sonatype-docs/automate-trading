@@ -60,7 +60,18 @@ export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
-  getKlines(symbol: string, interval?: string, limit?: number): Promise<Kline[]>;
+  getKlines(
+    symbol: string,
+    interval?: string,
+    limit?: number,
+    opts?: { startTime?: number; endTime?: number },
+  ): Promise<Kline[]>;
+  getKlinesRange(
+    symbol: string,
+    interval: string,
+    fromMs: number,
+    toMs: number,
+  ): Promise<Kline[]>;
   getLastPrice(symbol: string): Promise<number>;
 }
 

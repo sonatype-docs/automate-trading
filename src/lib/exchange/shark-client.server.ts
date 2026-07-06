@@ -36,9 +36,20 @@ export interface TestConnectionResult {
   sample?: unknown;
 }
 
+export interface AccountSnapshot {
+  futuresWallet: unknown;
+  fundingWallet: unknown;
+  openPositions: unknown;
+  openOrders: unknown;
+  tradeHistory: unknown;
+  transactionHistory: unknown;
+  errors: Record<string, string>;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   testConnection(): Promise<TestConnectionResult>;
+  getAccountSnapshot(): Promise<AccountSnapshot>;
 }
 
 const BASE_URL = "https://api.sharkexchange.in";

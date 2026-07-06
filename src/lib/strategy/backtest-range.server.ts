@@ -245,7 +245,7 @@ export async function runBacktestRange(opts: {
   const totalPnl = days.reduce((s, d) => s + d.pnl_usd, 0);
   const rMultiples = days
     .filter((d) => d.outcome === "tp" || d.outcome === "sl")
-    .map((d) => (d.outcome === "tp" ? opts.rr : -1));
+    .map((d) => (d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1)));
   const avgR = rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0;
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
@@ -257,6 +257,7 @@ export async function runBacktestRange(opts: {
     from_ms: fromMs,
     to_ms: now,
     bars_scanned: klines.length,
+    trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
     days,
     summary: {
       total_days: days.length,

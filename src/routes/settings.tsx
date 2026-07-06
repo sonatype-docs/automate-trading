@@ -118,7 +118,10 @@ function SettingsPage() {
           </CardContent>
         </Card>
 
+        <StrategySettingsCard />
+
         <Card>
+
           <CardHeader>
             <CardTitle>Integration status</CardTitle>
             <CardDescription>Secrets are stored server-side and never shown.</CardDescription>

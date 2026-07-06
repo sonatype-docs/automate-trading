@@ -135,7 +135,28 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   if (klines.length === 0) return { ok: false, reason: "no_klines", actions };
 
   const now = Date.now();
-  const todayIst = istDate(now);
+  const todayIst = sessionDate(now, s.session_start_ist);
+
+  // Expire leftover armed setups from previous IST session days. Runs first so
+  // stale orders are cancelled the moment the new session date rolls (≈05:30 IST).
+  const { data: expiredRows } = await supabaseAdmin
+    .from("strategy_setups")
+    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .lt("ist_date", todayIst)
+    .eq("status", "armed")
+    .select("id");
+  if (expiredRows && expiredRows.length > 0) {
+    actions.push(`expired_prev_day=${expiredRows.length}`);
+  }
+
+  // Optional: no trading on weekends
+  if (s.skip_weekends) {
+    const wd = istWeekday(todayIst);
+    if (wd === 0 || wd === 6) {
+      return { ok: true, reason: "weekend_skip", ist_date: todayIst, actions };
+    }
+  }
+
   const sessionOpen = sessionOpenUtcMs(todayIst, s.session_start_ist);
   const sessionCandle = klines.find((k) => k.openTime === sessionOpen);
   if (!sessionCandle) {

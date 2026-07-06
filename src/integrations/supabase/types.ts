@@ -228,6 +228,9 @@ export type Database = {
           session_start_ist: string
           sl_risk_usd: number
           symbol: string
+          trail_activate_r: number
+          trail_enabled: boolean
+          trail_step_r: number
           updated_at: string
         }
         Insert: {
@@ -237,6 +240,9 @@ export type Database = {
           session_start_ist?: string
           sl_risk_usd?: number
           symbol?: string
+          trail_activate_r?: number
+          trail_enabled?: boolean
+          trail_step_r?: number
           updated_at?: string
         }
         Update: {
@@ -246,6 +252,9 @@ export type Database = {
           session_start_ist?: string
           sl_risk_usd?: number
           symbol?: string
+          trail_activate_r?: number
+          trail_enabled?: boolean
+          trail_step_r?: number
           updated_at?: string
         }
         Relationships: []
@@ -259,8 +268,10 @@ export type Database = {
           entry_price: number
           filled_at: string | null
           id: string
+          initial_sl_price: number | null
           ist_date: string
           order_id: string | null
+          peak_r: number
           pnl_usd: number | null
           qty: number
           side: string
@@ -278,8 +289,10 @@ export type Database = {
           entry_price: number
           filled_at?: string | null
           id?: string
+          initial_sl_price?: number | null
           ist_date: string
           order_id?: string | null
+          peak_r?: number
           pnl_usd?: number | null
           qty: number
           side: string
@@ -297,8 +310,10 @@ export type Database = {
           entry_price?: number
           filled_at?: string | null
           id?: string
+          initial_sl_price?: number | null
           ist_date?: string
           order_id?: string | null
+          peak_r?: number
           pnl_usd?: number | null
           qty?: number
           side?: string

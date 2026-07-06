@@ -125,11 +125,11 @@ export const testExchangeConnection = createServerFn({ method: "POST" }).handler
   try {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
     const client = createSharkClient();
-    const balance = await client.getBalance("USDT");
+    const result = await client.testConnection();
     return {
-      ok: true as const,
-      stage: "connected" as const,
-      message: `Authenticated. USDT balance: ${balance}`,
+      ok: result.ok,
+      stage: result.ok ? ("connected" as const) : ("request" as const),
+      message: result.message,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

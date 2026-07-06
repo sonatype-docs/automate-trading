@@ -83,6 +83,7 @@ const RangeSchema = z.object({
   trail_enabled: z.boolean().optional(),
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -96,7 +97,6 @@ export const backtestRange = createServerFn({ method: "POST" })
       .single();
     if (!settings) throw new Error("Strategy settings not found");
     const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
-    // Fall back to stored trail settings when not overridden in the request.
     const trailEnabled = data.trail_enabled ?? Boolean((settings as { trail_enabled?: boolean }).trail_enabled);
     const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
     const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
@@ -109,5 +109,6 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailEnabled,
       trailActivateR,
       trailStepR,
+      skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
     });
   });

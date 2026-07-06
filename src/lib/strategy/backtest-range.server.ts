@@ -13,8 +13,18 @@ function sessionOpenUtcMs(istDateStr: string, sessionStartIst: string): number {
   return Math.floor(openMs / 3_600_000) * 3_600_000;
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+function istWeekday(dateStr: string): Weekday {
+  const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() as Weekday;
+}
+
 export interface DayResult {
   ist_date: string;
+  weekday: Weekday;
+  weekday_label: string;
+  skipped: boolean;
   session_open: number | null;
   zone_high: number | null;
   zone_low: number | null;
@@ -34,12 +44,25 @@ export interface DayResult {
     | "armed_no_trigger"
     | "tp"
     | "sl"
-    | "open";
+    | "open"
+    | "skipped";
   pnl_usd: number;
   final_sl: number | null;
   peak_r: number;
   exit_r: number | null;
 }
+
+export interface WeekdayStat {
+  weekday: Weekday;
+  label: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number;
+  total_pnl_usd: number;
+  avg_pnl_usd: number;
+}
+
 
 export interface RangeBacktestResult {
   symbol: string;
@@ -49,10 +72,13 @@ export interface RangeBacktestResult {
   to_ms: number;
   bars_scanned: number;
   trail: { enabled: boolean; activate_r: number; step_r: number };
+  skip_weekdays: Weekday[];
   days: DayResult[];
+  weekdays: WeekdayStat[];
   summary: {
     total_days: number;
     days_with_session: number;
+    skipped_days: number;
     breaks: number;
     triggered: number;
     tp: number;
@@ -64,8 +90,11 @@ export interface RangeBacktestResult {
     avg_r: number;
     best_pnl_usd: number;
     worst_pnl_usd: number;
+    best_weekday: { label: string; total_pnl_usd: number } | null;
+    worst_weekday: { label: string; total_pnl_usd: number } | null;
   };
 }
+
 
 export async function runBacktestRange(opts: {
   symbol: string;
@@ -76,10 +105,12 @@ export async function runBacktestRange(opts: {
   trailEnabled?: boolean;
   trailActivateR?: number;
   trailStepR?: number;
+  skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
 }): Promise<RangeBacktestResult> {
   const trailEnabled = !!opts.trailEnabled;
   const trailActivateR = Math.max(0.1, opts.trailActivateR ?? 2);
   const trailStepR = Math.max(0.1, opts.trailStepR ?? 1);
+  const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
@@ -100,8 +131,13 @@ export async function runBacktestRange(opts: {
   for (const dateStr of sortedDates) {
     const sessionOpen = sessionOpenUtcMs(dateStr, opts.sessionStartIst);
     const sessionCandle = byOpen.get(sessionOpen);
+    const weekday = istWeekday(dateStr);
+    const skipped = skipSet.has(weekday);
     const dr: DayResult = {
       ist_date: dateStr,
+      weekday,
+      weekday_label: WEEKDAY_LABELS[weekday],
+      skipped,
       session_open: sessionCandle?.openTime ?? null,
       zone_high: null,
       zone_low: null,
@@ -115,12 +151,17 @@ export async function runBacktestRange(opts: {
       tp: null,
       qty: null,
       trigger_at: null,
-      outcome: "no_session",
+      outcome: skipped ? "skipped" : "no_session",
       pnl_usd: 0,
       final_sl: null,
       peak_r: 0,
       exit_r: null,
     };
+
+    if (skipped) {
+      days.push(dr);
+      continue;
+    }
 
     if (!sessionCandle || sessionCandle.closeTime > now) {
       days.push(dr);
@@ -249,6 +290,29 @@ export async function runBacktestRange(opts: {
   const avgR = rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0;
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
+  const skippedDays = days.filter((d) => d.skipped).length;
+
+  // Per-weekday stats — count only decided trades (tp/sl).
+  const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {
+    const rows = days.filter((d) => d.weekday === wd && (d.outcome === "tp" || d.outcome === "sl"));
+    const wins = rows.filter((d) => d.outcome === "tp").length;
+    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
+    const trades = rows.length;
+    return {
+      weekday: wd,
+      label: WEEKDAY_LABELS[wd],
+      trades,
+      wins,
+      losses,
+      win_rate_pct: trades > 0 ? (wins / trades) * 100 : 0,
+      total_pnl_usd: total,
+      avg_pnl_usd: trades > 0 ? total / trades : 0,
+    };
+  });
+  const withTrades = weekdays.filter((w) => w.trades > 0);
+  const bestWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd > a.total_pnl_usd ? b : a)) : null;
+  const worstWd = withTrades.length ? withTrades.reduce((a, b) => (b.total_pnl_usd < a.total_pnl_usd ? b : a)) : null;
 
   return {
     symbol: opts.symbol,
@@ -258,10 +322,13 @@ export async function runBacktestRange(opts: {
     to_ms: now,
     bars_scanned: klines.length,
     trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
+    skip_weekdays: opts.skipWeekdays ?? [],
     days,
+    weekdays,
     summary: {
       total_days: days.length,
       days_with_session: daysWithSession,
+      skipped_days: skippedDays,
       breaks,
       triggered,
       tp,
@@ -273,6 +340,8 @@ export async function runBacktestRange(opts: {
       avg_r: avgR,
       best_pnl_usd: bestPnl,
       worst_pnl_usd: worstPnl,
+      best_weekday: bestWd ? { label: bestWd.label, total_pnl_usd: bestWd.total_pnl_usd } : null,
+      worst_weekday: worstWd ? { label: worstWd.label, total_pnl_usd: worstWd.total_pnl_usd } : null,
     },
   };
 }

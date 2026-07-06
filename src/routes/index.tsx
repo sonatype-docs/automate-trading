@@ -507,10 +507,12 @@ function Metric({
   label,
   value,
   tone,
+  sub,
 }: {
   label: string;
   value: string;
   tone?: "long" | "short";
+  sub?: string;
 }) {
   return (
     <Card>
@@ -523,6 +525,9 @@ function Metric({
         >
           {value}
         </div>
+        {sub && (
+          <div className="text-[10px] font-mono text-muted-foreground mt-1">{sub}</div>
+        )}
       </CardContent>
     </Card>
   );

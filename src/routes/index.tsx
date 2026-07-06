@@ -1109,10 +1109,14 @@ function WalletCard({
 }
 
 
+type BacktestData = Awaited<ReturnType<typeof backtestToday>>;
+
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
+  const runBacktest = useServerFn(backtestToday);
+  const [bt, setBt] = useState<BacktestData | null>(null);
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),
@@ -1127,6 +1131,12 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const btMut = useMutation({
+    mutationFn: () => runBacktest(),
+    onSuccess: (r) => { setBt(r); toast.success(`Backtest: ${r.outcome.status}`); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const s = q.data?.settings as
     | { enabled: boolean; symbol: string; sl_risk_usd: number; rr: number; session_start_ist: string }

@@ -72,10 +72,13 @@ export interface RangeBacktestResult {
   to_ms: number;
   bars_scanned: number;
   trail: { enabled: boolean; activate_r: number; step_r: number };
+  skip_weekdays: Weekday[];
   days: DayResult[];
+  weekdays: WeekdayStat[];
   summary: {
     total_days: number;
     days_with_session: number;
+    skipped_days: number;
     breaks: number;
     triggered: number;
     tp: number;
@@ -87,8 +90,11 @@ export interface RangeBacktestResult {
     avg_r: number;
     best_pnl_usd: number;
     worst_pnl_usd: number;
+    best_weekday: { label: string; total_pnl_usd: number } | null;
+    worst_weekday: { label: string; total_pnl_usd: number } | null;
   };
 }
+
 
 export async function runBacktestRange(opts: {
   symbol: string;

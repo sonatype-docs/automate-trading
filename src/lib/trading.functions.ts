@@ -141,6 +141,25 @@ export const testExchangeConnection = createServerFn({ method: "POST" }).handler
   }
 });
 
+export const getExchangeAccount = createServerFn({ method: "GET" }).handler(async () => {
+  const hasKey = !!process.env.SHARKEXCHANGE_API_KEY;
+  const hasSecret = !!process.env.SHARKEXCHANGE_API_SECRET;
+  if (!hasKey || !hasSecret) {
+    return { ok: false as const, message: "SharkExchange credentials missing.", snapshot: null };
+  }
+  try {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const snapshot = await createSharkClient().getAccountSnapshot();
+    return { ok: true as const, message: "ok", snapshot };
+  } catch (e) {
+    return {
+      ok: false as const,
+      message: e instanceof Error ? e.message : String(e),
+      snapshot: null,
+    };
+  }
+});
+
 // ------------------------------------------------------------------
 // Live market ticker (public — no API key required)
 // SharkExchange: GET https://api.sharkexchange.in/v1/market/ticker24Hr/{pair}

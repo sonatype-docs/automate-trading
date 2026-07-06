@@ -143,13 +143,35 @@ function Dashboard() {
     .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
   const feesTotal = totalFees + commissionTx;
 
-  const pnlTrades = exTrades
+  const parseTime = (v: unknown): number => {
+    if (v == null || v === "") return 0;
+    if (typeof v === "number") return v > 1e12 ? v : v * 1000;
+    const s = String(v);
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      return n > 1e12 ? n : n * 1000;
+    }
+    const d = new Date(s).getTime();
+    return Number.isFinite(d) ? d : 0;
+  };
+
+  // Journal-ready trade fills sorted chronologically (oldest → newest).
+  const tradeFills = exTrades
     .map((t) => ({
-      time: t.time ? new Date(String(t.time)).getTime() : 0,
+      id: String(t.id ?? t.tradeId ?? ""),
+      time: parseTime(t.time ?? t.createdAt ?? t.updatedAt),
+      symbol: String(t.symbol ?? "—"),
+      side: String(t.side ?? "").toUpperCase(),
+      qty: Number(t.quantity ?? t.qty ?? 0),
+      price: Number(t.price ?? 0),
+      fee: Math.abs(Number(t.fee ?? 0)),
       pnl: Number(t.realizedProfit ?? 0),
+      raw: t,
     }))
-    .filter((t) => Number.isFinite(t.pnl))
+    .filter((t) => t.time > 0)
     .sort((a, b) => a.time - b.time);
+
+  const pnlTrades = tradeFills.filter((t) => Number.isFinite(t.pnl));
   const realizedPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
 
   const wins = pnlTrades.filter((t) => t.pnl > 0).length;
@@ -169,11 +191,32 @@ function Dashboard() {
   const equityChange = equity - INITIAL_CAPITAL_INR;
   const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
 
-  // Equity curve: initial capital + cumulative realized PnL over time
-  let eq = INITIAL_CAPITAL_INR;
-  const equityCurve = pnlTrades.map((t) => ({ t: t.time, eq: (eq += t.pnl) }));
-  equityCurve.unshift({ t: pnlTrades[0]?.time ? pnlTrades[0].time - 1 : Date.now() - 86400000, eq: INITIAL_CAPITAL_INR });
-  if (hasWallet) equityCurve.push({ t: Date.now(), eq: walletTotal });
+  // Equity curve: start at initial capital, cumulate realized PnL after each closing fill.
+  let eqRun = INITIAL_CAPITAL_INR;
+  const firstT = pnlTrades[0]?.time ?? Date.now() - 86400000;
+  const equityCurve: Array<{ t: number; eq: number }> = [
+    { t: firstT - 60_000, eq: INITIAL_CAPITAL_INR },
+  ];
+  const journal: Array<{
+    time: number;
+    symbol: string;
+    side: string;
+    qty: number;
+    price: number;
+    fee: number;
+    pnl: number;
+    equity: number;
+    id: string;
+  }> = [];
+  for (const t of pnlTrades) {
+    eqRun += t.pnl - t.fee;
+    equityCurve.push({ t: t.time, eq: eqRun });
+    journal.push({ ...t, equity: eqRun });
+  }
+  if (hasWallet && Math.abs(walletTotal - eqRun) > 0.0001) {
+    equityCurve.push({ t: Date.now(), eq: walletTotal });
+  }
+
 
   const fmtINR = (n: number, digits = 2) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;

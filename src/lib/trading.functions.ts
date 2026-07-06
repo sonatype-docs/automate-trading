@@ -141,6 +141,8 @@ export const testExchangeConnection = createServerFn({ method: "POST" }).handler
   }
 });
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+
 export const getExchangeAccount = createServerFn({ method: "GET" }).handler(async () => {
   const hasKey = !!process.env.SHARKEXCHANGE_API_KEY;
   const hasSecret = !!process.env.SHARKEXCHANGE_API_SECRET;
@@ -153,7 +155,7 @@ export const getExchangeAccount = createServerFn({ method: "GET" }).handler(asyn
     return {
       ok: true as const,
       message: "ok",
-      snapshot: JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>,
+      snapshot: JSON.parse(JSON.stringify(snapshot)) as JsonValue,
     };
   } catch (e) {
     return {

@@ -1225,7 +1225,7 @@ function StrategyCard() {
             </p>
           </div>
           <label className="flex items-center gap-2">
-            <span className="text-muted-foreground">Skip Sat/Sun (live)</span>
+            <span className="text-muted-foreground">Skip Sunday (live)</span>
             <Switch
               checked={!!s?.skip_weekends}
               disabled={trailSaveMut.isPending}

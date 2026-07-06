@@ -74,3 +74,25 @@ export const backtestToday = createServerFn({ method: "POST" }).handler(async ()
     rr: Number(settings.rr),
   });
 });
+
+const RangeSchema = z.object({ days: z.number().int().min(1).max(365) });
+
+export const backtestRange = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => RangeSchema.parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: settings } = await supabase
+      .from("strategy_settings")
+      .select("*")
+      .eq("id", true)
+      .single();
+    if (!settings) throw new Error("Strategy settings not found");
+    const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
+    return runBacktestRange({
+      symbol: settings.symbol,
+      sessionStartIst: String(settings.session_start_ist).slice(0, 5),
+      slRiskUsd: Number(settings.sl_risk_usd),
+      rr: Number(settings.rr),
+      days: data.days,
+    });
+  });

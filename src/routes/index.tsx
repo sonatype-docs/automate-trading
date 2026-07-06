@@ -1328,3 +1328,78 @@ function BtCell({ k, v, tone }: { k: string; v: string; tone?: string }) {
     </div>
   );
 }
+
+function RangeBacktestPanel({ data, onClose }: { data: RangeData; onClose: () => void }) {
+  const s = data.summary;
+  const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
+  const fmtTime = (ms: number | null) =>
+    ms == null ? "—" : new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const outcomeCls = (o: string) =>
+    o === "tp" ? "text-long" :
+    o === "sl" ? "text-short" :
+    o === "open" ? "text-warning" : "text-muted-foreground";
+  const totalTone = s.total_pnl_usd >= 0 ? "text-long" : "text-short";
+  return (
+    <div className="border border-border rounded p-3 space-y-3 font-mono text-xs bg-muted/40">
+      <div className="flex items-center justify-between">
+        <div className="text-muted-foreground tracking-widest">
+          BACKTEST · {data.days_requested}D · {new Date(data.from_ms).toISOString().slice(0, 10)} → {new Date(data.to_ms).toISOString().slice(0, 10)}
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <BtCell k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
+        <BtCell k="breaks" v={String(s.breaks)} />
+        <BtCell k="triggered" v={String(s.triggered)} />
+        <BtCell k="wins / losses" v={`${s.tp} / ${s.sl}`} />
+        <BtCell k="win rate" v={`${s.win_rate_pct.toFixed(1)}%`} tone={s.win_rate_pct >= 50 ? "text-long" : "text-short"} />
+        <BtCell k="avg R" v={s.avg_r.toFixed(2)} tone={s.avg_r >= 0 ? "text-long" : "text-short"} />
+        <BtCell
+          k="total p&l (usd)"
+          v={`${s.total_pnl_usd >= 0 ? "+" : ""}${s.total_pnl_usd.toFixed(2)}`}
+          tone={totalTone}
+        />
+        <BtCell k="best / worst" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
+      </div>
+      <div className="max-h-72 overflow-y-auto border border-border rounded">
+        <table className="w-full text-[11px]">
+          <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60 sticky top-0">
+            <tr>
+              <th className="text-left px-2 py-1">Date</th>
+              <th className="text-right px-2 py-1">H/L</th>
+              <th className="text-right px-2 py-1">Break</th>
+              <th className="text-right px-2 py-1">Entry/SL/TP</th>
+              <th className="text-right px-2 py-1">Trig</th>
+              <th className="text-left px-2 py-1">Outcome</th>
+              <th className="text-right px-2 py-1">P&amp;L $</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.days.slice().reverse().map((d) => (
+              <tr key={d.ist_date} className="border-t border-border">
+                <td className="px-2 py-1">{d.ist_date}</td>
+                <td className="text-right px-2 py-1">
+                  {d.zone_high != null ? `${fmt(d.zone_high)}/${fmt(d.zone_low)}` : "—"}
+                </td>
+                <td className={`text-right px-2 py-1 ${d.break_side === "long" ? "text-long" : d.break_side === "short" ? "text-short" : ""}`}>
+                  {d.break_side ? `${d.break_side.toUpperCase()} @ ${fmt(d.break_close)}` : "—"}
+                </td>
+                <td className="text-right px-2 py-1">
+                  {d.entry != null ? `${fmt(d.entry)} / ${fmt(d.sl)} / ${fmt(d.tp)}` : "—"}
+                </td>
+                <td className="text-right px-2 py-1">{fmtTime(d.trigger_at)}</td>
+                <td className={`px-2 py-1 uppercase ${outcomeCls(d.outcome)}`}>{d.outcome.replace(/_/g, " ")}</td>
+                <td className={`text-right px-2 py-1 ${d.pnl_usd > 0 ? "text-long" : d.pnl_usd < 0 ? "text-short" : ""}`}>
+                  {d.pnl_usd === 0 ? "—" : `${d.pnl_usd > 0 ? "+" : ""}${d.pnl_usd.toFixed(2)}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-muted-foreground text-[10px]">
+        Read-only replay of {data.bars_scanned} 1H bars using current fib/entry/SL rules. Does not touch orders. Same-bar TP+SL is treated as SL (conservative).
+      </p>
+    </div>
+  );
+}

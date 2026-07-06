@@ -335,10 +335,10 @@ function Dashboard() {
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-mono tracking-wide">
-              CUMULATIVE REALIZED P&amp;L (USD)
+              EQUITY CURVE
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
-              Net {fmtINR(eqRun)} · {pnlTrades.length} fills
+              {fmtINR(equity)} · {pnlTrades.length} fills
             </span>
           </CardHeader>
           <CardContent className="h-56">

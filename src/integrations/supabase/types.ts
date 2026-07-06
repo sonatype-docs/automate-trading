@@ -226,6 +226,7 @@ export type Database = {
           id: boolean
           rr: number
           session_start_ist: string
+          skip_weekends: boolean
           sl_risk_usd: number
           symbol: string
           trail_activate_r: number
@@ -238,6 +239,7 @@ export type Database = {
           id?: boolean
           rr?: number
           session_start_ist?: string
+          skip_weekends?: boolean
           sl_risk_usd?: number
           symbol?: string
           trail_activate_r?: number
@@ -250,6 +252,7 @@ export type Database = {
           id?: boolean
           rr?: number
           session_start_ist?: string
+          skip_weekends?: boolean
           sl_risk_usd?: number
           symbol?: string
           trail_activate_r?: number

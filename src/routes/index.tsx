@@ -1144,10 +1144,14 @@ function StrategyCard() {
     onError: (e: Error) => toast.error(e.message),
   });
   const trailSaveMut = useMutation({
-    mutationFn: (patch: { trail_enabled?: boolean; trail_activate_r?: number; trail_step_r?: number }) =>
-      updateStrat({ data: patch }),
+    mutationFn: (patch: {
+      trail_enabled?: boolean;
+      trail_activate_r?: number;
+      trail_step_r?: number;
+      skip_weekends?: boolean;
+    }) => updateStrat({ data: patch }),
     onSuccess: () => {
-      toast.success("Trailing SL saved");
+      toast.success("Strategy settings saved");
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1163,6 +1167,7 @@ function StrategyCard() {
         trail_enabled?: boolean;
         trail_activate_r?: number;
         trail_step_r?: number;
+        skip_weekends?: boolean;
       }
     | null
     | undefined;
@@ -1264,6 +1269,22 @@ function StrategyCard() {
           onSave={(patch) => trailSaveMut.mutate(patch)}
           saving={trailSaveMut.isPending}
         />
+        <div className="border border-border rounded p-3 font-mono text-xs bg-muted/30 flex items-center justify-between gap-3">
+          <div>
+            <div className="tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Prior-day pending (armed) orders auto-cancel at {s?.session_start_ist?.slice(0, 5) ?? "05:30"} IST when the new session opens.
+            </p>
+          </div>
+          <label className="flex items-center gap-2">
+            <span className="text-muted-foreground">Skip Sat/Sun (live)</span>
+            <Switch
+              checked={!!s?.skip_weekends}
+              disabled={trailSaveMut.isPending}
+              onCheckedChange={(v) => trailSaveMut.mutate({ skip_weekends: v })}
+            />
+          </label>
+        </div>
         {bt && <BacktestPanel data={bt} onClose={() => setBt(null)} />}
         {range && <RangeBacktestPanel data={range} onClose={() => setRange(null)} />}
 

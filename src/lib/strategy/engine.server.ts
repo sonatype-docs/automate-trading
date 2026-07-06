@@ -4,10 +4,27 @@ import { processSignal } from "@/lib/trading/engine.server";
 
 const IST_OFFSET_MIN = 330; // UTC+5:30
 
-// Return YYYY-MM-DD for the IST day that a given UTC ms falls into
-function istDate(msUtc: number): string {
-  const d = new Date(msUtc + IST_OFFSET_MIN * 60_000);
-  return d.toISOString().slice(0, 10);
+// (istDate helper removed — engine uses sessionDate for trading-day boundaries.)
+
+
+// Return the "trading session date" (YYYY-MM-DD in IST) for `now`, where a
+// session runs from sessionStartIst (e.g. 05:30) of day D until sessionStartIst
+// of day D+1. So between 00:00 and 05:29 IST, the session date is the previous
+// calendar day. Yesterday's pending setups are expired the moment this rolls.
+function sessionDate(msUtc: number, sessionStartIst: string): string {
+  const [hh, mm] = sessionStartIst.split(":").map((n) => parseInt(n, 10));
+  const startMinOfDay = hh * 60 + (mm || 0);
+  const ist = new Date(msUtc + IST_OFFSET_MIN * 60_000);
+  const minOfDay = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  if (minOfDay < startMinOfDay) {
+    ist.setUTCDate(ist.getUTCDate() - 1);
+  }
+  return ist.toISOString().slice(0, 10);
+}
+
+function istWeekday(istDateStr: string): number {
+  const [y, m, d] = istDateStr.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 Sun … 6 Sat
 }
 
 // The 1h candle openTime (UTC ms) for the IST session-start hour on a given IST date.
@@ -32,6 +49,7 @@ interface StrategySettingsRow {
   trail_enabled?: boolean;
   trail_activate_r?: number;
   trail_step_r?: number;
+  skip_weekends?: boolean;
 }
 
 interface SessionRow {
@@ -114,7 +132,28 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   if (klines.length === 0) return { ok: false, reason: "no_klines", actions };
 
   const now = Date.now();
-  const todayIst = istDate(now);
+  const todayIst = sessionDate(now, s.session_start_ist);
+
+  // Expire leftover armed setups from previous IST session days. Runs first so
+  // stale orders are cancelled the moment the new session date rolls (≈05:30 IST).
+  const { data: expiredRows } = await supabaseAdmin
+    .from("strategy_setups")
+    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .lt("ist_date", todayIst)
+    .eq("status", "armed")
+    .select("id");
+  if (expiredRows && expiredRows.length > 0) {
+    actions.push(`expired_prev_day=${expiredRows.length}`);
+  }
+
+  // Optional: no trading on weekends
+  if (s.skip_weekends) {
+    const wd = istWeekday(todayIst);
+    if (wd === 0 || wd === 6) {
+      return { ok: true, reason: "weekend_skip", ist_date: todayIst, actions };
+    }
+  }
+
   const sessionOpen = sessionOpenUtcMs(todayIst, s.session_start_ist);
   const sessionCandle = klines.find((k) => k.openTime === sessionOpen);
   if (!sessionCandle) {
@@ -347,12 +386,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)}`);
   }
 
-  // Expire leftover armed setups from previous IST days
-  await supabaseAdmin
-    .from("strategy_setups")
-    .update({ status: "expired", updated_at: new Date().toISOString() })
-    .lt("ist_date", todayIst)
-    .eq("status", "armed");
+  // (Prior-day armed setups are expired at the top of the tick.)
+
+
 
   return { ok: true, ist_date: todayIst, session, actions };
 }

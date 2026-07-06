@@ -113,8 +113,8 @@ async function signedJson(
 }
 
 function requireCreds(): { apiKey: string; apiSecret: string } {
-  const apiKey = process.env.SHARKEXCHANGE_API_KEY;
-  const apiSecret = process.env.SHARKEXCHANGE_API_SECRET;
+  const apiKey = process.env.SHARKEXCHANGE_API_KEY?.trim();
+  const apiSecret = process.env.SHARKEXCHANGE_API_SECRET?.trim();
   if (!apiKey || !apiSecret) {
     throw new Error(
       "SharkExchange API credentials are not configured. Add SHARKEXCHANGE_API_KEY and SHARKEXCHANGE_API_SECRET.",
@@ -122,6 +122,7 @@ function requireCreds(): { apiKey: string; apiSecret: string } {
   }
   return { apiKey, apiSecret };
 }
+
 
 export function createSharkClient(): ExchangeClient {
   return {
@@ -165,17 +166,20 @@ export function createSharkClient(): ExchangeClient {
 
     async testConnection() {
       const { apiKey, apiSecret } = requireCreds();
-      // Read-only, auth-required endpoint — safe way to prove the key + signature work.
-      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {
-        pageSize: 1,
-        sortOrder: "desc",
-      });
+      // Minimal signed probe: only `timestamp` in the querystring.
+      // Matches the Python example in SharkExchange docs and rules out
+      // any URLSearchParams encoding differences.
+      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {});
       if (res.ok) {
-        const count = Array.isArray(res.json) ? res.json.length : 0;
+        const rows = Array.isArray(res.json)
+          ? res.json.length
+          : Array.isArray((res.json as { data?: unknown[] } | null)?.data)
+            ? (res.json as { data: unknown[] }).data.length
+            : 0;
         return {
           ok: true,
           status: res.status,
-          message: `Authenticated with SharkExchange. Trade-history probe returned ${count} row(s).`,
+          message: `Authenticated with SharkExchange. Trade-history probe returned ${rows} row(s).`,
           sample: res.json,
         };
       }
@@ -185,5 +189,6 @@ export function createSharkClient(): ExchangeClient {
         message: `SharkExchange rejected the request [${res.status}]: ${res.body.slice(0, 300)}`,
       };
     },
+
   };
 }

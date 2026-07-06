@@ -174,12 +174,18 @@ function Dashboard() {
     .filter((t) => t.time > 0)
     .sort((a, b) => a.time - b.time);
 
-  const pnlTrades = tradeFills.filter((t) => Number.isFinite(t.pnl));
-  const realizedPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
-  const netAfterFees = realizedPnl - tradeFeesSum;
+  // Every metric below uses the same per-fill net = pnl - fee that drives the equity curve.
+  const pnlTrades = tradeFills
+    .filter((t) => Number.isFinite(t.pnl))
+    .map((t) => ({ ...t, net: t.pnl - t.fee }));
 
-  const wins = pnlTrades.filter((t) => t.pnl > 0).length;
-  const losses = pnlTrades.filter((t) => t.pnl < 0).length;
+  const grossPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);
+  const realizedPnl = pnlTrades.reduce((s, t) => s + t.net, 0);
+
+  // A fill is only counted as a win/loss if it actually closed something (has non-zero P&L).
+  const closingFills = pnlTrades.filter((t) => t.pnl !== 0);
+  const wins = closingFills.filter((t) => t.net > 0).length;
+  const losses = closingFills.filter((t) => t.net < 0).length;
   const decided = wins + losses;
   const winRate = decided ? (wins / decided) * 100 : 0;
   const lossRate = decided ? (losses / decided) * 100 : 0;
@@ -188,12 +194,13 @@ function Dashboard() {
   dayStart.setHours(0, 0, 0, 0);
   const todaysPnl = pnlTrades
     .filter((t) => t.time >= dayStart.getTime())
-    .reduce((s, t) => s + t.pnl, 0);
+    .reduce((s, t) => s + t.net, 0);
 
   const hasWallet = Boolean(fw);
-  const equity = INITIAL_CAPITAL_INR + netAfterFees;
+  const equity = INITIAL_CAPITAL_INR + realizedPnl;
   const equityChange = equity - INITIAL_CAPITAL_INR;
   const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
+
 
   // Equity curve in INR: start at initial capital, then cumulate realized PnL minus fees per fill.
   let eqRun = INITIAL_CAPITAL_INR;

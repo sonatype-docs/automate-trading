@@ -10,6 +10,26 @@ function istDate(msUtc: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Return the "trading session date" (YYYY-MM-DD in IST) for `now`, where a
+// session runs from sessionStartIst (e.g. 05:30) of day D until sessionStartIst
+// of day D+1. So between 00:00 and 05:29 IST, the session date is the previous
+// calendar day. Yesterday's pending setups are expired the moment this rolls.
+function sessionDate(msUtc: number, sessionStartIst: string): string {
+  const [hh, mm] = sessionStartIst.split(":").map((n) => parseInt(n, 10));
+  const startMinOfDay = hh * 60 + (mm || 0);
+  const ist = new Date(msUtc + IST_OFFSET_MIN * 60_000);
+  const minOfDay = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  if (minOfDay < startMinOfDay) {
+    ist.setUTCDate(ist.getUTCDate() - 1);
+  }
+  return ist.toISOString().slice(0, 10);
+}
+
+function istWeekday(istDateStr: string): number {
+  const [y, m, d] = istDateStr.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 Sun … 6 Sat
+}
+
 // The 1h candle openTime (UTC ms) for the IST session-start hour on a given IST date.
 // Default 05:30 IST → 00:00 UTC.
 function sessionOpenUtcMs(istDateStr: string, sessionStartIst: string): number {
@@ -32,6 +52,7 @@ interface StrategySettingsRow {
   trail_enabled?: boolean;
   trail_activate_r?: number;
   trail_step_r?: number;
+  skip_weekends?: boolean;
 }
 
 interface SessionRow {

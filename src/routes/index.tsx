@@ -280,10 +280,10 @@ function Dashboard() {
                 checked={!!settings?.paper_mode}
                 onCheckedChange={(v) => settingsMut.mutate({ paper_mode: v })}
               />
-          </CardContent>
-        </Card>
-
+            </CardContent>
+          </Card>
         </div>
+
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Metric

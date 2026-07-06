@@ -225,7 +225,7 @@ export function createSharkClient(): ExchangeClient {
           try {
             const res = await signedGet(apiKey, apiSecret, path, params);
             if (res.ok) {
-              (snap as Record<string, unknown>)[key] = res.json ?? res.body;
+              (snap as unknown as Record<string, unknown>)[key] = res.json ?? res.body;
             } else {
               snap.errors[key] = `[${res.status}] ${res.body.slice(0, 200)}`;
             }

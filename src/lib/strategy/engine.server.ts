@@ -212,6 +212,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           side,
           entry_price: entry,
           sl_price: sl,
+          initial_sl_price: sl,
           tp_price: tp,
           qty,
           status: "armed",

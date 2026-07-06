@@ -208,8 +208,8 @@ export function createSharkClient(): ExchangeClient {
         { key: "fundingWallet", path: "/v1/wallet/funding-wallet/details", params: {} },
         { key: "openPositions", path: "/v1/positions/OPEN", params: { sortOrder: "desc", pageSize: "50" } },
         { key: "openOrders", path: "/v1/order/open-orders", params: { sortOrder: "desc", pageSize: "50" } },
-        { key: "tradeHistory", path: "/v1/user-data/trade-history", params: { sortOrder: "desc", pageSize: "500" } },
-        { key: "transactionHistory", path: "/v1/user-data/transaction-history", params: { sortOrder: "desc", pageSize: "500" } },
+        { key: "tradeHistory", path: "/v1/user-data/trade-history", params: { sortOrder: "desc", pageSize: "200" } },
+        { key: "transactionHistory", path: "/v1/user-data/transaction-history", params: { sortOrder: "desc", pageSize: "200" } },
       ];
       const snap: AccountSnapshot = {
         futuresWallet: null,

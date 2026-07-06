@@ -199,7 +199,7 @@ function StrategySettingsCard() {
     enabled: false,
     symbol: "XAUUSDT",
     sl_risk_usd: 20,
-    rr: 3,
+    rr: 2,
     session_start_ist: "05:30",
   });
   useEffect(() => {
@@ -229,7 +229,7 @@ function StrategySettingsCard() {
       <CardHeader>
         <CardTitle>XAUUSDT strategy engine</CardTitle>
         <CardDescription>
-          IST 5:30 session zone → fib break → auto long @0.25 / short @0.75 with 1:3 TP.
+          IST 5:30 session zone → fib break → auto long @0.25 / short @0.75 with 1:2 TP (customizable).
           Runs on a 5-minute cron. Respects the kill switch.
         </CardDescription>
       </CardHeader>

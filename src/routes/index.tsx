@@ -1187,7 +1187,7 @@ function StrategyCard() {
             STRATEGY — {s?.symbol ?? "XAUUSDT"} · 1H
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 20} · RR 1:{s?.rr ?? 3}
+            IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 20} · RR 1:{s?.rr ?? 2}
           </p>
         </div>
         <div className="flex items-center gap-2">

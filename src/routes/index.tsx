@@ -27,6 +27,7 @@ import {
   Zap,
   Shield,
   BookOpen,
+  Beaker,
 } from "lucide-react";
 import {
   LineChart,

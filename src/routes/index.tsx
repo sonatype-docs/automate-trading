@@ -191,12 +191,9 @@ function Dashboard() {
   const equityChange = equity - INITIAL_CAPITAL_INR;
   const equityChangePct = (equityChange / INITIAL_CAPITAL_INR) * 100;
 
-  // Equity curve: start at initial capital, cumulate realized PnL after each closing fill.
-  let eqRun = INITIAL_CAPITAL_INR;
-  const firstT = pnlTrades[0]?.time ?? Date.now() - 86400000;
-  const equityCurve: Array<{ t: number; eq: number }> = [
-    { t: firstT - 60_000, eq: INITIAL_CAPITAL_INR },
-  ];
+  // Cumulative realized P&L curve in USD (SharkExchange returns pnl/fee in quote currency = USD).
+  let pnlRun = 0;
+  const pnlCurve: Array<{ t: number; eq: number }> = [];
   const journal: Array<{
     time: number;
     symbol: string;
@@ -208,18 +205,20 @@ function Dashboard() {
     equity: number;
     id: string;
   }> = [];
+  if (pnlTrades.length > 0) {
+    pnlCurve.push({ t: pnlTrades[0].time - 60_000, eq: 0 });
+  }
   for (const t of pnlTrades) {
-    eqRun += t.pnl - t.fee;
-    equityCurve.push({ t: t.time, eq: eqRun });
-    journal.push({ ...t, equity: eqRun });
+    pnlRun += t.pnl - t.fee;
+    pnlCurve.push({ t: t.time, eq: pnlRun });
+    journal.push({ ...t, equity: pnlRun });
   }
-  if (hasWallet && Math.abs(walletTotal - eqRun) > 0.0001) {
-    equityCurve.push({ t: Date.now(), eq: walletTotal });
-  }
-
 
   const fmtINR = (n: number, digits = 2) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  const fmtUSD = (n: number, digits = 2) =>
+    `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
 
   return (
     <div className="min-h-screen">
@@ -293,9 +292,9 @@ function Dashboard() {
             tone={equityChange >= 0 ? "long" : "short"}
           />
           <Metric
-            label="REALIZED P&L"
-            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
-            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
+            label="REALIZED P&L (USD)"
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtUSD(realizedPnl)}`}
+            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`}
             tone={realizedPnl >= 0 ? "long" : "short"}
           />
           <Metric
@@ -304,8 +303,8 @@ function Dashboard() {
             sub={`Free ${fmtINR(walletFree)}`}
           />
           <Metric
-            label="TOTAL FEES"
-            value={fmtINR(feesTotal, 4)}
+            label="TOTAL FEES (USD)"
+            value={fmtUSD(feesTotal, 4)}
             sub={`${exTrades.length} trades`}
             tone="short"
           />
@@ -328,29 +327,52 @@ function Dashboard() {
 
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-mono tracking-wide">
+              CUMULATIVE REALIZED P&amp;L (USD)
+            </CardTitle>
+            <span className="text-xs font-mono text-muted-foreground">
+              Net {fmtUSD(pnlRun)} · {pnlTrades.length} fills
+            </span>
           </CardHeader>
           <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={equityCurve}>
-                <XAxis
-                  dataKey="t"
-                  tickFormatter={(v) => new Date(v).toLocaleDateString()}
-                  stroke="var(--muted-foreground)"
-                  fontSize={10}
-                />
-                <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={["auto", "auto"]} />
-                <ReTooltip
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
-                  labelFormatter={(v) => new Date(v).toLocaleString()}
-                  formatter={(v: number) => [fmtINR(v), "Equity"]}
-                />
-                <Line type="monotone" dataKey="eq" stroke="var(--primary)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {pnlCurve.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                No realized P&amp;L yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={pnlCurve}>
+                  <XAxis
+                    dataKey="t"
+                    tickFormatter={(v) => new Date(v).toLocaleDateString()}
+                    stroke="var(--muted-foreground)"
+                    fontSize={10}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={10}
+                    domain={["auto", "auto"]}
+                    tickFormatter={(v) => fmtUSD(Number(v), 0)}
+                  />
+                  <ReTooltip
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                    labelFormatter={(v) => new Date(v).toLocaleString()}
+                    formatter={(v: number) => [fmtUSD(v), "P&L"]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="eq"
+                    stroke="var(--primary)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -359,7 +381,7 @@ function Dashboard() {
             </CardTitle>
             <span className="text-xs font-mono text-muted-foreground">
               {journal.length} fills · Net {realizedPnl >= 0 ? "+" : ""}
-              {fmtINR(realizedPnl)} · Fees {fmtINR(feesTotal, 4)}
+              {fmtUSD(realizedPnl)} · Fees {fmtUSD(feesTotal, 4)}
             </span>
           </CardHeader>
           <CardContent>
@@ -402,11 +424,11 @@ function Dashboard() {
                         <td className="text-right">
                           {j.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                         </td>
-                        <td className="text-right text-short">{fmtINR(j.fee, 4)}</td>
+                        <td className="text-right text-short">{fmtUSD(j.fee, 4)}</td>
                         <td className={`text-right ${j.pnl > 0 ? "text-long" : j.pnl < 0 ? "text-short" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
+                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
                         </td>
-                        <td className="text-right">{fmtINR(j.equity)}</td>
+                        <td className="text-right">{fmtUSD(j.equity)}</td>
                       </tr>
                     ))}
                   </tbody>

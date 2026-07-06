@@ -424,11 +424,11 @@ function Dashboard() {
                         <td className="text-right">
                           {j.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                         </td>
-                        <td className="text-right text-short">{fmtINR(j.fee, 4)}</td>
+                        <td className="text-right text-short">{fmtUSD(j.fee, 4)}</td>
                         <td className={`text-right ${j.pnl > 0 ? "text-long" : j.pnl < 0 ? "text-short" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
+                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
                         </td>
-                        <td className="text-right">{fmtINR(j.equity)}</td>
+                        <td className="text-right">{fmtUSD(j.equity)}</td>
                       </tr>
                     ))}
                   </tbody>

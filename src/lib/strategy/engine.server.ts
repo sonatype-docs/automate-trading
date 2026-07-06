@@ -4,11 +4,8 @@ import { processSignal } from "@/lib/trading/engine.server";
 
 const IST_OFFSET_MIN = 330; // UTC+5:30
 
-// Return YYYY-MM-DD for the IST day that a given UTC ms falls into
-function istDate(msUtc: number): string {
-  const d = new Date(msUtc + IST_OFFSET_MIN * 60_000);
-  return d.toISOString().slice(0, 10);
-}
+// (istDate helper removed — engine uses sessionDate for trading-day boundaries.)
+
 
 // Return the "trading session date" (YYYY-MM-DD in IST) for `now`, where a
 // session runs from sessionStartIst (e.g. 05:30) of day D until sessionStartIst

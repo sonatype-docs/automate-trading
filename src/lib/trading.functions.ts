@@ -111,3 +111,32 @@ export const sendTestSignal = createServerFn({ method: "POST" })
       .eq("id", eventRow.id);
     return result;
   });
+
+export const testExchangeConnection = createServerFn({ method: "POST" }).handler(async () => {
+  const hasKey = !!process.env.SHARKEXCHANGE_API_KEY;
+  const hasSecret = !!process.env.SHARKEXCHANGE_API_SECRET;
+  if (!hasKey || !hasSecret) {
+    return {
+      ok: false as const,
+      stage: "credentials" as const,
+      message: `Missing ${!hasKey ? "SHARKEXCHANGE_API_KEY" : ""}${!hasKey && !hasSecret ? " and " : ""}${!hasSecret ? "SHARKEXCHANGE_API_SECRET" : ""}. Add them in Settings → Secrets.`,
+    };
+  }
+  try {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    const balance = await client.getBalance("USDT");
+    return {
+      ok: true as const,
+      stage: "connected" as const,
+      message: `Authenticated. USDT balance: ${balance}`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false as const,
+      stage: "request" as const,
+      message: msg,
+    };
+  }
+});

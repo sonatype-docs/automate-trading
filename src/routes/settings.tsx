@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getDashboard, updateSettings, getWebhookInfo } from "@/lib/trading.functions";
+import { getDashboard, updateSettings, getWebhookInfo, testExchangeConnection } from "@/lib/trading.functions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,9 +25,11 @@ function SettingsPage() {
   const getDash = useServerFn(getDashboard);
   const getInfo = useServerFn(getWebhookInfo);
   const update = useServerFn(updateSettings);
+  const testConn = useServerFn(testExchangeConnection);
 
   const dashQ = useQuery({ queryKey: ["dashboard"], queryFn: () => getDash() });
   const infoQ = useQuery({ queryKey: ["webhook-info"], queryFn: () => getInfo() });
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [form, setForm] = useState({
     max_position_usd: 100,
@@ -69,6 +71,12 @@ function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e) => toast.error(e.message),
+  });
+
+  const testMut = useMutation({
+    mutationFn: () => testConn(),
+    onSuccess: (r) => setTestResult({ ok: r.ok, message: r.message }),
+    onError: (e) => setTestResult({ ok: false, message: e.message }),
   });
 
   return (
@@ -115,6 +123,27 @@ function SettingsPage() {
           <CardContent className="space-y-3 font-mono text-sm">
             <StatusRow label="TradingView webhook secret" ok={!!infoQ.data?.hasSecret} />
             <StatusRow label="SharkExchange API key + secret" ok={!!infoQ.data?.hasExchangeKey} />
+            <div className="pt-3 flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={testMut.isPending}
+                onClick={() => {
+                  setTestResult(null);
+                  testMut.mutate();
+                }}
+              >
+                {testMut.isPending ? "Testing…" : "Test SharkExchange connection"}
+              </Button>
+              {testResult && (
+                <span
+                  className={`flex items-center gap-1 text-xs ${testResult.ok ? "text-long" : "text-short"}`}
+                >
+                  {testResult.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                  {testResult.message}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground pt-2">
               Missing SharkExchange keys? Ask the assistant in chat to add them; live mode won't work until they're configured.
             </p>

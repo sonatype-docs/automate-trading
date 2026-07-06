@@ -73,6 +73,12 @@ function SettingsPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const testMut = useMutation({
+    mutationFn: () => testConn(),
+    onSuccess: (r) => setTestResult({ ok: r.ok, message: r.message }),
+    onError: (e) => setTestResult({ ok: false, message: e.message }),
+  });
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-border">

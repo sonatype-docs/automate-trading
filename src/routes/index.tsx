@@ -242,15 +242,38 @@ function Dashboard() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Metric label="EQUITY" value={`$${metrics.equity.toFixed(2)}`} />
           <Metric
-            label="TODAY P&L"
-            value={`${metrics.todaysPnl >= 0 ? "+" : ""}$${metrics.todaysPnl.toFixed(2)}`}
-            tone={metrics.todaysPnl >= 0 ? "long" : "short"}
+            label={`EQUITY (${walletAsset})`}
+            value={fmtINR(equity)}
+            sub={`${equityChange >= 0 ? "+" : ""}${fmtINR(equityChange)} (${equityChangePct >= 0 ? "+" : ""}${equityChangePct.toFixed(2)}%)`}
+            tone={equityChange >= 0 ? "long" : "short"}
           />
-          <Metric label="OPEN POS" value={metrics.openPositions.toString()} />
-          <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
+          <Metric
+            label="REALIZED P&L"
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
+            sub={`Today ${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`}
+            tone={realizedPnl >= 0 ? "long" : "short"}
+          />
+          <Metric
+            label="OPEN POS"
+            value={String(exPositions.length || positions.length)}
+            sub={`Free ${fmtINR(walletFree)}`}
+          />
+          <Metric
+            label="TOTAL FEES"
+            value={fmtINR(feesTotal, 4)}
+            sub={`${exTrades.length} trades`}
+            tone="short"
+          />
         </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Metric label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins} wins`} tone="long" />
+          <Metric label="LOSS RATE" value={`${lossRate.toFixed(1)}%`} sub={`${losses} losses`} tone="short" />
+          <Metric label="INITIAL CAPITAL" value={fmtINR(INITIAL_CAPITAL_INR)} />
+          <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />
+        </div>
+
 
         <LiveTicker defaultSymbol="XAUUSDT" />
 

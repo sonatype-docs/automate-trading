@@ -6,6 +6,7 @@ import {
   updateSettings,
   sendTestSignal,
   getMarketTicker,
+  getExchangeAccount,
 } from "@/lib/trading.functions";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

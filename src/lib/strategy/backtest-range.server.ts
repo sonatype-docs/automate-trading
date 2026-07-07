@@ -1,4 +1,7 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import type { FilterConfig } from "@/lib/strategy/filters";
+import { needsDailyBias } from "@/lib/strategy/filters";
+import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 
 const IST_OFFSET_MIN = 330;
 
@@ -45,7 +48,9 @@ export interface DayResult {
     | "tp"
     | "sl"
     | "open"
-    | "skipped";
+    | "skipped"
+    | "filtered";
+  filter_reason: string | null;
   pnl_usd: number;
   final_sl: number | null;
   peak_r: number;
@@ -82,6 +87,7 @@ export interface RangeBacktestResult {
     total_days: number;
     days_with_session: number;
     skipped_days: number;
+    filtered_days: number;
     breaks: number;
     triggered: number;
     tp: number;
@@ -103,6 +109,7 @@ export interface RangeBacktestResult {
     max_consec_wins: number;
     max_consec_losses: number;
   };
+  filters?: FilterConfig;
 }
 
 
@@ -116,12 +123,24 @@ export async function runBacktestRange(opts: {
   trailActivateR?: number;
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
+  filters?: FilterConfig;
 }): Promise<RangeBacktestResult> {
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
   const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
-  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now });
+
+  let dailyBias: Map<string, DailyBiasEntry> | undefined;
+  if (needsDailyBias(opts.filters)) {
+    const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
+    const atrLen = opts.filters?.quality?.atr_len ?? 14;
+    const warmupDays = Math.max(emaLen, atrLen) + 10;
+    const dailyFromMs = fromMs - warmupDays * 86_400_000;
+    const daily = await client.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
+    dailyBias = computeDailyBias(daily, { emaLen, atrLen });
+  }
+
+  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now, dailyBias });
 }
 
 export function simulateFromKlines(
@@ -138,6 +157,8 @@ export function simulateFromKlines(
     trailActivateR?: number;
     trailStepR?: number;
     skipWeekdays?: Weekday[];
+    filters?: FilterConfig;
+    dailyBias?: Map<string, DailyBiasEntry>;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -146,6 +167,9 @@ export function simulateFromKlines(
   const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
   const now = opts.nowMs;
   const fromMs = opts.fromMs;
+  const filters = opts.filters?.enabled ? opts.filters : undefined;
+  const htf = filters?.htf;
+  const quality = filters?.quality;
 
   // Restrict to the requested window (allows callers to pass a superset).
   const filtered = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);
@@ -187,6 +211,7 @@ export function simulateFromKlines(
       qty: null,
       trigger_at: null,
       outcome: skipped ? "skipped" : "no_session",
+      filter_reason: null,
       pnl_usd: 0,
       final_sl: null,
       peak_r: 0,
@@ -213,6 +238,71 @@ export function simulateFromKlines(
     dr.fib_25 = fib_25;
     dr.fib_75 = fib_75;
 
+    // ---- Setup quality: zone size + ATR regime (evaluated before break search) ----
+    if (quality?.zone_size_enabled) {
+      const unit = quality.zone_size_unit ?? "usd";
+      const val = unit === "pct" ? (range / sessionCandle.open) * 100 : range;
+      const min = quality.zone_size_min ?? 0;
+      const max = quality.zone_size_max ?? 0;
+      if (min > 0 && val < min) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `zone < ${min}${unit === "pct" ? "%" : "$"}`;
+        days.push(dr);
+        continue;
+      }
+      if (max > 0 && val > max) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `zone > ${max}${unit === "pct" ? "%" : "$"}`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    const biasEntry = opts.dailyBias?.get(dateStr);
+    if (quality?.atr_enabled) {
+      const atr = biasEntry?.atr ?? null;
+      const min = quality.atr_min ?? 0;
+      const max = quality.atr_max ?? 0;
+      if (atr === null) {
+        dr.outcome = "filtered";
+        dr.filter_reason = "atr unavailable";
+        days.push(dr);
+        continue;
+      }
+      if (min > 0 && atr < min) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `atr < ${min}`;
+        days.push(dr);
+        continue;
+      }
+      if (max > 0 && atr > max) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `atr > ${max}`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    // Precompute HTF bias-allowed side for this day so we can reject on break.
+    let allowedSide: "long" | "short" | "both" | "none" = "both";
+    if (htf) {
+      const price = sessionCandle.open;
+      const votes: ("long" | "short")[] = [];
+      const vote = (ref: number | null | undefined) => {
+        if (ref === null || ref === undefined) return;
+        if (price > ref) votes.push("long");
+        else if (price < ref) votes.push("short");
+      };
+      if (htf.daily_ema_enabled) vote(biasEntry?.ema ?? null);
+      if (htf.prev_day_close_enabled) vote(biasEntry?.prev_close ?? null);
+      if (htf.weekly_open_enabled) vote(biasEntry?.week_open ?? null);
+      if (votes.length > 0) {
+        const unique = new Set(votes);
+        allowedSide = unique.size === 1 ? votes[0] : "none";
+      }
+    }
+
+
     // Look at bars strictly after the session candle, within THIS IST date only.
     const laterSameDay = filtered.filter(
       (k) =>
@@ -236,6 +326,55 @@ export function simulateFromKlines(
     dr.break_side = breakSide;
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
+
+    // ---- Break-time filters (HTF bias side match + break quality) ----
+    if (allowedSide === "none" || (allowedSide !== "both" && allowedSide !== breakSide)) {
+      dr.outcome = "filtered";
+      dr.filter_reason =
+        allowedSide === "none" ? "htf bias conflict" : `htf bias = ${allowedSide}`;
+      days.push(dr);
+      continue;
+    }
+
+    if (quality?.break_strength_enabled) {
+      const beyond =
+        breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+      const pct = range > 0 ? (beyond / range) * 100 : 0;
+      const need = quality.break_strength_pct ?? 0;
+      if (pct < need) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `break strength ${pct.toFixed(1)}% < ${need}%`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    if (quality?.break_body_enabled) {
+      const barRange = breakBar.high - breakBar.low;
+      const body = Math.abs(breakBar.close - breakBar.open);
+      const pct = barRange > 0 ? (body / barRange) * 100 : 0;
+      const need = quality.break_body_pct ?? 0;
+      if (pct < need) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `body ${pct.toFixed(0)}% < ${need}%`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    if (quality?.break_timing_enabled) {
+      const need = quality.break_timing_hours ?? 0;
+      if (need > 0) {
+        const hoursAfter = (breakBar.openTime - sessionCandle.closeTime) / 3_600_000;
+        if (hoursAfter > need) {
+          dr.outcome = "filtered";
+          dr.filter_reason = `break +${hoursAfter.toFixed(1)}h > ${need}h`;
+          days.push(dr);
+          continue;
+        }
+      }
+    }
+
 
     const entry = breakSide === "long" ? fib_25 : fib_75;
     const sl    = breakSide === "long" ? fib_75 : fib_25;
@@ -326,6 +465,7 @@ export function simulateFromKlines(
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
   const skippedDays = days.filter((d) => d.skipped).length;
+  const filteredDays = days.filter((d) => d.outcome === "filtered").length;
 
   // Per-weekday stats — count only decided trades (tp/sl).
   const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {
@@ -392,6 +532,7 @@ export function simulateFromKlines(
       total_days: days.length,
       days_with_session: daysWithSession,
       skipped_days: skippedDays,
+      filtered_days: filteredDays,
       breaks,
       triggered,
       tp,
@@ -413,5 +554,6 @@ export function simulateFromKlines(
       max_consec_wins: maxWin,
       max_consec_losses: maxLoss,
     },
+    filters: opts.filters,
   };
 }

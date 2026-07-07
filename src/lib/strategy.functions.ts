@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { FiltersZod } from "@/lib/strategy/filters";
 
 
 
@@ -92,6 +93,7 @@ const RangeSchema = z.object({
   session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
   sl_risk_usd: z.number().positive().optional(),
   rr: z.number().positive().optional(),
+  filters: FiltersZod,
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -118,6 +120,7 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailActivateR,
       trailStepR,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      filters: data.filters,
     });
   });
 
@@ -206,6 +209,7 @@ const SweepSchema = z.object({
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
   skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  filters: FiltersZod,
 });
 
 export const sweepHoursBacktest = createServerFn({ method: "POST" })
@@ -221,5 +225,6 @@ export const sweepHoursBacktest = createServerFn({ method: "POST" })
       trailActivateR: data.trail_activate_r,
       trailStepR: data.trail_step_r,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      filters: data.filters,
     });
   });

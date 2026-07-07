@@ -118,9 +118,21 @@ export interface RangeBacktestResult {
     max_drawdown_usd: number;
     max_consec_wins: number;
     max_consec_losses: number;
+    /** triggered / (triggered + armed_no_trigger) as a %. */
+    fill_rate_pct: number;
+    /** Median R distance price got from entry on missed days (lower = would-fill with slightly deeper entry). */
+    median_miss_r: number;
+    /** How many missed setups would have filled if entry_depth was reduced (closest_approach_r <= 0.1). */
+    near_miss_count: number;
+    /** Fee model: est. total fees paid (USD) at the given per-side taker rate. */
+    est_fees_usd: number;
+    /** Net P&L after fees. */
+    net_pnl_usd: number;
   };
   filters?: FilterConfig;
+  entry?: EntryConfig;
 }
+
 
 
 export async function runBacktestRange(opts: {

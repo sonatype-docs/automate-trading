@@ -1383,9 +1383,8 @@ function TrailingSlControls({
   const set = (patch: Partial<{ enabled: boolean; activateR: number; stepR: number }>) =>
     onOverrideChange({ ...active, ...patch });
   return (
-    <div className="border border-border rounded p-3 font-mono text-xs bg-muted/30 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="tracking-widest text-muted-foreground">TRAILING SL</div>
+    <div className="font-mono text-xs space-y-2">
+      <div className="flex items-center justify-end">
         <label className="flex items-center gap-2">
           <span className="text-muted-foreground">Enable</span>
           <Switch checked={active.enabled} onCheckedChange={(v) => set({ enabled: v })} />
@@ -1480,9 +1479,8 @@ function LiveSessionRulesEditor({
     form.rr !== settings.rr ||
     form.skip_weekends !== settings.skip_weekends;
   return (
-    <div className="border border-border rounded p-3 bg-muted/30 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="font-mono text-xs tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
         <Button
           size="sm"
           variant="secondary"

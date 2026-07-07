@@ -1318,3 +1318,236 @@ function HourSweepPanel({
     </Card>
   );
 }
+
+function FiltersCard({
+  value,
+  onChange,
+}: {
+  value: NonNullable<FilterConfig>;
+  onChange: (v: NonNullable<FilterConfig>) => void;
+}) {
+  const htf = value.htf ?? {};
+  const q = value.quality ?? {};
+  const setHtf = (patch: Partial<typeof htf>) =>
+    onChange({ ...value, htf: { ...htf, ...patch } });
+  const setQ = (patch: Partial<typeof q>) =>
+    onChange({ ...value, quality: { ...q, ...patch } });
+  const numOr = (v: string, fallback: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm font-mono tracking-widest">FILTERS</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Applied to the single-run backtest and the 24-hour sweep. Live rules are unchanged.
+            </p>
+          </div>
+          <label className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              Master
+            </span>
+            <Switch
+              checked={!!value.enabled}
+              onCheckedChange={(v) => onChange({ ...value, enabled: v })}
+            />
+          </label>
+        </div>
+      </CardHeader>
+      <CardContent className={`space-y-5 ${value.enabled ? "" : "opacity-60"}`}>
+        {/* HTF BIAS */}
+        <section className="space-y-2">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            HTF Bias — only take trades that agree with all enabled references
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!htf.daily_ema_enabled}
+                onCheckedChange={(v) => setHtf({ daily_ema_enabled: v })}
+                disabled={!value.enabled}
+              />
+              <span className="text-xs">Daily EMA</span>
+              <Input
+                type="number"
+                min={2}
+                max={400}
+                value={htf.daily_ema_len ?? 20}
+                onChange={(e) => setHtf({ daily_ema_len: Math.max(2, numOr(e.target.value, 20)) })}
+                className="h-7 w-16 font-mono text-xs"
+                disabled={!value.enabled || !htf.daily_ema_enabled}
+              />
+              <span className="text-[10px] text-muted-foreground">len</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!htf.prev_day_close_enabled}
+                onCheckedChange={(v) => setHtf({ prev_day_close_enabled: v })}
+                disabled={!value.enabled}
+              />
+              <span className="text-xs">Prior-day close</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!htf.weekly_open_enabled}
+                onCheckedChange={(v) => setHtf({ weekly_open_enabled: v })}
+                disabled={!value.enabled}
+              />
+              <span className="text-xs">Weekly open</span>
+            </div>
+          </div>
+        </section>
+
+        {/* SETUP QUALITY */}
+        <section className="space-y-3">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Setup Quality
+          </div>
+
+          {/* Zone size */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch
+              checked={!!q.zone_size_enabled}
+              onCheckedChange={(v) => setQ({ zone_size_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">Zone size</span>
+            <Input
+              type="number"
+              min={0}
+              value={q.zone_size_min ?? 0}
+              onChange={(e) => setQ({ zone_size_min: Math.max(0, numOr(e.target.value, 0)) })}
+              className="h-7 w-20 font-mono text-xs"
+              placeholder="min"
+              disabled={!value.enabled || !q.zone_size_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">min</span>
+            <Input
+              type="number"
+              min={0}
+              value={q.zone_size_max ?? 0}
+              onChange={(e) => setQ({ zone_size_max: Math.max(0, numOr(e.target.value, 0)) })}
+              className="h-7 w-20 font-mono text-xs"
+              placeholder="max"
+              disabled={!value.enabled || !q.zone_size_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">max</span>
+            <select
+              value={q.zone_size_unit ?? "usd"}
+              onChange={(e) => setQ({ zone_size_unit: e.target.value as "usd" | "pct" })}
+              className="h-7 rounded border border-input bg-background px-2 text-xs font-mono"
+              disabled={!value.enabled || !q.zone_size_enabled}
+            >
+              <option value="usd">$</option>
+              <option value="pct">%</option>
+            </select>
+            <span className="text-[10px] text-muted-foreground">0 = off</span>
+          </div>
+
+          {/* ATR regime */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch
+              checked={!!q.atr_enabled}
+              onCheckedChange={(v) => setQ({ atr_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">Daily ATR</span>
+            <Input
+              type="number"
+              min={2}
+              max={200}
+              value={q.atr_len ?? 14}
+              onChange={(e) => setQ({ atr_len: Math.max(2, numOr(e.target.value, 14)) })}
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">len</span>
+            <Input
+              type="number"
+              min={0}
+              value={q.atr_min ?? 0}
+              onChange={(e) => setQ({ atr_min: Math.max(0, numOr(e.target.value, 0)) })}
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">min $</span>
+            <Input
+              type="number"
+              min={0}
+              value={q.atr_max ?? 0}
+              onChange={(e) => setQ({ atr_max: Math.max(0, numOr(e.target.value, 0)) })}
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">max $ · 0 = off</span>
+          </div>
+
+          {/* Break strength */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch
+              checked={!!q.break_strength_enabled}
+              onCheckedChange={(v) => setQ({ break_strength_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">Break strength</span>
+            <Input
+              type="number"
+              min={0}
+              max={500}
+              value={q.break_strength_pct ?? 25}
+              onChange={(e) => setQ({ break_strength_pct: Math.max(0, numOr(e.target.value, 0)) })}
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.break_strength_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">% of zone range beyond level</span>
+          </div>
+
+          {/* Break body */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch
+              checked={!!q.break_body_enabled}
+              onCheckedChange={(v) => setQ({ break_body_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">Break body</span>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={q.break_body_pct ?? 50}
+              onChange={(e) => setQ({ break_body_pct: Math.max(0, Math.min(100, numOr(e.target.value, 0))) })}
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.break_body_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">% body / bar range</span>
+          </div>
+
+          {/* Break timing */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch
+              checked={!!q.break_timing_enabled}
+              onCheckedChange={(v) => setQ({ break_timing_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">Break timing</span>
+            <Input
+              type="number"
+              min={0}
+              max={24}
+              step={0.5}
+              value={q.break_timing_hours ?? 6}
+              onChange={(e) => setQ({ break_timing_hours: Math.max(0, Math.min(24, numOr(e.target.value, 0))) })}
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.break_timing_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">within N hours after session</span>
+          </div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}

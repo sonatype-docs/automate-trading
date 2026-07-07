@@ -1118,6 +1118,9 @@ function StrategyCard() {
       trail_activate_r?: number;
       trail_step_r?: number;
       skip_weekends?: boolean;
+      session_start_ist?: string;
+      sl_risk_usd?: number;
+      rr?: number;
     }) => updateStrat({ data: patch }),
     onSuccess: () => {
       toast.success("Strategy settings saved");
@@ -1125,6 +1128,7 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
   // Trailing SL uses saved values for live; no per-run override on the dashboard.
   const [trailOverride, setTrailOverride] = useState<TrailOverride>(null);
 

@@ -58,7 +58,10 @@ export async function runBacktestToday(opts: {
   sessionStartIst: string;
   slRiskUsd: number;
   rr: number;
+  entry?: EntryConfig;
 }): Promise<BacktestResult> {
+  const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
+
   const client = createSharkClient();
   const klines: Kline[] = await client.getKlines(opts.symbol, "1h", 48);
   const now = Date.now();

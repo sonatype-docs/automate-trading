@@ -3367,6 +3367,8 @@ function SilverBulletPanel(props: {
     executionTf: "5m",
   });
   const [days, setDays] = useState<number>(props.defaults.days);
+  const [skipSat, setSkipSat] = useState<boolean>(props.defaults.skipWeekdays.includes(6));
+  const [skipSun, setSkipSun] = useState<boolean>(props.defaults.skipWeekdays.includes(0));
 
   const [data, setData] = useState<SilverBulletData | null>(null);
   const setK = <K extends keyof SbFormState>(k: K, v: SbFormState[K]) =>

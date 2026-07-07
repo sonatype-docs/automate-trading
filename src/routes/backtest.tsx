@@ -1961,6 +1961,94 @@ function FiltersCard({
 }
 
 // -----------------------------------------------------------------------------
+// Strategies roadmap card — surfaces the 5 researched gold strategies so the
+// user can see the full plan. Phase 1 (EMA regime gate + ATR squeeze) is live
+// in the Filters card above. Phases 2-3 land in follow-up turns.
+// -----------------------------------------------------------------------------
+function StrategiesRoadmapCard() {
+  const rows: Array<{
+    name: string;
+    status: "live" | "next" | "planned";
+    detail: string;
+  }> = [
+    {
+      name: "D1 EMA regime gate",
+      status: "live",
+      detail:
+        "Filters → HTF Bias → D1 EMA regime. Best-backtested XAUUSD filter (PF 1.85, 3% DD, +0.524R on 8,693 trades). Modes: price vs slow, or fast/slow cross.",
+    },
+    {
+      name: "ATR squeeze pre-session filter",
+      status: "live",
+      detail:
+        "Filters → Setup Quality → ATR squeeze. Only takes ORB when today's ATR ≤ ratio × SMA(ATR, lookback). Tune lookback + ratio to skip already-expanded sessions.",
+    },
+    {
+      name: "Multi-session ORB (Asian / London / NY)",
+      status: "next",
+      detail:
+        "Loops your existing ORB engine over configurable session windows (05:30 / 13:30 / 18:30 IST). Each session gets its own entry mode + RR overrides. Backtest-only.",
+    },
+    {
+      name: "Asian Liquidity Sweep + Reversal",
+      status: "next",
+      detail:
+        "New setup engine. Detects wick sweeps of PDH/PDL, Asian H/L, equal H/L, round numbers (10/25/50 USD grid) with body-back-inside confirmation. Two-target RR (nearest FVG → opposite liquidity).",
+    },
+    {
+      name: "ICT Silver Bullet — NY AM (19:30–20:30 IST)",
+      status: "planned",
+      detail:
+        "MSS + 3-bar FVG detector inside the 60-min kill zone with premium/discount validation. Needs 1m/3m kline fetch added to the pipeline; largest scope, saved for last.",
+    },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">STRATEGIES</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Five gold strategies from the research report. Phase 1 filters below are wired into the
+          current ORB backtest — toggle them in the Filters card above.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {rows.map((r) => (
+          <div
+            key={r.name}
+            className="flex items-start gap-3 text-xs border-l-2 pl-3 py-1"
+            style={{
+              borderColor:
+                r.status === "live"
+                  ? "hsl(var(--success, 142 76% 36%))"
+                  : r.status === "next"
+                    ? "hsl(var(--warning, 38 92% 50%))"
+                    : "hsl(var(--muted-foreground))",
+            }}
+          >
+            <span
+              className={`font-mono text-[10px] uppercase tracking-widest w-16 shrink-0 ${
+                r.status === "live"
+                  ? "text-emerald-500"
+                  : r.status === "next"
+                    ? "text-amber-500"
+                    : "text-muted-foreground"
+              }`}
+            >
+              {r.status === "live" ? "● live" : r.status === "next" ? "○ next" : "· planned"}
+            </span>
+            <div className="min-w-0">
+              <div className="font-semibold">{r.name}</div>
+              <div className="text-muted-foreground">{r.detail}</div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// -----------------------------------------------------------------------------
 // Entry-zone grid sweep panel — scans (mode, entry_depth, sl_depth) combos.
 // -----------------------------------------------------------------------------
 function EntryZoneGridPanel(props: {

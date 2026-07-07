@@ -508,43 +508,6 @@ function Dashboard() {
               )}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-mono tracking-wide">WEBHOOK EVENTS</CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              {events.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-6 text-center space-y-2">
-                  <AlertTriangle className="w-4 h-4 mx-auto" />
-                  <p>No alerts received yet.</p>
-                  <p>
-                    <Link to="/docs" className="underline">Wire up TradingView →</Link>
-                  </p>
-                </div>
-              ) : (
-                <ul className="space-y-2 text-xs font-mono">
-                  {events.map((e) => (
-                    <li key={e.id} className="border-t border-border pt-2">
-                      <div className="flex justify-between">
-                        <span>{(e.raw_payload as { symbol?: string })?.symbol ?? "—"} · {(e.raw_payload as { action?: string })?.action ?? "—"}</span>
-                        <Badge
-                          variant={
-                            e.status === "executed" ? "default" : e.status === "rejected" ? "destructive" : "secondary"
-                          }
-                        >
-                          {e.status}
-                        </Badge>
-                      </div>
-                      {e.reason && <div className="text-muted-foreground">{e.reason}</div>}
-                      <div className="text-muted-foreground">
-                        {new Date(e.received_at).toLocaleString()}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </main>
     </div>
@@ -1147,11 +1110,6 @@ function StrategyCard() {
             {repriceMut.isPending ? "Repricing…" : "Reprice now"}
           </Button>
 
-          <Link to="/backtest">
-            <Button size="sm" variant="secondary">
-              <Beaker className="w-4 h-4 mr-1" /> Backtest Lab
-            </Button>
-          </Link>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

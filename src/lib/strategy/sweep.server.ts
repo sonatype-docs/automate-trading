@@ -121,6 +121,7 @@ export async function runSweep(opts: {
         profit_factor: r.summary.profit_factor,
         expectancy_usd: r.summary.expectancy_usd,
         avg_r: r.summary.avg_r,
+        cohorts: r.summary.cohorts,
       });
     }
     rangeResults.push({ days, hours: hourStats });

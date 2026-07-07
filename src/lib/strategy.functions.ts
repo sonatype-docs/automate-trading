@@ -380,6 +380,44 @@ export const backtestLiquiditySweep = createServerFn({ method: "POST" })
     return JSON.parse(JSON.stringify(r)) as typeof r;
   });
 
+const SilverBulletSchema = z.object({
+  symbol: z.string().min(3).max(24),
+  days: z.number().int().min(1).max(365),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+  window_start_ist: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  window_end_ist: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  hold_cutoff_ist: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  swing_lookback: z.number().int().min(5).max(100).optional(),
+  fvg_min_usd: z.number().min(0).max(50).optional(),
+  sl_buffer_usd: z.number().min(0).max(10).optional(),
+  max_trades_per_day: z.number().int().min(1).max(5).optional(),
+  execution_tf: z.enum(["3m", "5m", "15m"]).optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+});
+
+export const backtestSilverBullet = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => SilverBulletSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { runSilverBulletBacktest } = await import("@/lib/strategy/silver-bullet.server");
+    const r = await runSilverBulletBacktest({
+      symbol: data.symbol,
+      days: data.days,
+      slRiskUsd: data.sl_risk_usd,
+      rr: data.rr,
+      windowStartIst: data.window_start_ist,
+      windowEndIst: data.window_end_ist,
+      holdCutoffIst: data.hold_cutoff_ist,
+      swingLookback: data.swing_lookback,
+      fvgMinUsd: data.fvg_min_usd,
+      slBufferUsd: data.sl_buffer_usd,
+      maxTradesPerDay: data.max_trades_per_day,
+      executionTf: data.execution_tf,
+      skipWeekdays: data.skip_weekdays,
+    });
+    return JSON.parse(JSON.stringify(r)) as typeof r;
+  });
+
 
 const EntryZoneSweepSchema = z.object({
   symbol: z.string().min(3).max(24),

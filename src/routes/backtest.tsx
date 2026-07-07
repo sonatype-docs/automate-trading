@@ -1723,6 +1723,48 @@ function FiltersCard({
               <span className="text-xs">Weekly open</span>
             </div>
           </div>
+
+          {/* D1 EMA regime gate — highest-EV filter from research (PF 1.85 on XAUUSD). */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40 mt-2 pt-3">
+            <Switch
+              checked={!!htf.ema_bias_enabled}
+              onCheckedChange={(v) => setHtf({ ema_bias_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">D1 EMA regime</span>
+            <Input
+              type="number"
+              min={2}
+              max={400}
+              value={htf.ema_bias_fast ?? 21}
+              onChange={(e) => setHtf({ ema_bias_fast: Math.max(2, numOr(e.target.value, 21)) })}
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">fast</span>
+            <Input
+              type="number"
+              min={2}
+              max={400}
+              value={htf.ema_bias_slow ?? 50}
+              onChange={(e) => setHtf({ ema_bias_slow: Math.max(2, numOr(e.target.value, 50)) })}
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">slow</span>
+            <select
+              value={htf.ema_bias_mode ?? "gate_by_slow"}
+              onChange={(e) =>
+                setHtf({ ema_bias_mode: e.target.value as "gate_by_slow" | "gate_by_cross" })
+              }
+              className="h-7 rounded border border-input bg-background px-2 text-xs font-mono"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            >
+              <option value="gate_by_slow">price vs slow</option>
+              <option value="gate_by_cross">fast vs slow cross</option>
+            </select>
+          </div>
+
         </section>
 
         {/* SETUP QUALITY */}

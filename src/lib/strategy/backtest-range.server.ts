@@ -66,6 +66,8 @@ export interface DayResult {
   final_sl: number | null;
   peak_r: number;
   exit_r: number | null;
+  /** Maximum Adverse Excursion in R units for a triggered trade — how far price ran against you (0 = never in the red). Null when not triggered. */
+  mae_r: number | null;
   /** For armed_no_trigger days: how close price got to the entry, in R units (0 = filled, higher = further). Null when not applicable. */
   closest_approach_r: number | null;
   entry_mode?: EntryConfig["mode"];

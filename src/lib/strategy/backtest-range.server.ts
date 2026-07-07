@@ -214,7 +214,7 @@ export function simulateFromKlines(
     dr.fib_75 = fib_75;
 
     // Look at bars strictly after the session candle, within THIS IST date only.
-    const laterSameDay = klines.filter(
+    const laterSameDay = filtered.filter(
       (k) =>
         k.openTime > sessionCandle.openTime &&
         k.closeTime <= now &&

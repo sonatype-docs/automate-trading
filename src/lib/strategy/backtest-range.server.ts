@@ -801,6 +801,7 @@ export function simulateFromKlines(
       near_miss_count: nearMissCount,
       est_fees_usd: estFees,
       net_pnl_usd: netPnl,
+      cohorts,
     },
     filters: opts.filters,
     entry: entryCfg,

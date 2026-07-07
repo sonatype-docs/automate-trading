@@ -187,6 +187,8 @@ const RangeSchema = z.object({
   sl_risk_usd: z.number().positive().optional(),
   rr: z.number().positive().optional(),
   filters: FiltersZod,
+  entry: EntryOverrideSchema,
+  fee_rate: z.number().min(0).max(0.01).optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -203,6 +205,16 @@ export const backtestRange = createServerFn({ method: "POST" })
     const trailEnabled = data.trail_enabled ?? Boolean((settings as { trail_enabled?: boolean }).trail_enabled);
     const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
     const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
+    const savedEntry = entryFromSettings(settings as unknown as Record<string, unknown>);
+    const entry = {
+      mode: data.entry?.mode ?? savedEntry.mode,
+      entryDepthPct: data.entry?.entry_depth_pct ?? savedEntry.entryDepthPct,
+      slDepthPct: data.entry?.sl_depth_pct ?? savedEntry.slDepthPct,
+      adaptiveStrongBreakPct: data.entry?.adaptive_strong_break_pct ?? savedEntry.adaptiveStrongBreakPct,
+      adaptiveShallowDepth: data.entry?.adaptive_shallow_depth ?? savedEntry.adaptiveShallowDepth,
+      adaptiveDeepDepth: data.entry?.adaptive_deep_depth ?? savedEntry.adaptiveDeepDepth,
+      retestSlR: data.entry?.retest_sl_r ?? savedEntry.retestSlR,
+    };
     return runBacktestRange({
       symbol: data.symbol ?? settings.symbol,
       sessionStartIst: (data.session_start_ist ?? String(settings.session_start_ist)).slice(0, 5),
@@ -214,8 +226,50 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailStepR,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
       filters: data.filters,
+      entry,
+      feeRate: data.fee_rate,
     });
   });
+
+const EntryZoneSweepSchema = z.object({
+  symbol: z.string().min(3).max(24),
+  days: z.number().int().min(1).max(365),
+  session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+  entry_depths: z.array(z.number().min(0).max(0.5)).min(1).max(12),
+  sl_depths: z.array(z.number().min(0.1).max(1)).min(1).max(12),
+  modes: z.array(EntryModeEnum).min(1).max(4),
+  trail_enabled: z.boolean().optional(),
+  trail_activate_r: z.number().positive().optional(),
+  trail_step_r: z.number().positive().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  filters: FiltersZod,
+  fee_rate: z.number().min(0).max(0.01).optional(),
+});
+
+export const runEntryZoneSweep = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => EntryZoneSweepSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { runEntryZoneSweep: run } = await import("@/lib/strategy/sweep.server");
+    return run({
+      symbol: data.symbol,
+      days: data.days,
+      sessionStartIst: data.session_start_ist.slice(0, 5),
+      slRiskUsd: data.sl_risk_usd,
+      rr: data.rr,
+      entryDepths: data.entry_depths,
+      slDepths: data.sl_depths,
+      modes: data.modes,
+      trailEnabled: data.trail_enabled,
+      trailActivateR: data.trail_activate_r,
+      trailStepR: data.trail_step_r,
+      skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      filters: data.filters,
+      feeRate: data.fee_rate,
+    });
+  });
+
 
 export const listStrategyPresets = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await admin();

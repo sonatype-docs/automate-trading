@@ -1,131 +1,140 @@
-# Add All 5 Gold Strategies to Backtesting Dashboard
 
-Build all 5 researched strategies into the backtest dashboard as fully configurable modules. Backtest-only scope — no live-engine or order-placement changes. Every knob exposed in the UI so you can tune freely.
+## Goal
 
-## Strategies being added
+Bring every backtest engine (Range, Asian Liquidity Sweep, ICT Silver Bullet, Multi-Session ORB, Sweep-hour grid, Entry-zone sweep) to the same feature bar:
 
-1. **Multi-Session ORB** (Asian / London / NY, per-session config)
-2. **Asian Liquidity Sweep + Reversal** (new setup engine)
-3. **ICT Silver Bullet — NY AM kill zone** (new setup engine, MSS + FVG)
-4. **D1 EMA regime gate** (filter)
-5. **ATR squeeze pre-session filter** (filter)
+- Days: 1–365 slider + numeric input
+- Timeframe: selectable from `1m, 3m, 5m, 15m, 1h, 4h`
+- Entry: existing modes + fixed offset
+- SL/TP: pick one model per run — Fixed USD/%, ATR-based, RR multiple (existing), opposite level (where applicable)
+- Trade management: breakeven-at-Nr, trailing stop (ATR or %), partial TP (scale-out X% at Nr, runner to Mr)
+- Weekend toggle: independent Sat / Sun skips
+- Analytics: inline monthly P&L grid + weekday breakdown per panel, plus a shared `/analytics` dashboard reading the latest cached run per strategy
 
-Each is independently toggleable and combinable. Filters (4, 5) apply to any active strategy. Strategies (1, 2, 3) can run individually or side-by-side in one backtest run.
+## Backend
 
-## Architecture
+### 1. Shared exit/management module — `src/lib/strategy/exit-model.server.ts` (new)
 
-### Data model — `src/lib/strategy/filters.ts` + new `strategies.ts`
+Single source of truth for TP/SL simulation used by every engine.
 
-Extend `FiltersZod`:
+```ts
+type SlModel =
+  | { kind: "rr"; rr: number }
+  | { kind: "fixed_usd"; usd: number }
+  | { kind: "fixed_pct"; pct: number }
+  | { kind: "atr"; mult: number; period: number };
 
-```
-htf.ema_bias_enabled, htf.ema_bias_fast (default 21), htf.ema_bias_slow (default 50), htf.ema_bias_mode ('gate_by_slow' | 'gate_by_cross')
-quality.atr_squeeze_enabled, quality.atr_squeeze_lookback (default 20), quality.atr_squeeze_ratio (default 0.7)
-```
+type TpModel =
+  | { kind: "rr"; rr: number }
+  | { kind: "fixed_usd"; usd: number }
+  | { kind: "fixed_pct"; pct: number }
+  | { kind: "atr"; mult: number; period: number }
+  | { kind: "opposite" } // engines that support it
+  | { kind: "midrange" };
 
-New `StrategiesZod` (top-level in backtest request):
-
-```
-orb: {
-  enabled, sessions: Array<{
-    id, label, session_start_ist, range_minutes,
-    range_source: 'self' | 'asian',
-    entry: EntryConfig (mode/depth/sl_depth/adaptive/retest),
-    rr, sl_risk_usd_override?, trail_enabled, trail_activate_r, trail_step_r,
-    require_range_consolidation_bars (yulz008 idea, default 0 = off)
-  }>
-}
-sweep: {
-  enabled,
-  levels: {
-    pdh_pdl, asian_hl, equal_hl (eps_atr_pct), round_numbers (grid_usd: 10|25|50)
-  },
-  min_wick_pips, sl_buffer_pips, rr1, rr2, tp1_partial_pct,
-  timeframe ('m30' | 'h1'),
-  session_window_ist? { start, end }  // optional restriction, default London 12:30-15:30
-}
-silver_bullet: {
-  enabled,
-  window_ist { start (default 19:30), end (default 20:30) },
-  execution_tf ('1m' | '3m' | '5m'),
-  context_tf ('15m'),
-  fvg_min_pips, mss_lookback_bars,
-  premium_discount_split_pct (default 50),
-  rr (default 3), sl_buffer_pips
-}
+type Management = {
+  breakevenAtR?: number;      // move SL to entry after price hits N·R
+  trailAtrMult?: number;      // trailing stop distance in ATR
+  trailPct?: number;          // or % of price
+  partial?: { atR: number; sizePct: number }; // e.g. 50% off at 1R, runner continues
+};
 ```
 
-Every field has a sensible default; UI shows current value with reset-to-default per field.
+Exposes `simulateExit(side, entry, initialSl, initialTp, futureBars, mgmt, atrSeries)` returning `{ outcome, exitPrice, pnlR, mae, partialsHit }`. All engines call this instead of inlining their own SL/TP loop.
 
-### Server engine — new files under `src/lib/strategy/`
+### 2. Shared filters — `src/lib/strategy/filters.ts`
 
-- `levels.server.ts` — level scanners: PDH/PDL, Asian H/L, equal-highs/lows (H1 lookback + ATR% epsilon), round-number ladder
-- `sweep.engine.server.ts` — sweep detection + reversal setup generator
-- `silver-bullet.engine.server.ts` — MSS detector, FVG detector, premium/discount validator, retest-entry generator
-- `multi-session-orb.server.ts` — wraps existing ORB logic to loop over N session configs per day
-- `backtest-range.server.ts` — extended to accept `StrategiesConfig`, produce **per-strategy** result blocks plus a combined block
+Add `skipSat: boolean`, `skipSun: boolean` (replacing/augmenting current `skipWeekdays`). Helper `shouldSkipWeekday(dateIST, { skipSat, skipSun })`.
 
-Result shape adds `strategy: 'orb' | 'sweep' | 'silver_bullet'` and `session_id?` to every trade, so existing cohort analytics (body / OR-size / break-distance / weekday / TP-target / MAE) automatically breakdown by strategy without new code.
+### 3. Engine updates
 
-Combined-run stats block: PF / WR / avg R / max DD / expectancy / Sharpe per strategy, plus overlap analysis (same-day double-fires).
+For each of: `backtest-range`, `sweep-liquidity`, `silver-bullet`, `sweep.server`, plus the multi-session ORB and grid/sweep-hour engines:
 
-### UI — `src/routes/backtest.tsx`
+- Accept `days: number (1..365)`, `timeframe: '1m'|'3m'|'5m'|'15m'|'1h'|'4h'`, `slModel`, `tpModel`, `management`, `skipSat`, `skipSun`.
+- Replace inline exit loop with `simulateExit(...)`.
+- Compute ATR series once per symbol when any ATR-based model is selected.
+- Return, in addition to existing `days`/`equity`, two new aggregates:
+  - `monthly: { yyyy_mm: { pnl, trades, wins } }`
+  - `weekday: { 0..6: { pnl, trades, wins } }`
 
-New collapsible cards inside the backtest form, in this order:
+### 4. Server functions — `src/lib/strategy.functions.ts`
 
-1. **Strategies** (master toggles + expand)
-   - **ORB Sessions** card
-     - Add/remove sessions (Asian preset, London preset, NY preset, custom)
-     - Per-session: start time, range minutes, range source, full entry config (reuse existing entry inputs), per-session RR + trail overrides, consolidation-bars filter
-   - **Liquidity Sweep** card
-     - Level toggles (PDH/PDL, Asian H/L, equal H/L with ε slider, round-number grid select)
-     - Sweep params: min wick pips, SL buffer, RR1/RR2, TP1 partial %, timeframe, optional session-window restriction
-   - **Silver Bullet** card
-     - Window start/end (IST), execution TF, context TF, FVG min pips, MSS lookback, premium/discount split %, RR, SL buffer
+Bump each backtest server fn's Zod schema:
+- `days: z.number().int().min(1).max(365)`
+- `timeframe` enum
+- Nested `slModel`, `tpModel`, `management` objects (all optional with sensible defaults so old callers keep working)
+- `skipSat`, `skipSun`
 
-2. **Filters** (existing card, extended)
-   - New **HTF EMA regime gate** row: enable, fast len, slow len, mode dropdown
-   - New **ATR squeeze** row under existing ATR block: enable, lookback, ratio slider (0.3–1.0)
+Persist the latest run per `(strategy, symbol)` into a small `strategy_runs` table (see Schema below) so `/analytics` can render without re-running.
 
-3. **Results view** (extended)
-   - **Strategy comparison** table at top when >1 strategy active: side-by-side PF / WR / trades / avg R / max DD / expectancy
-   - **Per-strategy tabs** below: equity curve, trades table, cohort breakdowns, MAE — filterable by strategy chip
-   - Existing cohort dimensions apply automatically to each strategy
-   - Trades table gains **Strategy** and **Session** columns; chip filter on strategy/session
+## Schema (single migration)
 
-4. **Presets** (extended)
-   - Presets already exist for symbol/risk/RR; extend `strategy_presets` schema to optionally store a full `strategies + filters` blob. Existing presets keep working (blob is nullable).
+```sql
+create table public.strategy_runs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid(),
+  strategy text not null,           -- 'range' | 'sweep' | 'silver_bullet' | 'orb' | ...
+  symbol text not null,
+  timeframe text not null,
+  days integer not null,
+  config jsonb not null,            -- full request payload
+  summary jsonb not null,           -- summary object
+  monthly jsonb not null,           -- {yyyy_mm: {...}}
+  weekday jsonb not null,           -- {0..6: {...}}
+  equity jsonb not null,            -- equity curve
+  created_at timestamptz not null default now()
+);
 
-### Migration
+grant select, insert, delete on public.strategy_runs to authenticated;
+grant all on public.strategy_runs to service_role;
+alter table public.strategy_runs enable row level security;
 
-- `strategy_presets`: add `config_json jsonb` (nullable). GRANTs unchanged; RLS unchanged.
-- No changes to `strategy_setups` / `strategy_sessions` (backtest-only scope).
+create policy "own runs read"   on public.strategy_runs for select using (auth.uid() = user_id);
+create policy "own runs insert" on public.strategy_runs for insert with check (auth.uid() = user_id);
+create policy "own runs delete" on public.strategy_runs for delete using (auth.uid() = user_id);
 
-### Sweeps (Hour + Entry-Zone grids)
+create index on public.strategy_runs (user_id, strategy, symbol, created_at desc);
+```
 
-Both existing sweep tools gain a **Strategy** selector. When a non-ORB strategy is selected, irrelevant axes are hidden (e.g. entry-depth grid disabled for Silver Bullet, replaced with FVG-min-pips / MSS-lookback grid).
+## Frontend
 
-## Explicitly out of scope
+### 5. Reusable control block — `src/components/backtest-controls.tsx` (new)
 
-- Live engine, order placement, Shark client — untouched. Live still runs current single-ORB path.
-- News/economic-calendar integration — separate infra.
-- RL / ML models — infrastructure cost >> data.
-- No changes to `src/integrations/supabase/*` (auto-gen).
+`<BacktestControls value onChange />` renders:
 
-## Verification
+- Days (1–365) slider + number input
+- Timeframe select (`1m/3m/5m/15m/1h/4h`)
+- SL model tabs (RR | Fixed $ | Fixed % | ATR)
+- TP model tabs (RR | Fixed $ | Fixed % | ATR | Opposite | Midrange — last two hidden per-engine via `allowedTp` prop)
+- Management: breakeven-at-Nr, trailing (ATR mult or %), partial (Nr / size%)
+- Weekend toggles: `Skip Saturday`, `Skip Sunday`
 
-- Typecheck clean.
-- Run backtest with each strategy alone on last 90 days → each produces trades and stats.
-- Run all 3 strategies together → strategy comparison table renders, cohort tabs switch cleanly, filter chips work.
-- Toggle EMA gate + ATR squeeze on ORB-only run → trade count drops, expectancy stats update.
-- Save + reload a preset with full config blob → all fields restore.
+Every backtest panel in `src/routes/backtest.tsx` swaps its ad-hoc inputs for this block.
 
-## Technical notes
+### 6. Inline analytics — `src/components/backtest-analytics.tsx` (new)
 
-- All new engines live in `*.server.ts` files under `src/lib/strategy/` so they stay off the client bundle.
-- Zod validators mirror the config on the server; UI uses shared types via `z.infer`.
-- Level scanners and FVG detection are pure functions over kline arrays — trivially unit-testable, cheap to run inside the existing day-walk loop.
-- Multi-strategy result blob rounded-tripped through `JSON.parse(JSON.stringify(...))` before return (existing pattern) to keep Seroval happy.
-- Kline data requirements: sweep needs H1 (already fetched), Silver Bullet needs 1m/3m for execution + 15m for context. Add fetch to existing kline pipeline; cache per-day like today.
+Given a result, renders:
+- Month grid (rows = months, cols = trades / wins / P&L / best-day / worst-day)
+- Weekday breakdown (Mon–Sun with P&L, trades, win rate, avg R)
+- Best/worst day-of-week highlight
 
-Approve to build all of this in one pass, or say which strategies/filters to defer.
+Mounted at the bottom of each panel's result section.
+
+### 7. Shared dashboard — `src/routes/analytics.tsx`
+
+Add a new "Strategy performance" section that lists the latest saved `strategy_runs` (one card per strategy/symbol) and renders the same monthly + weekday breakdowns. New server fn `listLatestRuns()` returns latest row per `(strategy, symbol)` for the current user.
+
+## Rollout order
+
+1. Migration + `strategy_runs` table
+2. `exit-model.server.ts` + weekday filter helper
+3. Refactor `backtest-range` first (most complex) end-to-end; verify existing UI still works
+4. Roll changes through `sweep-liquidity`, `silver-bullet`, `sweep.server`, ORB, grid engines
+5. Build `BacktestControls` + `BacktestAnalytics` and wire into each panel
+6. Extend `/analytics` route with the shared dashboard
+
+## Notes / trade-offs
+
+- 365-day 1m backtests are heavy — Shark klines pagination already handles it, but we'll add a small warning badge on the panel when `timeframe=1m && days>60`.
+- ATR requires enough warmup bars — engines will silently fetch `period` extra bars before `from_ms`.
+- The `strategy_runs` cache is per user; each new run inserts a row and we retain the latest 25 per strategy (cleanup in the same insert server fn).

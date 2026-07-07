@@ -255,6 +255,23 @@ export function simulateFromKlines(
   for (const k of filtered) dates.add(istDate(k.openTime));
   const sortedDates = [...dates].sort();
 
+  // Precompute per-IST-date high/low from ALL 1H bars in the fetched window.
+  // Used to derive prior-day extremes for the TP-target cohort without extra API calls.
+  const dayExtremes = new Map<string, { high: number; low: number }>();
+  for (const k of klines) {
+    const d = istDate(k.openTime);
+    const cur = dayExtremes.get(d);
+    if (!cur) dayExtremes.set(d, { high: k.high, low: k.low });
+    else {
+      if (k.high > cur.high) cur.high = k.high;
+      if (k.low < cur.low) cur.low = k.low;
+    }
+  }
+  const prevDayHL = (dateStr: string): { high: number; low: number } | null => {
+    const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+    const prev = new Date(Date.UTC(y, m - 1, d) - 86_400_000).toISOString().slice(0, 10);
+    return dayExtremes.get(prev) ?? null;
+  };
 
 
   const days: DayResult[] = [];

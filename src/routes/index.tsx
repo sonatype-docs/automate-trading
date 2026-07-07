@@ -1221,32 +1221,38 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <TrailingSlControls
-          saved={{
-            enabled: !!s?.trail_enabled,
-            activateR: Number(s?.trail_activate_r ?? 2),
-            stepR: Number(s?.trail_step_r ?? 1),
-          }}
-          override={trailOverride}
-          onOverrideChange={setTrailOverride}
-          onSave={(patch) => trailSaveMut.mutate(patch)}
-          saving={trailSaveMut.isPending}
-        />
-        <LiveSessionRulesEditor
-          settings={{
-            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
-            sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
-            rr: Number(s?.rr ?? 2),
-            skip_weekends: !!s?.skip_weekends,
-          }}
-          onSave={(patch) => trailSaveMut.mutate(patch)}
-          saving={trailSaveMut.isPending}
-        />
-        <StrategyPresetsCard
-          currentSymbol={s?.symbol ?? "XAUUSDT"}
-          currentSl={Number(s?.sl_risk_usd ?? 25)}
-          currentRr={Number(s?.rr ?? 2)}
-        />
+        <CollapsibleSection title="Trailing SL" defaultOpen>
+          <TrailingSlControls
+            saved={{
+              enabled: !!s?.trail_enabled,
+              activateR: Number(s?.trail_activate_r ?? 2),
+              stepR: Number(s?.trail_step_r ?? 1),
+            }}
+            override={trailOverride}
+            onOverrideChange={setTrailOverride}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
+        <CollapsibleSection title="Live Session Rules" defaultOpen>
+          <LiveSessionRulesEditor
+            settings={{
+              session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+              sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+              rr: Number(s?.rr ?? 2),
+              skip_weekends: !!s?.skip_weekends,
+            }}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
+        <CollapsibleSection title="Strategy Presets" defaultOpen={false}>
+          <StrategyPresetsCard
+            currentSymbol={s?.symbol ?? "XAUUSDT"}
+            currentSl={Number(s?.sl_risk_usd ?? 25)}
+            currentRr={Number(s?.rr ?? 2)}
+          />
+        </CollapsibleSection>
 
 
 

@@ -109,6 +109,7 @@ function BacktestLab() {
           trail_activate_r: f.trailActivateR,
           trail_step_r: f.trailStepR,
           skip_weekdays: f.skipWeekdays,
+          filters,
         },
       }),
     onSuccess: (r) => {

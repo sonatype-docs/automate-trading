@@ -532,6 +532,7 @@ export function simulateFromKlines(
       total_days: days.length,
       days_with_session: daysWithSession,
       skipped_days: skippedDays,
+      filtered_days: filteredDays,
       breaks,
       triggered,
       tp,

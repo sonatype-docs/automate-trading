@@ -1851,6 +1851,46 @@ function FiltersCard({
             <span className="text-[10px] text-muted-foreground">max $ · 0 = off</span>
           </div>
 
+          {/* ATR squeeze — only take setups when today's ATR is compressed vs its recent average. */}
+          <div className="flex flex-wrap items-center gap-2 pl-8">
+            <Switch
+              checked={!!q.atr_squeeze_enabled}
+              onCheckedChange={(v) => setQ({ atr_squeeze_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-24">ATR squeeze</span>
+            <Input
+              type="number"
+              min={3}
+              max={200}
+              value={q.atr_squeeze_lookback ?? 20}
+              onChange={(e) =>
+                setQ({ atr_squeeze_lookback: Math.max(3, numOr(e.target.value, 20)) })
+              }
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_squeeze_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">lookback</span>
+            <Input
+              type="number"
+              min={0.1}
+              max={2}
+              step={0.05}
+              value={q.atr_squeeze_ratio ?? 0.7}
+              onChange={(e) =>
+                setQ({
+                  atr_squeeze_ratio: Math.max(0.1, Math.min(2, numOr(e.target.value, 0.7))),
+                })
+              }
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_squeeze_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">
+              ratio (atr / avg ≤ ratio → take trade)
+            </span>
+          </div>
+
+
           {/* Break strength */}
           <div className="flex flex-wrap items-center gap-2">
             <Switch

@@ -606,6 +606,7 @@ function ResultsView({ data }: { data: RangeData }) {
                 <th className="text-right px-2 py-1">Entry / SL / TP</th>
                 <th className="text-right px-2 py-1">Trig</th>
                 <th className="text-right px-2 py-1">Peak R</th>
+                <th className="text-right px-2 py-1">MAE R</th>
                 <th className="text-left px-2 py-1">Outcome</th>
                 <th className="text-right px-2 py-1">P&amp;L $</th>
               </tr>

@@ -541,7 +541,8 @@ export function simulateFromKlines(
   const decidedRows = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
   const grossWin = decidedRows.filter((d) => d.pnl_usd > 0).reduce((s, d) => s + d.pnl_usd, 0);
   const grossLoss = Math.abs(decidedRows.filter((d) => d.pnl_usd < 0).reduce((s, d) => s + d.pnl_usd, 0));
-  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+  // Clamp to a large finite value — Infinity is not JSON/Seroval serializable.
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 999 : 0;
   const expectancy = decidedRows.length > 0 ? (grossWin - grossLoss) / decidedRows.length : 0;
   const winRows = decidedRows.filter((d) => d.pnl_usd > 0);
   const lossRows = decidedRows.filter((d) => d.pnl_usd < 0);

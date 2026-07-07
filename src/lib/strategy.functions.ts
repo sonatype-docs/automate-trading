@@ -252,7 +252,7 @@ export const runEntryZoneSweep = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => EntryZoneSweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runEntryZoneSweep: run } = await import("@/lib/strategy/sweep.server");
-    return run({
+    const result = await run({
       symbol: data.symbol,
       days: data.days,
       sessionStartIst: data.session_start_ist.slice(0, 5),
@@ -268,6 +268,8 @@ export const runEntryZoneSweep = createServerFn({ method: "POST" })
       filters: data.filters,
       feeRate: data.fee_rate,
     });
+    // Round-trip through JSON to strip Infinity/NaN/undefined which Seroval rejects.
+    return JSON.parse(JSON.stringify(result)) as typeof result;
   });
 
 

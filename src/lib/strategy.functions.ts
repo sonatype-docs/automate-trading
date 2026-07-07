@@ -134,8 +134,8 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
 function entryFromSettings(settings: Record<string, unknown>) {
   return {
     mode: (settings.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "fib",
-    entryDepthPct: Number(settings.entry_depth_pct ?? 0.25),
-    slDepthPct: Number(settings.sl_depth_pct ?? 0.75),
+    entryDepthPct: Number(settings.entry_depth_pct ?? 0.15),
+    slDepthPct: Number(settings.sl_depth_pct ?? 0.60),
     adaptiveStrongBreakPct: Number(settings.adaptive_strong_break_pct ?? 30),
     adaptiveShallowDepth: Number(settings.adaptive_shallow_depth ?? 0.10),
     adaptiveDeepDepth: Number(settings.adaptive_deep_depth ?? 0.35),

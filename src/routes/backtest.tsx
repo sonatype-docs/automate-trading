@@ -1252,6 +1252,7 @@ function HourSweepPanel({
   const [data, setData] = useState<SweepData | null>(null);
   const [activeRange, setActiveRange] = useState<number>(90);
   const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");
+  const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");
 
   const runMut = useMutation({
     mutationFn: () =>

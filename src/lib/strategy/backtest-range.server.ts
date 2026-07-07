@@ -236,6 +236,71 @@ export function simulateFromKlines(
     dr.fib_25 = fib_25;
     dr.fib_75 = fib_75;
 
+    // ---- Setup quality: zone size + ATR regime (evaluated before break search) ----
+    if (quality?.zone_size_enabled) {
+      const unit = quality.zone_size_unit ?? "usd";
+      const val = unit === "pct" ? (range / sessionCandle.open) * 100 : range;
+      const min = quality.zone_size_min ?? 0;
+      const max = quality.zone_size_max ?? 0;
+      if (min > 0 && val < min) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `zone < ${min}${unit === "pct" ? "%" : "$"}`;
+        days.push(dr);
+        continue;
+      }
+      if (max > 0 && val > max) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `zone > ${max}${unit === "pct" ? "%" : "$"}`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    const biasEntry = opts.dailyBias?.get(dateStr);
+    if (quality?.atr_enabled) {
+      const atr = biasEntry?.atr ?? null;
+      const min = quality.atr_min ?? 0;
+      const max = quality.atr_max ?? 0;
+      if (atr === null) {
+        dr.outcome = "filtered";
+        dr.filter_reason = "atr unavailable";
+        days.push(dr);
+        continue;
+      }
+      if (min > 0 && atr < min) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `atr < ${min}`;
+        days.push(dr);
+        continue;
+      }
+      if (max > 0 && atr > max) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `atr > ${max}`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    // Precompute HTF bias-allowed side for this day so we can reject on break.
+    let allowedSide: "long" | "short" | "both" | "none" = "both";
+    if (htf) {
+      const price = sessionCandle.open;
+      const votes: ("long" | "short")[] = [];
+      const vote = (ref: number | null | undefined) => {
+        if (ref === null || ref === undefined) return;
+        if (price > ref) votes.push("long");
+        else if (price < ref) votes.push("short");
+      };
+      if (htf.daily_ema_enabled) vote(biasEntry?.ema ?? null);
+      if (htf.prev_day_close_enabled) vote(biasEntry?.prev_close ?? null);
+      if (htf.weekly_open_enabled) vote(biasEntry?.week_open ?? null);
+      if (votes.length > 0) {
+        const unique = new Set(votes);
+        allowedSide = unique.size === 1 ? votes[0] : "none";
+      }
+    }
+
+
     // Look at bars strictly after the session candle, within THIS IST date only.
     const laterSameDay = filtered.filter(
       (k) =>

@@ -201,18 +201,34 @@ function StrategySettingsCard() {
     sl_risk_usd: 25,
     rr: 2,
     session_start_ist: "05:30",
+    entry_mode: "fib" as "fib" | "retest" | "market" | "adaptive",
+    entry_depth_pct: 0.25,
+    sl_depth_pct: 0.75,
+    adaptive_strong_break_pct: 30,
+    adaptive_shallow_depth: 0.10,
+    adaptive_deep_depth: 0.35,
+    retest_sl_r: 0.5,
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   useEffect(() => {
     if (q.data?.settings) {
-      const s = q.data.settings;
+      const s = q.data.settings as Record<string, unknown>;
       setForm({
         enabled: !!s.enabled,
-        symbol: s.symbol,
+        symbol: String(s.symbol),
         sl_risk_usd: Number(s.sl_risk_usd),
         rr: Number(s.rr),
         session_start_ist: String(s.session_start_ist).slice(0, 5),
+        entry_mode: (String(s.entry_mode ?? "fib") as typeof form.entry_mode),
+        entry_depth_pct: Number(s.entry_depth_pct ?? 0.25),
+        sl_depth_pct: Number(s.sl_depth_pct ?? 0.75),
+        adaptive_strong_break_pct: Number(s.adaptive_strong_break_pct ?? 30),
+        adaptive_shallow_depth: Number(s.adaptive_shallow_depth ?? 0.10),
+        adaptive_deep_depth: Number(s.adaptive_deep_depth ?? 0.35),
+        retest_sl_r: Number(s.retest_sl_r ?? 0.5),
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q.data]);
 
   const mut = useMutation({
@@ -224,12 +240,19 @@ function StrategySettingsCard() {
     onError: (e) => toast.error(e.message),
   });
 
+  const modeHelp: Record<typeof form.entry_mode, string> = {
+    fib: "Pullback into the zone. Deeper = better price, more misses. Today's default.",
+    retest: "Enter at the broken zone edge. Highest fill rate. SL is a fixed R below.",
+    market: "Enter at market on the break candle close. 100% fill; worse average entry.",
+    adaptive: "Auto-picks shallow vs deep entry from break strength.",
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>XAUUSDT strategy engine</CardTitle>
         <CardDescription>
-          IST 5:30 session zone → fib break → auto long @0.25 / short @0.75 with 1:2 TP (customizable).
+          IST session zone → 1H break → armed setup. Entry mechanics are tunable below.
           Runs on a 5-minute cron. Respects the kill switch.
         </CardDescription>
       </CardHeader>
@@ -280,6 +303,133 @@ function StrategySettingsCard() {
             onChange={(e) => setForm({ ...form, rr: Number(e.target.value) })}
           />
         </div>
+
+        {/* Entry mechanics — new in Phase 1 */}
+        <div className="md:col-span-2 border-t border-border pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-mono tracking-wide">ENTRY MECHANICS</Label>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setShowAdvanced((v) => !v)}
+            >
+              {showAdvanced ? "Hide advanced" : "Show advanced"}
+            </button>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Mode</Label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {(["fib", "retest", "market", "adaptive"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setForm({ ...form, entry_mode: m })}
+                  className={`px-3 py-2 rounded border text-xs font-mono uppercase tracking-wide ${
+                    form.entry_mode === m
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{modeHelp[form.entry_mode]}</p>
+          </div>
+
+          {(form.entry_mode === "fib" || form.entry_mode === "market") && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {form.entry_mode === "fib" && (
+                <div className="space-y-2">
+                  <Label className="text-xs">
+                    Entry depth — {(form.entry_depth_pct * 100).toFixed(0)}% into zone
+                  </Label>
+                  <Input
+                    type="range"
+                    min={0}
+                    max={0.5}
+                    step={0.05}
+                    value={form.entry_depth_pct}
+                    onChange={(e) => setForm({ ...form, entry_depth_pct: Number(e.target.value) })}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    0% = zone edge (higher fill rate) · 50% = zone midpoint
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-xs">
+                  SL depth — {(form.sl_depth_pct * 100).toFixed(0)}% into zone
+                </Label>
+                <Input
+                  type="range"
+                  min={Math.max(0.15, form.entry_depth_pct + 0.05)}
+                  max={1}
+                  step={0.05}
+                  value={form.sl_depth_pct}
+                  onChange={(e) => setForm({ ...form, sl_depth_pct: Number(e.target.value) })}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Risk per unit = {(Math.max(0, form.sl_depth_pct - form.entry_depth_pct) * 100).toFixed(0)}% of zone range
+                </p>
+              </div>
+            </div>
+          )}
+
+          {form.entry_mode === "retest" && (
+            <div className="space-y-2">
+              <Label className="text-xs">Retest SL distance (R × range)</Label>
+              <Input
+                type="number"
+                step="0.05"
+                min={0.1}
+                max={5}
+                value={form.retest_sl_r}
+                onChange={(e) => setForm({ ...form, retest_sl_r: Number(e.target.value) })}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                SL distance = this × zone range. 0.5 = tight retest, 1.0 = full zone range as risk.
+              </p>
+            </div>
+          )}
+
+          {form.entry_mode === "adaptive" && showAdvanced && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border border-border rounded p-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Strong-break % (beyond zone)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  value={form.adaptive_strong_break_pct}
+                  onChange={(e) => setForm({ ...form, adaptive_strong_break_pct: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Shallow depth (strong break)</Label>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min={0}
+                  max={0.5}
+                  value={form.adaptive_shallow_depth}
+                  onChange={(e) => setForm({ ...form, adaptive_shallow_depth: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Deep depth (weak break)</Label>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min={0}
+                  max={0.5}
+                  value={form.adaptive_deep_depth}
+                  onChange={(e) => setForm({ ...form, adaptive_deep_depth: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="md:col-span-2">
           <Button
             onClick={() =>
@@ -288,6 +438,13 @@ function StrategySettingsCard() {
                 sl_risk_usd: form.sl_risk_usd,
                 rr: form.rr,
                 session_start_ist: form.session_start_ist,
+                entry_mode: form.entry_mode,
+                entry_depth_pct: form.entry_depth_pct,
+                sl_depth_pct: form.sl_depth_pct,
+                adaptive_strong_break_pct: form.adaptive_strong_break_pct,
+                adaptive_shallow_depth: form.adaptive_shallow_depth,
+                adaptive_deep_depth: form.adaptive_deep_depth,
+                retest_sl_r: form.retest_sl_r,
               })
             }
             disabled={mut.isPending}
@@ -299,3 +456,4 @@ function StrategySettingsCard() {
     </Card>
   );
 }
+

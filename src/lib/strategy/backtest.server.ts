@@ -1,4 +1,10 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import {
+  computeEntry,
+  DEFAULT_ENTRY_CONFIG,
+  type EntryConfig,
+} from "@/lib/strategy/entry-modes.server";
+
 
 const IST_OFFSET_MIN = 330;
 
@@ -52,7 +58,10 @@ export async function runBacktestToday(opts: {
   sessionStartIst: string;
   slRiskUsd: number;
   rr: number;
+  entry?: EntryConfig;
 }): Promise<BacktestResult> {
+  const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
+
   const client = createSharkClient();
   const klines: Kline[] = await client.getKlines(opts.symbol, "1h", 48);
   const now = Date.now();
@@ -99,21 +108,24 @@ export async function runBacktestToday(opts: {
   }
   base.break = { side: breakSide, close: breakBar.close, at: breakBar.closeTime };
 
-  const entry = breakSide === "long" ? fib_25 : fib_75;
-  const sl    = breakSide === "long" ? fib_75 : fib_25;
+  const { entry, sl, market } = computeEntry(breakSide, zone_high, zone_low, breakBar.close, entryCfg);
   const risk  = Math.abs(entry - sl);
   const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
   const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;
   base.setup = { side: breakSide, entry, sl, tp, qty, risk_usd: opts.slRiskUsd };
 
-  // Look for trigger + outcome in bars after the break
+  // Market entries are considered filled on the break candle's close bar itself.
   const post = later.filter((k) => k.openTime > breakBar.openTime);
-  let triggered = false;
+  let triggered = market;
+  if (market) {
+    base.trigger = { hit_at: breakBar.closeTime, bar_low: breakBar.low, bar_high: breakBar.high };
+  }
   for (const k of post) {
     if (!triggered) {
       const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
       if (hit) {
         triggered = true;
+
         base.trigger = { hit_at: k.openTime, bar_low: k.low, bar_high: k.high };
       } else {
         continue;

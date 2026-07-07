@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
 import { processSignal } from "@/lib/trading/engine.server";
+import { computeEntry, entryConfigFromSettings } from "@/lib/strategy/entry-modes.server";
+
 
 const IST_OFFSET_MIN = 330; // UTC+5:30
 
@@ -259,14 +261,14 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
     if (!existingSetup) {
       const side = session.break_side;
-      const entry = side === "long" ? fib_25 : fib_75;
-      const sl = side === "long" ? fib_75 : fib_25;
+      const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
+      const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
+      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
       if (qty > 0) {
-        // Place a pending LIMIT on the exchange right now (live only).
-        // Fill is detected on subsequent ticks via open-orders polling.
+        // Place a pending LIMIT (or MARKET when entry_mode='market') on the exchange.
         let exchangeOrderId: string | null = null;
         let placeError: string | null = null;
         if (!globalSettings?.paper_mode) {
@@ -275,7 +277,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               symbol: s.symbol,
               side: side === "long" ? "buy" : "sell",
               qty,
-              type: "limit",
+              type: market ? "market" : "limit",
               price: entry,
               stopLossPrice: sl,
               takeProfitPrice: tp,
@@ -283,7 +285,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             exchangeOrderId = res.exchangeOrderId || null;
             if (res.status === "rejected") placeError = "exchange rejected";
             await log("info", "arm: shark placeOrder response", {
-              side, entry, qty,
+              side, entry, qty, mode: cfg.mode, market,
               parsed: { exchangeOrderId: res.exchangeOrderId, status: res.status, filledPrice: res.filledPrice },
               raw: res.raw,
             });
@@ -300,20 +302,23 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty,
+          // Market orders may fill immediately — treat as triggered when the placeOrder
+          // returned a filled price; otherwise armed as usual.
           status: placeError ? "cancelled" : "armed",
           exchange_order_id: exchangeOrderId,
         });
         if (placeError) {
-          await log("error", "arm: exchange LIMIT place failed", { side, entry, qty, error: placeError });
+          await log("error", "arm: exchange order place failed", { side, entry, qty, mode: cfg.mode, error: placeError });
           actions.push(`arm_failed ${side} err=${placeError}`);
         } else {
           actions.push(
-            `armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
+            `armed ${side} mode=${cfg.mode} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
               (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper/no-id)"),
           );
         }
       }
     }
+
   }
 
   // Current price for triggers / TP-SL monitoring

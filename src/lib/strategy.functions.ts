@@ -31,6 +31,8 @@ export const getStrategyState = createServerFn({ method: "GET" }).handler(async 
   };
 });
 
+const EntryModeEnum = z.enum(["fib", "retest", "market", "adaptive"]);
+
 const StrategySettingsSchema = z.object({
   enabled: z.boolean().optional(),
   symbol: z.string().min(3).max(24).optional(),
@@ -44,7 +46,15 @@ const StrategySettingsSchema = z.object({
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
   skip_weekends: z.boolean().optional(),
+  entry_mode: EntryModeEnum.optional(),
+  entry_depth_pct: z.number().min(0).max(0.5).optional(),
+  sl_depth_pct: z.number().min(0.1).max(1).optional(),
+  adaptive_strong_break_pct: z.number().min(1).max(100).optional(),
+  adaptive_shallow_depth: z.number().min(0).max(0.5).optional(),
+  adaptive_deep_depth: z.number().min(0).max(0.5).optional(),
+  retest_sl_r: z.number().positive().max(5).optional(),
 });
+
 
 export const updateStrategySettings = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => StrategySettingsSchema.parse(input))
@@ -121,6 +131,18 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
   return { session: sessionRow, setups: setups ?? [], orders };
 });
 
+function entryFromSettings(settings: Record<string, unknown>) {
+  return {
+    mode: (settings.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "fib",
+    entryDepthPct: Number(settings.entry_depth_pct ?? 0.25),
+    slDepthPct: Number(settings.sl_depth_pct ?? 0.75),
+    adaptiveStrongBreakPct: Number(settings.adaptive_strong_break_pct ?? 30),
+    adaptiveShallowDepth: Number(settings.adaptive_shallow_depth ?? 0.10),
+    adaptiveDeepDepth: Number(settings.adaptive_deep_depth ?? 0.35),
+    retestSlR: Number(settings.retest_sl_r ?? 0.5),
+  };
+}
+
 export const backtestToday = createServerFn({ method: "POST" }).handler(async () => {
   const supabase = await admin();
   const { data: settings } = await supabase
@@ -135,8 +157,23 @@ export const backtestToday = createServerFn({ method: "POST" }).handler(async ()
     sessionStartIst: String(settings.session_start_ist).slice(0, 5),
     slRiskUsd: Number(settings.sl_risk_usd),
     rr: Number(settings.rr),
+    entry: entryFromSettings(settings as unknown as Record<string, unknown>),
   });
 });
+
+const EntryOverrideSchema = z
+  .object({
+    mode: EntryModeEnum,
+    entry_depth_pct: z.number().min(0).max(0.5),
+    sl_depth_pct: z.number().min(0.1).max(1),
+    adaptive_strong_break_pct: z.number().min(1).max(100),
+    adaptive_shallow_depth: z.number().min(0).max(0.5),
+    adaptive_deep_depth: z.number().min(0).max(0.5),
+    retest_sl_r: z.number().positive().max(5),
+  })
+  .partial()
+  .optional();
+
 
 const RangeSchema = z.object({
   days: z.number().int().min(1).max(365),
@@ -150,6 +187,8 @@ const RangeSchema = z.object({
   sl_risk_usd: z.number().positive().optional(),
   rr: z.number().positive().optional(),
   filters: FiltersZod,
+  entry: EntryOverrideSchema,
+  fee_rate: z.number().min(0).max(0.01).optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -166,6 +205,16 @@ export const backtestRange = createServerFn({ method: "POST" })
     const trailEnabled = data.trail_enabled ?? Boolean((settings as { trail_enabled?: boolean }).trail_enabled);
     const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
     const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
+    const savedEntry = entryFromSettings(settings as unknown as Record<string, unknown>);
+    const entry = {
+      mode: data.entry?.mode ?? savedEntry.mode,
+      entryDepthPct: data.entry?.entry_depth_pct ?? savedEntry.entryDepthPct,
+      slDepthPct: data.entry?.sl_depth_pct ?? savedEntry.slDepthPct,
+      adaptiveStrongBreakPct: data.entry?.adaptive_strong_break_pct ?? savedEntry.adaptiveStrongBreakPct,
+      adaptiveShallowDepth: data.entry?.adaptive_shallow_depth ?? savedEntry.adaptiveShallowDepth,
+      adaptiveDeepDepth: data.entry?.adaptive_deep_depth ?? savedEntry.adaptiveDeepDepth,
+      retestSlR: data.entry?.retest_sl_r ?? savedEntry.retestSlR,
+    };
     return runBacktestRange({
       symbol: data.symbol ?? settings.symbol,
       sessionStartIst: (data.session_start_ist ?? String(settings.session_start_ist)).slice(0, 5),
@@ -177,8 +226,50 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailStepR,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
       filters: data.filters,
+      entry,
+      feeRate: data.fee_rate,
     });
   });
+
+const EntryZoneSweepSchema = z.object({
+  symbol: z.string().min(3).max(24),
+  days: z.number().int().min(1).max(365),
+  session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+  entry_depths: z.array(z.number().min(0).max(0.5)).min(1).max(12),
+  sl_depths: z.array(z.number().min(0.1).max(1)).min(1).max(12),
+  modes: z.array(EntryModeEnum).min(1).max(4),
+  trail_enabled: z.boolean().optional(),
+  trail_activate_r: z.number().positive().optional(),
+  trail_step_r: z.number().positive().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  filters: FiltersZod,
+  fee_rate: z.number().min(0).max(0.01).optional(),
+});
+
+export const runEntryZoneSweep = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => EntryZoneSweepSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { runEntryZoneSweep: run } = await import("@/lib/strategy/sweep.server");
+    return run({
+      symbol: data.symbol,
+      days: data.days,
+      sessionStartIst: data.session_start_ist.slice(0, 5),
+      slRiskUsd: data.sl_risk_usd,
+      rr: data.rr,
+      entryDepths: data.entry_depths,
+      slDepths: data.sl_depths,
+      modes: data.modes,
+      trailEnabled: data.trail_enabled,
+      trailActivateR: data.trail_activate_r,
+      trailStepR: data.trail_step_r,
+      skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      filters: data.filters,
+      feeRate: data.fee_rate,
+    });
+  });
+
 
 export const listStrategyPresets = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await admin();

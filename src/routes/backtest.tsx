@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { getStrategyState, backtestRange, sweepHoursBacktest } from "@/lib/strategy.functions";
+import { getStrategyState, backtestRange, sweepHoursBacktest, runEntryZoneSweep } from "@/lib/strategy.functions";
 import { DEFAULT_FILTERS, type FilterConfig } from "@/lib/strategy/filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,10 @@ interface FormState {
   trailActivateR: number;
   trailStepR: number;
   skipWeekdays: number[]; // 0=Sun..6=Sat
+  entryMode: "fib" | "retest" | "market" | "adaptive";
+  entryDepthPct: number;
+  slDepthPct: number;
+  retestSlR: number;
 }
 
 function BacktestLab() {
@@ -78,6 +82,10 @@ function BacktestLab() {
         trail_activate_r?: number;
         trail_step_r?: number;
         skip_weekends?: boolean;
+        entry_mode?: string;
+        entry_depth_pct?: number;
+        sl_depth_pct?: number;
+        retest_sl_r?: number;
       }
     | null
     | undefined;
@@ -93,6 +101,10 @@ function BacktestLab() {
       trailActivateR: Number(s.trail_activate_r ?? 2),
       trailStepR: Number(s.trail_step_r ?? 1),
       skipWeekdays: s.skip_weekends ? [0, 6] : [0, 6],
+      entryMode: ((s.entry_mode ?? "fib") as FormState["entryMode"]),
+      entryDepthPct: Number(s.entry_depth_pct ?? 0.25),
+      slDepthPct: Number(s.sl_depth_pct ?? 0.75),
+      retestSlR: Number(s.retest_sl_r ?? 0.5),
     });
   }
 
@@ -110,14 +122,21 @@ function BacktestLab() {
           trail_step_r: f.trailStepR,
           skip_weekdays: f.skipWeekdays,
           filters,
+          entry: {
+            mode: f.entryMode,
+            entry_depth_pct: f.entryDepthPct,
+            sl_depth_pct: f.slDepthPct,
+            retest_sl_r: f.retestSlR,
+          },
         },
       }),
     onSuccess: (r) => {
       setResult(r);
-      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L`);
+      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     if (!form) return;
@@ -260,7 +279,71 @@ function BacktestLab() {
                   </Field>
                 </div>
 
+                <div className="border-t border-border pt-3 space-y-3">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Entry mechanics
+                  </Label>
+                  <div className="flex flex-wrap gap-1">
+                    {(["fib", "retest", "market", "adaptive"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => set("entryMode", m)}
+                        className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                          form.entryMode === m
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  {(form.entryMode === "fib" || form.entryMode === "market") && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {form.entryMode === "fib" && (
+                        <Field label={`Entry depth (${(form.entryDepthPct * 100).toFixed(0)}%)`}>
+                          <input
+                            type="range"
+                            min={0}
+                            max={0.5}
+                            step={0.05}
+                            value={form.entryDepthPct}
+                            onChange={(e) => set("entryDepthPct", Number(e.target.value))}
+                            className="w-full"
+                          />
+                        </Field>
+                      )}
+                      <Field label={`SL depth (${(form.slDepthPct * 100).toFixed(0)}%)`}>
+                        <input
+                          type="range"
+                          min={Math.max(0.15, form.entryDepthPct + 0.05)}
+                          max={1}
+                          step={0.05}
+                          value={form.slDepthPct}
+                          onChange={(e) => set("slDepthPct", Number(e.target.value))}
+                          className="w-full"
+                        />
+                      </Field>
+                    </div>
+                  )}
+                  {form.entryMode === "retest" && (
+                    <Field label={`Retest SL distance (R × range) — ${form.retestSlR.toFixed(2)}`}>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={2}
+                        step={0.1}
+                        value={form.retestSlR}
+                        onChange={(e) => set("retestSlR", Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </Field>
+                  )}
+                </div>
+
                 <div>
+
                   <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
                     Skip weekdays
                   </Label>
@@ -320,9 +403,22 @@ function BacktestLab() {
               filters={filters}
             />
 
-
+            <EntryZoneGridPanel
+              defaults={{
+                symbol: form.symbol,
+                sessionStartIst: form.sessionStartIst,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+              }}
+              filters={filters}
+            />
           </>
         )}
+
       </main>
     </div>
   );
@@ -375,7 +471,10 @@ function ResultsView({ data }: { data: RangeData }) {
       </CardHeader>
       <CardContent className="space-y-4 font-mono text-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <Kv k="total p&l" v={fmtUsd(s.total_pnl_usd)} tone={totalTone} />
+          <Kv k="net p&l (after fees)" v={fmtUsd(s.net_pnl_usd)} tone={s.net_pnl_usd >= 0 ? "text-long" : "text-short"} />
+          <Kv k="gross p&l" v={fmtUsd(s.total_pnl_usd)} tone={totalTone} />
+          <Kv k="est. fees" v={`-$${s.est_fees_usd.toFixed(2)}`} tone="text-short" />
+          <Kv k="fill rate" v={`${s.fill_rate_pct.toFixed(0)}%`} tone={s.fill_rate_pct >= 60 ? "text-long" : s.fill_rate_pct >= 30 ? "text-warning" : "text-short"} />
           <Kv k="win rate" v={`${s.win_rate_pct.toFixed(1)}%`} tone={s.win_rate_pct >= 50 ? "text-long" : "text-short"} />
           <Kv k="profit factor" v={pfText} tone={pf >= 1 ? "text-long" : "text-short"} />
           <Kv k="expectancy / trade" v={fmtUsd(s.expectancy_usd)} tone={s.expectancy_usd >= 0 ? "text-long" : "text-short"} />
@@ -385,8 +484,11 @@ function ResultsView({ data }: { data: RangeData }) {
           <Kv k="max streak W / L" v={`${s.max_consec_wins} / ${s.max_consec_losses}`} />
           <Kv k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
           <Kv k="breaks / triggered" v={`${s.breaks} / ${s.triggered}`} />
+          <Kv k="missed / near-miss" v={`${s.armed_no_trigger} / ${s.near_miss_count}`} tone={s.near_miss_count > 0 ? "text-warning" : undefined} />
           <Kv k="wins / losses" v={`${s.tp} / ${s.sl}`} />
           <Kv k="open / skipped / filtered" v={`${s.open} / ${s.skipped_days} / ${s.filtered_days ?? 0}`} />
+          <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
+
           <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
           <Kv
             k="best weekday"
@@ -1551,3 +1653,181 @@ function FiltersCard({
     </Card>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Entry-zone grid sweep panel — scans (mode, entry_depth, sl_depth) combos.
+// -----------------------------------------------------------------------------
+function EntryZoneGridPanel(props: {
+  defaults: {
+    symbol: string;
+    sessionStartIst: string;
+    slRiskUsd: number;
+    rr: number;
+    trailEnabled: boolean;
+    trailActivateR: number;
+    trailStepR: number;
+    skipWeekdays: number[];
+  };
+  filters: NonNullable<FilterConfig>;
+}) {
+  const run = useServerFn(runEntryZoneSweep);
+  const [days, setDays] = useState(90);
+  const [modes, setModes] = useState<Array<"fib" | "retest" | "market" | "adaptive">>(["fib"]);
+  const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
+  const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
+  const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
+
+  const parseList = (s: string) =>
+    s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
+
+  const mut = useMutation({
+    mutationFn: () =>
+      run({
+        data: {
+          symbol: props.defaults.symbol,
+          days,
+          session_start_ist: props.defaults.sessionStartIst,
+          sl_risk_usd: props.defaults.slRiskUsd,
+          rr: props.defaults.rr,
+          entry_depths: parseList(entryDepthsStr),
+          sl_depths: parseList(slDepthsStr),
+          modes,
+          trail_enabled: props.defaults.trailEnabled,
+          trail_activate_r: props.defaults.trailActivateR,
+          trail_step_r: props.defaults.trailStepR,
+          skip_weekdays: props.defaults.skipWeekdays,
+          filters: props.filters,
+        },
+      }),
+    onSuccess: (r) => {
+      setResult(r);
+      const best = r.cells.reduce<(typeof r.cells)[number] | null>(
+        (a, b) => (a == null || b.net_pnl_usd > a.net_pnl_usd ? b : a),
+        null,
+      );
+      if (best) {
+        toast.success(
+          `Best: ${best.mode} depth=${(best.entry_depth * 100).toFixed(0)}%/${(best.sl_depth * 100).toFixed(0)}% net $${best.net_pnl_usd.toFixed(2)}`,
+        );
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bestNet = result
+    ? Math.max(...result.cells.map((c) => c.net_pnl_usd), 0)
+    : 0;
+  const worstNet = result
+    ? Math.min(...result.cells.map((c) => c.net_pnl_usd), 0)
+    : 0;
+  const cellTone = (net: number) => {
+    if (net >= bestNet * 0.85 && net > 0) return "bg-emerald-500/25 text-emerald-300";
+    if (net > 0) return "bg-emerald-500/10 text-emerald-400";
+    if (net <= worstNet * 0.85 && net < 0) return "bg-red-500/25 text-red-300";
+    if (net < 0) return "bg-red-500/10 text-red-400";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">ENTRY / SL GRID SWEEP</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Backtests every combination of entry mode and depth on your history. Optimized on <b>net</b> P&L (after fees).
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Field label={`Days — ${days}`}>
+            <input type="range" min={14} max={365} step={7} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full" />
+          </Field>
+          <div className="md:col-span-3 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Modes</Label>
+            <div className="flex flex-wrap gap-1">
+              {(["fib", "retest", "market", "adaptive"] as const).map((m) => {
+                const on = modes.includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setModes(on ? modes.filter((x) => x !== m) : [...modes, m])}
+                    className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                      on
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              Entry depths (0–0.5)
+            </Label>
+            <Input value={entryDepthsStr} onChange={(e) => setEntryDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              SL depths (0.1–1.0)
+            </Label>
+            <Input value={slDepthsStr} onChange={(e) => setSlDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+          </div>
+        </div>
+        <div>
+          <Button size="sm" disabled={mut.isPending || modes.length === 0} onClick={() => mut.mutate()}>
+            {mut.isPending ? "Sweeping…" : `Run grid — ${days}d × ${modes.length} modes`}
+          </Button>
+        </div>
+
+        {result && (
+          <div className="overflow-x-auto border border-border rounded">
+            <table className="w-full text-[11px]">
+              <thead className="text-muted-foreground">
+                <tr className="border-b border-border text-left">
+                  <th className="py-1.5 px-2">Mode</th>
+                  <th className="py-1.5 px-2 text-right">Entry %</th>
+                  <th className="py-1.5 px-2 text-right">SL %</th>
+                  <th className="py-1.5 px-2 text-right">Fills</th>
+                  <th className="py-1.5 px-2 text-right">Miss</th>
+                  <th className="py-1.5 px-2 text-right">Fill %</th>
+                  <th className="py-1.5 px-2 text-right">Win %</th>
+                  <th className="py-1.5 px-2 text-right">Trades</th>
+                  <th className="py-1.5 px-2 text-right">Gross</th>
+                  <th className="py-1.5 px-2 text-right">Fees</th>
+                  <th className="py-1.5 px-2 text-right">Net</th>
+                  <th className="py-1.5 px-2 text-right">Expect</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...result.cells]
+                  .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
+                  .map((c, i) => (
+                    <tr key={i} className="border-b border-border/40">
+                      <td className="py-1 px-2 uppercase">{c.mode}</td>
+                      <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.triggered}</td>
+                      <td className="py-1 px-2 text-right">{c.missed}</td>
+                      <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.trades}</td>
+                      <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
+                      <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
+                      <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
+                        {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
+                      </td>
+                      <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

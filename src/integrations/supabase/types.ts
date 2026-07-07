@@ -252,11 +252,18 @@ export type Database = {
       }
       strategy_settings: {
         Row: {
+          adaptive_deep_depth: number
+          adaptive_shallow_depth: number
+          adaptive_strong_break_pct: number
           enabled: boolean
+          entry_depth_pct: number
+          entry_mode: string
           id: boolean
+          retest_sl_r: number
           rr: number
           session_start_ist: string
           skip_weekends: boolean
+          sl_depth_pct: number
           sl_risk_usd: number
           symbol: string
           trail_activate_r: number
@@ -265,11 +272,18 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adaptive_deep_depth?: number
+          adaptive_shallow_depth?: number
+          adaptive_strong_break_pct?: number
           enabled?: boolean
+          entry_depth_pct?: number
+          entry_mode?: string
           id?: boolean
+          retest_sl_r?: number
           rr?: number
           session_start_ist?: string
           skip_weekends?: boolean
+          sl_depth_pct?: number
           sl_risk_usd?: number
           symbol?: string
           trail_activate_r?: number
@@ -278,11 +292,18 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adaptive_deep_depth?: number
+          adaptive_shallow_depth?: number
+          adaptive_strong_break_pct?: number
           enabled?: boolean
+          entry_depth_pct?: number
+          entry_mode?: string
           id?: boolean
+          retest_sl_r?: number
           rr?: number
           session_start_ist?: string
           skip_weekends?: boolean
+          sl_depth_pct?: number
           sl_risk_usd?: number
           symbol?: string
           trail_activate_r?: number

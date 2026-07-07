@@ -2,6 +2,12 @@ import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.serve
 import type { FilterConfig } from "@/lib/strategy/filters";
 import { needsDailyBias } from "@/lib/strategy/filters";
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
+import {
+  computeEntry,
+  DEFAULT_ENTRY_CONFIG,
+  type EntryConfig,
+} from "@/lib/strategy/entry-modes.server";
+
 
 const IST_OFFSET_MIN = 330;
 
@@ -55,7 +61,11 @@ export interface DayResult {
   final_sl: number | null;
   peak_r: number;
   exit_r: number | null;
+  /** For armed_no_trigger days: how close price got to the entry, in R units (0 = filled, higher = further). Null when not applicable. */
+  closest_approach_r: number | null;
+  entry_mode?: EntryConfig["mode"];
 }
+
 
 export interface WeekdayStat {
   weekday: Weekday;
@@ -108,9 +118,21 @@ export interface RangeBacktestResult {
     max_drawdown_usd: number;
     max_consec_wins: number;
     max_consec_losses: number;
+    /** triggered / (triggered + armed_no_trigger) as a %. */
+    fill_rate_pct: number;
+    /** Median R distance price got from entry on missed days (lower = would-fill with slightly deeper entry). */
+    median_miss_r: number;
+    /** How many missed setups would have filled if entry_depth was reduced (closest_approach_r <= 0.1). */
+    near_miss_count: number;
+    /** Fee model: est. total fees paid (USD) at the given per-side taker rate. */
+    est_fees_usd: number;
+    /** Net P&L after fees. */
+    net_pnl_usd: number;
   };
   filters?: FilterConfig;
+  entry?: EntryConfig;
 }
+
 
 
 export async function runBacktestRange(opts: {
@@ -124,7 +146,11 @@ export async function runBacktestRange(opts: {
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
   filters?: FilterConfig;
+  entry?: EntryConfig;
+  /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
+  feeRate?: number;
 }): Promise<RangeBacktestResult> {
+
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
@@ -159,6 +185,8 @@ export function simulateFromKlines(
     skipWeekdays?: Weekday[];
     filters?: FilterConfig;
     dailyBias?: Map<string, DailyBiasEntry>;
+    entry?: EntryConfig;
+    feeRate?: number;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -170,6 +198,10 @@ export function simulateFromKlines(
   const filters = opts.filters?.enabled ? opts.filters : undefined;
   const htf = filters?.htf;
   const quality = filters?.quality;
+  const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
+  const feeRate = opts.feeRate ?? 0.0004; // 0.04% per side, matches typical taker on Shark
+
+
 
   // Restrict to the requested window (allows callers to pass a superset).
   const filtered = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);
@@ -216,7 +248,9 @@ export function simulateFromKlines(
       final_sl: null,
       peak_r: 0,
       exit_r: null,
+      closest_approach_r: null,
     };
+
 
     if (skipped) {
       days.push(dr);
@@ -376,8 +410,7 @@ export function simulateFromKlines(
     }
 
 
-    const entry = breakSide === "long" ? fib_25 : fib_75;
-    const sl    = breakSide === "long" ? fib_75 : fib_25;
+    const { entry, sl, market } = computeEntry(breakSide, zone_high, zone_low, breakBar.close, entryCfg);
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
     const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;
@@ -385,14 +418,24 @@ export function simulateFromKlines(
     dr.sl = sl;
     dr.tp = tp;
     dr.qty = qty;
+    dr.entry_mode = entryCfg.mode;
 
     const post = laterSameDay.filter((k) => k.openTime > breakBar.openTime);
-    let triggered = false;
+    let triggered = market;
     let resolved = false;
     let dynSl = sl;
     let peakR = 0;
-    for (const k of post) {
+    // Track how close price got to the entry for missed setups.
+    let closestDist = Infinity;
+    if (market) {
+      dr.trigger_at = breakBar.closeTime;
+      // Market entries: also let the break candle itself resolve TP/SL below.
+    }
+    const bars = market ? [breakBar, ...post] : post;
+    for (const k of bars) {
       if (!triggered) {
+        const dist = breakSide === "long" ? Math.max(0, k.low - entry) : Math.max(0, entry - k.high);
+        if (dist < closestDist) closestDist = dist;
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
         if (hit) {
           triggered = true;
@@ -401,6 +444,7 @@ export function simulateFromKlines(
           continue;
         }
       }
+
       // Update peak-R using bar extremes in the favorable direction.
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
@@ -445,8 +489,12 @@ export function simulateFromKlines(
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }
+    if (dr.outcome === "armed_no_trigger" && Number.isFinite(closestDist) && risk > 0) {
+      dr.closest_approach_r = closestDist / risk;
+    }
     days.push(dr);
   }
+
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;
   const breaks = days.filter((d) => d.break_side !== null).length;
@@ -499,6 +547,28 @@ export function simulateFromKlines(
   const lossRows = decidedRows.filter((d) => d.pnl_usd < 0);
   const avgWin = winRows.length ? grossWin / winRows.length : 0;
   const avgLoss = lossRows.length ? grossLoss / lossRows.length : 0;
+
+  // Fill-rate + miss analytics.
+  const potentialFills = triggered + armedNoTrigger;
+  const fillRatePct = potentialFills > 0 ? (triggered / potentialFills) * 100 : 0;
+  const missRs = days
+    .filter((d) => d.outcome === "armed_no_trigger" && d.closest_approach_r !== null)
+    .map((d) => d.closest_approach_r as number)
+    .sort((a, b) => a - b);
+  const medianMissR = missRs.length ? missRs[Math.floor(missRs.length / 2)] : 0;
+  const nearMissCount = missRs.filter((r) => r <= 0.1).length;
+
+  // Fee model — approximate 2-sided taker fees on the notional of each triggered trade.
+  // Notional = qty * entry_price. Applied per side (entry + exit).
+  let estFees = 0;
+  for (const d of days) {
+    if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
+    const notionalEntry = d.qty * d.entry;
+    const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
+    estFees += (notionalEntry + notionalExit) * feeRate;
+  }
+  const netPnl = totalPnl - estFees;
+
 
   // Streaks + equity curve + drawdown, walk chronologically.
   let curWin = 0, curLoss = 0, maxWin = 0, maxLoss = 0;
@@ -553,7 +623,14 @@ export function simulateFromKlines(
       max_drawdown_usd: maxDd,
       max_consec_wins: maxWin,
       max_consec_losses: maxLoss,
+      fill_rate_pct: fillRatePct,
+      median_miss_r: medianMissR,
+      near_miss_count: nearMissCount,
+      est_fees_usd: estFees,
+      net_pnl_usd: netPnl,
     },
     filters: opts.filters,
+    entry: entryCfg,
   };
 }
+

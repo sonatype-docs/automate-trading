@@ -93,6 +93,7 @@ const RangeSchema = z.object({
   session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
   sl_risk_usd: z.number().positive().optional(),
   rr: z.number().positive().optional(),
+  filters: FiltersZod,
 });
 
 export const backtestRange = createServerFn({ method: "POST" })

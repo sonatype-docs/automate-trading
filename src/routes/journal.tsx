@@ -289,8 +289,16 @@ function JournalPage() {
           <CardContent className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={equityCurve}>
-                <XAxis dataKey="t" tickFormatter={(t) => new Date(t).toLocaleDateString("en-IN")} fontSize={10} />
-                <YAxis fontSize={10} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <XAxis
+                  dataKey="t"
+                  type="number"
+                  scale="time"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(t) => new Date(t).toLocaleDateString("en-IN")}
+                  minTickGap={40}
+                  fontSize={10}
+                />
+                <YAxis fontSize={10} domain={["auto", "auto"]} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                 <ReTooltip
                   labelFormatter={(t) => new Date(Number(t)).toLocaleString("en-IN", { hour12: false })}
                   formatter={(v: number) => [fmtINR(v), "Equity"]}

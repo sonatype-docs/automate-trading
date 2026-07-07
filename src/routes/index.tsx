@@ -39,6 +39,7 @@ import {
   BookOpen,
   Beaker,
   ChevronDown,
+  ListOrdered,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -276,6 +277,11 @@ function Dashboard() {
             <Link to="/backtest">
               <Button variant="ghost" size="sm">
                 <Beaker className="w-4 h-4 mr-2" /> Backtest
+              </Button>
+            </Link>
+            <Link to="/pending-orders">
+              <Button variant="ghost" size="sm">
+                <ListOrdered className="w-4 h-4 mr-2" /> Pending Orders
               </Button>
             </Link>
             <Link to="/docs">
@@ -1222,7 +1228,7 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <CollapsibleSection title="Trailing SL" defaultOpen>
+        <CollapsibleSection title="Trailing SL" defaultOpen={false}>
           <TrailingSlControls
             saved={{
               enabled: !!s?.trail_enabled,
@@ -1235,7 +1241,7 @@ function StrategyCard() {
             saving={trailSaveMut.isPending}
           />
         </CollapsibleSection>
-        <CollapsibleSection title="Live Session Rules" defaultOpen>
+        <CollapsibleSection title="Live Session Rules" defaultOpen={false}>
           <LiveSessionRulesEditor
             settings={{
               session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",

@@ -303,6 +303,8 @@ function BacktestLab() {
               </CardContent>
             </Card>
 
+            <FiltersCard value={filters} onChange={setFilters} />
+
             {result && <ResultsView data={result} />}
 
             <HourSweepPanel
@@ -315,7 +317,9 @@ function BacktestLab() {
                 trailStepR: form.trailStepR,
                 skipWeekdays: form.skipWeekdays,
               }}
+              filters={filters}
             />
+
 
           </>
         )}

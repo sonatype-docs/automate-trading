@@ -3277,6 +3277,8 @@ function LiquiditySweepPanel(props: {
                 </p>
               </div>
             )}
+
+            <BacktestAnalytics days={data.days} />
           </div>
         )}
       </CardContent>

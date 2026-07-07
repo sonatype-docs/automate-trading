@@ -39,6 +39,7 @@ import {
   BookOpen,
   Beaker,
   ChevronDown,
+  ListOrdered,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {

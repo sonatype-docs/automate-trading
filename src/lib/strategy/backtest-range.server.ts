@@ -382,7 +382,7 @@ export function simulateFromKlines(
     days_requested: opts.days,
     from_ms: fromMs,
     to_ms: now,
-    bars_scanned: klines.length,
+    bars_scanned: filtered.length,
     trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
     skip_weekdays: opts.skipWeekdays ?? [],
     days,

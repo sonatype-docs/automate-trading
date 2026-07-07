@@ -634,6 +634,9 @@ function ResultsView({ data }: { data: RangeData }) {
                     </td>
                     <td className="text-right px-2 py-1">{fmtTime(d.trigger_at)}</td>
                     <td className="text-right px-2 py-1">{d.peak_r > 0 ? d.peak_r.toFixed(2) : "—"}</td>
+                    <td className={`text-right px-2 py-1 ${d.mae_r != null && d.mae_r >= 0.6 ? "text-warning" : ""}`}>
+                      {d.mae_r != null ? d.mae_r.toFixed(2) : "—"}
+                    </td>
                     <td className={`px-2 py-1 uppercase ${outcomeCls(d.outcome)}`}>
                       {d.outcome.replace(/_/g, " ")}
                     </td>

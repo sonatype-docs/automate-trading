@@ -317,9 +317,88 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           );
         }
       }
-    }
+    } else if (
+      existingSetup.status === "armed" &&
+      existingSetup.exchange_order_id &&
+      !globalSettings?.paper_mode
+    ) {
+      // Re-price a still-pending order when strategy settings changed (e.g.
+      // entry_depth_pct / sl_depth_pct / rr / sl_risk_usd). Shark has no
+      // amend endpoint, so cancel + place a new order.
+      const side = existingSetup.side as "long" | "short";
+      const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
+      const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
+      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
+      const risk = Math.abs(entry - sl);
+      const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+      const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
 
+      const tol = 1e-6;
+      const changed =
+        qty > 0 &&
+        (Math.abs(entry - Number(existingSetup.entry_price)) > tol ||
+          Math.abs(sl - Number(existingSetup.sl_price)) > tol ||
+          Math.abs(tp - Number(existingSetup.tp_price)) > tol ||
+          Math.abs(qty - Number(existingSetup.qty)) > 1e-8);
+
+      if (changed) {
+        const oldOid = existingSetup.exchange_order_id;
+        let cancelOk = false;
+        try {
+          const cx = await client.cancelOrder(oldOid, existingSetup.symbol);
+          cancelOk = cx.ok;
+        } catch (e) {
+          await log("warn", "reprice: cancel failed", { setup_id: existingSetup.id, oid: oldOid, error: (e as Error).message });
+        }
+        if (!cancelOk) {
+          actions.push(`reprice_skip ${side} oid=${oldOid} (cancel failed — may have filled)`);
+        } else {
+          let newOid: string | null = null;
+          let placeError: string | null = null;
+          try {
+            const res = await client.placeOrder({
+              symbol: s.symbol,
+              side: side === "long" ? "buy" : "sell",
+              qty,
+              type: market ? "market" : "limit",
+              price: entry,
+              stopLossPrice: sl,
+              takeProfitPrice: tp,
+            });
+            newOid = res.exchangeOrderId || null;
+            if (res.status === "rejected") placeError = "exchange rejected";
+          } catch (e) {
+            placeError = (e as Error).message;
+          }
+          if (placeError) {
+            await supabaseAdmin
+              .from("strategy_setups")
+              .update({ status: "cancelled", exchange_order_id: null, updated_at: new Date().toISOString() })
+              .eq("id", existingSetup.id);
+            await log("error", "reprice: replace place failed", { setup_id: existingSetup.id, error: placeError });
+            actions.push(`reprice_failed ${side} err=${placeError}`);
+          } else {
+            await supabaseAdmin
+              .from("strategy_setups")
+              .update({
+                entry_price: entry,
+                sl_price: sl,
+                initial_sl_price: sl,
+                tp_price: tp,
+                qty,
+                exchange_order_id: newOid,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingSetup.id);
+            actions.push(
+              `repriced ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
+            );
+          }
+        }
+      }
+    }
   }
+
 
   // Current price for triggers / TP-SL monitoring
   let lastPrice: number | null = null;

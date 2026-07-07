@@ -66,6 +66,8 @@ function parseTime(v: unknown): number {
 }
 const fmtINR = (n: number, digits = 2) =>
   `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+const fmtUSD = (n: number, digits = 2) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const fmtNum = (n: number | null | undefined, dp = 2) =>
   n == null || !Number.isFinite(n) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
 
@@ -226,7 +228,7 @@ function JournalPage() {
 
   function exportCsv() {
     const rows = [
-      ["Time (IST)", "Symbol", "Side", "Qty", "Price", "Fee (INR)", "P&L (INR)", "Net (INR)", "Equity (INR)", "Trade ID"],
+      ["Time (IST)", "Symbol", "Side", "Qty", "Price", "Fee (USD)", "P&L (USD)", "Net (USD)", "Equity (INR)", "Trade ID"],
       ...journal.map((j) => [
         new Date(j.time).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" }),
         j.symbol, j.side, String(j.qty), String(j.price),
@@ -270,9 +272,9 @@ function JournalPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
           <SummaryCell label="EQUITY" value={fmtINR(equity)} />
           <SummaryCell label="NET P&L" value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`} tone={realizedPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="TODAY" value={`${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`} tone={todaysPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="GROSS P&L" value={`${grossPnl >= 0 ? "+" : ""}${fmtINR(grossPnl)}`} tone={grossPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="FEES" value={fmtINR(feesTotal, 4)} tone="neg" />
+          <SummaryCell label="TODAY" value={`${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`} tone={todaysPnl >= 0 ? "pos" : "neg"} />
+          <SummaryCell label="GROSS P&L" value={`${grossPnl >= 0 ? "+" : ""}${fmtUSD(grossPnl)}`} tone={grossPnl >= 0 ? "pos" : "neg"} />
+          <SummaryCell label="FEES" value={fmtUSD(feesTotal, 4)} tone="neg" />
           <SummaryCell label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}W / ${losses}L`} />
           <SummaryCell label="FILLS" value={String(allJournal.length)} sub={`${journal.length} shown`} />
           <SummaryCell label="DEPOSITS" value={fmtINR(netDeposits)} sub={walletAsset} />
@@ -484,12 +486,12 @@ function JournalPage() {
                         <td className={`pr-3 font-semibold ${j.side === "BUY" ? "text-emerald-500" : "text-red-500"}`}>{j.side || "—"}</td>
                         <td className="text-right pr-3">{fmtNum(j.qty, 6)}</td>
                         <td className="text-right pr-3">{fmtNum(j.price, 4)}</td>
-                        <td className="text-right pr-3 text-red-400">{fmtINR(j.fee, 4)}</td>
+                        <td className="text-right pr-3 text-red-400">{fmtUSD(j.fee, 4)}</td>
                         <td className={`text-right pr-3 ${j.pnl > 0 ? "text-emerald-500" : j.pnl < 0 ? "text-red-500" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
+                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
                         </td>
                         <td className={`text-right pr-3 ${j.net > 0 ? "text-emerald-500" : j.net < 0 ? "text-red-500" : ""}`}>
-                          {`${j.net >= 0 ? "+" : ""}${fmtINR(j.net)}`}
+                          {`${j.net >= 0 ? "+" : ""}${fmtUSD(j.net)}`}
                         </td>
                         <td className="text-right">{fmtINR(j.equity)}</td>
                       </tr>

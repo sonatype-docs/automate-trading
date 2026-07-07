@@ -3004,7 +3004,8 @@ function LiquiditySweepPanel(props: {
       runSweep({
         data: {
           symbol: props.defaults.symbol,
-          days: props.defaults.days,
+          days,
+
           sl_risk_usd: props.defaults.slRiskUsd,
           rr: cfg.rr,
           asian_start_ist: cfg.asianStartIst,

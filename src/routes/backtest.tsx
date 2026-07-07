@@ -1822,6 +1822,7 @@ function EntryZoneGridPanel(props: {
   const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
   const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
   const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
+  const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");
 
   const parseList = (s: string) =>
     s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));

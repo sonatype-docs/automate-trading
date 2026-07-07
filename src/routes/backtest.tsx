@@ -1673,12 +1673,14 @@ function EntryZoneGridPanel(props: {
   const run = useServerFn(runEntryZoneSweep);
   const [days, setDays] = useState(90);
   const [modes, setModes] = useState<Array<"fib" | "retest" | "market" | "adaptive">>(["fib"]);
-  const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
-  const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
+  const DEPTH_STEPS = Array.from({ length: 20 }, (_, i) => Number(((i + 1) * 0.05).toFixed(2))); // 0.05..1.00
+  const [entryDepths, setEntryDepths] = useState<number[]>([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.5]);
+  const [slDepths, setSlDepths] = useState<number[]>([0.5, 0.75, 1.0]);
   const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
 
-  const parseList = (s: string) =>
-    s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
+  const toggleDepth = (list: number[], set: (v: number[]) => void, v: number) =>
+    set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v].sort((a, b) => a - b));
+
 
   const mut = useMutation({
     mutationFn: () =>

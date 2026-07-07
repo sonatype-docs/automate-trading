@@ -284,6 +284,11 @@ function Dashboard() {
                 <ListOrdered className="w-4 h-4 mr-2" /> Pending Orders
               </Button>
             </Link>
+            <Link to="/journal">
+              <Button variant="ghost" size="sm">
+                <BookOpen className="w-4 h-4 mr-2" /> Journal
+              </Button>
+            </Link>
             <Link to="/docs">
               <Button variant="ghost" size="sm">
                 <BookOpen className="w-4 h-4 mr-2" /> Webhook setup

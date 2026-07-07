@@ -303,7 +303,7 @@ function JournalPage() {
                   labelFormatter={(t) => new Date(Number(t)).toLocaleString("en-IN", { hour12: false })}
                   formatter={(v: number) => [fmtINR(v), "Equity"]}
                 />
-                <Line type="monotone" dataKey="eq" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="eq" stroke="oklch(78% 0.16 75)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

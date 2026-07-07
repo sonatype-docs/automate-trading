@@ -1153,6 +1153,32 @@ function HourSweepPanel({
           </Field>
         </div>
 
+        <Field label="Skip weekdays (IST)">
+          <div className="flex flex-wrap gap-1 pt-1">
+            {(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const).map((label, idx) => {
+              const on = skipWeekdays.includes(idx);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() =>
+                    setSkipWeekdays((prev) =>
+                      prev.includes(idx) ? prev.filter((x) => x !== idx) : [...prev, idx].sort(),
+                    )
+                  }
+                  className={`px-2 h-7 rounded font-mono text-[11px] border ${
+                    on
+                      ? "bg-short/10 border-short text-short"
+                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
         <div className="flex items-center gap-2">
           <Button
             size="sm"

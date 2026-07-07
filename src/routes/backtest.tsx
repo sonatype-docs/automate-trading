@@ -301,6 +301,19 @@ function BacktestLab() {
             </Card>
 
             {result && <ResultsView data={result} />}
+
+            <HourSweepPanel
+              defaults={{
+                symbol: form.symbol,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
           </>
         )}
       </main>

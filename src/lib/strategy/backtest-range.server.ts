@@ -199,7 +199,7 @@ export function simulateFromKlines(
   const htf = filters?.htf;
   const quality = filters?.quality;
   const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
-  const feeRate = opts.feeRate ?? 0.0004; // 0.04% per side, matches typical taker on Shark
+  const feeRate = opts.feeRate ?? 0; // fees disabled — exchange rebates cover them once profitable
 
 
 

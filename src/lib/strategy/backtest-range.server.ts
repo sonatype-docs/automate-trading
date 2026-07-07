@@ -858,6 +858,8 @@ export function simulateFromKlines(
       est_fees_usd: estFees,
       net_pnl_usd: netPnl,
       cohorts,
+      mae_wins: maeWins,
+      mae_losses: maeLosses,
     },
     filters: opts.filters,
     entry: entryCfg,

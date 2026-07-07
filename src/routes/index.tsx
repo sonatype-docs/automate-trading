@@ -1232,7 +1232,6 @@ function StrategyCard() {
         />
         <LiveSessionRulesEditor
           settings={{
-            symbol: s?.symbol ?? "XAUUSDT",
             session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
             sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
             rr: Number(s?.rr ?? 2),
@@ -1246,6 +1245,7 @@ function StrategyCard() {
           currentSl={Number(s?.sl_risk_usd ?? 25)}
           currentRr={Number(s?.rr ?? 2)}
         />
+
 
 
 

@@ -65,6 +65,17 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
   return runStrategyTick();
 });
 
+export const getPendingSharkOrders = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    const rows = await client.getOpenOrders();
+    return { ok: true as const, rows, fetchedAt: new Date().toISOString() };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : String(e), rows: [], fetchedAt: new Date().toISOString() };
+  }
+});
+
 export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await admin();
   const { data: sessionRow } = await supabase

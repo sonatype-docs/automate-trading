@@ -1266,7 +1266,7 @@ function StrategyCard() {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono">
-            Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "06:00"}–06:30 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
+            Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "06:00"}–07:00 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
           </p>
         )}
 

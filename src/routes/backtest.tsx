@@ -3019,7 +3019,11 @@ function LiquiditySweepPanel(props: {
           sl_buffer_pct: cfg.slBufferPct,
           tp_mode: cfg.tpMode,
           require_close_inside: cfg.requireCloseInside,
-          skip_weekdays: props.defaults.skipWeekdays,
+          skip_weekdays: Array.from(new Set([
+            ...props.defaults.skipWeekdays.filter((d) => d !== 0 && d !== 6),
+            ...(skipSat ? [6] : []),
+            ...(skipSun ? [0] : []),
+          ])).sort(),
         },
       }),
     onSuccess: (r) => {

@@ -45,12 +45,27 @@ export async function runSweep(opts: {
   trailActivateR?: number;
   trailStepR?: number;
   skipWeekdays?: Weekday[];
+  filters?: FilterConfig;
 }): Promise<SweepResult> {
   const maxDays = Math.max(...opts.ranges, 1);
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - maxDays * 86_400_000;
   const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+
+  let dailyBias: Map<string, DailyBiasEntry> | undefined;
+  if (needsDailyBias(opts.filters)) {
+    const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
+    const atrLen = opts.filters?.quality?.atr_len ?? 14;
+    const warmupDays = Math.max(emaLen, atrLen) + 10;
+    const daily = await client.getKlinesRange(
+      opts.symbol,
+      "1d",
+      fromMs - warmupDays * 86_400_000,
+      now,
+    );
+    dailyBias = computeDailyBias(daily, { emaLen, atrLen });
+  }
 
   // IST candles open at HH:30 (UTC hour boundaries + 5:30). Use :30 slots so each
   // sweep hour maps to a real candle instead of getting floored onto the previous one.

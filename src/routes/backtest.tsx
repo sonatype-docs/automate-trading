@@ -1022,6 +1022,7 @@ const SWEEP_RANGE_OPTIONS = [7, 30, 60, 90, 180, 365];
 
 function HourSweepPanel({
   defaults,
+  filters,
 }: {
   defaults: {
     symbol: string;
@@ -1032,6 +1033,7 @@ function HourSweepPanel({
     trailStepR: number;
     skipWeekdays: number[];
   };
+  filters: FilterConfig;
 }) {
   const runSweepFn = useServerFn(sweepHoursBacktest);
   const [symbol, setSymbol] = useState<string>(defaults.symbol);
@@ -1055,6 +1057,7 @@ function HourSweepPanel({
           trail_activate_r: defaults.trailActivateR,
           trail_step_r: defaults.trailStepR,
           skip_weekdays: skipWeekdays,
+          filters,
         },
       }),
     onSuccess: (r) => {

@@ -433,8 +433,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+type CohortDimKey = "body" | "or_size" | "break_distance" | "weekday" | "tp_target";
+type CohortFilter = { dim: CohortDimKey; bucket: string } | null;
+
+const COHORT_DIM_LABELS: Record<CohortDimKey, string> = {
+  body: "Body strength",
+  or_size: "Opening range",
+  break_distance: "Break distance",
+  weekday: "Weekday",
+  tp_target: "TP target",
+};
+
+function dayMatchesCohort(d: RangeData["days"][number], f: NonNullable<CohortFilter>): boolean {
+  switch (f.dim) {
+    case "body":
+      return d.body_bucket === f.bucket;
+    case "or_size":
+      return d.or_bucket === f.bucket;
+    case "break_distance":
+      return d.break_distance_bucket === f.bucket;
+    case "weekday":
+      return WD_LABELS[d.weekday] === f.bucket;
+    case "tp_target":
+      return d.tp_target === f.bucket;
+  }
+}
+
 function ResultsView({ data }: { data: RangeData }) {
   const s = data.summary;
+  const [cohort, setCohort] = useState<CohortFilter>(null);
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
   const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
   const fmtTime = (ms: number | null) =>
@@ -451,10 +478,19 @@ function ResultsView({ data }: { data: RangeData }) {
   const pf = s.profit_factor;
   const pfText = !isFinite(pf) ? "∞" : pf.toFixed(2);
 
-  const equityChart = useMemo(
-    () => data.equity.map((e) => ({ date: e.ist_date, pnl: Number(e.cum_pnl_usd.toFixed(2)) })),
-    [data.equity],
+  const filteredDays = useMemo(
+    () => (cohort ? data.days.filter((d) => dayMatchesCohort(d, cohort)) : data.days),
+    [data.days, cohort],
   );
+
+  const equityChart = useMemo(() => {
+    if (!cohort) return data.equity.map((e) => ({ date: e.ist_date, pnl: Number(e.cum_pnl_usd.toFixed(2)) }));
+    let cum = 0;
+    return filteredDays.map((d) => {
+      cum += d.pnl_usd;
+      return { date: d.ist_date, pnl: Number(cum.toFixed(2)) };
+    });
+  }, [data.equity, filteredDays, cohort]);
 
   return (
     <Card>

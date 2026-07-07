@@ -390,6 +390,24 @@ function BacktestLab() {
 
             <StrategiesRoadmapCard />
 
+            <MultiSessionComparePanel
+              defaults={{
+                symbol: form.symbol,
+                days: form.days,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+                entryMode: form.entryMode,
+                entryDepthPct: form.entryDepthPct,
+                slDepthPct: form.slDepthPct,
+                retestSlR: form.retestSlR,
+              }}
+              filters={filters}
+            />
+
 
             {result && <ResultsView data={result} />}
 

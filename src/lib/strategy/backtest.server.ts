@@ -1,4 +1,10 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import {
+  computeEntry,
+  DEFAULT_ENTRY_CONFIG,
+  type EntryConfig,
+} from "@/lib/strategy/entry-modes.server";
+
 
 const IST_OFFSET_MIN = 330;
 

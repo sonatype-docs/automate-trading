@@ -427,6 +427,22 @@ export function simulateFromKlines(
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
 
+    // Cohort inputs (always recorded when a break is found).
+    const barRange0 = breakBar.high - breakBar.low;
+    const body0 = Math.abs(breakBar.close - breakBar.open);
+    dr.body_pct = barRange0 > 0 ? (body0 / barRange0) * 100 : 0;
+    dr.or_size_usd = range;
+    dr.break_distance_usd =
+      breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+    const prevHL = prevDayHL(dateStr);
+    if (breakSide === "long") {
+      dr.swing_ref = prevHL ? Math.max(zone_high, prevHL.high) : zone_high;
+      dr.opposite_ref = prevHL ? Math.min(zone_low, prevHL.low) : zone_low;
+    } else {
+      dr.swing_ref = prevHL ? Math.min(zone_low, prevHL.low) : zone_low;
+      dr.opposite_ref = prevHL ? Math.max(zone_high, prevHL.high) : zone_high;
+    }
+
     // ---- Break-time filters (HTF bias side match + break quality) ----
     if (allowedSide === "none" || (allowedSide !== "both" && allowedSide !== breakSide)) {
       dr.outcome = "filtered";

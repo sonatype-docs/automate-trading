@@ -1207,14 +1207,29 @@ function StrategyCard() {
 
 
 
-        {session ? (
-          <div className="grid grid-cols-4 gap-2 font-mono text-xs">
-            <ZoneCell label="HIGH · fib 1" value={session.zone_high} />
-            <ZoneCell label="fib 0.75 · SHORT entry" value={session.fib_25} highlight={session.break_side === "short"} />
-            <ZoneCell label="fib 0.25 · LONG entry" value={session.fib_75} highlight={session.break_side === "long"} />
-            <ZoneCell label="LOW · fib 0" value={session.zone_low} />
-          </div>
-        ) : (
+        {session ? (() => {
+          const eDepth = s?.entry_depth_pct ?? 0.15;
+          const slDepth = s?.sl_depth_pct ?? 0.60;
+          const range = session.zone_high - session.zone_low;
+          const longEntry = session.zone_high - range * eDepth;   // fib (1 - eDepth)
+          const longSl    = session.zone_high - range * slDepth;  // fib (1 - slDepth)
+          const shortEntry = session.zone_low + range * eDepth;   // fib eDepth
+          const shortSl    = session.zone_low + range * slDepth;  // fib slDepth
+          const longFib  = (1 - eDepth).toFixed(2);
+          const shortFib = eDepth.toFixed(2);
+          const longSlFib  = (1 - slDepth).toFixed(2);
+          const shortSlFib = slDepth.toFixed(2);
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 font-mono text-xs">
+              <ZoneCell label="HIGH · fib 1" value={session.zone_high} />
+              <ZoneCell label={`fib ${longFib} · LONG entry`}  value={longEntry}  highlight={session.break_side === "long"} />
+              <ZoneCell label={`fib ${longSlFib} · LONG sl`}   value={longSl} />
+              <ZoneCell label={`fib ${shortFib} · SHORT entry`} value={shortEntry} highlight={session.break_side === "short"} />
+              <ZoneCell label={`fib ${shortSlFib} · SHORT sl`}  value={shortSl} />
+              <ZoneCell label="LOW · fib 0" value={session.zone_low} />
+            </div>
+          );
+        })() : (
           <p className="text-xs text-muted-foreground font-mono">
             Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "05:30"}–06:30 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
           </p>

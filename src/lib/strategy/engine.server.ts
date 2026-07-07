@@ -280,6 +280,11 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             });
             exchangeOrderId = res.exchangeOrderId || null;
             if (res.status === "rejected") placeError = "exchange rejected";
+            await log("info", "arm: shark placeOrder response", {
+              side, entry, qty,
+              parsed: { exchangeOrderId: res.exchangeOrderId, status: res.status, filledPrice: res.filledPrice },
+              raw: res.raw,
+            });
           } catch (e) {
             placeError = (e as Error).message;
           }
@@ -302,7 +307,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         } else {
           actions.push(
             `armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
-              (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper)"),
+              (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper/no-id)"),
           );
         }
       }

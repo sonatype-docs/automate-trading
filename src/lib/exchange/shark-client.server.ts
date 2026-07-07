@@ -167,9 +167,11 @@ export function createSharkClient(): ExchangeClient {
     async placeOrder(p) {
       const { apiKey, apiSecret } = requireCreds();
       const type = (p.type ?? "market").toUpperCase() as "MARKET" | "LIMIT";
+      // Round to sensible precision (XAUUSDT-style): qty 3dp, price 2dp.
+      const qtyRounded = Math.round(p.qty * 1000) / 1000;
       const body: Record<string, unknown> = {
         placeType: "ORDER_FORM",
-        quantity: p.qty,
+        quantity: qtyRounded,
         side: p.side.toUpperCase(),
         symbol: p.symbol.toUpperCase(),
         reduceOnly: p.reduceOnly ?? false,
@@ -180,12 +182,14 @@ export function createSharkClient(): ExchangeClient {
         if (!p.price || p.price <= 0) {
           throw new Error("LIMIT orders require a positive price.");
         }
-        body.price = p.price;
+        body.price = Math.round(p.price * 100) / 100;
       }
 
       const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/place-order", body);
       if (!res.ok) {
-        throw new Error(`SharkExchange placeOrder failed [${res.status}]: ${res.body}`);
+        throw new Error(
+          `SharkExchange placeOrder failed [${res.status}] body=${JSON.stringify(body)} resp=${res.body}`,
+        );
       }
       const data = (res.json ?? {}) as {
         clientOrderId?: string;

@@ -121,12 +121,24 @@ export async function runBacktestRange(opts: {
   trailActivateR?: number;
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
+  filters?: FilterConfig;
 }): Promise<RangeBacktestResult> {
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
   const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
-  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now });
+
+  let dailyBias: Map<string, DailyBiasEntry> | undefined;
+  if (needsDailyBias(opts.filters)) {
+    const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
+    const atrLen = opts.filters?.quality?.atr_len ?? 14;
+    const warmupDays = Math.max(emaLen, atrLen) + 10;
+    const dailyFromMs = fromMs - warmupDays * 86_400_000;
+    const daily = await client.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
+    dailyBias = computeDailyBias(daily, { emaLen, atrLen });
+  }
+
+  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now, dailyBias });
 }
 
 export function simulateFromKlines(
@@ -143,6 +155,8 @@ export function simulateFromKlines(
     trailActivateR?: number;
     trailStepR?: number;
     skipWeekdays?: Weekday[];
+    filters?: FilterConfig;
+    dailyBias?: Map<string, DailyBiasEntry>;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -151,6 +165,9 @@ export function simulateFromKlines(
   const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
   const now = opts.nowMs;
   const fromMs = opts.fromMs;
+  const filters = opts.filters?.enabled ? opts.filters : undefined;
+  const htf = filters?.htf;
+  const quality = filters?.quality;
 
   // Restrict to the requested window (allows callers to pass a superset).
   const filtered = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);

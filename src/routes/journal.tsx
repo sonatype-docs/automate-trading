@@ -272,9 +272,9 @@ function JournalPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
           <SummaryCell label="EQUITY" value={fmtINR(equity)} />
           <SummaryCell label="NET P&L" value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`} tone={realizedPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="TODAY" value={`${todaysPnl >= 0 ? "+" : ""}${fmtINR(todaysPnl)}`} tone={todaysPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="GROSS P&L" value={`${grossPnl >= 0 ? "+" : ""}${fmtINR(grossPnl)}`} tone={grossPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="FEES" value={fmtINR(feesTotal, 4)} tone="neg" />
+          <SummaryCell label="TODAY" value={`${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`} tone={todaysPnl >= 0 ? "pos" : "neg"} />
+          <SummaryCell label="GROSS P&L" value={`${grossPnl >= 0 ? "+" : ""}${fmtUSD(grossPnl)}`} tone={grossPnl >= 0 ? "pos" : "neg"} />
+          <SummaryCell label="FEES" value={fmtUSD(feesTotal, 4)} tone="neg" />
           <SummaryCell label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}W / ${losses}L`} />
           <SummaryCell label="FILLS" value={String(allJournal.length)} sub={`${journal.length} shown`} />
           <SummaryCell label="DEPOSITS" value={fmtINR(netDeposits)} sub={walletAsset} />

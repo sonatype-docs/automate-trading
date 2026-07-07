@@ -56,6 +56,10 @@ interface FormState {
   trailActivateR: number;
   trailStepR: number;
   skipWeekdays: number[]; // 0=Sun..6=Sat
+  entryMode: "fib" | "retest" | "market" | "adaptive";
+  entryDepthPct: number;
+  slDepthPct: number;
+  retestSlR: number;
 }
 
 function BacktestLab() {
@@ -78,6 +82,10 @@ function BacktestLab() {
         trail_activate_r?: number;
         trail_step_r?: number;
         skip_weekends?: boolean;
+        entry_mode?: string;
+        entry_depth_pct?: number;
+        sl_depth_pct?: number;
+        retest_sl_r?: number;
       }
     | null
     | undefined;
@@ -93,6 +101,10 @@ function BacktestLab() {
       trailActivateR: Number(s.trail_activate_r ?? 2),
       trailStepR: Number(s.trail_step_r ?? 1),
       skipWeekdays: s.skip_weekends ? [0, 6] : [0, 6],
+      entryMode: ((s.entry_mode ?? "fib") as FormState["entryMode"]),
+      entryDepthPct: Number(s.entry_depth_pct ?? 0.25),
+      slDepthPct: Number(s.sl_depth_pct ?? 0.75),
+      retestSlR: Number(s.retest_sl_r ?? 0.5),
     });
   }
 
@@ -110,14 +122,21 @@ function BacktestLab() {
           trail_step_r: f.trailStepR,
           skip_weekdays: f.skipWeekdays,
           filters,
+          entry: {
+            mode: f.entryMode,
+            entry_depth_pct: f.entryDepthPct,
+            sl_depth_pct: f.slDepthPct,
+            retest_sl_r: f.retestSlR,
+          },
         },
       }),
     onSuccess: (r) => {
       setResult(r);
-      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L`);
+      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     if (!form) return;

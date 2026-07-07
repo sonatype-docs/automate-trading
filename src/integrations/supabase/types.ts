@@ -178,6 +178,36 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_presets: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          rr: number
+          sl_risk_usd: number
+          symbol: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          rr: number
+          sl_risk_usd: number
+          symbol?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          rr?: number
+          sl_risk_usd?: number
+          symbol?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       strategy_sessions: {
         Row: {
           break_close_price: number | null

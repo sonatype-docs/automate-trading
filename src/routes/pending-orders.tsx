@@ -1,8 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import type { OpenOrderRow } from "@/lib/exchange/shark-client.server";
-type Row = Omit<OpenOrderRow, "raw">;
+
+type Row = {
+  clientOrderId: string;
+  symbol: string;
+  side: string;
+  type: string;
+  status: string;
+  price: number | null;
+  quantity: number | null;
+  filledAmount: number | null;
+  stopLossPrice: number | null;
+  takeProfitPrice: number | null;
+  createdAt: string | null;
+};
 import { getPendingSharkOrders } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

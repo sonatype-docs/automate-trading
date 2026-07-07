@@ -1,159 +1,91 @@
-## Goal
+# TradeZella-style Rebuild
 
-Increase filled setups and net P&L via a bigger strategy engine upgrade. Ship in 4 phases so each is testable.
+## Design system
 
-Backwards compatible throughout — all defaults reproduce today's behavior.
+Rewrite `src/styles.css` with a real two-mode token set. Light is default (`:root`), dark under `.dark`. Semantic tokens only — no hardcoded colors in components.
 
----
+- **Accent**: violet `#8b5cf6` (primary), long `#22c55e`, short `#ef4444`, warning amber, info sky.
+- **Surfaces**: light = off-white `#f8fafc` bg, white cards, slate borders. Dark = `#0f0f17` bg, `#16161f` cards, subtle violet-tinted borders.
+- **Typography**: Inter (UI) + JetBrains Mono (numbers). Add `@fontsource/inter` and `@fontsource/jetbrains-mono`.
+- **Motion**: 150–250ms ease-out on hover/active, `transition-colors` globally on interactive surfaces, `animate-fade-in` on page mount, subtle `scale-[1.01]` on card hover.
+- **Radii/shadows**: `--radius: 0.75rem`, soft elevation shadows via `color-mix` for both modes.
 
-## Phase 1 — Tunable entry mechanics + missed-trade analytics
+## Theme toggle
 
-### Schema (`strategy_settings`)
+- New `src/components/theme-provider.tsx` — reads `localStorage("theme")` with `system` default, applies `.dark` on `<html>`, exposes `useTheme()`.
+- Mount provider in `__root.tsx` around `<Outlet />`. Add a no-flash inline script to `RootShell` `<head>` that sets the class before hydration.
+- `src/components/theme-toggle.tsx` — Sun/Moon/Monitor icon button in the top bar.
 
-```
-entry_mode                text     'fib' | 'retest' | 'market' | 'adaptive'   default 'fib'
-entry_depth_pct           numeric  0.00–0.50    default 0.25
-sl_depth_pct              numeric  0.10–1.00    default 0.75  (must > entry_depth_pct)
-adaptive_strong_break_pct numeric  default 30   (>= this % beyond zone = shallow entry)
-adaptive_shallow_depth    numeric  default 0.10
-adaptive_deep_depth       numeric  default 0.35
-retest_sl_r               numeric  default 0.5   (SL distance in R for retest mode)
-```
+## App shell (sidebar layout)
 
-### Entry logic
+Introduce a persistent shell so every route shares nav + top bar:
 
-- **fib** — today's behavior, but with tunable depths (long: `entry = zone_high - range*entry_depth`, `sl = zone_high - range*sl_depth`).
-- **retest** — entry at the broken zone edge (long: `entry = zone_high`), SL a fixed `retest_sl_r × range` away.
-- **market** — no limit; enter at market on the 1h break candle close. `sl` still from `sl_depth_pct` for risk sizing.
-- **adaptive** — measure `(break_close - zone_high) / range * 100`. If ≥ `adaptive_strong_break_pct` → shallow entry, else deep entry.
+- `src/components/app-sidebar.tsx` using shadcn `Sidebar` (`collapsible="icon"`), items: Dashboard, Journal, Backtest, Pending Orders, Docs, Settings. Active-route highlight via `useRouterState`.
+- `src/components/app-shell.tsx` wraps children with `SidebarProvider` + top bar (breadcrumb, search, theme toggle, run/paused status pill).
+- Wrap `<Outlet />` in `__root.tsx` with `AppShell`. Remove per-page ad-hoc headers/back buttons.
 
-Wire through: `engine.server.ts`, `backtest.server.ts`, `backtest-range.server.ts`, `sweep.server.ts`, `strategy.functions.ts`.
+## Dashboard (`/`) — TradeZella-style
 
-### Sweep expansion
+Replace current index with a grid of widgets:
 
-New RPC `runEntryZoneSweep({ entryDepths[], slDepths[], modes[] })` returns a grid: `{ mode, entry_depth, sl_depth, trades, fill_rate, win_rate, net_pnl, expectancy, avg_fee_per_trade }`.
+- **KPI tiles**: Net PnL, Win rate, Profit factor, Avg win/loss, Expectancy, Total trades, Best/Worst day, Current streak.
+- **Equity curve**: `recharts` area chart, cumulative PnL over selected range.
+- **PnL calendar heatmap**: month grid, cells colored by daily PnL, click → filter journal to that day.
+- **Win/Loss donut** + **R-multiple histogram**.
+- **Recent trades** table (last 10) with side badges, PnL, R.
+- **Live status card**: engine on/off, open positions, pending orders count (links to `/pending-orders`).
+- Date-range picker (7D / 30D / 90D / YTD / custom) in top bar; drives all widgets.
 
-Optimize on **net** (after fees), not gross.
+## Journal (`/journal`) — advanced
 
-### Missed-trade analytics (new)
+- Filterable, sortable trade table: symbol, side, entry/exit, qty, PnL, R, duration, tags, setup, session, mistakes.
+- Per-trade drawer: notes (markdown), tags multi-select, screenshots (Supabase storage), mistakes checklist, custom fields.
+- Bulk tag/edit, CSV export.
+- Saved filter presets (per user, persisted in DB).
 
-Per backtest day already knows `armed_no_trigger`. Add:
+## Analytics (`/analytics`) — new route
 
-- `closest_approach_r` — how close price got to the entry, in R units.
-- New "Missed setups" section in `/journal` and `/backtest`: count, closest-approach histogram, and "would-have-filled if entry_depth was X%" table.
-- New KPI everywhere: **fill_rate = triggered / (triggered + armed_no_trigger)**.
-- New KPI: **fees / gross_pnl %** and **avg fee per trade**.
+- Drawdown curve, rolling win rate, R-multiple distribution.
+- Breakdowns: by symbol, by day-of-week, by hour/session, by setup tag, by side.
+- Win rate vs profit-factor scatter per tag.
 
-### UI
+## Reports (`/reports`) — new route
 
-- Settings page: entry-mode dropdown + two depth sliders + adaptive knobs (collapsed section).
-- Backtest page: same controls + "Entry/SL grid" heatmap card colored by net P&L.
-- Journal page: "Missed setups" collapsible.
+- Daily / weekly / monthly summary cards with mini-charts.
+- Exportable PDF-friendly view (print CSS).
 
----
+## Other polish
 
-## Phase 2 — Miss handling: expire + re-arm
+- Replace ad-hoc `text-emerald-*` / `text-red-*` in existing pages (`pending-orders.tsx`, `backtest.tsx`, `settings.tsx`) with `text-long` / `text-short` tokens.
+- Add page transition wrapper (`animate-fade-in` on route change key).
+- Consistent empty states, skeleton loaders for all Query reads.
+- Toaster styled to theme.
 
-### Schema
+## Data model additions (Supabase)
 
-```
-entry_expiry_hours         numeric  default 0   (0 = no expiry, session-rollover as today)
-rearm_enabled              boolean  default false
-rearm_shallower_depth      numeric  default 0.10
-```
+- `trades` extensions: `tags text[]`, `notes text`, `mistakes text[]`, `setup text`, `session text`, `screenshot_urls text[]`, `r_multiple numeric`.
+- `journal_filter_presets` table (user_id, name, filter_json), RLS + grants.
+- Storage bucket `trade-screenshots` (private, per-user path).
+- Migration adds columns/table, backfills `r_multiple` from existing PnL where possible.
 
-### Live engine
+## Technical notes
 
-- If a setup is `armed` and unfilled for `entry_expiry_hours` after `break_detected_at`: cancel exchange order, mark `expired`, then (if `rearm_enabled`) place a new limit at `entry_depth = rearm_shallower_depth` and record it as a new setup row with `parent_setup_id`.
-- One retry per session per side.
+- Charts: `recharts` (already ecosystem-friendly), no new heavy deps.
+- Icons: keep `lucide-react`.
+- Server data: keep `createServerFn` pattern; add aggregation fns (`getDashboardStats`, `getEquityCurve(range)`, `getCalendarPnL(month)`, `getAnalyticsBreakdowns(range)`).
+- All new server fns use `requireSupabaseAuth` and are called from components via `useServerFn` + `useQuery` (not public-route loaders).
+- No changes to auto-generated Supabase files or `src/routeTree.gen.ts`.
 
-### Schema addendum (`strategy_setups`)
+## Out of scope
 
-```
-parent_setup_id   uuid  nullable     (links a re-arm to its original)
-expired_reason    text  nullable     ('timeout' | 'session_rollover' | 'cancelled')
-```
+- No changes to trading/engine logic, order placement, or exchange client.
+- No new auth flows.
 
-### Backtest
+## Build order
 
-Mirror the same logic against 1h bars.
-
----
-
-## Phase 3 — Exit improvements
-
-### Schema (`strategy_settings`)
-
-```
-breakeven_at_r_enabled     boolean  default false
-breakeven_at_r             numeric  default 1.0
-partial_tp_enabled         boolean  default false
-partial_tp_r               numeric  default 1.0
-partial_tp_size_pct        numeric  default 50   (% of position closed at partial)
-reversal_enabled           boolean  default false   (same-day opposite-side trade)
-```
-
-### Behavior
-
-- **Breakeven at R** — once `peakR ≥ breakeven_at_r`, snap SL to entry (never move back down).
-- **Partial TP** — first bar where `high ≥ entry + partial_tp_r*risk` (long): close `partial_tp_size_pct`% at that R, mark partial P&L, remainder continues with trailing. Realized/gross P&L reporting splits.
-- **Same-day reversal** — after the first setup closes with SL, keep watching that IST session for a 1h close on the *opposite* side of the zone; if it happens, arm a fresh setup with the same rules. Max 1 reversal per day.
-
-### Schema addendum (`strategy_setups`)
-
-```
-partial_filled_at    timestamptz nullable
-partial_pnl_usd      numeric     nullable
-reversal_of          uuid        nullable  (link to the original losing setup)
-```
-
-Wire into live engine + backtest + journal (show partial fills as separate rows).
-
----
-
-## Phase 4 — Opportunity expansion (biggest scope)
-
-### 4a. Second session per day
-
-`strategy_settings` gains an array of session starts:
-
-```
-session_starts_ist  text[]  default ARRAY['05:30']    (multiple, e.g. {'05:30','17:30'})
-```
-
-Live engine loops each session for the current IST date. Each session gets its own `strategy_sessions` row keyed by `(ist_date, symbol, session_start_ist)` — the sessions table needs a `session_start_ist` column added and unique constraint updated.
-
-Backtest range iterates every session per day.
-
-### 4b. Multi-symbol
-
-Move single-row `strategy_settings` to a per-symbol config:
-
-- New table `strategy_symbols` (symbol, enabled, sl_risk_usd, rr, all Phase 1–3 knobs). `strategy_settings` keeps only global knobs (kill switch analogue lives in `settings`).
-- Engine tick loops symbols. Each `(symbol, ist_date, session_start_ist)` is an independent state machine.
-- All `strategy_sessions` / `strategy_setups` already carry `symbol` — good.
-- Journal + pending-orders + backtest UIs gain a symbol filter (already exist in journal).
-
-Migration path: seed `strategy_symbols` from the current single-row `strategy_settings` on migration so live trading continues unbroken.
-
----
-
-## Cross-cutting
-
-- **Reports** always compute `net = gross - fees`. Sweep optimizes on net.
-- **Kill switch** unchanged, still applies globally.
-- **Trailing SL** unchanged; interacts with breakeven-at-R by taking the tighter of the two.
-- **No changes to** Shark client, webhook handler, or auth path.
-
----
-
-## Deliverable order
-
-1. **Phase 1 migration** (7 new cols on `strategy_settings`) + engine/backtest/sweep wiring + missed-trade UI.
-2. **Phase 2 migration** (3 new cols + 2 on `strategy_setups`) + live-engine expiry/re-arm + backtest mirror.
-3. **Phase 3 migration** (6 new cols + 3 on `strategy_setups`) + exit logic in engine + backtest + journal partial-fill display.
-4. **Phase 4 migration** (new `strategy_symbols` table + `session_start_ist` on `strategy_sessions`) + engine loop rewrite + UI multi-symbol/session pickers.
-
-Each phase is independently shippable; you can pause between them and re-run the sweep to see which knobs actually helped before adding the next layer.
-
-Reply "go" to start with Phase 1, or tell me to reorder / drop phases.
+1. Tokens + fonts + theme provider + toggle.
+2. App shell + sidebar; migrate existing pages into it.
+3. Dashboard widgets + aggregation server fns.
+4. Journal upgrades + schema migration + storage bucket.
+5. Analytics + Reports routes.
+6. Polish pass: transitions, empty states, skeletons, color-token cleanup.

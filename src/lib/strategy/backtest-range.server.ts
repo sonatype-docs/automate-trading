@@ -87,6 +87,7 @@ export interface RangeBacktestResult {
     total_days: number;
     days_with_session: number;
     skipped_days: number;
+    filtered_days: number;
     breaks: number;
     triggered: number;
     tp: number;
@@ -108,6 +109,7 @@ export interface RangeBacktestResult {
     max_consec_wins: number;
     max_consec_losses: number;
   };
+  filters?: FilterConfig;
 }
 
 

@@ -781,9 +781,22 @@ function ExchangeAccount() {
                         <td className="text-right">{num(p.liquidationPrice)}</td>
                         <td className="text-right">{num(p.leverage, 0)}x</td>
                         <td className="text-right">{num(p.margin)} {String(p.marginAsset ?? "")}</td>
-                        <td className={`text-right ${Number(p.realizedProfit ?? 0) >= 0 ? "text-long" : "text-short"}`}>
-                          {num(p.realizedProfit)}
-                        </td>
+                        <PositionPnLCell
+                          symbol={String(p.contractPair ?? p.symbol ?? "")}
+                          side={side}
+                          qty={Number(p.quantity ?? 0)}
+                          entry={Number(p.entryPrice ?? 0)}
+                          nativePnl={
+                            Number(
+                              (p as Record<string, unknown>).unrealizedProfit ??
+                                (p as Record<string, unknown>).unRealizedProfit ??
+                                (p as Record<string, unknown>).unrealisedPnl ??
+                                (p as Record<string, unknown>).unrealizedPnl ??
+                                (p as Record<string, unknown>).pnl ??
+                                NaN,
+                            )
+                          }
+                        />
                       </tr>
                     );
                   })}

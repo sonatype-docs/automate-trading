@@ -88,6 +88,8 @@ export async function runSweep(opts: {
         trailActivateR: opts.trailActivateR,
         trailStepR: opts.trailStepR,
         skipWeekdays: opts.skipWeekdays,
+        filters: opts.filters,
+        dailyBias,
       });
       const decidedDays = r.days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
       const best = r.days.length

@@ -20,6 +20,8 @@ export interface PlaceOrderParams {
   price?: number;
   reduceOnly?: boolean;
   marginAsset?: string;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
 }
 
 export interface OrderResult {
@@ -167,7 +169,7 @@ export function createSharkClient(): ExchangeClient {
     async placeOrder(p) {
       const { apiKey, apiSecret } = requireCreds();
       const type = (p.type ?? "market").toUpperCase() as "MARKET" | "LIMIT";
-      // Round to sensible precision (XAUUSDT-style): qty 3dp, price 2dp.
+      // Match Shark's own UI payload: round qty 3dp, price 2dp; do NOT send marginAsset.
       const qtyRounded = Math.round(p.qty * 1000) / 1000;
       const body: Record<string, unknown> = {
         placeType: "ORDER_FORM",
@@ -175,7 +177,6 @@ export function createSharkClient(): ExchangeClient {
         side: p.side.toUpperCase(),
         symbol: p.symbol.toUpperCase(),
         reduceOnly: p.reduceOnly ?? false,
-        marginAsset: p.marginAsset ?? inferMarginAsset(p.symbol),
         type,
       };
       if (type === "LIMIT") {
@@ -184,6 +185,13 @@ export function createSharkClient(): ExchangeClient {
         }
         body.price = Math.round(p.price * 100) / 100;
       }
+      if (p.stopLossPrice && p.stopLossPrice > 0) {
+        body.stopLossPrice = Math.round(p.stopLossPrice * 100) / 100;
+      }
+      if (p.takeProfitPrice && p.takeProfitPrice > 0) {
+        body.takeProfitPrice = Math.round(p.takeProfitPrice * 100) / 100;
+      }
+      // marginAsset intentionally omitted — Shark's UI doesn't send it and sending it triggers 3029.
 
       const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/place-order", body);
       if (!res.ok) {

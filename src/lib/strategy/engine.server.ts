@@ -277,6 +277,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               qty,
               type: "limit",
               price: entry,
+              stopLossPrice: sl,
+              takeProfitPrice: tp,
             });
             exchangeOrderId = res.exchangeOrderId || null;
             if (res.status === "rejected") placeError = "exchange rejected";

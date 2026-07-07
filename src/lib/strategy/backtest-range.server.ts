@@ -540,6 +540,11 @@ export function simulateFromKlines(
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (barR > peakR) peakR = barR;
 
+      // Update MAE using bar extremes in the adverse direction.
+      const adverse = breakSide === "long" ? k.low : k.high;
+      if (adverseExtreme === null) adverseExtreme = adverse;
+      else adverseExtreme = breakSide === "long" ? Math.min(adverseExtreme, adverse) : Math.max(adverseExtreme, adverse);
+
       // TP-target tracking — did price reach swing / opposite references while the trade was live?
       if (dr.swing_ref !== null) {
         if (breakSide === "long" ? k.high >= dr.swing_ref : k.low <= dr.swing_ref) reachedSwing = true;

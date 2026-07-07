@@ -82,6 +82,7 @@ interface SetupRow {
   closed_at: string | null;
   peak_r?: number;
   initial_sl_price?: number | null;
+  exchange_order_id?: string | null;
 }
 
 export interface StrategyTickResult {

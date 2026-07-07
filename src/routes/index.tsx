@@ -541,6 +541,44 @@ function Metric({
   );
 }
 
+function PositionPnLCell({
+  symbol,
+  side,
+  qty,
+  entry,
+  nativePnl,
+}: {
+  symbol: string;
+  side: string;
+  qty: number;
+  entry: number;
+  nativePnl: number;
+}) {
+  const getTicker = useServerFn(getMarketTicker);
+  const q = useQuery({
+    queryKey: ["pos-ticker", symbol],
+    queryFn: () => getTicker({ data: { symbol } }),
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+    enabled: !!symbol,
+  });
+  const last = Number(q.data?.lastPrice ?? NaN);
+  let pnl = Number.isFinite(nativePnl) ? nativePnl : NaN;
+  if (!Number.isFinite(pnl) && Number.isFinite(last) && Number.isFinite(entry) && Number.isFinite(qty)) {
+    const dir = side === "LONG" ? 1 : side === "SHORT" ? -1 : 0;
+    pnl = dir * (last - entry) * qty;
+  }
+  const good = Number.isFinite(pnl) && pnl >= 0;
+  return (
+    <td className={`text-right ${good ? "text-long" : "text-short"}`}>
+      {Number.isFinite(pnl)
+        ? `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : "—"}
+      {q.isFetching && <span className="ml-1 text-[9px] text-muted-foreground">•</span>}
+    </td>
+  );
+}
+
 function LiveTicker({ defaultSymbol }: { defaultSymbol: string }) {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [input, setInput] = useState(defaultSymbol);
@@ -781,9 +819,22 @@ function ExchangeAccount() {
                         <td className="text-right">{num(p.liquidationPrice)}</td>
                         <td className="text-right">{num(p.leverage, 0)}x</td>
                         <td className="text-right">{num(p.margin)} {String(p.marginAsset ?? "")}</td>
-                        <td className={`text-right ${Number(p.realizedProfit ?? 0) >= 0 ? "text-long" : "text-short"}`}>
-                          {num(p.realizedProfit)}
-                        </td>
+                        <PositionPnLCell
+                          symbol={String(p.contractPair ?? p.symbol ?? "")}
+                          side={side}
+                          qty={Number(p.quantity ?? 0)}
+                          entry={Number(p.entryPrice ?? 0)}
+                          nativePnl={
+                            Number(
+                              (p as Record<string, unknown>).unrealizedProfit ??
+                                (p as Record<string, unknown>).unRealizedProfit ??
+                                (p as Record<string, unknown>).unrealisedPnl ??
+                                (p as Record<string, unknown>).unrealizedPnl ??
+                                (p as Record<string, unknown>).pnl ??
+                                NaN,
+                            )
+                          }
+                        />
                       </tr>
                     );
                   })}

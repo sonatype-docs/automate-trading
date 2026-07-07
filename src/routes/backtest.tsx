@@ -1330,7 +1330,7 @@ function MonthGrid({
 }
 
 
-type LiquiditySweepData = Awaited<ReturnType<typeof sweepHoursBacktest>>;
+type SweepData = Awaited<ReturnType<typeof sweepHoursBacktest>>;
 
 const SWEEP_RANGE_OPTIONS = [7, 30, 60, 90, 180, 365];
 

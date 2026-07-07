@@ -3360,7 +3360,8 @@ function SilverBulletPanel(props: {
       runSb({
         data: {
           symbol: props.defaults.symbol,
-          days: props.defaults.days,
+          days,
+
           sl_risk_usd: props.defaults.slRiskUsd,
           rr: cfg.rr,
           window_start_ist: cfg.windowStartIst,

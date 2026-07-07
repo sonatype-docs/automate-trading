@@ -416,6 +416,27 @@ export function simulateFromKlines(
       }
     }
 
+    // ATR squeeze — reject if today's ATR is not compressed enough vs the lookback average.
+    if (quality?.atr_squeeze_enabled) {
+      const atrNow = biasEntry?.atr ?? null;
+      const atrAvg = biasEntry?.atr_lookback_avg ?? null;
+      const ratio = quality.atr_squeeze_ratio ?? 0.7;
+      if (atrNow === null || atrAvg === null || atrAvg <= 0) {
+        dr.outcome = "filtered";
+        dr.filter_reason = "atr squeeze unavailable";
+        days.push(dr);
+        continue;
+      }
+      const actual = atrNow / atrAvg;
+      if (actual > ratio) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `atr ratio ${actual.toFixed(2)} > ${ratio.toFixed(2)}`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+
     // Precompute HTF bias-allowed side for this day so we can reject on break.
     let allowedSide: "long" | "short" | "both" | "none" = "both";
     if (htf) {

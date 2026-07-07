@@ -716,6 +716,47 @@ export function simulateFromKlines(
     equity.push({ ist_date: d.ist_date, cum_pnl_usd: cum });
   }
 
+  // ---- Cohort aggregation over decided trades ----
+  const decidedAll = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
+  function statFor(rows: DayResult[], bucket: string): CohortStat {
+    const wins = rows.filter((d) => d.outcome === "tp").length;
+    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const trades = rows.length;
+    const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
+    const rs = rows.map((d) => d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1));
+    return {
+      bucket,
+      trades,
+      wins,
+      losses,
+      win_rate_pct: trades > 0 ? (wins / trades) * 100 : 0,
+      total_pnl_usd: total,
+      avg_pnl_usd: trades > 0 ? total / trades : 0,
+      avg_r: rs.length > 0 ? rs.reduce((a, b) => a + b, 0) / rs.length : 0,
+    };
+  }
+  const dimFor = <T extends string>(
+    labels: T[],
+    key: (d: DayResult) => T | null,
+    edges: [number, number] | null,
+  ): CohortDim => ({
+    buckets: labels.map((l) => statFor(decidedAll.filter((d) => key(d) === l), l)),
+    edges,
+  });
+
+  const cohorts = {
+    body: dimFor<Tercile>(["low", "mid", "high"], (d) => d.body_bucket, bodyEdges),
+    or_size: dimFor<OrBucket>(["small", "medium", "large"], (d) => d.or_bucket, orEdges),
+    break_distance: dimFor<DistBucket>(["near", "mid", "far"], (d) => d.break_distance_bucket, distEdges),
+    weekday: {
+      buckets: ([1, 2, 3, 4, 5, 6, 0] as Weekday[]).map((wd) =>
+        statFor(decidedAll.filter((d) => d.weekday === wd), WEEKDAY_LABELS[wd]),
+      ),
+      edges: null,
+    },
+    tp_target: dimFor<TpTarget>(["swing", "opposite", "both", "neither"], (d) => d.tp_target, null),
+  };
+
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,

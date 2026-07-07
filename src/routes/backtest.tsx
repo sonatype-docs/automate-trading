@@ -458,7 +458,10 @@ function ResultsView({ data }: { data: RangeData }) {
       </CardHeader>
       <CardContent className="space-y-4 font-mono text-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <Kv k="total p&l" v={fmtUsd(s.total_pnl_usd)} tone={totalTone} />
+          <Kv k="net p&l (after fees)" v={fmtUsd(s.net_pnl_usd)} tone={s.net_pnl_usd >= 0 ? "text-long" : "text-short"} />
+          <Kv k="gross p&l" v={fmtUsd(s.total_pnl_usd)} tone={totalTone} />
+          <Kv k="est. fees" v={`-$${s.est_fees_usd.toFixed(2)}`} tone="text-short" />
+          <Kv k="fill rate" v={`${s.fill_rate_pct.toFixed(0)}%`} tone={s.fill_rate_pct >= 60 ? "text-long" : s.fill_rate_pct >= 30 ? "text-warning" : "text-short"} />
           <Kv k="win rate" v={`${s.win_rate_pct.toFixed(1)}%`} tone={s.win_rate_pct >= 50 ? "text-long" : "text-short"} />
           <Kv k="profit factor" v={pfText} tone={pf >= 1 ? "text-long" : "text-short"} />
           <Kv k="expectancy / trade" v={fmtUsd(s.expectancy_usd)} tone={s.expectancy_usd >= 0 ? "text-long" : "text-short"} />
@@ -468,8 +471,11 @@ function ResultsView({ data }: { data: RangeData }) {
           <Kv k="max streak W / L" v={`${s.max_consec_wins} / ${s.max_consec_losses}`} />
           <Kv k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
           <Kv k="breaks / triggered" v={`${s.breaks} / ${s.triggered}`} />
+          <Kv k="missed / near-miss" v={`${s.armed_no_trigger} / ${s.near_miss_count}`} tone={s.near_miss_count > 0 ? "text-warning" : undefined} />
           <Kv k="wins / losses" v={`${s.tp} / ${s.sl}`} />
           <Kv k="open / skipped / filtered" v={`${s.open} / ${s.skipped_days} / ${s.filtered_days ?? 0}`} />
+          <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
+
           <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
           <Kv
             k="best weekday"

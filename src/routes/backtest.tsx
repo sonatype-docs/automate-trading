@@ -388,6 +388,9 @@ function BacktestLab() {
 
             <FiltersCard value={filters} onChange={setFilters} />
 
+            <StrategiesRoadmapCard />
+
+
             {result && <ResultsView data={result} />}
 
             <HourSweepPanel

@@ -48,7 +48,9 @@ export interface DayResult {
     | "tp"
     | "sl"
     | "open"
-    | "skipped";
+    | "skipped"
+    | "filtered";
+  filter_reason: string | null;
   pnl_usd: number;
   final_sl: number | null;
   peak_r: number;

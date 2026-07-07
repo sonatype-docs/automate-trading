@@ -548,6 +548,28 @@ export function simulateFromKlines(
   const avgWin = winRows.length ? grossWin / winRows.length : 0;
   const avgLoss = lossRows.length ? grossLoss / lossRows.length : 0;
 
+  // Fill-rate + miss analytics.
+  const potentialFills = triggered + armedNoTrigger;
+  const fillRatePct = potentialFills > 0 ? (triggered / potentialFills) * 100 : 0;
+  const missRs = days
+    .filter((d) => d.outcome === "armed_no_trigger" && d.closest_approach_r !== null)
+    .map((d) => d.closest_approach_r as number)
+    .sort((a, b) => a - b);
+  const medianMissR = missRs.length ? missRs[Math.floor(missRs.length / 2)] : 0;
+  const nearMissCount = missRs.filter((r) => r <= 0.1).length;
+
+  // Fee model — approximate 2-sided taker fees on the notional of each triggered trade.
+  // Notional = qty * entry_price. Applied per side (entry + exit).
+  let estFees = 0;
+  for (const d of days) {
+    if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
+    const notionalEntry = d.qty * d.entry;
+    const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
+    estFees += (notionalEntry + notionalExit) * feeRate;
+  }
+  const netPnl = totalPnl - estFees;
+
+
   // Streaks + equity curve + drawdown, walk chronologically.
   let curWin = 0, curLoss = 0, maxWin = 0, maxLoss = 0;
   let cum = 0, peak = 0, maxDd = 0;

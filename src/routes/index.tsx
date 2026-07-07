@@ -9,6 +9,7 @@ import {
 } from "@/lib/trading.functions";
 import {
   getStrategyState,
+  getStrategyTimeline,
   runStrategyTickNow,
   updateStrategySettings,
   listStrategyPresets,

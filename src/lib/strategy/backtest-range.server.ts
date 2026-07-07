@@ -209,6 +209,7 @@ export function simulateFromKlines(
       qty: null,
       trigger_at: null,
       outcome: skipped ? "skipped" : "no_session",
+      filter_reason: null,
       pnl_usd: 0,
       final_sl: null,
       peak_r: 0,

@@ -253,6 +253,7 @@ export async function runEntryZoneSweep(opts: {
       avg_r: finite(r.summary.avg_r),
       triggered: r.summary.triggered,
       missed: r.summary.armed_no_trigger,
+      cohorts: r.summary.cohorts,
     });
   };
 

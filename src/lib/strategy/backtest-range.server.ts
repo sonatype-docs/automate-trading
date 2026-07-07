@@ -282,6 +282,15 @@ export function simulateFromKlines(
       peak_r: 0,
       exit_r: null,
       closest_approach_r: null,
+      body_pct: null,
+      or_size_usd: null,
+      break_distance_usd: null,
+      swing_ref: null,
+      opposite_ref: null,
+      tp_target: null,
+      body_bucket: null,
+      or_bucket: null,
+      break_distance_bucket: null,
     };
 
 

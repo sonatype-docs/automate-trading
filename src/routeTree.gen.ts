@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
+import { Route as JournalRouteImport } from './routes/journal'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as IndexRouteImport } from './routes/index'
@@ -25,6 +26,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const PendingOrdersRoute = PendingOrdersRouteImport.update({
   id: '/pending-orders',
   path: '/pending-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JournalRoute = JournalRouteImport.update({
+  id: '/journal',
+  path: '/journal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/backtest': typeof BacktestRoute
   '/docs': typeof DocsRoute
+  '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/backtest': typeof BacktestRoute
   '/docs': typeof DocsRoute
+  '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/backtest': typeof BacktestRoute
   '/docs': typeof DocsRoute
+  '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/'
     | '/backtest'
     | '/docs'
+    | '/journal'
     | '/pending-orders'
     | '/settings'
     | '/api/public/hooks/strategy-tick'
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/'
     | '/backtest'
     | '/docs'
+    | '/journal'
     | '/pending-orders'
     | '/settings'
     | '/api/public/hooks/strategy-tick'
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/'
     | '/backtest'
     | '/docs'
+    | '/journal'
     | '/pending-orders'
     | '/settings'
     | '/api/public/hooks/strategy-tick'
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BacktestRoute: typeof BacktestRoute
   DocsRoute: typeof DocsRoute
+  JournalRoute: typeof JournalRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
@@ -137,6 +150,13 @@ declare module '@tanstack/react-router' {
       path: '/pending-orders'
       fullPath: '/pending-orders'
       preLoaderRoute: typeof PendingOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/journal': {
+      id: '/journal'
+      path: '/journal'
+      fullPath: '/journal'
+      preLoaderRoute: typeof JournalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BacktestRoute: BacktestRoute,
   DocsRoute: DocsRoute,
+  JournalRoute: JournalRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,

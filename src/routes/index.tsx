@@ -228,17 +228,6 @@ function Dashboard() {
   // with the top-level EQUITY / REALIZED P&L metrics.
   let eqRun = netDeposits;
   const equityCurve: Array<{ t: number; eq: number }> = [];
-  const journal: Array<{
-    time: number;
-    symbol: string;
-    side: string;
-    qty: number;
-    price: number;
-    fee: number;
-    pnl: number;
-    equity: number;
-    id: string;
-  }> = [];
   if (pnlTrades.length > 0) {
     equityCurve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits });
   } else {
@@ -248,7 +237,6 @@ function Dashboard() {
   for (const t of pnlTrades) {
     eqRun += t.pnl - t.fee;
     equityCurve.push({ t: t.time, eq: eqRun });
-    journal.push({ ...t, equity: eqRun });
   }
   // Reconcile last point with real wallet if there's drift (trade history may be paged).
   if (hasWallet && pnlTrades.length > 0 && Math.abs(equity - eqRun) > 0.01) {
@@ -282,6 +270,11 @@ function Dashboard() {
             <Link to="/pending-orders">
               <Button variant="ghost" size="sm">
                 <ListOrdered className="w-4 h-4 mr-2" /> Pending Orders
+              </Button>
+            </Link>
+            <Link to="/journal">
+              <Button variant="ghost" size="sm">
+                <BookOpen className="w-4 h-4 mr-2" /> Journal
               </Button>
             </Link>
             <Link to="/docs">
@@ -433,69 +426,6 @@ function Dashboard() {
         </Card>
 
 
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-mono tracking-wide">
-              TRADING JOURNAL
-            </CardTitle>
-            <span className="text-xs font-mono text-muted-foreground">
-              {journal.length} fills · Net {realizedPnl >= 0 ? "+" : ""}
-              {fmtINR(realizedPnl)} · Fees {fmtINR(feesTotal, 4)}
-            </span>
-          </CardHeader>
-          <CardContent>
-            {journal.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">
-                No trade fills yet. Once SharkExchange returns trade history,
-                every entry, exit, fee and running equity will appear here.
-              </p>
-            ) : (
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full text-xs font-mono">
-                  <thead className="text-muted-foreground sticky top-0 bg-background">
-                    <tr>
-                      <th className="text-left py-1.5">Time</th>
-                      <th className="text-left py-1.5">Symbol</th>
-                      <th className="text-left py-1.5">Side</th>
-                      <th className="text-right py-1.5">Qty</th>
-                      <th className="text-right py-1.5">Price</th>
-                      <th className="text-right py-1.5">Fee</th>
-                      <th className="text-right py-1.5">P&amp;L</th>
-                      <th className="text-right py-1.5">Equity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...journal].reverse().map((j, i) => (
-                      <tr
-                        key={j.id || `${j.time}-${i}`}
-                        className="border-t border-border"
-                      >
-                        <td className="py-1.5 text-muted-foreground whitespace-nowrap">
-                          {new Date(j.time).toLocaleString()}
-                        </td>
-                        <td>{j.symbol}</td>
-                        <td className={j.side === "BUY" ? "text-long" : "text-short"}>
-                          {j.side || "—"}
-                        </td>
-                        <td className="text-right">
-                          {j.qty.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                        </td>
-                        <td className="text-right">
-                          {j.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                        </td>
-                        <td className="text-right text-short">{fmtINR(j.fee, 4)}</td>
-                        <td className={`text-right ${j.pnl > 0 ? "text-long" : j.pnl < 0 ? "text-short" : ""}`}>
-                          {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtINR(j.pnl)}`}
-                        </td>
-                        <td className="text-right">{fmtINR(j.equity)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="pb-2">

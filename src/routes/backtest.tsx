@@ -27,6 +27,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
+import { BacktestAnalytics } from "@/components/backtest-analytics";
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,

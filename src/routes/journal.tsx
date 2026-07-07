@@ -177,24 +177,27 @@ function JournalPage() {
 
     const USD_INR = 102;
     let eqRun = netDeposits;
-    const curve: Array<{ t: number; eq: number }> = [];
+    const curve: Array<{ t: number; eq: number; i: number }> = [];
     const all: Array<{
       time: number; symbol: string; side: string; qty: number;
       price: number; fee: number; pnl: number; net: number; equity: number; id: string;
     }> = [];
-    if (pnlTrades.length > 0) curve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits });
+    if (pnlTrades.length > 0) curve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits, i: 0 });
     else {
-      curve.push({ t: Date.now() - 86_400_000, eq: netDeposits });
-      curve.push({ t: Date.now(), eq: equity });
+      curve.push({ t: Date.now() - 86_400_000, eq: netDeposits, i: 0 });
+      curve.push({ t: Date.now(), eq: equity, i: 1 });
     }
+    let idx = 1;
     for (const t of pnlTrades) {
       eqRun += t.net * USD_INR;
-      curve.push({ t: t.time, eq: eqRun });
+      curve.push({ t: t.time, eq: eqRun, i: idx });
       all.push({ ...t, equity: eqRun });
+      idx += 1;
     }
     if (hasWallet && pnlTrades.length > 0 && Math.abs(equity - eqRun) > 0.01) {
-      curve.push({ t: Date.now(), eq: equity });
+      curve.push({ t: Date.now(), eq: equity, i: idx });
     }
+
 
     const symbolSet = new Set<string>(all.map((a) => a.symbol));
 

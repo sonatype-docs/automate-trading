@@ -1453,6 +1453,25 @@ function HourSweepPanel({
               ))}
             </div>
 
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono tracking-widest text-muted-foreground">COHORT:</span>
+              <select
+                value={cohortDim}
+                onChange={(e) => setCohortDim(e.target.value as "none" | CohortDimKey)}
+                className="h-7 rounded border border-input bg-background px-2 font-mono text-[11px]"
+              >
+                <option value="none">Overall</option>
+                {(Object.keys(COHORT_DIM_LABELS) as CohortDimKey[]).map((k) => (
+                  <option key={k} value={k}>{COHORT_DIM_LABELS[k]}</option>
+                ))}
+              </select>
+              {cohortDim !== "none" && (
+                <span className="text-[10px] text-muted-foreground">
+                  Best bucket per hour (by $ P&amp;L within that hour's slice).
+                </span>
+              )}
+            </div>
+
             <div className="overflow-x-auto border border-border rounded">
               <table className="w-full font-mono text-[11px]">
                 <thead className="bg-muted/40 text-muted-foreground">
@@ -1464,6 +1483,9 @@ function HourSweepPanel({
                     <th className="text-right px-2 py-1.5">Max DD</th>
                     <th className="text-right px-2 py-1.5">PF</th>
                     <th className="text-right px-2 py-1.5">Avg R</th>
+                    {cohortDim !== "none" && (
+                      <th className="text-left px-2 py-1.5">Best {COHORT_DIM_LABELS[cohortDim]}</th>
+                    )}
                     <th className="text-left px-2 py-1.5">Best day</th>
                     <th className="text-left px-2 py-1.5">Worst day</th>
                   </tr>

@@ -512,6 +512,8 @@ export function simulateFromKlines(
     let peakR = 0;
     // Track how close price got to the entry for missed setups.
     let closestDist = Infinity;
+    // MAE tracking (after trigger): worst adverse extreme in R units.
+    let adverseExtreme: number | null = null;
     // Track whether price reached the swing-side / opposite-side references after trigger.
     let reachedSwing = false;
     let reachedOpposite = false;

@@ -1091,6 +1091,8 @@ function StrategyCard() {
         trail_activate_r?: number;
         trail_step_r?: number;
         skip_weekends?: boolean;
+        entry_depth_pct?: number;
+        sl_depth_pct?: number;
       }
     | null
     | undefined;

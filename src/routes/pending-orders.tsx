@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import type { OpenOrderRow } from "@/lib/exchange/shark-client.server";
+type Row = Omit<OpenOrderRow, "raw">;
 import { getPendingSharkOrders } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

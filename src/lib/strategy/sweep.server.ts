@@ -3,8 +3,10 @@ import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
 import { needsDailyBias } from "@/lib/strategy/filters";
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
+import type { EntryMode } from "@/lib/strategy/entry-modes.server";
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
 
 export interface HourStat {
   hour: string; // "HH:00"

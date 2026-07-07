@@ -266,7 +266,7 @@ export async function runEntryZoneSweep(opts: {
     }
   }
 
-  return {
+  const result = {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
     days: opts.days,
@@ -278,5 +278,6 @@ export async function runEntryZoneSweep(opts: {
     cells,
     generated_at: now,
   };
+  return JSON.parse(JSON.stringify(result, (_k, v) => (typeof v === "number" && !Number.isFinite(v) ? 0 : v)));
 }
 

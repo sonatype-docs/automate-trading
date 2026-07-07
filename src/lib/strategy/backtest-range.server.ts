@@ -554,5 +554,6 @@ export function simulateFromKlines(
       max_consec_wins: maxWin,
       max_consec_losses: maxLoss,
     },
+    filters: opts.filters,
   };
 }

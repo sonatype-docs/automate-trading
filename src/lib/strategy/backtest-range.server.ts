@@ -623,7 +623,14 @@ export function simulateFromKlines(
       max_drawdown_usd: maxDd,
       max_consec_wins: maxWin,
       max_consec_losses: maxLoss,
+      fill_rate_pct: fillRatePct,
+      median_miss_r: medianMissR,
+      near_miss_count: nearMissCount,
+      est_fees_usd: estFees,
+      net_pnl_usd: netPnl,
     },
     filters: opts.filters,
+    entry: entryCfg,
   };
 }
+

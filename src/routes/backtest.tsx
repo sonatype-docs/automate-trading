@@ -3254,3 +3254,320 @@ function LiquiditySweepPanel(props: {
   );
 }
 
+
+
+// ------------------------------------------------------------------
+// ICT Silver Bullet — NY AM kill zone.
+// Detects Market Structure Shift + Fair Value Gap retest inside a
+// configurable IST window (default 19:00–21:00 IST, ~NY AM kill zone).
+// ------------------------------------------------------------------
+
+type SilverBulletData = Awaited<ReturnType<typeof backtestSilverBullet>>;
+
+interface SbFormState {
+  windowStartIst: string;
+  windowEndIst: string;
+  holdCutoffIst: string;
+  swingLookback: number;
+  fvgMinUsd: number;
+  slBufferUsd: number;
+  rr: number;
+  maxTradesPerDay: number;
+  executionTf: "3m" | "5m" | "15m";
+}
+
+const SB_PRESETS: { label: string; hint: string; cfg: Partial<SbFormState> }[] = [
+  {
+    label: "NY AM (19:00–21:00)",
+    hint: "Classic ICT NY AM kill zone in IST",
+    cfg: { windowStartIst: "19:00", windowEndIst: "21:00", holdCutoffIst: "23:00" },
+  },
+  {
+    label: "NY AM tight (19:30–20:30)",
+    hint: "Purist Silver Bullet 10:00–11:00 NY",
+    cfg: { windowStartIst: "19:30", windowEndIst: "20:30", holdCutoffIst: "22:30" },
+  },
+  {
+    label: "London AM (13:30–15:30)",
+    hint: "London Silver Bullet 03:00–04:00 NY / 08:00–09:00 UK",
+    cfg: { windowStartIst: "13:30", windowEndIst: "15:30", holdCutoffIst: "18:00" },
+  },
+  {
+    label: "NY PM (00:30–02:30)",
+    hint: "Silver Bullet PM 14:00–15:00 NY (next-day IST)",
+    cfg: { windowStartIst: "00:30", windowEndIst: "02:30", holdCutoffIst: "05:00" },
+  },
+];
+
+function SilverBulletPanel(props: {
+  defaults: {
+    symbol: string;
+    days: number;
+    slRiskUsd: number;
+    rr: number;
+    skipWeekdays: number[];
+  };
+}) {
+  const runSb = useServerFn(backtestSilverBullet);
+  const [cfg, setCfg] = useState<SbFormState>({
+    windowStartIst: "19:00",
+    windowEndIst: "21:00",
+    holdCutoffIst: "23:00",
+    swingLookback: 20,
+    fvgMinUsd: 0.3,
+    slBufferUsd: 0.2,
+    rr: Math.max(props.defaults.rr, 2),
+    maxTradesPerDay: 1,
+    executionTf: "5m",
+  });
+  const [data, setData] = useState<SilverBulletData | null>(null);
+  const setK = <K extends keyof SbFormState>(k: K, v: SbFormState[K]) =>
+    setCfg((c) => ({ ...c, [k]: v }));
+
+  const mut = useMutation({
+    mutationFn: () =>
+      runSb({
+        data: {
+          symbol: props.defaults.symbol,
+          days: props.defaults.days,
+          sl_risk_usd: props.defaults.slRiskUsd,
+          rr: cfg.rr,
+          window_start_ist: cfg.windowStartIst,
+          window_end_ist: cfg.windowEndIst,
+          hold_cutoff_ist: cfg.holdCutoffIst,
+          swing_lookback: cfg.swingLookback,
+          fvg_min_usd: cfg.fvgMinUsd,
+          sl_buffer_usd: cfg.slBufferUsd,
+          max_trades_per_day: cfg.maxTradesPerDay,
+          execution_tf: cfg.executionTf,
+          skip_weekdays: props.defaults.skipWeekdays,
+        },
+      }),
+    onSuccess: (r) => {
+      setData(r);
+      toast.success(
+        `Silver Bullet — ${r.summary.tp}W / ${r.summary.sl}L · net $${r.summary.total_pnl_usd.toFixed(0)}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const applyPreset = (p: Partial<SbFormState>) => setCfg((c) => ({ ...c, ...p }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">
+          ICT SILVER BULLET
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Inside the kill-zone window: detect a Market Structure Shift, find
+          the 3-bar Fair Value Gap in the impulse, arm a limit entry at the
+          FVG edge with SL beyond the swing extreme and TP at your R multiple.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Presets
+          </Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {SB_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyPreset(p.cfg)}
+                title={p.hint}
+                className="px-2 py-1 rounded border border-input bg-background hover:bg-secondary text-[11px] font-mono text-muted-foreground hover:text-foreground"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Field label="Window start (IST)">
+            <Input
+              value={cfg.windowStartIst}
+              onChange={(e) => setK("windowStartIst", e.target.value)}
+              className="h-8 font-mono text-xs"
+              placeholder="19:00"
+            />
+          </Field>
+          <Field label="Window end (IST)">
+            <Input
+              value={cfg.windowEndIst}
+              onChange={(e) => setK("windowEndIst", e.target.value)}
+              className="h-8 font-mono text-xs"
+              placeholder="21:00"
+            />
+          </Field>
+          <Field label="Hold cutoff (IST)">
+            <Input
+              value={cfg.holdCutoffIst}
+              onChange={(e) => setK("holdCutoffIst", e.target.value)}
+              className="h-8 font-mono text-xs"
+              placeholder="23:00"
+            />
+          </Field>
+          <Field label="Execution TF">
+            <select
+              value={cfg.executionTf}
+              onChange={(e) => setK("executionTf", e.target.value as SbFormState["executionTf"])}
+              className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+            >
+              <option value="3m">3m</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+            </select>
+          </Field>
+
+          <Field label="Swing lookback (bars)">
+            <Input
+              type="number"
+              min={5}
+              max={100}
+              value={cfg.swingLookback}
+              onChange={(e) => setK("swingLookback", Math.max(5, Math.min(100, Number(e.target.value) || 20)))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Min FVG size ($)">
+            <Input
+              type="number"
+              min={0}
+              step="0.05"
+              value={cfg.fvgMinUsd}
+              onChange={(e) => setK("fvgMinUsd", Math.max(0, Number(e.target.value) || 0))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="SL buffer ($)">
+            <Input
+              type="number"
+              min={0}
+              step="0.05"
+              value={cfg.slBufferUsd}
+              onChange={(e) => setK("slBufferUsd", Math.max(0, Number(e.target.value) || 0))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="RR (1 : X)">
+            <Input
+              type="number"
+              min={0.5}
+              step="0.5"
+              value={cfg.rr}
+              onChange={(e) => setK("rr", Math.max(0.5, Number(e.target.value) || 0.5))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Max trades / day">
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              value={cfg.maxTradesPerDay}
+              onChange={(e) => setK("maxTradesPerDay", Math.max(1, Math.min(5, Number(e.target.value) || 1)))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1" />
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars
+          </div>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
+            {mut.isPending ? "Running…" : "Run Silver Bullet backtest"}
+          </Button>
+        </div>
+
+        {data && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono">
+              <Kv k="active days" v={`${data.summary.active_days} / ${data.summary.total_days}`} />
+              <Kv k="setups" v={String(data.summary.trades)} />
+              <Kv k="fills" v={`${data.summary.triggered} (${data.summary.fill_rate_pct.toFixed(0)}%)`} />
+              <Kv k="W / L / open" v={`${data.summary.tp} / ${data.summary.sl} / ${data.summary.open}`} />
+              <Kv k="win rate" v={`${data.summary.win_rate_pct.toFixed(1)}%`} />
+              <Kv k="profit factor" v={Number.isFinite(data.summary.profit_factor) ? data.summary.profit_factor.toFixed(2) : "∞"} />
+              <Kv k="expectancy $" v={`${data.summary.expectancy_usd >= 0 ? "+" : ""}${data.summary.expectancy_usd.toFixed(2)}`} />
+              <Kv k="avg R" v={`${data.summary.avg_r >= 0 ? "+" : ""}${data.summary.avg_r.toFixed(2)}`} />
+              <Kv k="net P&L" v={`${data.summary.total_pnl_usd >= 0 ? "+" : ""}$${data.summary.total_pnl_usd.toFixed(0)}`} />
+              <Kv k="max DD" v={`-$${data.summary.max_drawdown_usd.toFixed(0)}`} />
+              <Kv k="consec W / L" v={`${data.summary.max_consec_wins} / ${data.summary.max_consec_losses}`} />
+              <Kv k="bars scanned" v={String(data.bars_scanned)} />
+            </div>
+
+            {data.equity.length > 1 && (
+              <div className="h-40 w-full">
+                <ResponsiveContainer>
+                  <LineChart data={data.equity}>
+                    <XAxis dataKey="ist_date" tick={{ fontSize: 10 }} minTickGap={40} />
+                    <YAxis tick={{ fontSize: 10 }} width={48} />
+                    <ReTooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11 }}
+                    />
+                    <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                    <Line type="monotone" dataKey="cum_pnl_usd" stroke="hsl(var(--primary))" dot={false} strokeWidth={1.5} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {(data.summary.mae_wins || data.summary.mae_losses) && (
+              <div className="rounded border border-border p-3 text-[11px] font-mono">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+                  MAE distribution (R units)
+                </div>
+                <table className="w-full">
+                  <thead className="text-muted-foreground">
+                    <tr>
+                      <th className="text-left py-1">Cohort</th>
+                      <th className="text-right py-1">n</th>
+                      <th className="text-right py-1">avg</th>
+                      <th className="text-right py-1">p50</th>
+                      <th className="text-right py-1">p75</th>
+                      <th className="text-right py-1">p90</th>
+                      <th className="text-right py-1">p95</th>
+                      <th className="text-right py-1">max</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.summary.mae_wins && (
+                      <tr className="border-t border-border">
+                        <td className="py-1 text-emerald-400">wins</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.count}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.avg.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p50.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p75.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p90.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p95.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.max.toFixed(2)}</td>
+                      </tr>
+                    )}
+                    {data.summary.mae_losses && (
+                      <tr className="border-t border-border">
+                        <td className="py-1 text-red-400">losses</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.count}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.avg.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p50.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p75.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p90.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p95.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.max.toFixed(2)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

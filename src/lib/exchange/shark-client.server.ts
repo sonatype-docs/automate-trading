@@ -58,6 +58,9 @@ export interface Kline {
 
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
+  cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
+  getOpenOrderIds(symbol?: string): Promise<string[]>;
+  getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
   getKlines(

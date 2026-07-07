@@ -1221,22 +1221,17 @@ function StrategyCard() {
           onSave={(patch) => trailSaveMut.mutate(patch)}
           saving={trailSaveMut.isPending}
         />
-        <div className="border border-border rounded p-3 font-mono text-xs bg-muted/30 flex items-center justify-between gap-3">
-          <div>
-            <div className="tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Prior-day pending (armed) orders auto-cancel at {s?.session_start_ist?.slice(0, 5) ?? "05:30"} IST when the new session opens.
-            </p>
-          </div>
-          <label className="flex items-center gap-2">
-            <span className="text-muted-foreground">Skip Sunday (live)</span>
-            <Switch
-              checked={!!s?.skip_weekends}
-              disabled={trailSaveMut.isPending}
-              onCheckedChange={(v) => trailSaveMut.mutate({ skip_weekends: v })}
-            />
-          </label>
-        </div>
+        <LiveSessionRulesEditor
+          settings={{
+            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+            sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+            rr: Number(s?.rr ?? 2),
+            skip_weekends: !!s?.skip_weekends,
+          }}
+          onSave={(patch) => trailSaveMut.mutate(patch)}
+          saving={trailSaveMut.isPending}
+        />
+
 
 
 

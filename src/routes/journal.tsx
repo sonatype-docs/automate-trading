@@ -105,6 +105,9 @@ function JournalPage() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [closingOnly, setClosingOnly] = useState(false);
+  const [chartRange, setChartRange] = useState<"7D" | "30D" | "90D" | "ALL">("30D");
+  const [chartAxis, setChartAxis] = useState<"time" | "trade">("time");
+
 
   const snap = (acctQ.data?.snapshot ?? null) as Snap | null;
 

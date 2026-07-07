@@ -175,6 +175,7 @@ function JournalPage() {
     const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
     const todaysPnl = pnlTrades.filter((t) => t.time >= dayStart.getTime()).reduce((s, t) => s + t.net, 0);
 
+    const USD_INR = 102;
     let eqRun = netDeposits;
     const curve: Array<{ t: number; eq: number }> = [];
     const all: Array<{
@@ -187,7 +188,7 @@ function JournalPage() {
       curve.push({ t: Date.now(), eq: equity });
     }
     for (const t of pnlTrades) {
-      eqRun += t.net;
+      eqRun += t.net * USD_INR;
       curve.push({ t: t.time, eq: eqRun });
       all.push({ ...t, equity: eqRun });
     }
@@ -288,8 +289,16 @@ function JournalPage() {
           <CardContent className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={equityCurve}>
-                <XAxis dataKey="t" tickFormatter={(t) => new Date(t).toLocaleDateString("en-IN")} fontSize={10} />
-                <YAxis fontSize={10} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <XAxis
+                  dataKey="t"
+                  type="number"
+                  scale="time"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={(t) => new Date(t).toLocaleDateString("en-IN")}
+                  minTickGap={40}
+                  fontSize={10}
+                />
+                <YAxis fontSize={10} domain={["auto", "auto"]} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                 <ReTooltip
                   labelFormatter={(t) => new Date(Number(t)).toLocaleString("en-IN", { hour12: false })}
                   formatter={(v: number) => [fmtINR(v), "Equity"]}

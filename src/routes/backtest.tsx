@@ -3391,7 +3391,11 @@ function SilverBulletPanel(props: {
           sl_buffer_usd: cfg.slBufferUsd,
           max_trades_per_day: cfg.maxTradesPerDay,
           execution_tf: cfg.executionTf,
-          skip_weekdays: props.defaults.skipWeekdays,
+          skip_weekdays: Array.from(new Set([
+            ...props.defaults.skipWeekdays.filter((d) => d !== 0 && d !== 6),
+            ...(skipSat ? [6] : []),
+            ...(skipSun ? [0] : []),
+          ])).sort(),
         },
       }),
     onSuccess: (r) => {

@@ -77,13 +77,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Shark Auto-Trader — Automated TradingView execution" },
-      { name: "description", content: "Automated trading bot for SharkExchange with TradingView webhook alerts, kill switch, risk controls, and paper mode." },
+      { title: "Dashboard — Shark Auto-Trader" },
+      { name: "description", content: "Live trading control panel." },
       { name: "author", content: "Shark Auto-Trader" },
-      { property: "og:title", content: "Shark Auto-Trader" },
-      { property: "og:description", content: "Automated trading on SharkExchange from TradingView alerts." },
+      { property: "og:title", content: "Dashboard — Shark Auto-Trader" },
+      { property: "og:description", content: "Live trading control panel." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Dashboard — Shark Auto-Trader" },
+      { name: "twitter:description", content: "Live trading control panel." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9e1022da-fd77-46bc-9a82-0a19523ec4b1/id-preview-328e44d5--f6916707-ee15-4ce9-9999-1beab6542aaa.lovable.app-1783393512818.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9e1022da-fd77-46bc-9a82-0a19523ec4b1/id-preview-328e44d5--f6916707-ee15-4ce9-9999-1beab6542aaa.lovable.app-1783393512818.png" },
     ],
     links: [
       {

@@ -2994,6 +2994,8 @@ function LiquiditySweepPanel(props: {
     requireCloseInside: true,
   });
   const [days, setDays] = useState<number>(props.defaults.days);
+  const [skipSat, setSkipSat] = useState<boolean>(props.defaults.skipWeekdays.includes(6));
+  const [skipSun, setSkipSun] = useState<boolean>(props.defaults.skipWeekdays.includes(0));
 
   const [data, setData] = useState<LiquiditySweepData | null>(null);
 

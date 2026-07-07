@@ -1147,17 +1147,6 @@ function StrategyCard() {
           <SessionTimeline />
         </CollapsibleSection>
 
-
-
-
-
-
-
-
-
-
-
-
         {session ? (() => {
           const eDepth = s?.entry_depth_pct ?? 0.15;
           const slDepth = s?.sl_depth_pct ?? 0.60;

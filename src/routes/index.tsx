@@ -37,7 +37,9 @@ import {
   Shield,
   BookOpen,
   Beaker,
+  ChevronDown,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   LineChart,
   Line,
@@ -1219,32 +1221,38 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <TrailingSlControls
-          saved={{
-            enabled: !!s?.trail_enabled,
-            activateR: Number(s?.trail_activate_r ?? 2),
-            stepR: Number(s?.trail_step_r ?? 1),
-          }}
-          override={trailOverride}
-          onOverrideChange={setTrailOverride}
-          onSave={(patch) => trailSaveMut.mutate(patch)}
-          saving={trailSaveMut.isPending}
-        />
-        <LiveSessionRulesEditor
-          settings={{
-            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
-            sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
-            rr: Number(s?.rr ?? 2),
-            skip_weekends: !!s?.skip_weekends,
-          }}
-          onSave={(patch) => trailSaveMut.mutate(patch)}
-          saving={trailSaveMut.isPending}
-        />
-        <StrategyPresetsCard
-          currentSymbol={s?.symbol ?? "XAUUSDT"}
-          currentSl={Number(s?.sl_risk_usd ?? 25)}
-          currentRr={Number(s?.rr ?? 2)}
-        />
+        <CollapsibleSection title="Trailing SL" defaultOpen>
+          <TrailingSlControls
+            saved={{
+              enabled: !!s?.trail_enabled,
+              activateR: Number(s?.trail_activate_r ?? 2),
+              stepR: Number(s?.trail_step_r ?? 1),
+            }}
+            override={trailOverride}
+            onOverrideChange={setTrailOverride}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
+        <CollapsibleSection title="Live Session Rules" defaultOpen>
+          <LiveSessionRulesEditor
+            settings={{
+              session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+              sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+              rr: Number(s?.rr ?? 2),
+              skip_weekends: !!s?.skip_weekends,
+            }}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
+        <CollapsibleSection title="Strategy Presets" defaultOpen={false}>
+          <StrategyPresetsCard
+            currentSymbol={s?.symbol ?? "XAUUSDT"}
+            currentSl={Number(s?.sl_risk_usd ?? 25)}
+            currentRr={Number(s?.rr ?? 2)}
+          />
+        </CollapsibleSection>
 
 
 
@@ -1322,6 +1330,29 @@ function ZoneCell({ label, value, highlight }: { label: string; value: number; h
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="text-sm">{value.toFixed(2)}</div>
     </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded">
+      <CollapsibleTrigger className="w-full flex items-center justify-between px-3 py-2 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-foreground transition-colors">
+        <span>{title.toUpperCase()}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-3 pt-1">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 

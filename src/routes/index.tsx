@@ -9,6 +9,7 @@ import {
 } from "@/lib/trading.functions";
 import {
   getStrategyState,
+  getStrategyTimeline,
   runStrategyTickNow,
   updateStrategySettings,
   listStrategyPresets,
@@ -1253,6 +1254,9 @@ function StrategyCard() {
             currentRr={Number(s?.rr ?? 2)}
           />
         </CollapsibleSection>
+        <CollapsibleSection title="Session Timeline" defaultOpen>
+          <SessionTimeline />
+        </CollapsibleSection>
 
 
 
@@ -1329,6 +1333,171 @@ function ZoneCell({ label, value, highlight }: { label: string; value: number; h
     <div className={`border rounded px-2 py-1.5 ${highlight ? "border-primary bg-primary/5" : "border-border"}`}>
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="text-sm">{value.toFixed(2)}</div>
+    </div>
+  );
+}
+
+type TimelineEvent = {
+  at: string; // ISO
+  kind: "session" | "break" | "armed" | "pending" | "triggered" | "closed" | "expired" | "cancelled";
+  title: string;
+  detail?: string;
+  tone: "muted" | "info" | "warn" | "long" | "short" | "success" | "error";
+};
+
+function fmtIst(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+}
+
+function SessionTimeline() {
+  const getTimeline = useServerFn(getStrategyTimeline);
+  const q = useQuery({
+    queryKey: ["strategy-timeline"],
+    queryFn: () => getTimeline(),
+    refetchInterval: 30_000,
+  });
+
+  if (q.isLoading) {
+    return <div className="text-xs text-muted-foreground font-mono">Loading…</div>;
+  }
+  if (!q.data?.session) {
+    return (
+      <div className="text-xs text-muted-foreground font-mono">
+        No session yet. Timeline will populate once today's zone candle closes.
+      </div>
+    );
+  }
+
+  const { session, setups, orders } = q.data;
+  const orderById = new Map(orders.map((o) => [o.id, o]));
+  const events: TimelineEvent[] = [];
+
+  events.push({
+    at: (session as { created_at: string }).created_at,
+    kind: "session",
+    title: `Zone set · ${session.zone_low.toFixed(2)} – ${session.zone_high.toFixed(2)}`,
+    detail: `fib 0.25 ${session.fib_25.toFixed(2)} · fib 0.75 ${session.fib_75.toFixed(2)}`,
+    tone: "info",
+  });
+
+  if (session.break_side && session.break_detected_at) {
+    events.push({
+      at: session.break_detected_at,
+      kind: "break",
+      title: `Break ${session.break_side.toUpperCase()} @ ${Number(session.break_close_price ?? 0).toFixed(2)}`,
+      detail: `1H candle close · ${fmtIst(session.break_detected_at)} IST`,
+      tone: session.break_side === "long" ? "long" : "short",
+    });
+  }
+
+  for (const st of setups) {
+    events.push({
+      at: st.created_at,
+      kind: "armed",
+      title: `Armed ${st.side.toUpperCase()}`,
+      detail: `entry ${st.entry_price.toFixed(2)} · sl ${st.sl_price.toFixed(2)} · tp ${st.tp_price.toFixed(2)} · qty ${st.qty.toFixed(4)}`,
+      tone: "warn",
+    });
+    if (st.exchange_order_id) {
+      events.push({
+        at: st.created_at,
+        kind: "pending",
+        title: `LIMIT sent to exchange`,
+        detail: `order_id ${st.exchange_order_id}`,
+        tone: "info",
+      });
+    }
+    if (st.filled_at && (st.status === "triggered" || st.status === "closed")) {
+      const ord = st.order_id ? orderById.get(st.order_id) : null;
+      const fp = ord?.filled_price != null ? Number(ord.filled_price).toFixed(2) : st.entry_price.toFixed(2);
+      events.push({
+        at: st.filled_at,
+        kind: "triggered",
+        title: `Filled ${st.side.toUpperCase()} @ ${fp}`,
+        detail: ord?.exchange_order_id
+          ? `order_id ${ord.exchange_order_id} · ${ord.order_type ?? "limit"}`
+          : st.exchange_order_id
+            ? `order_id ${st.exchange_order_id}`
+            : "paper fill",
+        tone: "success",
+      });
+    }
+    if (st.closed_at && st.status === "closed") {
+      const pnl = st.pnl_usd == null ? "—" : `${Number(st.pnl_usd) >= 0 ? "+" : ""}${Number(st.pnl_usd).toFixed(2)}`;
+      events.push({
+        at: st.closed_at,
+        kind: "closed",
+        title: `Closed · ${(st.close_reason ?? "").toUpperCase() || "—"}`,
+        detail: `pnl ${pnl}`,
+        tone: Number(st.pnl_usd ?? 0) >= 0 ? "success" : "error",
+      });
+    }
+    if (st.status === "expired") {
+      events.push({
+        at: st.updated_at,
+        kind: "expired",
+        title: `Expired ${st.side.toUpperCase()}`,
+        detail: st.exchange_order_id ? `cancelled on exchange · ${st.exchange_order_id}` : undefined,
+        tone: "muted",
+      });
+    }
+    if (st.status === "cancelled") {
+      events.push({
+        at: st.updated_at,
+        kind: "cancelled",
+        title: `Cancelled ${st.side.toUpperCase()}`,
+        tone: "error",
+      });
+    }
+  }
+
+  events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+  const toneCls: Record<TimelineEvent["tone"], string> = {
+    muted: "bg-muted-foreground",
+    info: "bg-primary",
+    warn: "bg-warning",
+    long: "bg-long",
+    short: "bg-short",
+    success: "bg-long",
+    error: "bg-destructive",
+  };
+
+  return (
+    <div className="font-mono text-xs">
+      <div className="flex items-center justify-between mb-2 text-[10px] tracking-widest text-muted-foreground">
+        <span>SESSION {session.ist_date}</span>
+        <button
+          className="hover:text-foreground"
+          onClick={() => q.refetch()}
+          disabled={q.isFetching}
+        >
+          {q.isFetching ? "refreshing…" : "refresh"}
+        </button>
+      </div>
+      {events.length === 0 ? (
+        <div className="text-muted-foreground">No events yet.</div>
+      ) : (
+        <ol className="relative border-l border-border ml-2 space-y-3">
+          {events.map((e, i) => (
+            <li key={i} className="pl-4 relative">
+              <span
+                className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-background ${toneCls[e.tone]}`}
+              />
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-foreground">{e.title}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {fmtIst(e.at)}
+                </span>
+              </div>
+              {e.detail && (
+                <div className="text-[10px] text-muted-foreground break-all">{e.detail}</div>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

@@ -1673,14 +1673,12 @@ function EntryZoneGridPanel(props: {
   const run = useServerFn(runEntryZoneSweep);
   const [days, setDays] = useState(90);
   const [modes, setModes] = useState<Array<"fib" | "retest" | "market" | "adaptive">>(["fib"]);
-  const DEPTH_STEPS = Array.from({ length: 20 }, (_, i) => Number(((i + 1) * 0.05).toFixed(2))); // 0.05..1.00
-  const [entryDepths, setEntryDepths] = useState<number[]>([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.5]);
-  const [slDepths, setSlDepths] = useState<number[]>([0.5, 0.75, 1.0]);
+  const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
+  const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
   const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
 
-  const toggleDepth = (list: number[], set: (v: number[]) => void, v: number) =>
-    set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v].sort((a, b) => a - b));
-
+  const parseList = (s: string) =>
+    s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
 
   const mut = useMutation({
     mutationFn: () =>
@@ -1691,8 +1689,8 @@ function EntryZoneGridPanel(props: {
           session_start_ist: props.defaults.sessionStartIst,
           sl_risk_usd: props.defaults.slRiskUsd,
           rr: props.defaults.rr,
-          entry_depths: entryDepths,
-          sl_depths: slDepths,
+          entry_depths: parseList(entryDepthsStr),
+          sl_depths: parseList(slDepthsStr),
           modes,
           trail_enabled: props.defaults.trailEnabled,
           trail_activate_r: props.defaults.trailActivateR,
@@ -1767,49 +1765,16 @@ function EntryZoneGridPanel(props: {
           </div>
           <div className="md:col-span-2 space-y-1">
             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Entry depths ({entryDepths.length})
+              Entry depths (0–0.5)
             </Label>
-            <div className="flex flex-wrap gap-1">
-              {DEPTH_STEPS.map((v) => {
-                const on = entryDepths.includes(v);
-                return (
-                  <button
-                    key={`e-${v}`}
-                    type="button"
-                    onClick={() => toggleDepth(entryDepths, setEntryDepths, v)}
-                    className={`px-2 h-6 rounded font-mono text-[10px] border ${
-                      on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {v.toFixed(2)}
-                  </button>
-                );
-              })}
-            </div>
+            <Input value={entryDepthsStr} onChange={(e) => setEntryDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
           </div>
           <div className="md:col-span-2 space-y-1">
             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              SL depths ({slDepths.length})
+              SL depths (0.1–1.0)
             </Label>
-            <div className="flex flex-wrap gap-1">
-              {DEPTH_STEPS.map((v) => {
-                const on = slDepths.includes(v);
-                return (
-                  <button
-                    key={`s-${v}`}
-                    type="button"
-                    onClick={() => toggleDepth(slDepths, setSlDepths, v)}
-                    className={`px-2 h-6 rounded font-mono text-[10px] border ${
-                      on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {v.toFixed(2)}
-                  </button>
-                );
-              })}
-            </div>
+            <Input value={slDepthsStr} onChange={(e) => setSlDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
           </div>
-
         </div>
         <div>
           <Button size="sm" disabled={mut.isPending || modes.length === 0} onClick={() => mut.mutate()}>

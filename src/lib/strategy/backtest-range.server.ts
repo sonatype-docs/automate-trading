@@ -450,6 +450,21 @@ export function simulateFromKlines(
       if (htf.daily_ema_enabled) vote(biasEntry?.ema ?? null);
       if (htf.prev_day_close_enabled) vote(biasEntry?.prev_close ?? null);
       if (htf.weekly_open_enabled) vote(biasEntry?.week_open ?? null);
+      if (htf.ema_bias_enabled) {
+        const mode = htf.ema_bias_mode ?? "gate_by_slow";
+        if (mode === "gate_by_slow") {
+          vote(biasEntry?.ema_slow ?? null);
+        } else {
+          // gate_by_cross — fast vs slow determines the allowed direction.
+          const f = biasEntry?.ema_fast ?? null;
+          const s = biasEntry?.ema_slow ?? null;
+          if (f !== null && s !== null) {
+            if (f > s) votes.push("long");
+            else if (f < s) votes.push("short");
+          }
+        }
+      }
+
       if (votes.length > 0) {
         const unique = new Set(votes);
         allowedSide = unique.size === 1 ? votes[0] : "none";

@@ -418,6 +418,17 @@ function BacktestLab() {
               }}
             />
 
+            <SilverBulletPanel
+              defaults={{
+                symbol: form.symbol,
+                days: form.days,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
+
 
             {result && <ResultsView data={result} />}
 

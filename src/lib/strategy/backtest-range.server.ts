@@ -590,6 +590,10 @@ export function simulateFromKlines(
     }
     dr.final_sl = dynSl;
     dr.peak_r = peakR;
+    if (triggered && adverseExtreme !== null && risk > 0) {
+      const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
+      dr.mae_r = Math.max(0, adverseR);
+    }
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }

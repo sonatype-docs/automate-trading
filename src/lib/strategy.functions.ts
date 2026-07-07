@@ -175,9 +175,14 @@ export const applyStrategyPreset = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .single();
     if (pErr || !preset) throw new Error(pErr?.message ?? "Preset not found");
-    const patch: Record<string, unknown> = {
-      sl_risk_usd: preset.sl_risk_usd,
-      rr: preset.rr,
+    const patch: {
+      sl_risk_usd: number;
+      rr: number;
+      updated_at: string;
+      symbol?: string;
+    } = {
+      sl_risk_usd: Number(preset.sl_risk_usd),
+      rr: Number(preset.rr),
       updated_at: new Date().toISOString(),
     };
     if (preset.symbol) patch.symbol = preset.symbol;
@@ -187,6 +192,7 @@ export const applyStrategyPreset = createServerFn({ method: "POST" })
       .eq("id", true)
       .select()
       .single();
+
     if (error) throw new Error(error.message);
     return row;
   });

@@ -1047,7 +1047,7 @@ function HourSweepPanel({
           trail_enabled: defaults.trailEnabled,
           trail_activate_r: defaults.trailActivateR,
           trail_step_r: defaults.trailStepR,
-          skip_weekdays: defaults.skipWeekdays,
+          skip_weekdays: skipWeekdays,
         },
       }),
     onSuccess: (r) => {

@@ -120,7 +120,7 @@ function Dashboard() {
     return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;
   }
 
-  const { settings, orders, positions, logs, events } = dashQ.data;
+  const { settings, orders, positions, logs } = dashQ.data;
 
   // Live metrics from SharkExchange account snapshot
   const snap = (acctQ.data?.snapshot ?? null) as Snap | null;

@@ -80,6 +80,110 @@ export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async 
   return repriceArmedSetupsNow();
 });
 
+// ------------------------------------------------------------------
+// Bot cockpit helpers — winning-preset apply, cancel today, flatten position.
+// ------------------------------------------------------------------
+
+export const ORB_WINNING_PRESET = {
+  enabled: true,
+  symbol: "XAUUSDT",
+  session_start_ist: "05:30",
+  entry_mode: "adaptive" as const,
+  entry_depth_pct: 0.15,
+  sl_depth_pct: 0.6,
+  adaptive_strong_break_pct: 30,
+  adaptive_shallow_depth: 0.1,
+  adaptive_deep_depth: 0.35,
+  retest_sl_r: 0.5,
+  rr: 2,
+  sl_risk_usd: 25,
+  trail_enabled: false,
+  skip_weekends: false,
+};
+
+export const applyOrbWinningPreset = createServerFn({ method: "POST" }).handler(async () => {
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("strategy_settings")
+    .update({ ...ORB_WINNING_PRESET, updated_at: new Date().toISOString() })
+    .eq("id", true)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+});
+
+function todayIstSessionDate(sessionStart: string): string {
+  const [hh, mm] = sessionStart.split(":").map(Number);
+  const istMs = Date.now() + 5.5 * 3600 * 1000;
+  const d = new Date(istMs);
+  const minutesOfDay = d.getUTCHours() * 60 + d.getUTCMinutes();
+  if (minutesOfDay < hh * 60 + mm) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).handler(async () => {
+  const supabase = await admin();
+  const { data: settings } = await supabase
+    .from("strategy_settings")
+    .select("session_start_ist")
+    .eq("id", true)
+    .single();
+  const sessionStart = String(settings?.session_start_ist ?? "05:30").slice(0, 5);
+  const istDateStr = todayIstSessionDate(sessionStart);
+
+  const { data: setups } = await supabase
+    .from("strategy_setups")
+    .select("id, exchange_order_id, symbol, side")
+    .eq("ist_date", istDateStr)
+    .eq("status", "armed");
+
+  if (!setups || setups.length === 0) return { cancelled: 0, results: [] as string[] };
+
+  const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+  const client = createSharkClient();
+  const results: string[] = [];
+  let cancelled = 0;
+  for (const s of setups) {
+    if (s.exchange_order_id) {
+      try {
+        const r = await client.cancelOrder(s.exchange_order_id, s.symbol);
+        results.push(`${s.side} ${s.exchange_order_id} → ${r.ok ? "ok" : `err ${r.status}`}`);
+      } catch (e) {
+        results.push(`${s.side} ${s.exchange_order_id} → threw ${(e as Error).message}`);
+      }
+    }
+    await supabase
+      .from("strategy_setups")
+      .update({ status: "cancelled", closed_at: new Date().toISOString(), close_reason: "manual_cancel" })
+      .eq("id", s.id);
+    cancelled += 1;
+  }
+  return { cancelled, results };
+});
+
+export const flattenSymbol = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({ symbol: z.string().min(3).max(24) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: pos } = await supabase
+      .from("positions")
+      .select("*")
+      .eq("symbol", data.symbol)
+      .maybeSingle();
+    if (!pos || Number(pos.qty) === 0) return { ok: true, message: "no open position" };
+    const qty = Math.abs(Number(pos.qty));
+    const side: "buy" | "sell" = Number(pos.qty) > 0 ? "sell" : "buy";
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    const res = await client.placeOrder({ symbol: data.symbol, side, qty, type: "market" });
+    return { ok: true, message: `market ${side} ${qty} — ${res.status}`, exchange_order_id: res.exchangeOrderId };
+  });
+
+
+
 
 export const getPendingSharkOrders = createServerFn({ method: "GET" }).handler(async () => {
   try {

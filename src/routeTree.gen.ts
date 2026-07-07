@@ -14,6 +14,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as BotRouteImport } from './routes/bot'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -43,6 +44,11 @@ const JournalRoute = JournalRouteImport.update({
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BotRoute = BotRouteImport.update({
+  id: '/bot',
+  path: '/bot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestRoute = BacktestRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/backtest': typeof BacktestRoute
+  '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/backtest': typeof BacktestRoute
+  '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/backtest': typeof BacktestRoute
+  '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/backtest'
+    | '/bot'
     | '/docs'
     | '/journal'
     | '/pending-orders'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/backtest'
+    | '/bot'
     | '/docs'
     | '/journal'
     | '/pending-orders'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/backtest'
+    | '/bot'
     | '/docs'
     | '/journal'
     | '/pending-orders'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   BacktestRoute: typeof BacktestRoute
+  BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
   JournalRoute: typeof JournalRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
@@ -199,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bot': {
+      id: '/bot'
+      path: '/bot'
+      fullPath: '/bot'
+      preLoaderRoute: typeof BotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/backtest': {
       id: '/backtest'
       path: '/backtest'
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   BacktestRoute: BacktestRoute,
+  BotRoute: BotRoute,
   DocsRoute: DocsRoute,
   JournalRoute: JournalRoute,
   PendingOrdersRoute: PendingOrdersRoute,

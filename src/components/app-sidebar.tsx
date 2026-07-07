@@ -8,6 +8,7 @@ import {
   FileText,
   Settings as SettingsIcon,
   Waves,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,9 +30,11 @@ const primary = [
 ];
 
 const trading = [
+  { title: "ORB Bot", url: "/bot", icon: Bot },
   { title: "Backtest", url: "/backtest", icon: Beaker },
   { title: "Pending Orders", url: "/pending-orders", icon: ListOrdered },
 ];
+
 
 const meta = [
   { title: "Docs", url: "/docs", icon: FileText },

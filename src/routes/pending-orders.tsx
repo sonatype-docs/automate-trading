@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useServerFn } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getPendingSharkOrders } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -137,14 +137,33 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
   // Expire leftover armed setups from previous IST session days. Runs first so
   // stale orders are cancelled the moment the new session date rolls (≈05:30 IST).
-  const { data: expiredRows } = await supabaseAdmin
+  // For live setups with a pending LIMIT on the exchange, cancel it there too.
+  const { data: staleSetupsRaw } = await supabaseAdmin
     .from("strategy_setups")
-    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .select("id, exchange_order_id, symbol")
     .lt("ist_date", todayIst)
-    .eq("status", "armed")
-    .select("id");
-  if (expiredRows && expiredRows.length > 0) {
-    actions.push(`expired_prev_day=${expiredRows.length}`);
+    .eq("status", "armed");
+  const staleSetups = (staleSetupsRaw ?? []) as Array<{ id: string; exchange_order_id: string | null; symbol: string }>;
+  if (staleSetups.length > 0) {
+    if (!globalSettings?.paper_mode) {
+      for (const st of staleSetups) {
+        if (!st.exchange_order_id) continue;
+        try {
+          await client.cancelOrder(st.exchange_order_id, st.symbol);
+        } catch (e) {
+          await log("warn", "cancel prior-day pending failed", {
+            setup_id: st.id,
+            exchange_order_id: st.exchange_order_id,
+            error: (e as Error).message,
+          });
+        }
+      }
+    }
+    await supabaseAdmin
+      .from("strategy_setups")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .in("id", staleSetups.map((s) => s.id));
+    actions.push(`expired_prev_day=${staleSetups.length}`);
   }
 
   // Optional: skip Sunday (low volume). Sat/Fri etc. remain tradeable.

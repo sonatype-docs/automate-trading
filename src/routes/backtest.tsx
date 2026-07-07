@@ -408,6 +408,16 @@ function BacktestLab() {
               filters={filters}
             />
 
+            <LiquiditySweepPanel
+              defaults={{
+                symbol: form.symbol,
+                days: form.days,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
 
             {result && <ResultsView data={result} />}
 

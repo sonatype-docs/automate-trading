@@ -185,6 +185,8 @@ export function simulateFromKlines(
     skipWeekdays?: Weekday[];
     filters?: FilterConfig;
     dailyBias?: Map<string, DailyBiasEntry>;
+    entry?: EntryConfig;
+    feeRate?: number;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -196,6 +198,10 @@ export function simulateFromKlines(
   const filters = opts.filters?.enabled ? opts.filters : undefined;
   const htf = filters?.htf;
   const quality = filters?.quality;
+  const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
+  const feeRate = opts.feeRate ?? 0.0004; // 0.04% per side, matches typical taker on Shark
+
+
 
   // Restrict to the requested window (allows callers to pass a superset).
   const filtered = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);

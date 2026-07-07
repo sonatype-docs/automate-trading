@@ -228,7 +228,7 @@ function JournalPage() {
 
   function exportCsv() {
     const rows = [
-      ["Time (IST)", "Symbol", "Side", "Qty", "Price", "Fee (INR)", "P&L (INR)", "Net (INR)", "Equity (INR)", "Trade ID"],
+      ["Time (IST)", "Symbol", "Side", "Qty", "Price", "Fee (USD)", "P&L (USD)", "Net (USD)", "Equity (INR)", "Trade ID"],
       ...journal.map((j) => [
         new Date(j.time).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" }),
         j.symbol, j.side, String(j.qty), String(j.price),

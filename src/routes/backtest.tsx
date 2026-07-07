@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { getStrategyState, backtestRange } from "@/lib/strategy.functions";
+import { getStrategyState, backtestRange, sweepHoursBacktest } from "@/lib/strategy.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -301,6 +301,19 @@ function BacktestLab() {
             </Card>
 
             {result && <ResultsView data={result} />}
+
+            <HourSweepPanel
+              defaults={{
+                symbol: form.symbol,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
           </>
         )}
       </main>
@@ -995,3 +1008,276 @@ function MonthGrid({
   );
 }
 
+
+type SweepData = Awaited<ReturnType<typeof sweepHoursBacktest>>;
+
+const SWEEP_RANGE_OPTIONS = [7, 30, 60, 90, 180, 365];
+
+function HourSweepPanel({
+  defaults,
+}: {
+  defaults: {
+    symbol: string;
+    slRiskUsd: number;
+    rr: number;
+    trailEnabled: boolean;
+    trailActivateR: number;
+    trailStepR: number;
+    skipWeekdays: number[];
+  };
+}) {
+  const runSweepFn = useServerFn(sweepHoursBacktest);
+  const [symbol, setSymbol] = useState<string>(defaults.symbol);
+  const [ranges, setRanges] = useState<number[]>([7, 30, 60, 90]);
+  const [slRiskUsd, setSl] = useState<number>(defaults.slRiskUsd);
+  const [rr, setRr] = useState<number>(defaults.rr);
+  const [data, setData] = useState<SweepData | null>(null);
+  const [activeRange, setActiveRange] = useState<number>(90);
+  const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");
+
+  const runMut = useMutation({
+    mutationFn: () =>
+      runSweepFn({
+        data: {
+          symbol,
+          ranges,
+          sl_risk_usd: slRiskUsd,
+          rr,
+          trail_enabled: defaults.trailEnabled,
+          trail_activate_r: defaults.trailActivateR,
+          trail_step_r: defaults.trailStepR,
+          skip_weekdays: defaults.skipWeekdays,
+        },
+      }),
+    onSuccess: (r) => {
+      setData(r);
+      const first = r.ranges[0]?.days;
+      if (first) setActiveRange(first);
+      toast.success(`Sweep done — ${r.ranges.length} range(s) × 24 hours`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleRange = (d: number) => {
+    setRanges((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
+  };
+
+  const active = data?.ranges.find((r) => r.days === activeRange) ?? data?.ranges[0] ?? null;
+
+  const sortedHours = useMemo(() => {
+    if (!active) return [];
+    const rows = [...active.hours];
+    rows.sort((a, b) => {
+      switch (sortKey) {
+        case "pnl":
+          return b.total_pnl_usd - a.total_pnl_usd;
+        case "wr":
+          return b.win_rate_pct - a.win_rate_pct;
+        case "dd":
+          return a.max_drawdown_usd - b.max_drawdown_usd;
+        case "hour":
+        default:
+          return a.hour.localeCompare(b.hour);
+      }
+    });
+    return rows;
+  }, [active, sortKey]);
+
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+  const tone = (n: number) => (n > 0 ? "text-long" : n < 0 ? "text-short" : "text-muted-foreground");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">24-HOUR SWEEP</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Auto-run the backtest for every hourly session start (00:00 → 23:00) across selected day windows,
+          then rank hours by total P&amp;L.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Field label="Symbol">
+            <select
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+            >
+              <option value="XAUUSDT">XAUUSDT · Gold</option>
+              <option value="BTCUSDT">BTCUSDT · Bitcoin</option>
+            </select>
+          </Field>
+          <Field label="SL risk ($/trade)">
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={slRiskUsd}
+              onChange={(e) => setSl(Math.max(1, Number(e.target.value) || 1))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="R:R (1 : X)">
+            <Input
+              type="number"
+              min={0.5}
+              step={0.1}
+              value={rr}
+              onChange={(e) => setRr(Math.max(0.5, Number(e.target.value) || 0.5))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Ranges (days)">
+            <div className="flex flex-wrap gap-1 pt-1">
+              {SWEEP_RANGE_OPTIONS.map((d) => {
+                const on = ranges.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleRange(d)}
+                    className={`px-2 h-7 rounded font-mono text-[11px] border ${
+                      on
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {d}d
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            disabled={runMut.isPending || ranges.length === 0}
+            onClick={() => runMut.mutate()}
+          >
+            {runMut.isPending ? "Sweeping 24 hours…" : "Run 24-hour sweep"}
+          </Button>
+          <p className="text-[10px] text-muted-foreground">
+            Fetches candles once per symbol and reuses them across all hour/range combinations.
+          </p>
+        </div>
+
+        {data && active && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono tracking-widest text-muted-foreground">RANGE:</span>
+              {data.ranges.map((r) => (
+                <button
+                  key={r.days}
+                  type="button"
+                  onClick={() => setActiveRange(r.days)}
+                  className={`px-2 h-7 rounded font-mono text-[11px] border ${
+                    r.days === active.days
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {r.days}d
+                </button>
+              ))}
+              <span className="ml-auto text-[10px] font-mono tracking-widest text-muted-foreground">SORT:</span>
+              {(
+                [
+                  ["pnl", "P&L"],
+                  ["wr", "Win rate"],
+                  ["dd", "Max DD"],
+                  ["hour", "Hour"],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setSortKey(k)}
+                  className={`px-2 h-7 rounded font-mono text-[11px] border ${
+                    sortKey === k
+                      ? "bg-muted border-foreground/30"
+                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto border border-border rounded">
+              <table className="w-full font-mono text-[11px]">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-2 py-1.5">Hour (IST)</th>
+                    <th className="text-right px-2 py-1.5">Trades</th>
+                    <th className="text-right px-2 py-1.5">Win rate</th>
+                    <th className="text-right px-2 py-1.5">Total P&amp;L</th>
+                    <th className="text-right px-2 py-1.5">Max DD</th>
+                    <th className="text-right px-2 py-1.5">PF</th>
+                    <th className="text-right px-2 py-1.5">Avg R</th>
+                    <th className="text-left px-2 py-1.5">Best day</th>
+                    <th className="text-left px-2 py-1.5">Worst day</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedHours.map((h) => (
+                    <tr key={h.hour} className="border-t border-border">
+                      <td className="px-2 py-1.5 font-semibold">{h.hour}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {h.trades}
+                        <span className="text-muted-foreground"> ({h.wins}W/{h.losses}L)</span>
+                      </td>
+                      <td className={`px-2 py-1.5 text-right ${h.win_rate_pct >= 50 ? "text-long" : "text-short"}`}>
+                        {h.win_rate_pct.toFixed(1)}%
+                      </td>
+                      <td className={`px-2 py-1.5 text-right ${tone(h.total_pnl_usd)}`}>
+                        {fmtUsd(h.total_pnl_usd)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-short">
+                        {h.max_drawdown_usd > 0 ? `-${h.max_drawdown_usd.toFixed(2)}` : "0.00"}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isFinite(h.profit_factor) ? h.profit_factor.toFixed(2) : "∞"}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">{h.avg_r.toFixed(2)}</td>
+                      <td className="px-2 py-1.5 text-left">
+                        {h.best_day ? (
+                          <span className={tone(h.best_day.pnl_usd)}>
+                            {h.best_day.ist_date} · {fmtUsd(h.best_day.pnl_usd)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-left">
+                        {h.worst_day ? (
+                          <span className={tone(h.worst_day.pnl_usd)}>
+                            {h.worst_day.ist_date} · {fmtUsd(h.worst_day.pnl_usd)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-muted-foreground font-mono">
+              {data.symbol} · SL ${data.sl_risk_usd} · RR 1:{data.rr} · window {active.days}d ·
+              {data.trail.enabled
+                ? ` trail on (act ${data.trail.activate_r}R / step ${data.trail.step_r}R)`
+                : " trail off"}
+              {data.skip_weekdays.length > 0
+                ? ` · skip [${data.skip_weekdays.map((w) => WD_LABELS[w]).join(", ")}]`
+                : ""}
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

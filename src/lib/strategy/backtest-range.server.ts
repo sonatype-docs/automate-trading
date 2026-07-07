@@ -117,24 +117,49 @@ export async function runBacktestRange(opts: {
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
 }): Promise<RangeBacktestResult> {
+  const client = createSharkClient();
+  const now = Date.now();
+  const fromMs = now - opts.days * 86_400_000;
+  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now });
+}
+
+export function simulateFromKlines(
+  klines: Kline[],
+  opts: {
+    symbol: string;
+    sessionStartIst: string;
+    slRiskUsd: number;
+    rr: number;
+    days: number;
+    fromMs: number;
+    nowMs: number;
+    trailEnabled?: boolean;
+    trailActivateR?: number;
+    trailStepR?: number;
+    skipWeekdays?: Weekday[];
+  },
+): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
   const trailActivateR = Math.max(0.1, opts.trailActivateR ?? 2);
   const trailStepR = Math.max(0.1, opts.trailStepR ?? 1);
   const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
-  const client = createSharkClient();
-  const now = Date.now();
-  const fromMs = now - opts.days * 86_400_000;
+  const now = opts.nowMs;
+  const fromMs = opts.fromMs;
 
-  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+  // Restrict to the requested window (allows callers to pass a superset).
+  const filtered = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);
 
   // Bucket by IST date for fast session lookup.
   const byOpen = new Map<number, Kline>();
-  for (const k of klines) byOpen.set(k.openTime, k);
+  for (const k of filtered) byOpen.set(k.openTime, k);
 
   // Collect the unique IST dates present in the range.
   const dates = new Set<string>();
-  for (const k of klines) dates.add(istDate(k.openTime));
+  for (const k of filtered) dates.add(istDate(k.openTime));
   const sortedDates = [...dates].sort();
+
+
 
   const days: DayResult[] = [];
 
@@ -189,7 +214,7 @@ export async function runBacktestRange(opts: {
     dr.fib_75 = fib_75;
 
     // Look at bars strictly after the session candle, within THIS IST date only.
-    const laterSameDay = klines.filter(
+    const laterSameDay = filtered.filter(
       (k) =>
         k.openTime > sessionCandle.openTime &&
         k.closeTime <= now &&
@@ -357,7 +382,7 @@ export async function runBacktestRange(opts: {
     days_requested: opts.days,
     from_ms: fromMs,
     to_ms: now,
-    bars_scanned: klines.length,
+    bars_scanned: filtered.length,
     trail: { enabled: trailEnabled, activate_r: trailActivateR, step_r: trailStepR },
     skip_weekdays: opts.skipWeekdays ?? [],
     days,

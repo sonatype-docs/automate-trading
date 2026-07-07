@@ -161,6 +161,13 @@ export interface RangeBacktestResult {
     est_fees_usd: number;
     /** Net P&L after fees. */
     net_pnl_usd: number;
+    cohorts: {
+      body: CohortDim;
+      or_size: CohortDim;
+      break_distance: CohortDim;
+      weekday: CohortDim;
+      tp_target: CohortDim;
+    };
   };
   filters?: FilterConfig;
   entry?: EntryConfig;

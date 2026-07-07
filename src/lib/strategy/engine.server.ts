@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
 import { processSignal } from "@/lib/trading/engine.server";
+import { computeEntry, entryConfigFromSettings } from "@/lib/strategy/entry-modes.server";
+
 
 const IST_OFFSET_MIN = 330; // UTC+5:30
 

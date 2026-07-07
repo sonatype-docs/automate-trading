@@ -1231,14 +1231,6 @@ function DayDetailSheet({
                 )}
               </div>
             )}
-
-            <BacktestAnalytics
-              days={data.days.flatMap((d) =>
-                d.trades.length > 0
-                  ? d.trades.map((t) => ({ ist_date: d.ist_date, pnl_usd: t.pnl_usd, outcome: t.outcome }))
-                  : [{ ist_date: d.ist_date, pnl_usd: 0 }],
-              )}
-            />
           </div>
         )}
       </SheetContent>

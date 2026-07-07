@@ -37,7 +37,9 @@ import {
   Shield,
   BookOpen,
   Beaker,
+  ChevronDown,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   LineChart,
   Line,

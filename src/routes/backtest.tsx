@@ -2992,6 +2992,8 @@ function LiquiditySweepPanel(props: {
     tpMode: "rr",
     requireCloseInside: true,
   });
+  const [days, setDays] = useState<number>(props.defaults.days);
+
   const [data, setData] = useState<LiquiditySweepData | null>(null);
 
   const setK = <K extends keyof SweepFormState>(k: K, v: SweepFormState[K]) =>

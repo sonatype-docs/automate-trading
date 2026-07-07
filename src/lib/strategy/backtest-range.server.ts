@@ -307,6 +307,7 @@ export function simulateFromKlines(
       final_sl: null,
       peak_r: 0,
       exit_r: null,
+      mae_r: null,
       closest_approach_r: null,
       body_pct: null,
       or_size_usd: null,

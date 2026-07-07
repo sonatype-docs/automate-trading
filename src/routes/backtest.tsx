@@ -588,6 +588,8 @@ function ResultsView({ data }: { data: RangeData }) {
 
         <CohortBreakdowns cohorts={s.cohorts} active={cohort} onSelect={setCohort} />
 
+        <MaeBreakdown wins={s.mae_wins} losses={s.mae_losses} />
+
         <CalendarView data={data} />
 
 
@@ -604,6 +606,7 @@ function ResultsView({ data }: { data: RangeData }) {
                 <th className="text-right px-2 py-1">Entry / SL / TP</th>
                 <th className="text-right px-2 py-1">Trig</th>
                 <th className="text-right px-2 py-1">Peak R</th>
+                <th className="text-right px-2 py-1">MAE R</th>
                 <th className="text-left px-2 py-1">Outcome</th>
                 <th className="text-right px-2 py-1">P&amp;L $</th>
               </tr>
@@ -631,6 +634,9 @@ function ResultsView({ data }: { data: RangeData }) {
                     </td>
                     <td className="text-right px-2 py-1">{fmtTime(d.trigger_at)}</td>
                     <td className="text-right px-2 py-1">{d.peak_r > 0 ? d.peak_r.toFixed(2) : "—"}</td>
+                    <td className={`text-right px-2 py-1 ${d.mae_r != null && d.mae_r >= 0.6 ? "text-warning" : ""}`}>
+                      {d.mae_r != null ? d.mae_r.toFixed(2) : "—"}
+                    </td>
                     <td className={`px-2 py-1 uppercase ${outcomeCls(d.outcome)}`}>
                       {d.outcome.replace(/_/g, " ")}
                     </td>
@@ -664,6 +670,75 @@ function Kv({ k, v, tone }: { k: string; v: string; tone?: string }) {
     </div>
   );
 }
+
+type MaeStats = RangeData["summary"]["mae_wins"];
+
+function MaeRow({ label, stats, tone }: { label: string; stats: MaeStats; tone?: string }) {
+  if (!stats) {
+    return (
+      <tr className="border-t border-border">
+        <td className="px-2 py-1 text-muted-foreground">{label}</td>
+        <td colSpan={7} className="px-2 py-1 text-muted-foreground text-center">no trades</td>
+      </tr>
+    );
+  }
+  const cell = (v: number) => v.toFixed(2);
+  return (
+    <tr className="border-t border-border">
+      <td className={`px-2 py-1 uppercase ${tone ?? ""}`}>{label}</td>
+      <td className="text-right px-2 py-1 text-muted-foreground">{stats.count}</td>
+      <td className="text-right px-2 py-1">{cell(stats.avg)}</td>
+      <td className="text-right px-2 py-1">{cell(stats.p50)}</td>
+      <td className="text-right px-2 py-1">{cell(stats.p75)}</td>
+      <td className="text-right px-2 py-1">{cell(stats.p90)}</td>
+      <td className="text-right px-2 py-1">{cell(stats.p95)}</td>
+      <td className="text-right px-2 py-1">{cell(stats.max)}</td>
+    </tr>
+  );
+}
+
+function MaeBreakdown({ wins, losses }: { wins: MaeStats; losses: MaeStats }) {
+  const insight = (() => {
+    if (!wins || wins.count < 5) return null;
+    const p95pct = Math.round(wins.p95 * 100);
+    const suggested = Math.max(10, Math.ceil((wins.p95 + 0.1) * 10) * 10);
+    return `95% of winning trades pulled back ≤ ${wins.p95.toFixed(2)}R (${p95pct}% into stop). A tighter SL around ~${suggested}% of current risk would still have captured them.`;
+  })();
+  return (
+    <div className="border border-border rounded p-3 bg-muted/20 space-y-2">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        MAE — Maximum Adverse Excursion (R units, per trade)
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            <tr>
+              <th className="text-left px-2 py-1">Outcome</th>
+              <th className="text-right px-2 py-1">n</th>
+              <th className="text-right px-2 py-1">avg</th>
+              <th className="text-right px-2 py-1">p50</th>
+              <th className="text-right px-2 py-1">p75</th>
+              <th className="text-right px-2 py-1">p90</th>
+              <th className="text-right px-2 py-1">p95</th>
+              <th className="text-right px-2 py-1">max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <MaeRow label="Wins" stats={wins} tone="text-long" />
+            <MaeRow label="Losses" stats={losses} tone="text-short" />
+          </tbody>
+        </table>
+      </div>
+      {insight && (
+        <p className="text-[10px] text-muted-foreground leading-relaxed">💡 {insight}</p>
+      )}
+      <p className="text-[10px] text-muted-foreground">
+        MAE = worst drawdown against the trade before it resolved. 1.00R = full stop.
+      </p>
+    </div>
+  );
+}
+
 
 type CohortsPayload = RangeData["summary"]["cohorts"];
 

@@ -66,6 +66,8 @@ export interface DayResult {
   final_sl: number | null;
   peak_r: number;
   exit_r: number | null;
+  /** Maximum Adverse Excursion in R units for a triggered trade — how far price ran against you (0 = never in the red). Null when not triggered. */
+  mae_r: number | null;
   /** For armed_no_trigger days: how close price got to the entry, in R units (0 = filled, higher = further). Null when not applicable. */
   closest_approach_r: number | null;
   entry_mode?: EntryConfig["mode"];
@@ -168,6 +170,26 @@ export interface RangeBacktestResult {
       weekday: CohortDim;
       tp_target: CohortDim;
     };
+    /** MAE distribution across winning (TP) trades in R units. Null when no wins. */
+    mae_wins: {
+      count: number;
+      avg: number;
+      p50: number;
+      p75: number;
+      p90: number;
+      p95: number;
+      max: number;
+    } | null;
+    /** MAE distribution across losing (SL) trades in R units. Null when no losses. */
+    mae_losses: {
+      count: number;
+      avg: number;
+      p50: number;
+      p75: number;
+      p90: number;
+      p95: number;
+      max: number;
+    } | null;
   };
   filters?: FilterConfig;
   entry?: EntryConfig;
@@ -305,6 +327,7 @@ export function simulateFromKlines(
       final_sl: null,
       peak_r: 0,
       exit_r: null,
+      mae_r: null,
       closest_approach_r: null,
       body_pct: null,
       or_size_usd: null,
@@ -509,6 +532,8 @@ export function simulateFromKlines(
     let peakR = 0;
     // Track how close price got to the entry for missed setups.
     let closestDist = Infinity;
+    // MAE tracking (after trigger): worst adverse extreme in R units.
+    let adverseExtreme: number | null = null;
     // Track whether price reached the swing-side / opposite-side references after trigger.
     let reachedSwing = false;
     let reachedOpposite = false;
@@ -534,6 +559,11 @@ export function simulateFromKlines(
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (barR > peakR) peakR = barR;
+
+      // Update MAE using bar extremes in the adverse direction.
+      const adverse = breakSide === "long" ? k.low : k.high;
+      if (adverseExtreme === null) adverseExtreme = adverse;
+      else adverseExtreme = breakSide === "long" ? Math.min(adverseExtreme, adverse) : Math.max(adverseExtreme, adverse);
 
       // TP-target tracking — did price reach swing / opposite references while the trade was live?
       if (dr.swing_ref !== null) {
@@ -580,6 +610,10 @@ export function simulateFromKlines(
     }
     dr.final_sl = dynSl;
     dr.peak_r = peakR;
+    if (triggered && adverseExtreme !== null && risk > 0) {
+      const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
+      dr.mae_r = Math.max(0, adverseR);
+    }
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }
@@ -757,6 +791,28 @@ export function simulateFromKlines(
     tp_target: dimFor<TpTarget>(["swing", "opposite", "both", "neither"], (d) => d.tp_target, null),
   };
 
+  // ---- MAE distributions across winners / losers ----
+  function maeStats(outcome: "tp" | "sl") {
+    const vals = days
+      .filter((d) => d.outcome === outcome && d.mae_r !== null)
+      .map((d) => d.mae_r as number)
+      .sort((a, b) => a - b);
+    if (vals.length === 0) return null;
+    const pct = (p: number) => vals[Math.min(vals.length - 1, Math.floor(vals.length * p))];
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return {
+      count: vals.length,
+      avg,
+      p50: pct(0.5),
+      p75: pct(0.75),
+      p90: pct(0.9),
+      p95: pct(0.95),
+      max: vals[vals.length - 1],
+    };
+  }
+  const maeWins = maeStats("tp");
+  const maeLosses = maeStats("sl");
+
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
@@ -802,6 +858,8 @@ export function simulateFromKlines(
       est_fees_usd: estFees,
       net_pnl_usd: netPnl,
       cohorts,
+      mae_wins: maeWins,
+      mae_losses: maeLosses,
     },
     filters: opts.filters,
     entry: entryCfg,

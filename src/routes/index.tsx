@@ -1108,7 +1108,6 @@ function StrategyCard() {
           >
             {repriceMut.isPending ? "Repricing…" : "Reprice now"}
           </Button>
-
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

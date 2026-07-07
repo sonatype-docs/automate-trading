@@ -325,6 +325,55 @@ export function simulateFromKlines(
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
 
+    // ---- Break-time filters (HTF bias side match + break quality) ----
+    if (allowedSide === "none" || (allowedSide !== "both" && allowedSide !== breakSide)) {
+      dr.outcome = "filtered";
+      dr.filter_reason =
+        allowedSide === "none" ? "htf bias conflict" : `htf bias = ${allowedSide}`;
+      days.push(dr);
+      continue;
+    }
+
+    if (quality?.break_strength_enabled) {
+      const beyond =
+        breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+      const pct = range > 0 ? (beyond / range) * 100 : 0;
+      const need = quality.break_strength_pct ?? 0;
+      if (pct < need) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `break strength ${pct.toFixed(1)}% < ${need}%`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    if (quality?.break_body_enabled) {
+      const barRange = breakBar.high - breakBar.low;
+      const body = Math.abs(breakBar.close - breakBar.open);
+      const pct = barRange > 0 ? (body / barRange) * 100 : 0;
+      const need = quality.break_body_pct ?? 0;
+      if (pct < need) {
+        dr.outcome = "filtered";
+        dr.filter_reason = `body ${pct.toFixed(0)}% < ${need}%`;
+        days.push(dr);
+        continue;
+      }
+    }
+
+    if (quality?.break_timing_enabled) {
+      const need = quality.break_timing_hours ?? 0;
+      if (need > 0) {
+        const hoursAfter = (breakBar.openTime - sessionCandle.closeTime) / 3_600_000;
+        if (hoursAfter > need) {
+          dr.outcome = "filtered";
+          dr.filter_reason = `break +${hoursAfter.toFixed(1)}h > ${need}h`;
+          days.push(dr);
+          continue;
+        }
+      }
+    }
+
+
     const entry = breakSide === "long" ? fib_25 : fib_75;
     const sl    = breakSide === "long" ? fib_75 : fib_25;
     const risk  = Math.abs(entry - sl);

@@ -343,16 +343,46 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
       if (changed) {
         const oldOid = existingSetup.exchange_order_id;
-        let cancelOk = false;
+
+        // Check whether the pending order is still open on the exchange. If
+        // it's gone (filled or already cancelled), don't reprice — the fill
+        // detection below will pick up the fill.
+        let stillOpen = true;
         try {
-          const cx = await client.cancelOrder(oldOid, existingSetup.symbol);
-          cancelOk = cx.ok;
+          const openIds = new Set(await client.getOpenOrderIds(s.symbol));
+          stillOpen = openIds.has(oldOid);
         } catch (e) {
-          await log("warn", "reprice: cancel failed", { setup_id: existingSetup.id, oid: oldOid, error: (e as Error).message });
+          await log("warn", "reprice: open-orders probe failed", { setup_id: existingSetup.id, error: (e as Error).message });
         }
-        if (!cancelOk) {
-          actions.push(`reprice_skip ${side} oid=${oldOid} (cancel failed — may have filled)`);
+
+        let cancelOk = false;
+        let cancelStatus = 0;
+        let cancelBody = "";
+        if (stillOpen) {
+          try {
+            const cx = await client.cancelOrder(oldOid, existingSetup.symbol);
+            cancelOk = cx.ok;
+            cancelStatus = cx.status;
+            cancelBody = cx.body;
+          } catch (e) {
+            await log("warn", "reprice: cancel threw", { setup_id: existingSetup.id, oid: oldOid, error: (e as Error).message });
+          }
+          if (!cancelOk) {
+            await log("warn", "reprice: cancel non-ok", {
+              setup_id: existingSetup.id,
+              oid: oldOid,
+              status: cancelStatus,
+              body: cancelBody.slice(0, 500),
+            });
+          }
+        }
+
+        if (!stillOpen) {
+          actions.push(`reprice_skip ${side} oid=${oldOid} (no longer open — fill detector will handle)`);
+        } else if (!cancelOk) {
+          actions.push(`reprice_skip ${side} oid=${oldOid} cancel_status=${cancelStatus}`);
         } else {
+
           let newOid: string | null = null;
           let placeError: string | null = null;
           try {

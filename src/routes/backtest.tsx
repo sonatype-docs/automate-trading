@@ -1355,7 +1355,7 @@ function HourSweepPanel({
   const [slRiskUsd, setSl] = useState<number>(defaults.slRiskUsd);
   const [rr, setRr] = useState<number>(defaults.rr);
   const [skipWeekdays, setSkipWeekdays] = useState<number[]>(defaults.skipWeekdays ?? [0]);
-  const [data, setData] = useState<LiquiditySweepData | null>(null);
+  const [data, setData] = useState<SweepData | null>(null);
   const [activeRange, setActiveRange] = useState<number>(90);
   const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");
   const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");

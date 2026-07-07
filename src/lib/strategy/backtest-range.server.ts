@@ -29,6 +29,11 @@ function istWeekday(dateStr: string): Weekday {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay() as Weekday;
 }
 
+export type TpTarget = "swing" | "opposite" | "both" | "neither";
+export type Tercile = "low" | "mid" | "high";
+export type OrBucket = "small" | "medium" | "large";
+export type DistBucket = "near" | "mid" | "far";
+
 export interface DayResult {
   ist_date: string;
   weekday: Weekday;
@@ -64,6 +69,17 @@ export interface DayResult {
   /** For armed_no_trigger days: how close price got to the entry, in R units (0 = filled, higher = further). Null when not applicable. */
   closest_approach_r: number | null;
   entry_mode?: EntryConfig["mode"];
+  // Cohort inputs (populated when a break is found).
+  body_pct: number | null;
+  or_size_usd: number | null;
+  break_distance_usd: number | null;
+  swing_ref: number | null;
+  opposite_ref: number | null;
+  tp_target: TpTarget | null;
+  // Bucket assignments (populated after tertile computation).
+  body_bucket: Tercile | null;
+  or_bucket: OrBucket | null;
+  break_distance_bucket: DistBucket | null;
 }
 
 
@@ -76,6 +92,23 @@ export interface WeekdayStat {
   win_rate_pct: number;
   total_pnl_usd: number;
   avg_pnl_usd: number;
+}
+
+export interface CohortStat {
+  bucket: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number;
+  total_pnl_usd: number;
+  avg_pnl_usd: number;
+  avg_r: number;
+}
+
+export interface CohortDim {
+  buckets: CohortStat[];
+  /** Tertile edges [t1, t2] where bucket = low if x<=t1, mid if x<=t2, high otherwise. */
+  edges: [number, number] | null;
 }
 
 
@@ -128,6 +161,13 @@ export interface RangeBacktestResult {
     est_fees_usd: number;
     /** Net P&L after fees. */
     net_pnl_usd: number;
+    cohorts: {
+      body: CohortDim;
+      or_size: CohortDim;
+      break_distance: CohortDim;
+      weekday: CohortDim;
+      tp_target: CohortDim;
+    };
   };
   filters?: FilterConfig;
   entry?: EntryConfig;
@@ -215,6 +255,23 @@ export function simulateFromKlines(
   for (const k of filtered) dates.add(istDate(k.openTime));
   const sortedDates = [...dates].sort();
 
+  // Precompute per-IST-date high/low from ALL 1H bars in the fetched window.
+  // Used to derive prior-day extremes for the TP-target cohort without extra API calls.
+  const dayExtremes = new Map<string, { high: number; low: number }>();
+  for (const k of klines) {
+    const d = istDate(k.openTime);
+    const cur = dayExtremes.get(d);
+    if (!cur) dayExtremes.set(d, { high: k.high, low: k.low });
+    else {
+      if (k.high > cur.high) cur.high = k.high;
+      if (k.low < cur.low) cur.low = k.low;
+    }
+  }
+  const prevDayHL = (dateStr: string): { high: number; low: number } | null => {
+    const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+    const prev = new Date(Date.UTC(y, m - 1, d) - 86_400_000).toISOString().slice(0, 10);
+    return dayExtremes.get(prev) ?? null;
+  };
 
 
   const days: DayResult[] = [];
@@ -249,6 +306,15 @@ export function simulateFromKlines(
       peak_r: 0,
       exit_r: null,
       closest_approach_r: null,
+      body_pct: null,
+      or_size_usd: null,
+      break_distance_usd: null,
+      swing_ref: null,
+      opposite_ref: null,
+      tp_target: null,
+      body_bucket: null,
+      or_bucket: null,
+      break_distance_bucket: null,
     };
 
 
@@ -361,6 +427,22 @@ export function simulateFromKlines(
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
 
+    // Cohort inputs (always recorded when a break is found).
+    const barRange0 = breakBar.high - breakBar.low;
+    const body0 = Math.abs(breakBar.close - breakBar.open);
+    dr.body_pct = barRange0 > 0 ? (body0 / barRange0) * 100 : 0;
+    dr.or_size_usd = range;
+    dr.break_distance_usd =
+      breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+    const prevHL = prevDayHL(dateStr);
+    if (breakSide === "long") {
+      dr.swing_ref = prevHL ? Math.max(zone_high, prevHL.high) : zone_high;
+      dr.opposite_ref = prevHL ? Math.min(zone_low, prevHL.low) : zone_low;
+    } else {
+      dr.swing_ref = prevHL ? Math.min(zone_low, prevHL.low) : zone_low;
+      dr.opposite_ref = prevHL ? Math.max(zone_high, prevHL.high) : zone_high;
+    }
+
     // ---- Break-time filters (HTF bias side match + break quality) ----
     if (allowedSide === "none" || (allowedSide !== "both" && allowedSide !== breakSide)) {
       dr.outcome = "filtered";
@@ -427,6 +509,9 @@ export function simulateFromKlines(
     let peakR = 0;
     // Track how close price got to the entry for missed setups.
     let closestDist = Infinity;
+    // Track whether price reached the swing-side / opposite-side references after trigger.
+    let reachedSwing = false;
+    let reachedOpposite = false;
     if (market) {
       dr.trigger_at = breakBar.closeTime;
       // Market entries: also let the break candle itself resolve TP/SL below.
@@ -449,6 +534,15 @@ export function simulateFromKlines(
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (barR > peakR) peakR = barR;
+
+      // TP-target tracking — did price reach swing / opposite references while the trade was live?
+      if (dr.swing_ref !== null) {
+        if (breakSide === "long" ? k.high >= dr.swing_ref : k.low <= dr.swing_ref) reachedSwing = true;
+      }
+      if (dr.opposite_ref !== null) {
+        if (breakSide === "long" ? k.low <= dr.opposite_ref : k.high >= dr.opposite_ref) reachedOpposite = true;
+      }
+
 
       // Advance trailing SL if enabled.
       if (trailEnabled && peakR >= trailActivateR) {
@@ -492,8 +586,45 @@ export function simulateFromKlines(
     if (dr.outcome === "armed_no_trigger" && Number.isFinite(closestDist) && risk > 0) {
       dr.closest_approach_r = closestDist / risk;
     }
+    // Assign tp_target for any triggered trade (tp / sl / open) that had refs.
+    if (dr.trigger_at !== null && (dr.swing_ref !== null || dr.opposite_ref !== null)) {
+      dr.tp_target =
+        reachedSwing && reachedOpposite
+          ? "both"
+          : reachedSwing
+            ? "swing"
+            : reachedOpposite
+              ? "opposite"
+              : "neither";
+    }
     days.push(dr);
   }
+
+  // ---- Tertile bucketing for numeric cohorts ----
+  function tertiles(vals: number[]): [number, number] | null {
+    if (vals.length < 3) return null;
+    const s = [...vals].sort((a, b) => a - b);
+    const q = (p: number) => s[Math.min(s.length - 1, Math.max(0, Math.floor(s.length * p)))];
+    return [q(1 / 3), q(2 / 3)];
+  }
+  const bucketize = (v: number, e: [number, number] | null): Tercile => {
+    if (!e) return "mid";
+    if (v <= e[0]) return "low";
+    if (v <= e[1]) return "mid";
+    return "high";
+  };
+  const withBreak = days.filter((d) => d.break_side !== null);
+  const bodyEdges = tertiles(withBreak.map((d) => d.body_pct as number));
+  const orEdges = tertiles(withBreak.map((d) => d.or_size_usd as number));
+  const distEdges = tertiles(withBreak.map((d) => d.break_distance_usd as number));
+  const orMap: Record<Tercile, OrBucket> = { low: "small", mid: "medium", high: "large" };
+  const distMap: Record<Tercile, DistBucket> = { low: "near", mid: "mid", high: "far" };
+  for (const d of withBreak) {
+    d.body_bucket = bucketize(d.body_pct as number, bodyEdges);
+    d.or_bucket = orMap[bucketize(d.or_size_usd as number, orEdges)];
+    d.break_distance_bucket = distMap[bucketize(d.break_distance_usd as number, distEdges)];
+  }
+
 
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;
@@ -585,6 +716,47 @@ export function simulateFromKlines(
     equity.push({ ist_date: d.ist_date, cum_pnl_usd: cum });
   }
 
+  // ---- Cohort aggregation over decided trades ----
+  const decidedAll = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
+  function statFor(rows: DayResult[], bucket: string): CohortStat {
+    const wins = rows.filter((d) => d.outcome === "tp").length;
+    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const trades = rows.length;
+    const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
+    const rs = rows.map((d) => d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1));
+    return {
+      bucket,
+      trades,
+      wins,
+      losses,
+      win_rate_pct: trades > 0 ? (wins / trades) * 100 : 0,
+      total_pnl_usd: total,
+      avg_pnl_usd: trades > 0 ? total / trades : 0,
+      avg_r: rs.length > 0 ? rs.reduce((a, b) => a + b, 0) / rs.length : 0,
+    };
+  }
+  const dimFor = <T extends string>(
+    labels: T[],
+    key: (d: DayResult) => T | null,
+    edges: [number, number] | null,
+  ): CohortDim => ({
+    buckets: labels.map((l) => statFor(decidedAll.filter((d) => key(d) === l), l)),
+    edges,
+  });
+
+  const cohorts = {
+    body: dimFor<Tercile>(["low", "mid", "high"], (d) => d.body_bucket, bodyEdges),
+    or_size: dimFor<OrBucket>(["small", "medium", "large"], (d) => d.or_bucket, orEdges),
+    break_distance: dimFor<DistBucket>(["near", "mid", "far"], (d) => d.break_distance_bucket, distEdges),
+    weekday: {
+      buckets: ([1, 2, 3, 4, 5, 6, 0] as Weekday[]).map((wd) =>
+        statFor(decidedAll.filter((d) => d.weekday === wd), WEEKDAY_LABELS[wd]),
+      ),
+      edges: null,
+    },
+    tp_target: dimFor<TpTarget>(["swing", "opposite", "both", "neither"], (d) => d.tp_target, null),
+  };
+
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
@@ -629,6 +801,7 @@ export function simulateFromKlines(
       near_miss_count: nearMissCount,
       est_fees_usd: estFees,
       net_pnl_usd: netPnl,
+      cohorts,
     },
     filters: opts.filters,
     entry: entryCfg,

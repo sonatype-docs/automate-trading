@@ -1,11 +1,12 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
-import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
+import { simulateFromKlines, type RangeBacktestResult } from "@/lib/strategy/backtest-range.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
 import { needsDailyBias } from "@/lib/strategy/filters";
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 import type { EntryMode } from "@/lib/strategy/entry-modes.server";
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type Cohorts = RangeBacktestResult["summary"]["cohorts"];
 
 
 export interface HourStat {
@@ -21,6 +22,7 @@ export interface HourStat {
   profit_factor: number;
   expectancy_usd: number;
   avg_r: number;
+  cohorts: Cohorts;
 }
 
 export interface SweepRangeResult {
@@ -119,6 +121,7 @@ export async function runSweep(opts: {
         profit_factor: r.summary.profit_factor,
         expectancy_usd: r.summary.expectancy_usd,
         avg_r: r.summary.avg_r,
+        cohorts: r.summary.cohorts,
       });
     }
     rangeResults.push({ days, hours: hourStats });
@@ -157,6 +160,7 @@ export interface EntryZoneCell {
   avg_r: number;
   triggered: number;
   missed: number;
+  cohorts: Cohorts;
 }
 
 export interface EntryZoneSweepResult {
@@ -249,6 +253,7 @@ export async function runEntryZoneSweep(opts: {
       avg_r: finite(r.summary.avg_r),
       triggered: r.summary.triggered,
       missed: r.summary.armed_no_trigger,
+      cohorts: r.summary.cohorts,
     });
   };
 

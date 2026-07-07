@@ -433,8 +433,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+type CohortDimKey = "body" | "or_size" | "break_distance" | "weekday" | "tp_target";
+type CohortFilter = { dim: CohortDimKey; bucket: string } | null;
+
+const COHORT_DIM_LABELS: Record<CohortDimKey, string> = {
+  body: "Body strength",
+  or_size: "Opening range",
+  break_distance: "Break distance",
+  weekday: "Weekday",
+  tp_target: "TP target",
+};
+
+function dayMatchesCohort(d: RangeData["days"][number], f: NonNullable<CohortFilter>): boolean {
+  switch (f.dim) {
+    case "body":
+      return d.body_bucket === f.bucket;
+    case "or_size":
+      return d.or_bucket === f.bucket;
+    case "break_distance":
+      return d.break_distance_bucket === f.bucket;
+    case "weekday":
+      return WD_LABELS[d.weekday] === f.bucket;
+    case "tp_target":
+      return d.tp_target === f.bucket;
+  }
+}
+
 function ResultsView({ data }: { data: RangeData }) {
   const s = data.summary;
+  const [cohort, setCohort] = useState<CohortFilter>(null);
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
   const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
   const fmtTime = (ms: number | null) =>
@@ -451,10 +478,19 @@ function ResultsView({ data }: { data: RangeData }) {
   const pf = s.profit_factor;
   const pfText = !isFinite(pf) ? "∞" : pf.toFixed(2);
 
-  const equityChart = useMemo(
-    () => data.equity.map((e) => ({ date: e.ist_date, pnl: Number(e.cum_pnl_usd.toFixed(2)) })),
-    [data.equity],
+  const filteredDays = useMemo(
+    () => (cohort ? data.days.filter((d) => dayMatchesCohort(d, cohort)) : data.days),
+    [data.days, cohort],
   );
+
+  const equityChart = useMemo(() => {
+    if (!cohort) return data.equity.map((e) => ({ date: e.ist_date, pnl: Number(e.cum_pnl_usd.toFixed(2)) }));
+    let cum = 0;
+    return filteredDays.map((d) => {
+      cum += d.pnl_usd;
+      return { date: d.ist_date, pnl: Number(cum.toFixed(2)) };
+    });
+  }, [data.equity, filteredDays, cohort]);
 
   return (
     <Card>
@@ -531,63 +567,29 @@ function ResultsView({ data }: { data: RangeData }) {
           </div>
         )}
 
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">By weekday</div>
-          <div className="border border-border rounded overflow-hidden">
-            <table className="w-full text-[11px]">
-              <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60">
-                <tr>
-                  <th className="text-left px-2 py-1">Day</th>
-                  <th className="text-right px-2 py-1">Trades</th>
-                  <th className="text-right px-2 py-1">W / L</th>
-                  <th className="text-right px-2 py-1">Win %</th>
-                  <th className="text-right px-2 py-1">Total $</th>
-                  <th className="text-right px-2 py-1">Avg $</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.weekdays.map((w) => {
-                  const skipped = data.skip_weekdays.includes(w.weekday);
-                  const tone =
-                    w.trades === 0
-                      ? "text-muted-foreground"
-                      : w.total_pnl_usd > 0
-                        ? "text-long"
-                        : w.total_pnl_usd < 0
-                          ? "text-short"
-                          : "";
-                  return (
-                    <tr key={w.weekday} className="border-t border-border">
-                      <td className="px-2 py-1">
-                        {w.label}
-                        {skipped && (
-                          <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">
-                            (skipped)
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-right px-2 py-1">{w.trades}</td>
-                      <td className="text-right px-2 py-1">
-                        {w.wins} / {w.losses}
-                      </td>
-                      <td className="text-right px-2 py-1">
-                        {w.trades > 0 ? `${w.win_rate_pct.toFixed(0)}%` : "—"}
-                      </td>
-                      <td className={`text-right px-2 py-1 ${tone}`}>
-                        {w.trades > 0 ? fmtUsd(w.total_pnl_usd) : "—"}
-                      </td>
-                      <td className={`text-right px-2 py-1 ${tone}`}>
-                        {w.trades > 0 ? fmtUsd(w.avg_pnl_usd) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {cohort && (
+          <div className="flex items-center gap-2 text-[11px] font-mono">
+            <span className="text-muted-foreground uppercase tracking-widest">Filter:</span>
+            <span className="px-2 py-0.5 rounded border border-primary/60 bg-primary/10 text-primary">
+              {COHORT_DIM_LABELS[cohort.dim]}: {cohort.bucket}
+            </span>
+            <span className="text-muted-foreground">
+              ({filteredDays.filter((d) => d.outcome === "tp" || d.outcome === "sl").length} trades)
+            </span>
+            <button
+              type="button"
+              onClick={() => setCohort(null)}
+              className="text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              clear
+            </button>
           </div>
-        </div>
+        )}
+
+        <CohortBreakdowns cohorts={s.cohorts} active={cohort} onSelect={setCohort} />
 
         <CalendarView data={data} />
+
 
 
 
@@ -607,7 +609,7 @@ function ResultsView({ data }: { data: RangeData }) {
               </tr>
             </thead>
             <tbody>
-              {data.days
+              {filteredDays
                 .slice()
                 .reverse()
                 .map((d) => (
@@ -662,6 +664,110 @@ function Kv({ k, v, tone }: { k: string; v: string; tone?: string }) {
     </div>
   );
 }
+
+type CohortsPayload = RangeData["summary"]["cohorts"];
+
+const COHORT_DIM_ORDER: { key: CohortDimKey; label: string; edgeSuffix?: string }[] = [
+  { key: "body", label: "Body strength (breakout candle body / range)", edgeSuffix: "%" },
+  { key: "or_size", label: "Opening range size (session $)", edgeSuffix: "$" },
+  { key: "break_distance", label: "Break distance beyond level", edgeSuffix: "$" },
+  { key: "weekday", label: "Weekday" },
+  { key: "tp_target", label: "TP target reached (swing / opposite liquidity)" },
+];
+
+function CohortBreakdowns({
+  cohorts,
+  active,
+  onSelect,
+}: {
+  cohorts: CohortsPayload;
+  active: CohortFilter;
+  onSelect: (f: CohortFilter) => void;
+}) {
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Cohort breakdowns — click a bucket to filter the trade table &amp; equity curve
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {COHORT_DIM_ORDER.map(({ key, label, edgeSuffix }) => {
+          const dim = cohorts[key];
+          const rows = dim.buckets;
+          const withTrades = rows.filter((r) => r.trades > 0);
+          const bestBucket = withTrades.length
+            ? withTrades.reduce((a, b) => (b.total_pnl_usd > a.total_pnl_usd ? b : a)).bucket
+            : null;
+          return (
+            <div key={key} className="border border-border rounded overflow-hidden">
+              <div className="flex items-center justify-between px-2 py-1 bg-muted/60">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+                {dim.edges && (
+                  <span className="text-[9px] font-mono text-muted-foreground">
+                    tertiles: {dim.edges[0].toFixed(1)}{edgeSuffix} / {dim.edges[1].toFixed(1)}{edgeSuffix}
+                  </span>
+                )}
+              </div>
+              <table className="w-full text-[11px] font-mono">
+                <thead className="text-[9px] uppercase tracking-widest text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-2 py-1">Bucket</th>
+                    <th className="text-right px-2 py-1">Trades</th>
+                    <th className="text-right px-2 py-1">Win %</th>
+                    <th className="text-right px-2 py-1">Total $</th>
+                    <th className="text-right px-2 py-1">Avg R</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const isActive = active?.dim === key && active?.bucket === r.bucket;
+                    const isBest = r.bucket === bestBucket && r.trades > 0;
+                    const tone =
+                      r.trades === 0
+                        ? "text-muted-foreground"
+                        : r.total_pnl_usd > 0
+                          ? "text-long"
+                          : r.total_pnl_usd < 0
+                            ? "text-short"
+                            : "";
+                    return (
+                      <tr
+                        key={r.bucket}
+                        onClick={() => {
+                          if (r.trades === 0) return;
+                          onSelect(isActive ? null : { dim: key, bucket: r.bucket });
+                        }}
+                        className={`border-t border-border cursor-pointer hover:bg-muted/40 ${
+                          isActive ? "bg-primary/10" : isBest ? "bg-emerald-500/5" : ""
+                        } ${r.trades === 0 ? "opacity-60 cursor-default" : ""}`}
+                      >
+                        <td className="px-2 py-1 capitalize">
+                          {r.bucket}
+                          {isBest && <span className="ml-1 text-[9px] text-emerald-400">★</span>}
+                        </td>
+                        <td className="text-right px-2 py-1">{r.trades}</td>
+                        <td className="text-right px-2 py-1">
+                          {r.trades > 0 ? `${r.win_rate_pct.toFixed(0)}%` : "—"}
+                        </td>
+                        <td className={`text-right px-2 py-1 ${tone}`}>
+                          {r.trades > 0 ? fmtUsd(r.total_pnl_usd) : "—"}
+                        </td>
+                        <td className={`text-right px-2 py-1 ${tone}`}>
+                          {r.trades > 0 ? r.avg_r.toFixed(2) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
@@ -1146,6 +1252,7 @@ function HourSweepPanel({
   const [data, setData] = useState<SweepData | null>(null);
   const [activeRange, setActiveRange] = useState<number>(90);
   const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");
+  const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");
 
   const runMut = useMutation({
     mutationFn: () =>
@@ -1346,6 +1453,25 @@ function HourSweepPanel({
               ))}
             </div>
 
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono tracking-widest text-muted-foreground">COHORT:</span>
+              <select
+                value={cohortDim}
+                onChange={(e) => setCohortDim(e.target.value as "none" | CohortDimKey)}
+                className="h-7 rounded border border-input bg-background px-2 font-mono text-[11px]"
+              >
+                <option value="none">Overall</option>
+                {(Object.keys(COHORT_DIM_LABELS) as CohortDimKey[]).map((k) => (
+                  <option key={k} value={k}>{COHORT_DIM_LABELS[k]}</option>
+                ))}
+              </select>
+              {cohortDim !== "none" && (
+                <span className="text-[10px] text-muted-foreground">
+                  Best bucket per hour (by $ P&amp;L within that hour's slice).
+                </span>
+              )}
+            </div>
+
             <div className="overflow-x-auto border border-border rounded">
               <table className="w-full font-mono text-[11px]">
                 <thead className="bg-muted/40 text-muted-foreground">
@@ -1357,6 +1483,9 @@ function HourSweepPanel({
                     <th className="text-right px-2 py-1.5">Max DD</th>
                     <th className="text-right px-2 py-1.5">PF</th>
                     <th className="text-right px-2 py-1.5">Avg R</th>
+                    {cohortDim !== "none" && (
+                      <th className="text-left px-2 py-1.5">Best {COHORT_DIM_LABELS[cohortDim]}</th>
+                    )}
                     <th className="text-left px-2 py-1.5">Best day</th>
                     <th className="text-left px-2 py-1.5">Worst day</th>
                   </tr>
@@ -1382,6 +1511,23 @@ function HourSweepPanel({
                         {isFinite(h.profit_factor) ? h.profit_factor.toFixed(2) : "∞"}
                       </td>
                       <td className="px-2 py-1.5 text-right">{h.avg_r.toFixed(2)}</td>
+                      {cohortDim !== "none" && (
+                        <td className="px-2 py-1.5 text-left">
+                          {(() => {
+                            const buckets = h.cohorts[cohortDim].buckets.filter((b) => b.trades > 0);
+                            if (!buckets.length) return <span className="text-muted-foreground">—</span>;
+                            const b = buckets.reduce((a, c) => (c.total_pnl_usd > a.total_pnl_usd ? c : a));
+                            return (
+                              <span className={tone(b.total_pnl_usd)}>
+                                <span className="uppercase">{b.bucket}</span>{" "}
+                                <span className="text-muted-foreground">
+                                  · {b.trades}t · {b.win_rate_pct.toFixed(0)}% · {fmtUsd(b.total_pnl_usd)}
+                                </span>
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
                       <td className="px-2 py-1.5 text-left">
                         {h.best_day ? (
                           <span className={tone(h.best_day.pnl_usd)}>
@@ -1676,6 +1822,7 @@ function EntryZoneGridPanel(props: {
   const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
   const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
   const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
+  const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");
 
   const parseList = (s: string) =>
     s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
@@ -1783,48 +1930,85 @@ function EntryZoneGridPanel(props: {
         </div>
 
         {result && (
-          <div className="overflow-x-auto border border-border rounded">
-            <table className="w-full text-[11px]">
-              <thead className="text-muted-foreground">
-                <tr className="border-b border-border text-left">
-                  <th className="py-1.5 px-2">Mode</th>
-                  <th className="py-1.5 px-2 text-right">Entry %</th>
-                  <th className="py-1.5 px-2 text-right">SL %</th>
-                  <th className="py-1.5 px-2 text-right">Fills</th>
-                  <th className="py-1.5 px-2 text-right">Miss</th>
-                  <th className="py-1.5 px-2 text-right">Fill %</th>
-                  <th className="py-1.5 px-2 text-right">Win %</th>
-                  <th className="py-1.5 px-2 text-right">Trades</th>
-                  <th className="py-1.5 px-2 text-right">Gross</th>
-                  <th className="py-1.5 px-2 text-right">Fees</th>
-                  <th className="py-1.5 px-2 text-right">Net</th>
-                  <th className="py-1.5 px-2 text-right">Expect</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.cells]
-                  .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
-                  .map((c, i) => (
-                    <tr key={i} className="border-b border-border/40">
-                      <td className="py-1 px-2 uppercase">{c.mode}</td>
-                      <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.triggered}</td>
-                      <td className="py-1 px-2 text-right">{c.missed}</td>
-                      <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.trades}</td>
-                      <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
-                      <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
-                      <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
-                        {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
-                      </td>
-                      <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] tracking-widest text-muted-foreground">COHORT:</span>
+              <select
+                value={cohortDim}
+                onChange={(e) => setCohortDim(e.target.value as "none" | CohortDimKey)}
+                className="h-7 rounded border border-input bg-background px-2 text-[11px]"
+              >
+                <option value="none">Overall</option>
+                {(Object.keys(COHORT_DIM_LABELS) as CohortDimKey[]).map((k) => (
+                  <option key={k} value={k}>{COHORT_DIM_LABELS[k]}</option>
+                ))}
+              </select>
+              {cohortDim !== "none" && (
+                <span className="text-[10px] text-muted-foreground">Shows best bucket in that dimension per cell.</span>
+              )}
+            </div>
+            <div className="overflow-x-auto border border-border rounded">
+              <table className="w-full text-[11px]">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b border-border text-left">
+                    <th className="py-1.5 px-2">Mode</th>
+                    <th className="py-1.5 px-2 text-right">Entry %</th>
+                    <th className="py-1.5 px-2 text-right">SL %</th>
+                    <th className="py-1.5 px-2 text-right">Fills</th>
+                    <th className="py-1.5 px-2 text-right">Miss</th>
+                    <th className="py-1.5 px-2 text-right">Fill %</th>
+                    <th className="py-1.5 px-2 text-right">Win %</th>
+                    <th className="py-1.5 px-2 text-right">Trades</th>
+                    <th className="py-1.5 px-2 text-right">Gross</th>
+                    <th className="py-1.5 px-2 text-right">Fees</th>
+                    <th className="py-1.5 px-2 text-right">Net</th>
+                    <th className="py-1.5 px-2 text-right">Expect</th>
+                    {cohortDim !== "none" && (
+                      <th className="py-1.5 px-2 text-left">Best {COHORT_DIM_LABELS[cohortDim]}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...result.cells]
+                    .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
+                    .map((c, i) => (
+                      <tr key={i} className="border-b border-border/40">
+                        <td className="py-1 px-2 uppercase">{c.mode}</td>
+                        <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.triggered}</td>
+                        <td className="py-1 px-2 text-right">{c.missed}</td>
+                        <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.trades}</td>
+                        <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
+                        <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
+                        <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
+                          {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
+                        </td>
+                        <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
+                        {cohortDim !== "none" && (
+                          <td className="py-1 px-2 text-left">
+                            {(() => {
+                              const buckets = c.cohorts[cohortDim].buckets.filter((b) => b.trades > 0);
+                              if (!buckets.length) return <span className="text-muted-foreground">—</span>;
+                              const b = buckets.reduce((a, x) => (x.total_pnl_usd > a.total_pnl_usd ? x : a));
+                              const t = b.total_pnl_usd > 0 ? "text-emerald-400" : b.total_pnl_usd < 0 ? "text-red-400" : "text-muted-foreground";
+                              return (
+                                <span className={t}>
+                                  <span className="uppercase">{b.bucket}</span>
+                                  <span className="text-muted-foreground"> · {b.trades}t · {b.win_rate_pct.toFixed(0)}% · {b.total_pnl_usd >= 0 ? "+" : ""}{b.total_pnl_usd.toFixed(0)}</span>
+                                </span>
+                              );
+                            })()}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

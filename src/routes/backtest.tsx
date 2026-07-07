@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { getStrategyState, backtestRange, sweepHoursBacktest, runEntryZoneSweep } from "@/lib/strategy.functions";
+import { getStrategyState, backtestRange, sweepHoursBacktest, runEntryZoneSweep, backtestSessionsCompare } from "@/lib/strategy.functions";
 import { DEFAULT_FILTERS, type FilterConfig } from "@/lib/strategy/filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -389,6 +389,24 @@ function BacktestLab() {
             <FiltersCard value={filters} onChange={setFilters} />
 
             <StrategiesRoadmapCard />
+
+            <MultiSessionComparePanel
+              defaults={{
+                symbol: form.symbol,
+                days: form.days,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+                entryMode: form.entryMode,
+                entryDepthPct: form.entryDepthPct,
+                slDepthPct: form.slDepthPct,
+                retestSlR: form.retestSlR,
+              }}
+              filters={filters}
+            />
 
 
             {result && <ResultsView data={result} />}
@@ -2257,6 +2275,281 @@ function EntryZoneGridPanel(props: {
               </table>
             </div>
           </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ------------------------------------------------------------------
+// Multi-Session Comparison — runs the same rules against several session
+// start times in parallel so the user can see London vs NY vs Asia head-to-head.
+// ------------------------------------------------------------------
+
+type MultiSessData = Awaited<ReturnType<typeof backtestSessionsCompare>>;
+
+const SESSION_PRESETS: { label: string; time: string; hint: string }[] = [
+  { label: "Asia Open", time: "06:30", hint: "Tokyo/Sydney overlap" },
+  { label: "Frankfurt", time: "12:30", hint: "EU pre-open liquidity" },
+  { label: "London Open", time: "13:30", hint: "First major EU push" },
+  { label: "London Kill Zone", time: "14:30", hint: "1H after London" },
+  { label: "NY Open", time: "18:30", hint: "US session start" },
+  { label: "NY AM (Silver Bullet)", time: "19:30", hint: "10-11 AM NY" },
+  { label: "NY PM", time: "22:30", hint: "2-3 PM NY reversal window" },
+];
+
+function MultiSessionComparePanel(props: {
+  defaults: {
+    symbol: string;
+    days: number;
+    slRiskUsd: number;
+    rr: number;
+    trailEnabled: boolean;
+    trailActivateR: number;
+    trailStepR: number;
+    skipWeekdays: number[];
+    entryMode: "fib" | "retest" | "market" | "adaptive";
+    entryDepthPct: number;
+    slDepthPct: number;
+    retestSlR: number;
+  };
+  filters: NonNullable<FilterConfig>;
+}) {
+  const runCompare = useServerFn(backtestSessionsCompare);
+  const [sessions, setSessions] = useState<string[]>([
+    "13:30",
+    "18:30",
+    "19:30",
+  ]);
+  const [customTime, setCustomTime] = useState("15:30");
+  const [data, setData] = useState<MultiSessData | null>(null);
+
+  const mut = useMutation({
+    mutationFn: () =>
+      runCompare({
+        data: {
+          sessions,
+          days: props.defaults.days,
+          symbol: props.defaults.symbol,
+          sl_risk_usd: props.defaults.slRiskUsd,
+          rr: props.defaults.rr,
+          trail_enabled: props.defaults.trailEnabled,
+          trail_activate_r: props.defaults.trailActivateR,
+          trail_step_r: props.defaults.trailStepR,
+          skip_weekdays: props.defaults.skipWeekdays,
+          filters: props.filters,
+          entry: {
+            mode: props.defaults.entryMode,
+            entry_depth_pct: props.defaults.entryDepthPct,
+            sl_depth_pct: props.defaults.slDepthPct,
+            retest_sl_r: props.defaults.retestSlR,
+          },
+        },
+      }),
+    onSuccess: (r) => {
+      setData(r);
+      toast.success(`Compared ${r.sessions.length} sessions across ${r.days}d`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggle = (t: string) => {
+    setSessions((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t].sort(),
+    );
+  };
+  const addCustom = () => {
+    if (!/^\d{2}:\d{2}$/.test(customTime)) {
+      toast.error("Time must be HH:MM (24h IST)");
+      return;
+    }
+    if (sessions.includes(customTime)) return;
+    setSessions([...sessions, customTime].sort());
+  };
+
+  const best = data
+    ? data.sessions.reduce(
+        (a, x) => (x.summary.net_pnl_usd > a.summary.net_pnl_usd ? x : a),
+        data.sessions[0],
+      )
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">
+          MULTI-SESSION ORB COMPARISON
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Runs the same rules & filters against multiple session start times so
+          you can see which sessions the ORB edge actually lives in.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Session presets (IST)
+          </Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {SESSION_PRESETS.map((p) => {
+              const on = sessions.includes(p.time);
+              return (
+                <button
+                  key={p.time}
+                  type="button"
+                  onClick={() => toggle(p.time)}
+                  className={`px-2 py-1 rounded border text-[11px] font-mono transition ${
+                    on
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={p.hint}
+                >
+                  {p.time} · {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-end gap-2 flex-wrap">
+          <Field label="Custom session (IST)">
+            <Input
+              type="time"
+              value={customTime}
+              onChange={(e) => setCustomTime(e.target.value)}
+              className="h-8 font-mono text-xs w-32"
+            />
+          </Field>
+          <Button variant="outline" size="sm" onClick={addCustom} className="h-8">
+            + Add
+          </Button>
+          <div className="flex-1" />
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {sessions.length} session{sessions.length === 1 ? "" : "s"} selected · {props.defaults.days}d ·
+            {" "}RR 1:{props.defaults.rr} · risk ${props.defaults.slRiskUsd}
+          </div>
+        </div>
+
+        {sessions.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {sessions.map((s) => (
+              <span
+                key={s}
+                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-[11px] font-mono"
+              >
+                {s}
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => toggle(s)}
+                  aria-label={`Remove ${s}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || sessions.length === 0}
+            size="sm"
+          >
+            {mut.isPending ? "Running…" : `Compare ${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
+          </Button>
+          {sessions.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSessions([])}
+              disabled={mut.isPending}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {data && (
+          <div className="rounded border border-border overflow-x-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="bg-secondary/40 text-muted-foreground">
+                <tr>
+                  <th className="text-left py-1.5 px-2">Session</th>
+                  <th className="text-right py-1.5 px-2">Days</th>
+                  <th className="text-right py-1.5 px-2">Breaks</th>
+                  <th className="text-right py-1.5 px-2">Fills</th>
+                  <th className="text-right py-1.5 px-2">W/L</th>
+                  <th className="text-right py-1.5 px-2">Win%</th>
+                  <th className="text-right py-1.5 px-2">Fill%</th>
+                  <th className="text-right py-1.5 px-2">PF</th>
+                  <th className="text-right py-1.5 px-2">Expect $</th>
+                  <th className="text-right py-1.5 px-2">Avg R</th>
+                  <th className="text-right py-1.5 px-2">Net $</th>
+                  <th className="text-right py-1.5 px-2">Max DD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sessions.map((s) => {
+                  const isBest = best && s.session === best.session;
+                  const net = s.summary.net_pnl_usd;
+                  const netCls =
+                    net > 0 ? "text-emerald-400" : net < 0 ? "text-red-400" : "text-muted-foreground";
+                  return (
+                    <tr
+                      key={s.session}
+                      className={`border-t border-border ${isBest ? "bg-primary/5" : ""}`}
+                    >
+                      <td className="py-1 px-2 text-left">
+                        {s.session}
+                        {isBest && (
+                          <span className="ml-1 text-[9px] text-primary uppercase">
+                            best
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1 px-2 text-right">{s.summary.days_with_session}</td>
+                      <td className="py-1 px-2 text-right">{s.summary.breaks}</td>
+                      <td className="py-1 px-2 text-right">{s.summary.triggered}</td>
+                      <td className="py-1 px-2 text-right">
+                        <span className="text-emerald-400">{s.summary.tp}</span>
+                        {" / "}
+                        <span className="text-red-400">{s.summary.sl}</span>
+                      </td>
+                      <td className="py-1 px-2 text-right">
+                        {s.summary.win_rate_pct.toFixed(0)}%
+                      </td>
+                      <td className="py-1 px-2 text-right">
+                        {s.summary.fill_rate_pct.toFixed(0)}%
+                      </td>
+                      <td className="py-1 px-2 text-right">
+                        {Number.isFinite(s.summary.profit_factor)
+                          ? s.summary.profit_factor.toFixed(2)
+                          : "∞"}
+                      </td>
+                      <td className="py-1 px-2 text-right">
+                        {s.summary.expectancy_usd >= 0 ? "+" : ""}
+                        {s.summary.expectancy_usd.toFixed(2)}
+                      </td>
+                      <td className="py-1 px-2 text-right">
+                        {s.summary.avg_r >= 0 ? "+" : ""}
+                        {s.summary.avg_r.toFixed(2)}
+                      </td>
+                      <td className={`py-1 px-2 text-right ${netCls}`}>
+                        {net >= 0 ? "+" : ""}
+                        {net.toFixed(2)}
+                      </td>
+                      <td className="py-1 px-2 text-right text-red-400">
+                        {s.summary.max_drawdown_usd.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </CardContent>
     </Card>

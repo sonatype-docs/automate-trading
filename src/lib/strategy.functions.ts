@@ -237,6 +237,89 @@ export const backtestRange = createServerFn({ method: "POST" })
     });
   });
 
+const SessionsCompareSchema = RangeSchema.omit({ session_start_ist: true }).extend({
+  sessions: z.array(z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)).min(1).max(12),
+});
+
+export const backtestSessionsCompare = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => SessionsCompareSchema.parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: settings } = await supabase
+      .from("strategy_settings")
+      .select("*")
+      .eq("id", true)
+      .single();
+    if (!settings) throw new Error("Strategy settings not found");
+    const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
+    const trailEnabled = data.trail_enabled ?? Boolean((settings as { trail_enabled?: boolean }).trail_enabled);
+    const trailActivateR = data.trail_activate_r ?? Number((settings as { trail_activate_r?: number }).trail_activate_r ?? 2);
+    const trailStepR = data.trail_step_r ?? Number((settings as { trail_step_r?: number }).trail_step_r ?? 1);
+    const savedEntry = entryFromSettings(settings as unknown as Record<string, unknown>);
+    const entry = {
+      mode: data.entry?.mode ?? savedEntry.mode,
+      entryDepthPct: data.entry?.entry_depth_pct ?? savedEntry.entryDepthPct,
+      slDepthPct: data.entry?.sl_depth_pct ?? savedEntry.slDepthPct,
+      adaptiveStrongBreakPct: data.entry?.adaptive_strong_break_pct ?? savedEntry.adaptiveStrongBreakPct,
+      adaptiveShallowDepth: data.entry?.adaptive_shallow_depth ?? savedEntry.adaptiveShallowDepth,
+      adaptiveDeepDepth: data.entry?.adaptive_deep_depth ?? savedEntry.adaptiveDeepDepth,
+      retestSlR: data.entry?.retest_sl_r ?? savedEntry.retestSlR,
+    };
+    const symbol = data.symbol ?? settings.symbol;
+    const slRiskUsd = data.sl_risk_usd ?? Number(settings.sl_risk_usd);
+    const rr = data.rr ?? Number(settings.rr);
+    const skipWeekdays = (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[];
+
+    // Run sessions in parallel — each call is a separate simulation.
+    const results = await Promise.all(
+      data.sessions.map(async (sess) => {
+        const r = await runBacktestRange({
+          symbol,
+          sessionStartIst: sess.slice(0, 5),
+          slRiskUsd,
+          rr,
+          days: data.days,
+          trailEnabled,
+          trailActivateR,
+          trailStepR,
+          skipWeekdays,
+          filters: data.filters,
+          entry,
+          feeRate: data.fee_rate,
+        });
+        return {
+          session: sess.slice(0, 5),
+          summary: {
+            days_with_session: r.summary.days_with_session,
+            breaks: r.summary.breaks,
+            triggered: r.summary.triggered,
+            tp: r.summary.tp,
+            sl: r.summary.sl,
+            open: r.summary.open,
+            armed_no_trigger: r.summary.armed_no_trigger,
+            win_rate_pct: r.summary.win_rate_pct,
+            total_pnl_usd: r.summary.total_pnl_usd,
+            net_pnl_usd: r.summary.net_pnl_usd,
+            profit_factor: r.summary.profit_factor,
+            expectancy_usd: r.summary.expectancy_usd,
+            avg_r: r.summary.avg_r,
+            max_drawdown_usd: r.summary.max_drawdown_usd,
+            fill_rate_pct: r.summary.fill_rate_pct,
+            est_fees_usd: r.summary.est_fees_usd,
+          },
+          equity: r.equity,
+        };
+      }),
+    );
+    return {
+      symbol,
+      days: data.days,
+      sl_risk_usd: slRiskUsd,
+      rr,
+      sessions: results,
+    };
+  });
+
 const EntryZoneSweepSchema = z.object({
   symbol: z.string().min(3).max(24),
   days: z.number().int().min(1).max(365),

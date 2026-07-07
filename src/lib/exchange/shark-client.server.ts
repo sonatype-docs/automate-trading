@@ -268,13 +268,11 @@ export function createSharkClient(): ExchangeClient {
       };
     },
 
-    async cancelOrder(clientOrderId, symbol) {
+    async cancelOrder(clientOrderId, _symbol) {
       const { apiKey, apiSecret } = requireCreds();
-      // Shark uses DELETE /v1/order/delete-order (docs: "Deleting an Order").
-      // `symbol` is not part of the documented body, but we pass it when known
-      // so any future validation still succeeds.
+      // Shark uses DELETE /v1/order/delete-order with only clientOrderId.
+      // Sending `symbol` triggers 400 "property symbol should not exist".
       const body: Record<string, unknown> = { clientOrderId };
-      if (symbol) body.symbol = symbol.toUpperCase();
       const res = await signedJson(apiKey, apiSecret, "DELETE", "/v1/order/delete-order", body);
       return { ok: res.ok, status: res.status, body: res.body };
     },

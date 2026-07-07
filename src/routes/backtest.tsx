@@ -3189,6 +3189,14 @@ function LiquiditySweepPanel(props: {
             />
             <span>Require close back inside range</span>
           </label>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSat} onCheckedChange={(v) => setSkipSat(!!v)} />
+            <span>Skip Sat</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSun} onCheckedChange={(v) => setSkipSun(!!v)} />
+            <span>Skip Sun</span>
+          </label>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
             {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}

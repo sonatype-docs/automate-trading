@@ -2992,6 +2992,8 @@ function LiquiditySweepPanel(props: {
     tpMode: "rr",
     requireCloseInside: true,
   });
+  const [days, setDays] = useState<number>(props.defaults.days);
+
   const [data, setData] = useState<LiquiditySweepData | null>(null);
 
   const setK = <K extends keyof SweepFormState>(k: K, v: SweepFormState[K]) =>
@@ -3002,7 +3004,8 @@ function LiquiditySweepPanel(props: {
       runSweep({
         data: {
           symbol: props.defaults.symbol,
-          days: props.defaults.days,
+          days,
+
           sl_risk_usd: props.defaults.slRiskUsd,
           rr: cfg.rr,
           asian_start_ist: cfg.asianStartIst,
@@ -3146,6 +3149,31 @@ function LiquiditySweepPanel(props: {
           </Field>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label={`Days — ${days}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={7}
+                max={365}
+                step={1}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                className="h-8 w-20 font-mono text-xs"
+              />
+            </div>
+          </Field>
+        </div>
+
+
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-xs">
             <Switch
@@ -3156,7 +3184,8 @@ function LiquiditySweepPanel(props: {
           </label>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
-            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}
+            {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}
+
           </div>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
             {mut.isPending ? "Running…" : "Run sweep backtest"}
@@ -3320,6 +3349,8 @@ function SilverBulletPanel(props: {
     maxTradesPerDay: 1,
     executionTf: "5m",
   });
+  const [days, setDays] = useState<number>(props.defaults.days);
+
   const [data, setData] = useState<SilverBulletData | null>(null);
   const setK = <K extends keyof SbFormState>(k: K, v: SbFormState[K]) =>
     setCfg((c) => ({ ...c, [k]: v }));
@@ -3329,7 +3360,8 @@ function SilverBulletPanel(props: {
       runSb({
         data: {
           symbol: props.defaults.symbol,
-          days: props.defaults.days,
+          days,
+
           sl_risk_usd: props.defaults.slRiskUsd,
           rr: cfg.rr,
           window_start_ist: cfg.windowStartIst,
@@ -3473,12 +3505,34 @@ function SilverBulletPanel(props: {
               className="h-8 font-mono text-xs"
             />
           </Field>
+          <Field label={`Days — ${days}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={7}
+                max={365}
+                step={1}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                className="h-8 w-20 font-mono text-xs"
+              />
+            </div>
+          </Field>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
-            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars
+            {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars
+
           </div>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
             {mut.isPending ? "Running…" : "Run Silver Bullet backtest"}

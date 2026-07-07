@@ -1547,7 +1547,7 @@ function StrategyPresetsCard({
       createFn({
         data: {
           name: name.trim(),
-          symbol: scope === "current" ? symbol.trim().toUpperCase() : null,
+          symbol: scope === "any" ? null : (scope === "current" ? symbol.trim().toUpperCase() : scope),
           sl_risk_usd: sl,
           rr,
         },

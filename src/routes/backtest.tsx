@@ -388,6 +388,9 @@ function BacktestLab() {
 
             <FiltersCard value={filters} onChange={setFilters} />
 
+            <StrategiesRoadmapCard />
+
+
             {result && <ResultsView data={result} />}
 
             <HourSweepPanel
@@ -1723,6 +1726,48 @@ function FiltersCard({
               <span className="text-xs">Weekly open</span>
             </div>
           </div>
+
+          {/* D1 EMA regime gate — highest-EV filter from research (PF 1.85 on XAUUSD). */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40 mt-2 pt-3">
+            <Switch
+              checked={!!htf.ema_bias_enabled}
+              onCheckedChange={(v) => setHtf({ ema_bias_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-28">D1 EMA regime</span>
+            <Input
+              type="number"
+              min={2}
+              max={400}
+              value={htf.ema_bias_fast ?? 21}
+              onChange={(e) => setHtf({ ema_bias_fast: Math.max(2, numOr(e.target.value, 21)) })}
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">fast</span>
+            <Input
+              type="number"
+              min={2}
+              max={400}
+              value={htf.ema_bias_slow ?? 50}
+              onChange={(e) => setHtf({ ema_bias_slow: Math.max(2, numOr(e.target.value, 50)) })}
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">slow</span>
+            <select
+              value={htf.ema_bias_mode ?? "gate_by_slow"}
+              onChange={(e) =>
+                setHtf({ ema_bias_mode: e.target.value as "gate_by_slow" | "gate_by_cross" })
+              }
+              className="h-7 rounded border border-input bg-background px-2 text-xs font-mono"
+              disabled={!value.enabled || !htf.ema_bias_enabled}
+            >
+              <option value="gate_by_slow">price vs slow</option>
+              <option value="gate_by_cross">fast vs slow cross</option>
+            </select>
+          </div>
+
         </section>
 
         {/* SETUP QUALITY */}
@@ -1809,6 +1854,46 @@ function FiltersCard({
             <span className="text-[10px] text-muted-foreground">max $ · 0 = off</span>
           </div>
 
+          {/* ATR squeeze — only take setups when today's ATR is compressed vs its recent average. */}
+          <div className="flex flex-wrap items-center gap-2 pl-8">
+            <Switch
+              checked={!!q.atr_squeeze_enabled}
+              onCheckedChange={(v) => setQ({ atr_squeeze_enabled: v })}
+              disabled={!value.enabled}
+            />
+            <span className="text-xs w-24">ATR squeeze</span>
+            <Input
+              type="number"
+              min={3}
+              max={200}
+              value={q.atr_squeeze_lookback ?? 20}
+              onChange={(e) =>
+                setQ({ atr_squeeze_lookback: Math.max(3, numOr(e.target.value, 20)) })
+              }
+              className="h-7 w-16 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_squeeze_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">lookback</span>
+            <Input
+              type="number"
+              min={0.1}
+              max={2}
+              step={0.05}
+              value={q.atr_squeeze_ratio ?? 0.7}
+              onChange={(e) =>
+                setQ({
+                  atr_squeeze_ratio: Math.max(0.1, Math.min(2, numOr(e.target.value, 0.7))),
+                })
+              }
+              className="h-7 w-20 font-mono text-xs"
+              disabled={!value.enabled || !q.atr_squeeze_enabled}
+            />
+            <span className="text-[10px] text-muted-foreground">
+              ratio (atr / avg ≤ ratio → take trade)
+            </span>
+          </div>
+
+
           {/* Break strength */}
           <div className="flex flex-wrap items-center gap-2">
             <Switch
@@ -1874,6 +1959,94 @@ function FiltersCard({
     </Card>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Strategies roadmap card — surfaces the 5 researched gold strategies so the
+// user can see the full plan. Phase 1 (EMA regime gate + ATR squeeze) is live
+// in the Filters card above. Phases 2-3 land in follow-up turns.
+// -----------------------------------------------------------------------------
+function StrategiesRoadmapCard() {
+  const rows: Array<{
+    name: string;
+    status: "live" | "next" | "planned";
+    detail: string;
+  }> = [
+    {
+      name: "D1 EMA regime gate",
+      status: "live",
+      detail:
+        "Filters → HTF Bias → D1 EMA regime. Best-backtested XAUUSD filter (PF 1.85, 3% DD, +0.524R on 8,693 trades). Modes: price vs slow, or fast/slow cross.",
+    },
+    {
+      name: "ATR squeeze pre-session filter",
+      status: "live",
+      detail:
+        "Filters → Setup Quality → ATR squeeze. Only takes ORB when today's ATR ≤ ratio × SMA(ATR, lookback). Tune lookback + ratio to skip already-expanded sessions.",
+    },
+    {
+      name: "Multi-session ORB (Asian / London / NY)",
+      status: "next",
+      detail:
+        "Loops your existing ORB engine over configurable session windows (05:30 / 13:30 / 18:30 IST). Each session gets its own entry mode + RR overrides. Backtest-only.",
+    },
+    {
+      name: "Asian Liquidity Sweep + Reversal",
+      status: "next",
+      detail:
+        "New setup engine. Detects wick sweeps of PDH/PDL, Asian H/L, equal H/L, round numbers (10/25/50 USD grid) with body-back-inside confirmation. Two-target RR (nearest FVG → opposite liquidity).",
+    },
+    {
+      name: "ICT Silver Bullet — NY AM (19:30–20:30 IST)",
+      status: "planned",
+      detail:
+        "MSS + 3-bar FVG detector inside the 60-min kill zone with premium/discount validation. Needs 1m/3m kline fetch added to the pipeline; largest scope, saved for last.",
+    },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">STRATEGIES</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Five gold strategies from the research report. Phase 1 filters below are wired into the
+          current ORB backtest — toggle them in the Filters card above.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {rows.map((r) => (
+          <div
+            key={r.name}
+            className="flex items-start gap-3 text-xs border-l-2 pl-3 py-1"
+            style={{
+              borderColor:
+                r.status === "live"
+                  ? "hsl(var(--success, 142 76% 36%))"
+                  : r.status === "next"
+                    ? "hsl(var(--warning, 38 92% 50%))"
+                    : "hsl(var(--muted-foreground))",
+            }}
+          >
+            <span
+              className={`font-mono text-[10px] uppercase tracking-widest w-16 shrink-0 ${
+                r.status === "live"
+                  ? "text-emerald-500"
+                  : r.status === "next"
+                    ? "text-amber-500"
+                    : "text-muted-foreground"
+              }`}
+            >
+              {r.status === "live" ? "● live" : r.status === "next" ? "○ next" : "· planned"}
+            </span>
+            <div className="min-w-0">
+              <div className="font-semibold">{r.name}</div>
+              <div className="text-muted-foreground">{r.detail}</div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 // -----------------------------------------------------------------------------
 // Entry-zone grid sweep panel — scans (mode, entry_depth, sl_depth) combos.

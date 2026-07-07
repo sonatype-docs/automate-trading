@@ -1,56 +1,131 @@
-# Backtest cohort analytics
+# Add All 5 Gold Strategies to Backtesting Dashboard
 
-Add post-trade segmentation to every backtest run so we can see which conditions actually produce winners — without touching entry/exit logic.
+Build all 5 researched strategies into the backtest dashboard as fully configurable modules. Backtest-only scope — no live-engine or order-placement changes. Every knob exposed in the UI so you can tune freely.
 
-## Cohort dimensions
+## Strategies being added
 
-For each triggered trade we record:
+1. **Multi-Session ORB** (Asian / London / NY, per-session config)
+2. **Asian Liquidity Sweep + Reversal** (new setup engine)
+3. **ICT Silver Bullet — NY AM kill zone** (new setup engine, MSS + FVG)
+4. **D1 EMA regime gate** (filter)
+5. **ATR squeeze pre-session filter** (filter)
 
-1. **Body strength** — breakout candle body / range × 100. Bucketed by run tertiles → `low / mid / high`.
-2. **Opening-range size** — session (5:30–6:30) high − low. Bucketed by run tertiles → `small / medium / large`.
-3. **Break distance** — |break close − broken edge| in USD. Bucketed by run tertiles → `near / mid / far`.
-4. **Weekday** — Mon…Fri (already exists; kept as-is, shown alongside new cohorts).
-5. **TP target reached** — after entry, did price touch:
-   - the **swing** (session extreme on the trade's side + prior-day high/low on that side, whichever is closer)
-   - the **opposite liquidity** (session extreme on the opposite side + prior-day extreme on that side, whichever is closer)
-   - **both**, or **neither**
-   Recorded regardless of whether the trade hit TP or SL, so we can see how often each target was actually available.
+Each is independently toggleable and combinable. Filters (4, 5) apply to any active strategy. Strategies (1, 2, 3) can run individually or side-by-side in one backtest run.
 
-Tertile edges are computed from the run itself (per-cohort, per-run), so buckets self-calibrate to symbol and period. Edges are returned in the payload for the UI tooltip.
+## Architecture
 
-## Data plumbing
+### Data model — `src/lib/strategy/filters.ts` + new `strategies.ts`
 
-### `src/lib/strategy/backtest-range.server.ts`
-- Extend `DayResult` with: `body_pct`, `or_size_usd`, `break_distance_usd`, `swing_ref`, `opposite_ref`, `tp_target: "swing" | "opposite" | "both" | "neither" | null`.
-- During the bar walk, track max favorable excursion vs `swing_ref` and `opposite_ref` to classify `tp_target`.
-- After the day loop, compute tertile edges and assign each day a bucket per dimension.
-- Add `summary.cohorts` = `{ body, or_size, break_distance, weekday, tp_target }`, each value = `{ buckets: Record<label, Stat>, edges?: [n, n] }` where `Stat` = `{ trades, wins, losses, win_rate_pct, total_pnl_usd, avg_pnl_usd, avg_r }`.
+Extend `FiltersZod`:
 
-### `src/lib/strategy/filter-bias.server.ts` (or inline)
-- Extend the daily-kline fetch to always include one extra prior day so `prev_day_high` / `prev_day_low` are available for the swing/opposite references. Fold into `DailyBiasEntry` as `prev_high` / `prev_low` (kept optional; existing HTF bias code unaffected).
+```
+htf.ema_bias_enabled, htf.ema_bias_fast (default 21), htf.ema_bias_slow (default 50), htf.ema_bias_mode ('gate_by_slow' | 'gate_by_cross')
+quality.atr_squeeze_enabled, quality.atr_squeeze_lookback (default 20), quality.atr_squeeze_ratio (default 0.7)
+```
 
-### Sweeps
-- `src/lib/strategy/sweep.server.ts` (`runSweep` for Hour Sweep and `runEntryZoneSweep` for the grid): each cell already runs a simulation — capture `summary.cohorts` per cell and return it alongside the existing per-cell stats. Payloads grow but stay small (5 dims × ~3 buckets × ~7 numbers).
+New `StrategiesZod` (top-level in backtest request):
 
-## UI
+```
+orb: {
+  enabled, sessions: Array<{
+    id, label, session_start_ist, range_minutes,
+    range_source: 'self' | 'asian',
+    entry: EntryConfig (mode/depth/sl_depth/adaptive/retest),
+    rr, sl_risk_usd_override?, trail_enabled, trail_activate_r, trail_step_r,
+    require_range_consolidation_bars (yulz008 idea, default 0 = off)
+  }>
+}
+sweep: {
+  enabled,
+  levels: {
+    pdh_pdl, asian_hl, equal_hl (eps_atr_pct), round_numbers (grid_usd: 10|25|50)
+  },
+  min_wick_pips, sl_buffer_pips, rr1, rr2, tp1_partial_pct,
+  timeframe ('m30' | 'h1'),
+  session_window_ist? { start, end }  // optional restriction, default London 12:30-15:30
+}
+silver_bullet: {
+  enabled,
+  window_ist { start (default 19:30), end (default 20:30) },
+  execution_tf ('1m' | '3m' | '5m'),
+  context_tf ('15m'),
+  fvg_min_pips, mss_lookback_bars,
+  premium_discount_split_pct (default 50),
+  rr (default 3), sl_buffer_pips
+}
+```
 
-### `src/routes/backtest.tsx`
-- **New card "COHORT BREAKDOWNS"** under Results with 5 compact tables (Body, OR size, Break distance, Weekday, TP target). Columns: bucket · trades · win% · total $ · avg R. Best row per cohort highlighted. Tertile edges shown as tooltip text.
-- **Clickable cohorts**: clicking a bucket sets a `selectedCohort` state `{ dim, bucket }`. When set:
-  - The **trades table** filters to matching days.
-  - The **equity curve** recomputes from the filtered days' `pnl_usd` (client-side cumulative sum over `ist_date`).
-  - A dismissible pill above the results shows the active filter (`Body: high ×`).
-  Clicking the active bucket again clears it. Cohort tables stay unfiltered so you can pivot.
-- **Hour Sweep and Entry-Zone Grid**: add a "Cohort" dropdown above each table with options `Overall` (default) + one entry per dimension. When a dimension is selected, each cell renders that dimension's **best bucket** and its win% / avg R (small subscript with the bucket name). Overall keeps current behaviour.
+Every field has a sensible default; UI shows current value with reset-to-default per field.
 
-## Out of scope
+### Server engine — new files under `src/lib/strategy/`
 
-- No changes to entry rules, filters, or order execution.
-- No new persisted settings; cohort UI is purely per-run.
-- No CSV export of cohort tables yet — can add if useful.
+- `levels.server.ts` — level scanners: PDH/PDL, Asian H/L, equal-highs/lows (H1 lookback + ATR% epsilon), round-number ladder
+- `sweep.engine.server.ts` — sweep detection + reversal setup generator
+- `silver-bullet.engine.server.ts` — MSS detector, FVG detector, premium/discount validator, retest-entry generator
+- `multi-session-orb.server.ts` — wraps existing ORB logic to loop over N session configs per day
+- `backtest-range.server.ts` — extended to accept `StrategiesConfig`, produce **per-strategy** result blocks plus a combined block
+
+Result shape adds `strategy: 'orb' | 'sweep' | 'silver_bullet'` and `session_id?` to every trade, so existing cohort analytics (body / OR-size / break-distance / weekday / TP-target / MAE) automatically breakdown by strategy without new code.
+
+Combined-run stats block: PF / WR / avg R / max DD / expectancy / Sharpe per strategy, plus overlap analysis (same-day double-fires).
+
+### UI — `src/routes/backtest.tsx`
+
+New collapsible cards inside the backtest form, in this order:
+
+1. **Strategies** (master toggles + expand)
+   - **ORB Sessions** card
+     - Add/remove sessions (Asian preset, London preset, NY preset, custom)
+     - Per-session: start time, range minutes, range source, full entry config (reuse existing entry inputs), per-session RR + trail overrides, consolidation-bars filter
+   - **Liquidity Sweep** card
+     - Level toggles (PDH/PDL, Asian H/L, equal H/L with ε slider, round-number grid select)
+     - Sweep params: min wick pips, SL buffer, RR1/RR2, TP1 partial %, timeframe, optional session-window restriction
+   - **Silver Bullet** card
+     - Window start/end (IST), execution TF, context TF, FVG min pips, MSS lookback, premium/discount split %, RR, SL buffer
+
+2. **Filters** (existing card, extended)
+   - New **HTF EMA regime gate** row: enable, fast len, slow len, mode dropdown
+   - New **ATR squeeze** row under existing ATR block: enable, lookback, ratio slider (0.3–1.0)
+
+3. **Results view** (extended)
+   - **Strategy comparison** table at top when >1 strategy active: side-by-side PF / WR / trades / avg R / max DD / expectancy
+   - **Per-strategy tabs** below: equity curve, trades table, cohort breakdowns, MAE — filterable by strategy chip
+   - Existing cohort dimensions apply automatically to each strategy
+   - Trades table gains **Strategy** and **Session** columns; chip filter on strategy/session
+
+4. **Presets** (extended)
+   - Presets already exist for symbol/risk/RR; extend `strategy_presets` schema to optionally store a full `strategies + filters` blob. Existing presets keep working (blob is nullable).
+
+### Migration
+
+- `strategy_presets`: add `config_json jsonb` (nullable). GRANTs unchanged; RLS unchanged.
+- No changes to `strategy_setups` / `strategy_sessions` (backtest-only scope).
+
+### Sweeps (Hour + Entry-Zone grids)
+
+Both existing sweep tools gain a **Strategy** selector. When a non-ORB strategy is selected, irrelevant axes are hidden (e.g. entry-depth grid disabled for Silver Bullet, replaced with FVG-min-pips / MSS-lookback grid).
+
+## Explicitly out of scope
+
+- Live engine, order placement, Shark client — untouched. Live still runs current single-ORB path.
+- News/economic-calendar integration — separate infra.
+- RL / ML models — infrastructure cost >> data.
+- No changes to `src/integrations/supabase/*` (auto-gen).
 
 ## Verification
 
-- Typecheck.
-- Run one range backtest, confirm the 5 tables render, click a bucket, confirm trade list + equity update.
-- Run Hour Sweep with "Cohort: Body" and confirm cells show a bucket label.
+- Typecheck clean.
+- Run backtest with each strategy alone on last 90 days → each produces trades and stats.
+- Run all 3 strategies together → strategy comparison table renders, cohort tabs switch cleanly, filter chips work.
+- Toggle EMA gate + ATR squeeze on ORB-only run → trade count drops, expectancy stats update.
+- Save + reload a preset with full config blob → all fields restore.
+
+## Technical notes
+
+- All new engines live in `*.server.ts` files under `src/lib/strategy/` so they stay off the client bundle.
+- Zod validators mirror the config on the server; UI uses shared types via `z.infer`.
+- Level scanners and FVG detection are pure functions over kline arrays — trivially unit-testable, cheap to run inside the existing day-walk loop.
+- Multi-strategy result blob rounded-tripped through `JSON.parse(JSON.stringify(...))` before return (existing pattern) to keep Seroval happy.
+- Kline data requirements: sweep needs H1 (already fetched), Silver Bullet needs 1m/3m for execution + 15m for context. Add fetch to existing kline pipeline; cache per-day like today.
+
+Approve to build all of this in one pass, or say which strategies/filters to defer.

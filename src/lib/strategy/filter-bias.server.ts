@@ -24,6 +24,14 @@ export interface DailyBiasEntry {
   ema: number | null;
   week_open: number | null;
   atr: number | null;
+  /** Fast EMA of daily close (regime gate). */
+  ema_fast: number | null;
+  /** Slow EMA of daily close (regime gate). */
+  ema_slow: number | null;
+  /** SMA of ATR over `atrSqueezeLookback` bars — used by the ATR squeeze filter. */
+  atr_lookback_avg: number | null;
+  /** Prior-day close (same as prev_close, alias for clarity in gates that need the previous close). */
+  prev_price: number | null;
 }
 
 /**
@@ -33,7 +41,13 @@ export interface DailyBiasEntry {
  */
 export function computeDailyBias(
   daily: Kline[],
-  opts: { emaLen: number; atrLen: number },
+  opts: {
+    emaLen: number;
+    atrLen: number;
+    emaFastLen?: number;
+    emaSlowLen?: number;
+    atrSqueezeLookback?: number;
+  },
 ): Map<string, DailyBiasEntry> {
   const sorted = [...daily].sort((a, b) => a.openTime - b.openTime);
   const map = new Map<string, DailyBiasEntry>();
@@ -43,9 +57,21 @@ export function computeDailyBias(
   let ema: number | null = null;
   const closeWarmup: number[] = [];
 
+  const emaFastLen = Math.max(1, Math.floor(opts.emaFastLen ?? 21));
+  const emaSlowLen = Math.max(1, Math.floor(opts.emaSlowLen ?? 50));
+  const kFast = 2 / (emaFastLen + 1);
+  const kSlow = 2 / (emaSlowLen + 1);
+  let emaFast: number | null = null;
+  let emaSlow: number | null = null;
+  const fastWarmup: number[] = [];
+  const slowWarmup: number[] = [];
+
   const atrLen = Math.max(1, Math.floor(opts.atrLen));
   const trWarmup: number[] = [];
   let atr: number | null = null;
+
+  const squeezeLookback = Math.max(2, Math.floor(opts.atrSqueezeLookback ?? 20));
+  const atrHistory: number[] = [];
 
   const weekOpenByMonday = new Map<string, number>();
 
@@ -67,7 +93,16 @@ export function computeDailyBias(
       atr = (atr * (atrLen - 1) + tr) / atrLen;
     }
 
-    // EMA of close
+    if (atr !== null) {
+      atrHistory.push(atr);
+      if (atrHistory.length > squeezeLookback) atrHistory.shift();
+    }
+    const atrLookbackAvg =
+      atrHistory.length >= squeezeLookback
+        ? atrHistory.reduce((s, x) => s + x, 0) / atrHistory.length
+        : null;
+
+    // EMA of close (single, legacy)
     if (ema === null) {
       closeWarmup.push(c.close);
       if (closeWarmup.length >= emaLen) {
@@ -75,6 +110,24 @@ export function computeDailyBias(
       }
     } else {
       ema = c.close * k + ema * (1 - k);
+    }
+
+    // Fast + slow EMAs for regime gate
+    if (emaFast === null) {
+      fastWarmup.push(c.close);
+      if (fastWarmup.length >= emaFastLen) {
+        emaFast = fastWarmup.reduce((s, x) => s + x, 0) / emaFastLen;
+      }
+    } else {
+      emaFast = c.close * kFast + emaFast * (1 - kFast);
+    }
+    if (emaSlow === null) {
+      slowWarmup.push(c.close);
+      if (slowWarmup.length >= emaSlowLen) {
+        emaSlow = slowWarmup.reduce((s, x) => s + x, 0) / emaSlowLen;
+      }
+    } else {
+      emaSlow = c.close * kSlow + emaSlow * (1 - kSlow);
     }
 
     // Weekly open cache — first candle whose IST date maps to this Monday
@@ -85,11 +138,16 @@ export function computeDailyBias(
     const nextDate = addDaysIso(date, 1);
     map.set(nextDate, {
       prev_close: c.close,
+      prev_price: c.close,
       ema,
+      ema_fast: emaFast,
+      ema_slow: emaSlow,
       week_open: weekOpenByMonday.get(isoWeekMonday(nextDate)) ?? null,
       atr,
+      atr_lookback_avg: atrLookbackAvg,
     });
   }
 
   return map;
 }
+

@@ -222,14 +222,24 @@ export async function runBacktestRange(opts: {
   if (needsDailyBias(opts.filters)) {
     const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
     const atrLen = opts.filters?.quality?.atr_len ?? 14;
-    const warmupDays = Math.max(emaLen, atrLen) + 10;
+    const emaFastLen = opts.filters?.htf?.ema_bias_fast ?? 21;
+    const emaSlowLen = opts.filters?.htf?.ema_bias_slow ?? 50;
+    const atrSqueezeLookback = opts.filters?.quality?.atr_squeeze_lookback ?? 20;
+    const warmupDays = Math.max(emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 10;
     const dailyFromMs = fromMs - warmupDays * 86_400_000;
     const daily = await client.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
-    dailyBias = computeDailyBias(daily, { emaLen, atrLen });
+    dailyBias = computeDailyBias(daily, {
+      emaLen,
+      atrLen,
+      emaFastLen,
+      emaSlowLen,
+      atrSqueezeLookback,
+    });
   }
 
   return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now, dailyBias });
 }
+
 
 export function simulateFromKlines(
   klines: Kline[],

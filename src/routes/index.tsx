@@ -1333,6 +1333,29 @@ function ZoneCell({ label, value, highlight }: { label: string; value: number; h
   );
 }
 
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded">
+      <CollapsibleTrigger className="w-full flex items-center justify-between px-3 py-2 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-foreground transition-colors">
+        <span>{title.toUpperCase()}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-3 pt-1">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 
 
 

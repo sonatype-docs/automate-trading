@@ -289,30 +289,80 @@ function JournalPage() {
 
         {/* Equity curve */}
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                {(["7D", "30D", "90D", "ALL"] as const).map((r) => (
+                  <Button
+                    key={r}
+                    size="sm"
+                    variant={chartRange === r ? "default" : "ghost"}
+                    className="h-6 px-2 text-[10px] font-mono"
+                    onClick={() => setChartRange(r)}
+                  >
+                    {r}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-1 border-l border-border pl-3">
+                {(["time", "trade"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    size="sm"
+                    variant={chartAxis === m ? "default" : "ghost"}
+                    className="h-6 px-2 text-[10px] font-mono"
+                    onClick={() => setChartAxis(m)}
+                  >
+                    {m === "time" ? "TIME" : "TRADE #"}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={equityCurve}>
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={(t) => new Date(t).toLocaleDateString("en-IN")}
-                  minTickGap={40}
-                  fontSize={10}
-                />
-                <YAxis fontSize={10} domain={["auto", "auto"]} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <ReTooltip
-                  labelFormatter={(t) => new Date(Number(t)).toLocaleString("en-IN", { hour12: false })}
-                  formatter={(v: number) => [fmtINR(v), "Equity"]}
-                />
-                <Line type="monotone" dataKey="eq" stroke="oklch(78% 0.16 75)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {(() => {
+              const now = Date.now();
+              const rangeMs =
+                chartRange === "7D" ? 7 * 86_400_000 :
+                chartRange === "30D" ? 30 * 86_400_000 :
+                chartRange === "90D" ? 90 * 86_400_000 : Infinity;
+              const cutoff = chartRange === "ALL" ? -Infinity : now - rangeMs;
+              const filtered = equityCurve.filter((p) => p.t >= cutoff);
+              const data = filtered.length > 1 ? filtered : equityCurve;
+              const useTradeAxis = chartAxis === "trade";
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={data}>
+                    <XAxis
+                      dataKey={useTradeAxis ? "i" : "t"}
+                      type="number"
+                      scale={useTradeAxis ? "linear" : "time"}
+                      domain={["dataMin", "dataMax"]}
+                      tickFormatter={(v) =>
+                        useTradeAxis
+                          ? `#${v}`
+                          : new Date(Number(v)).toLocaleDateString("en-IN")
+                      }
+                      minTickGap={40}
+                      fontSize={10}
+                    />
+                    <YAxis fontSize={10} domain={["auto", "auto"]} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                    <ReTooltip
+                      labelFormatter={(v) =>
+                        useTradeAxis
+                          ? `Trade #${v}`
+                          : new Date(Number(v)).toLocaleString("en-IN", { hour12: false })
+                      }
+                      formatter={(v: number) => [fmtINR(v), "Equity"]}
+                    />
+                    <Line type="monotone" dataKey="eq" stroke="oklch(78% 0.16 75)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              );
+            })()}
           </CardContent>
+
         </Card>
 
         {/* Upcoming pending orders */}

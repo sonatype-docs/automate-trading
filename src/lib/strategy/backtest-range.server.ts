@@ -147,6 +147,8 @@ export function simulateFromKlines(
   const now = opts.nowMs;
   const fromMs = opts.fromMs;
 
+  // Restrict to the requested window (allows callers to pass a superset).
+  klines = klines.filter((k) => k.openTime >= fromMs && k.closeTime <= now);
 
   // Bucket by IST date for fast session lookup.
   const byOpen = new Map<number, Kline>();
@@ -156,6 +158,7 @@ export function simulateFromKlines(
   const dates = new Set<string>();
   for (const k of klines) dates.add(istDate(k.openTime));
   const sortedDates = [...dates].sort();
+
 
   const days: DayResult[] = [];
 

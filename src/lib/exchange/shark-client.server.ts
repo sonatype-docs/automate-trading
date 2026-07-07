@@ -20,6 +20,8 @@ export interface PlaceOrderParams {
   price?: number;
   reduceOnly?: boolean;
   marginAsset?: string;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
 }
 
 export interface OrderResult {

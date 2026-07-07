@@ -75,6 +75,12 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
   return runStrategyTick();
 });
 
+export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async () => {
+  const { repriceArmedSetupsNow } = await import("@/lib/strategy/engine.server");
+  return repriceArmedSetupsNow();
+});
+
+
 export const getPendingSharkOrders = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");

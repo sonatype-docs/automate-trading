@@ -8,7 +8,7 @@ const IST_OFFSET_MIN = 330; // UTC+5:30
 
 
 // Return the "trading session date" (YYYY-MM-DD in IST) for `now`, where a
-// session runs from sessionStartIst (e.g. 05:30) of day D until sessionStartIst
+// session runs from sessionStartIst (e.g. 06:00) of day D until sessionStartIst
 // of day D+1. So between 00:00 and 05:29 IST, the session date is the previous
 // calendar day. Yesterday's pending setups are expired the moment this rolls.
 function sessionDate(msUtc: number, sessionStartIst: string): string {
@@ -28,7 +28,7 @@ function istWeekday(istDateStr: string): number {
 }
 
 // The 1h candle openTime (UTC ms) for the IST session-start hour on a given IST date.
-// Default 05:30 IST → 00:00 UTC.
+// Default 06:00 IST → 00:00 UTC.
 function sessionOpenUtcMs(istDateStr: string, sessionStartIst: string): number {
   const [hh, mm] = sessionStartIst.split(":").map((n) => parseInt(n, 10));
   const totalMin = hh * 60 + (mm || 0) - IST_OFFSET_MIN;
@@ -135,7 +135,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   const todayIst = sessionDate(now, s.session_start_ist);
 
   // Expire leftover armed setups from previous IST session days. Runs first so
-  // stale orders are cancelled the moment the new session date rolls (≈05:30 IST).
+  // stale orders are cancelled the moment the new session date rolls (≈06:00 IST).
   const { data: expiredRows } = await supabaseAdmin
     .from("strategy_setups")
     .update({ status: "expired", updated_at: new Date().toISOString() })

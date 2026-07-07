@@ -200,7 +200,7 @@ function StrategySettingsCard() {
     symbol: "XAUUSDT",
     sl_risk_usd: 25,
     rr: 2,
-    session_start_ist: "05:30",
+    session_start_ist: "06:00",
   });
   useEffect(() => {
     if (q.data?.settings) {

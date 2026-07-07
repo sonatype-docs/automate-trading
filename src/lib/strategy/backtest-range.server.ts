@@ -586,8 +586,45 @@ export function simulateFromKlines(
     if (dr.outcome === "armed_no_trigger" && Number.isFinite(closestDist) && risk > 0) {
       dr.closest_approach_r = closestDist / risk;
     }
+    // Assign tp_target for any triggered trade (tp / sl / open) that had refs.
+    if (dr.trigger_at !== null && (dr.swing_ref !== null || dr.opposite_ref !== null)) {
+      dr.tp_target =
+        reachedSwing && reachedOpposite
+          ? "both"
+          : reachedSwing
+            ? "swing"
+            : reachedOpposite
+              ? "opposite"
+              : "neither";
+    }
     days.push(dr);
   }
+
+  // ---- Tertile bucketing for numeric cohorts ----
+  function tertiles(vals: number[]): [number, number] | null {
+    if (vals.length < 3) return null;
+    const s = [...vals].sort((a, b) => a - b);
+    const q = (p: number) => s[Math.min(s.length - 1, Math.max(0, Math.floor(s.length * p)))];
+    return [q(1 / 3), q(2 / 3)];
+  }
+  const bucketize = (v: number, e: [number, number] | null): Tercile => {
+    if (!e) return "mid";
+    if (v <= e[0]) return "low";
+    if (v <= e[1]) return "mid";
+    return "high";
+  };
+  const withBreak = days.filter((d) => d.break_side !== null);
+  const bodyEdges = tertiles(withBreak.map((d) => d.body_pct as number));
+  const orEdges = tertiles(withBreak.map((d) => d.or_size_usd as number));
+  const distEdges = tertiles(withBreak.map((d) => d.break_distance_usd as number));
+  const orMap: Record<Tercile, OrBucket> = { low: "small", mid: "medium", high: "large" };
+  const distMap: Record<Tercile, DistBucket> = { low: "near", mid: "mid", high: "far" };
+  for (const d of withBreak) {
+    d.body_bucket = bucketize(d.body_pct as number, bodyEdges);
+    d.or_bucket = orMap[bucketize(d.or_size_usd as number, orEdges)];
+    d.break_distance_bucket = distMap[bucketize(d.break_distance_usd as number, distEdges)];
+  }
+
 
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;

@@ -665,6 +665,110 @@ function Kv({ k, v, tone }: { k: string; v: string; tone?: string }) {
   );
 }
 
+type CohortsPayload = RangeData["summary"]["cohorts"];
+
+const COHORT_DIM_ORDER: { key: CohortDimKey; label: string; edgeSuffix?: string }[] = [
+  { key: "body", label: "Body strength (breakout candle body / range)", edgeSuffix: "%" },
+  { key: "or_size", label: "Opening range size (session $)", edgeSuffix: "$" },
+  { key: "break_distance", label: "Break distance beyond level", edgeSuffix: "$" },
+  { key: "weekday", label: "Weekday" },
+  { key: "tp_target", label: "TP target reached (swing / opposite liquidity)" },
+];
+
+function CohortBreakdowns({
+  cohorts,
+  active,
+  onSelect,
+}: {
+  cohorts: CohortsPayload;
+  active: CohortFilter;
+  onSelect: (f: CohortFilter) => void;
+}) {
+  const fmtUsd = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Cohort breakdowns — click a bucket to filter the trade table &amp; equity curve
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {COHORT_DIM_ORDER.map(({ key, label, edgeSuffix }) => {
+          const dim = cohorts[key];
+          const rows = dim.buckets;
+          const withTrades = rows.filter((r) => r.trades > 0);
+          const bestBucket = withTrades.length
+            ? withTrades.reduce((a, b) => (b.total_pnl_usd > a.total_pnl_usd ? b : a)).bucket
+            : null;
+          return (
+            <div key={key} className="border border-border rounded overflow-hidden">
+              <div className="flex items-center justify-between px-2 py-1 bg-muted/60">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+                {dim.edges && (
+                  <span className="text-[9px] font-mono text-muted-foreground">
+                    tertiles: {dim.edges[0].toFixed(1)}{edgeSuffix} / {dim.edges[1].toFixed(1)}{edgeSuffix}
+                  </span>
+                )}
+              </div>
+              <table className="w-full text-[11px] font-mono">
+                <thead className="text-[9px] uppercase tracking-widest text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-2 py-1">Bucket</th>
+                    <th className="text-right px-2 py-1">Trades</th>
+                    <th className="text-right px-2 py-1">Win %</th>
+                    <th className="text-right px-2 py-1">Total $</th>
+                    <th className="text-right px-2 py-1">Avg R</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const isActive = active?.dim === key && active?.bucket === r.bucket;
+                    const isBest = r.bucket === bestBucket && r.trades > 0;
+                    const tone =
+                      r.trades === 0
+                        ? "text-muted-foreground"
+                        : r.total_pnl_usd > 0
+                          ? "text-long"
+                          : r.total_pnl_usd < 0
+                            ? "text-short"
+                            : "";
+                    return (
+                      <tr
+                        key={r.bucket}
+                        onClick={() => {
+                          if (r.trades === 0) return;
+                          onSelect(isActive ? null : { dim: key, bucket: r.bucket });
+                        }}
+                        className={`border-t border-border cursor-pointer hover:bg-muted/40 ${
+                          isActive ? "bg-primary/10" : isBest ? "bg-emerald-500/5" : ""
+                        } ${r.trades === 0 ? "opacity-60 cursor-default" : ""}`}
+                      >
+                        <td className="px-2 py-1 capitalize">
+                          {r.bucket}
+                          {isBest && <span className="ml-1 text-[9px] text-emerald-400">★</span>}
+                        </td>
+                        <td className="text-right px-2 py-1">{r.trades}</td>
+                        <td className="text-right px-2 py-1">
+                          {r.trades > 0 ? `${r.win_rate_pct.toFixed(0)}%` : "—"}
+                        </td>
+                        <td className={`text-right px-2 py-1 ${tone}`}>
+                          {r.trades > 0 ? fmtUsd(r.total_pnl_usd) : "—"}
+                        </td>
+                        <td className={`text-right px-2 py-1 ${tone}`}>
+                          {r.trades > 0 ? r.avg_r.toFixed(2) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",

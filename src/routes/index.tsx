@@ -1235,7 +1235,7 @@ function StrategyCard() {
             saving={trailSaveMut.isPending}
           />
         </CollapsibleSection>
-        <CollapsibleSection title="Live Session Rules" defaultOpen>
+        <CollapsibleSection title="Live Session Rules" defaultOpen={false}>
           <LiveSessionRulesEditor
             settings={{
               session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",

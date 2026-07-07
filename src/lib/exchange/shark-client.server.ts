@@ -239,6 +239,11 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getOpenOrderIds(symbol) {
+      const rows = await (this as ExchangeClient).getOpenOrders(symbol);
+      return rows.map((r) => r.clientOrderId).filter((s) => s.length > 0);
+    },
+
+    async getOpenOrders(symbol) {
       const { apiKey, apiSecret } = requireCreds();
       const params: Record<string, string | number> = { sortOrder: "desc", pageSize: "100" };
       if (symbol) params.symbol = symbol.toUpperCase();
@@ -247,16 +252,34 @@ export function createSharkClient(): ExchangeClient {
       const rows =
         (res.json as { data?: unknown[] } | null)?.data ??
         (Array.isArray(res.json) ? (res.json as unknown[]) : []);
-      const ids: string[] = [];
+      const out: OpenOrderRow[] = [];
       for (const r of rows) {
         const o = r as Record<string, unknown>;
         const id =
           (o.clientOrderId as string | undefined) ??
           (o.orderId as string | undefined) ??
-          (o.id as string | undefined);
-        if (typeof id === "string" && id.length > 0) ids.push(id);
+          (o.id !== undefined ? String(o.id) : undefined) ??
+          "";
+        const num = (v: unknown): number | null => {
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
+        out.push({
+          clientOrderId: id,
+          symbol: String(o.symbol ?? ""),
+          side: String(o.side ?? ""),
+          type: String(o.type ?? ""),
+          status: String(o.status ?? o.orderStatus ?? "OPEN"),
+          price: num(o.price ?? o.limitPrice),
+          quantity: num(o.quantity ?? o.orderAmount ?? o.qty),
+          filledAmount: num(o.filledAmount),
+          stopLossPrice: num(o.stopLossPrice ?? o.slPrice),
+          takeProfitPrice: num(o.takeProfitPrice ?? o.tpPrice),
+          createdAt: (o.time as string | undefined) ?? (o.createdAt as string | undefined) ?? null,
+          raw: o,
+        });
       }
-      return ids;
+      return out;
     },
 
     async getFillForClientOrderId(clientOrderId) {

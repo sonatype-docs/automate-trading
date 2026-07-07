@@ -31,7 +31,6 @@ import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import {
   Activity,
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   Settings as SettingsIcon,

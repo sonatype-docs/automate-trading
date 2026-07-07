@@ -535,6 +535,15 @@ export function simulateFromKlines(
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (barR > peakR) peakR = barR;
 
+      // TP-target tracking — did price reach swing / opposite references while the trade was live?
+      if (dr.swing_ref !== null) {
+        if (breakSide === "long" ? k.high >= dr.swing_ref : k.low <= dr.swing_ref) reachedSwing = true;
+      }
+      if (dr.opposite_ref !== null) {
+        if (breakSide === "long" ? k.low <= dr.opposite_ref : k.high >= dr.opposite_ref) reachedOpposite = true;
+      }
+
+
       // Advance trailing SL if enabled.
       if (trailEnabled && peakR >= trailActivateR) {
         const steps = Math.floor((peakR - trailActivateR) / trailStepR);

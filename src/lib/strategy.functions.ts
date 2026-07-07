@@ -131,6 +131,18 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
   return { session: sessionRow, setups: setups ?? [], orders };
 });
 
+function entryFromSettings(settings: Record<string, unknown>) {
+  return {
+    mode: (settings.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "fib",
+    entryDepthPct: Number(settings.entry_depth_pct ?? 0.25),
+    slDepthPct: Number(settings.sl_depth_pct ?? 0.75),
+    adaptiveStrongBreakPct: Number(settings.adaptive_strong_break_pct ?? 30),
+    adaptiveShallowDepth: Number(settings.adaptive_shallow_depth ?? 0.10),
+    adaptiveDeepDepth: Number(settings.adaptive_deep_depth ?? 0.35),
+    retestSlR: Number(settings.retest_sl_r ?? 0.5),
+  };
+}
+
 export const backtestToday = createServerFn({ method: "POST" }).handler(async () => {
   const supabase = await admin();
   const { data: settings } = await supabase
@@ -145,8 +157,23 @@ export const backtestToday = createServerFn({ method: "POST" }).handler(async ()
     sessionStartIst: String(settings.session_start_ist).slice(0, 5),
     slRiskUsd: Number(settings.sl_risk_usd),
     rr: Number(settings.rr),
+    entry: entryFromSettings(settings as unknown as Record<string, unknown>),
   });
 });
+
+const EntryOverrideSchema = z
+  .object({
+    mode: EntryModeEnum,
+    entry_depth_pct: z.number().min(0).max(0.5),
+    sl_depth_pct: z.number().min(0.1).max(1),
+    adaptive_strong_break_pct: z.number().min(1).max(100),
+    adaptive_shallow_depth: z.number().min(0).max(0.5),
+    adaptive_deep_depth: z.number().min(0).max(0.5),
+    retest_sl_r: z.number().positive().max(5),
+  })
+  .partial()
+  .optional();
+
 
 const RangeSchema = z.object({
   days: z.number().int().min(1).max(365),

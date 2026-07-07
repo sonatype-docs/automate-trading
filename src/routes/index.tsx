@@ -11,6 +11,7 @@ import {
   getStrategyState,
   getStrategyTimeline,
   runStrategyTickNow,
+  repriceArmedNow,
   updateStrategySettings,
   listStrategyPresets,
   createStrategyPreset,

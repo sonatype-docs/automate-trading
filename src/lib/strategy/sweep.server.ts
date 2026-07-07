@@ -160,6 +160,7 @@ export interface EntryZoneCell {
   avg_r: number;
   triggered: number;
   missed: number;
+  cohorts: Cohorts;
 }
 
 export interface EntryZoneSweepResult {

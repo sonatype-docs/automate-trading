@@ -278,6 +278,11 @@ function Dashboard() {
                 <Beaker className="w-4 h-4 mr-2" /> Backtest
               </Button>
             </Link>
+            <Link to="/pending-orders">
+              <Button variant="ghost" size="sm">
+                <ListOrdered className="w-4 h-4 mr-2" /> Pending Orders
+              </Button>
+            </Link>
             <Link to="/docs">
               <Button variant="ghost" size="sm">
                 <BookOpen className="w-4 h-4 mr-2" /> Webhook setup

@@ -1767,16 +1767,49 @@ function EntryZoneGridPanel(props: {
           </div>
           <div className="md:col-span-2 space-y-1">
             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Entry depths (0–0.5)
+              Entry depths ({entryDepths.length})
             </Label>
-            <Input value={entryDepthsStr} onChange={(e) => setEntryDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+            <div className="flex flex-wrap gap-1">
+              {DEPTH_STEPS.map((v) => {
+                const on = entryDepths.includes(v);
+                return (
+                  <button
+                    key={`e-${v}`}
+                    type="button"
+                    onClick={() => toggleDepth(entryDepths, setEntryDepths, v)}
+                    className={`px-2 h-6 rounded font-mono text-[10px] border ${
+                      on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v.toFixed(2)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="md:col-span-2 space-y-1">
             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              SL depths (0.1–1.0)
+              SL depths ({slDepths.length})
             </Label>
-            <Input value={slDepthsStr} onChange={(e) => setSlDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+            <div className="flex flex-wrap gap-1">
+              {DEPTH_STEPS.map((v) => {
+                const on = slDepths.includes(v);
+                return (
+                  <button
+                    key={`s-${v}`}
+                    type="button"
+                    onClick={() => toggleDepth(slDepths, setSlDepths, v)}
+                    className={`px-2 h-6 rounded font-mono text-[10px] border ${
+                      on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v.toFixed(2)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
         </div>
         <div>
           <Button size="sm" disabled={mut.isPending || modes.length === 0} onClick={() => mut.mutate()}>

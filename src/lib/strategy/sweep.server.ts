@@ -1,11 +1,12 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
-import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
+import { simulateFromKlines, type RangeBacktestResult } from "@/lib/strategy/backtest-range.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
 import { needsDailyBias } from "@/lib/strategy/filters";
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 import type { EntryMode } from "@/lib/strategy/entry-modes.server";
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type Cohorts = RangeBacktestResult["summary"]["cohorts"];
 
 
 export interface HourStat {
@@ -21,6 +22,7 @@ export interface HourStat {
   profit_factor: number;
   expectancy_usd: number;
   avg_r: number;
+  cohorts: Cohorts;
 }
 
 export interface SweepRangeResult {

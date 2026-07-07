@@ -65,6 +65,44 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
   return runStrategyTick();
 });
 
+export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(async () => {
+  const supabase = await admin();
+  const { data: sessionRow } = await supabase
+    .from("strategy_sessions")
+    .select("*")
+    .order("ist_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!sessionRow) return { session: null, setups: [], orders: [] };
+  const { data: setups } = await supabase
+    .from("strategy_setups")
+    .select(
+      "id, ist_date, side, entry_price, sl_price, tp_price, qty, status, order_id, close_order_id, close_reason, pnl_usd, exchange_order_id, created_at, filled_at, closed_at, updated_at",
+    )
+    .eq("ist_date", sessionRow.ist_date)
+    .order("created_at", { ascending: true });
+  const orderIds = (setups ?? [])
+    .flatMap((s) => [s.order_id, s.close_order_id])
+    .filter((v): v is string => !!v);
+  let orders: Array<{
+    id: string;
+    exchange_order_id: string | null;
+    filled_price: number | null;
+    status: string;
+    order_type: string;
+    side: string;
+    qty: number;
+  }> = [];
+  if (orderIds.length > 0) {
+    const { data: orderRows } = await supabase
+      .from("orders")
+      .select("id, exchange_order_id, filled_price, status, order_type, side, qty")
+      .in("id", orderIds);
+    orders = (orderRows ?? []) as typeof orders;
+  }
+  return { session: sessionRow, setups: setups ?? [], orders };
+});
+
 export const backtestToday = createServerFn({ method: "POST" }).handler(async () => {
   const supabase = await admin();
   const { data: settings } = await supabase

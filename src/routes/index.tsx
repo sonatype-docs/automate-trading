@@ -1254,6 +1254,9 @@ function StrategyCard() {
             currentRr={Number(s?.rr ?? 2)}
           />
         </CollapsibleSection>
+        <CollapsibleSection title="Session Timeline" defaultOpen>
+          <SessionTimeline />
+        </CollapsibleSection>
 
 
 

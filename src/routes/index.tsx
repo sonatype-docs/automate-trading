@@ -1404,3 +1404,89 @@ function TrailingSlControls({
   );
 }
 
+function LiveSessionRulesEditor({
+  settings,
+  onSave,
+  saving,
+}: {
+  settings: {
+    session_start_ist: string;
+    sl_risk_usd: number;
+    rr: number;
+    skip_weekends: boolean;
+  };
+  onSave: (patch: {
+    session_start_ist?: string;
+    sl_risk_usd?: number;
+    rr?: number;
+    skip_weekends?: boolean;
+  }) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState(settings);
+  useEffect(() => {
+    setForm(settings);
+  }, [settings.session_start_ist, settings.sl_risk_usd, settings.rr, settings.skip_weekends]);
+  const dirty =
+    form.session_start_ist !== settings.session_start_ist ||
+    form.sl_risk_usd !== settings.sl_risk_usd ||
+    form.rr !== settings.rr ||
+    form.skip_weekends !== settings.skip_weekends;
+  return (
+    <div className="border border-border rounded p-3 bg-muted/30 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-xs tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={saving || !dirty}
+          onClick={() => onSave(form)}
+        >
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SESSION START IST</label>
+          <Input
+            value={form.session_start_ist}
+            onChange={(e) => setForm({ ...form, session_start_ist: e.target.value })}
+            placeholder="05:30"
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SL RISK ($)</label>
+          <Input
+            type="number"
+            value={form.sl_risk_usd}
+            onChange={(e) => setForm({ ...form, sl_risk_usd: Number(e.target.value) })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">R:R (TP)</label>
+          <Input
+            type="number"
+            step="0.1"
+            value={form.rr}
+            onChange={(e) => setForm({ ...form, rr: Number(e.target.value) })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <label className="flex items-end justify-between gap-2 pb-1">
+          <span className="text-[10px] font-mono tracking-widest text-muted-foreground">SKIP SUNDAY</span>
+          <Switch
+            checked={form.skip_weekends}
+            onCheckedChange={(v) => setForm({ ...form, skip_weekends: v })}
+          />
+        </label>
+      </div>
+      <p className="text-[10px] text-muted-foreground font-mono">
+        Prior-day pending (armed) orders auto-cancel at {settings.session_start_ist} IST when the new session opens.
+      </p>
+    </div>
+  );
+}
+
+

@@ -11,6 +11,7 @@ import {
   getStrategyState,
   getStrategyTimeline,
   runStrategyTickNow,
+  repriceArmedNow,
   updateStrategySettings,
   listStrategyPresets,
   createStrategyPreset,
@@ -1045,6 +1046,7 @@ function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
+  const repriceNow = useServerFn(repriceArmedNow);
   const updateStrat = useServerFn(updateStrategySettings);
   const q = useQuery({
     queryKey: ["strategy-state"],
@@ -1060,6 +1062,23 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const repriceMut = useMutation({
+    mutationFn: () => repriceNow(),
+    onSuccess: (r) => {
+      const acts = r.actions ?? [];
+      if (acts.length === 0) {
+        toast.message(r.reason ? `Nothing to reprice (${r.reason})` : "Nothing to reprice");
+      } else {
+        const ok = acts.filter((a) => a.startsWith("reprice_now ")).length;
+        const skip = acts.length - ok;
+        toast.success(`Reprice: ${ok} replaced, ${skip} skipped`);
+      }
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const trailSaveMut = useMutation({
     mutationFn: (patch: {
       trail_enabled?: boolean;
@@ -1152,6 +1171,16 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={repriceMut.isPending}
+            onClick={() => repriceMut.mutate()}
+            title="Cancel any still-pending exchange order for today's armed setup and re-place it with current entry/SL/TP depths."
+          >
+            {repriceMut.isPending ? "Repricing…" : "Reprice now"}
+          </Button>
+
           <Link to="/backtest">
             <Button size="sm" variant="secondary">
               <Beaker className="w-4 h-4 mr-1" /> Backtest Lab

@@ -1526,7 +1526,10 @@ function StrategyPresetsCard({
   const [symbol, setSymbol] = useState<string>(currentSymbol);
   const [sl, setSl] = useState<number>(currentSl);
   const [rr, setRr] = useState<number>(currentRr);
-  const [scope, setScope] = useState<"current" | "any">("current");
+  const [scope, setScope] = useState<string>("current");
+  const SUPPORTED_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
+  const extraSymbols = SUPPORTED_SYMBOLS.filter((s) => s !== currentSymbol.toUpperCase());
+
 
   useEffect(() => {
     setSymbol(currentSymbol);

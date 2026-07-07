@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+
+
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
@@ -117,4 +119,80 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailStepR,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
     });
+  });
+
+export const listStrategyPresets = createServerFn({ method: "GET" }).handler(async () => {
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("strategy_presets")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+});
+
+const PresetCreateSchema = z.object({
+  name: z.string().min(1).max(64),
+  symbol: z.string().min(1).max(24).optional().nullable(),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+});
+
+export const createStrategyPreset = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => PresetCreateSchema.parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: row, error } = await supabase
+      .from("strategy_presets")
+      .insert({
+        name: data.name,
+        symbol: data.symbol ?? null,
+        sl_risk_usd: data.sl_risk_usd,
+        rr: data.rr,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const deleteStrategyPreset = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { error } = await supabase.from("strategy_presets").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const applyStrategyPreset = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: preset, error: pErr } = await supabase
+      .from("strategy_presets")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+    if (pErr || !preset) throw new Error(pErr?.message ?? "Preset not found");
+    const patch: {
+      sl_risk_usd: number;
+      rr: number;
+      updated_at: string;
+      symbol?: string;
+    } = {
+      sl_risk_usd: Number(preset.sl_risk_usd),
+      rr: Number(preset.rr),
+      updated_at: new Date().toISOString(),
+    };
+    if (preset.symbol) patch.symbol = preset.symbol;
+    const { data: row, error } = await supabase
+      .from("strategy_settings")
+      .update(patch)
+      .eq("id", true)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return row;
   });

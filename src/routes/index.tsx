@@ -7,7 +7,16 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow, updateStrategySettings } from "@/lib/strategy.functions";
+import {
+  getStrategyState,
+  runStrategyTickNow,
+  updateStrategySettings,
+  listStrategyPresets,
+  createStrategyPreset,
+  deleteStrategyPreset,
+  applyStrategyPreset,
+} from "@/lib/strategy.functions";
+
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -1118,6 +1127,9 @@ function StrategyCard() {
       trail_activate_r?: number;
       trail_step_r?: number;
       skip_weekends?: boolean;
+      session_start_ist?: string;
+      sl_risk_usd?: number;
+      rr?: number;
     }) => updateStrat({ data: patch }),
     onSuccess: () => {
       toast.success("Strategy settings saved");
@@ -1125,6 +1137,7 @@ function StrategyCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
   // Trailing SL uses saved values for live; no per-run override on the dashboard.
   const [trailOverride, setTrailOverride] = useState<TrailOverride>(null);
 
@@ -1217,22 +1230,24 @@ function StrategyCard() {
           onSave={(patch) => trailSaveMut.mutate(patch)}
           saving={trailSaveMut.isPending}
         />
-        <div className="border border-border rounded p-3 font-mono text-xs bg-muted/30 flex items-center justify-between gap-3">
-          <div>
-            <div className="tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Prior-day pending (armed) orders auto-cancel at {s?.session_start_ist?.slice(0, 5) ?? "05:30"} IST when the new session opens.
-            </p>
-          </div>
-          <label className="flex items-center gap-2">
-            <span className="text-muted-foreground">Skip Sunday (live)</span>
-            <Switch
-              checked={!!s?.skip_weekends}
-              disabled={trailSaveMut.isPending}
-              onCheckedChange={(v) => trailSaveMut.mutate({ skip_weekends: v })}
-            />
-          </label>
-        </div>
+        <LiveSessionRulesEditor
+          settings={{
+            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+            sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+            rr: Number(s?.rr ?? 2),
+            skip_weekends: !!s?.skip_weekends,
+          }}
+          onSave={(patch) => trailSaveMut.mutate(patch)}
+          saving={trailSaveMut.isPending}
+        />
+        <StrategyPresetsCard
+          currentSymbol={s?.symbol ?? "XAUUSDT"}
+          currentSl={Number(s?.sl_risk_usd ?? 25)}
+          currentRr={Number(s?.rr ?? 2)}
+        />
+
+
+
 
 
 
@@ -1405,3 +1420,276 @@ function TrailingSlControls({
   );
 }
 
+function LiveSessionRulesEditor({
+  settings,
+  onSave,
+  saving,
+}: {
+  settings: {
+    session_start_ist: string;
+    sl_risk_usd: number;
+    rr: number;
+    skip_weekends: boolean;
+  };
+  onSave: (patch: {
+    session_start_ist?: string;
+    sl_risk_usd?: number;
+    rr?: number;
+    skip_weekends?: boolean;
+  }) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState(settings);
+  useEffect(() => {
+    setForm(settings);
+  }, [settings.session_start_ist, settings.sl_risk_usd, settings.rr, settings.skip_weekends]);
+  const dirty =
+    form.session_start_ist !== settings.session_start_ist ||
+    form.sl_risk_usd !== settings.sl_risk_usd ||
+    form.rr !== settings.rr ||
+    form.skip_weekends !== settings.skip_weekends;
+  return (
+    <div className="border border-border rounded p-3 bg-muted/30 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-xs tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={saving || !dirty}
+          onClick={() => onSave(form)}
+        >
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SESSION START IST</label>
+          <Input
+            value={form.session_start_ist}
+            onChange={(e) => setForm({ ...form, session_start_ist: e.target.value })}
+            placeholder="05:30"
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SL RISK ($)</label>
+          <Input
+            type="number"
+            value={form.sl_risk_usd}
+            onChange={(e) => setForm({ ...form, sl_risk_usd: Number(e.target.value) })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">R:R (TP)</label>
+          <Input
+            type="number"
+            step="0.1"
+            value={form.rr}
+            onChange={(e) => setForm({ ...form, rr: Number(e.target.value) })}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <label className="flex items-end justify-between gap-2 pb-1">
+          <span className="text-[10px] font-mono tracking-widest text-muted-foreground">SKIP SUNDAY</span>
+          <Switch
+            checked={form.skip_weekends}
+            onCheckedChange={(v) => setForm({ ...form, skip_weekends: v })}
+          />
+        </label>
+      </div>
+      <p className="text-[10px] text-muted-foreground font-mono">
+        Prior-day pending (armed) orders auto-cancel at {settings.session_start_ist} IST when the new session opens.
+      </p>
+    </div>
+  );
+}
+
+
+
+function StrategyPresetsCard({
+  currentSymbol,
+  currentSl,
+  currentRr,
+}: {
+  currentSymbol: string;
+  currentSl: number;
+  currentRr: number;
+}) {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listStrategyPresets);
+  const createFn = useServerFn(createStrategyPreset);
+  const deleteFn = useServerFn(deleteStrategyPreset);
+  const applyFn = useServerFn(applyStrategyPreset);
+  const q = useQuery({ queryKey: ["strategy-presets"], queryFn: () => listFn() });
+  const [name, setName] = useState("");
+  const [symbol, setSymbol] = useState<string>(currentSymbol);
+  const [sl, setSl] = useState<number>(currentSl);
+  const [rr, setRr] = useState<number>(currentRr);
+  const [scope, setScope] = useState<"current" | "any">("current");
+
+  useEffect(() => {
+    setSymbol(currentSymbol);
+    setSl(currentSl);
+    setRr(currentRr);
+  }, [currentSymbol, currentSl, currentRr]);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["strategy-presets"] });
+    qc.invalidateQueries({ queryKey: ["strategy-state"] });
+  };
+
+  const createMut = useMutation({
+    mutationFn: () =>
+      createFn({
+        data: {
+          name: name.trim(),
+          symbol: scope === "current" ? symbol.trim().toUpperCase() : null,
+          sl_risk_usd: sl,
+          rr,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Preset saved");
+      setName("");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const applyMut = useMutation({
+    mutationFn: (id: string) => applyFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Preset applied to live strategy");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Preset deleted");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const presets = (q.data ?? []) as Array<{
+    id: string;
+    name: string;
+    symbol: string | null;
+    sl_risk_usd: number;
+    rr: number;
+  }>;
+
+  return (
+    <div className="border border-border rounded p-3 bg-muted/30 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-xs tracking-widest text-muted-foreground">
+          STRATEGY PRESETS (SL / R:R)
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          Reuse across symbols
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">PRESET NAME</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Conservative"
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SL ($)</label>
+          <Input
+            type="number"
+            value={sl}
+            onChange={(e) => setSl(Number(e.target.value))}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">R:R</label>
+          <Input
+            type="number"
+            step="0.1"
+            value={rr}
+            onChange={(e) => setRr(Number(e.target.value))}
+            className="h-8 font-mono text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SCOPE</label>
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as "current" | "any")}
+            className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+          >
+            <option value="current">Symbol: {symbol}</option>
+            <option value="any">Any symbol</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={createMut.isPending || !name.trim() || sl <= 0 || rr <= 0}
+          onClick={() => createMut.mutate()}
+        >
+          {createMut.isPending ? "Saving…" : "Save preset"}
+        </Button>
+      </div>
+
+      {presets.length === 0 ? (
+        <p className="text-[10px] text-muted-foreground font-mono">
+          No presets yet. Save one above to reuse SL and R:R quickly.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {presets.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between border border-border rounded px-2 py-1.5 font-mono text-xs bg-background/50"
+            >
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold">{p.name}</span>
+                <span className="text-muted-foreground">
+                  {p.symbol ? p.symbol : "any symbol"}
+                </span>
+                <span>SL ${Number(p.sl_risk_usd)}</span>
+                <span>RR 1:{Number(p.rr)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  disabled={applyMut.isPending}
+                  onClick={() => applyMut.mutate(p.id)}
+                >
+                  Apply
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[11px] text-short"
+                  disabled={deleteMut.isPending}
+                  onClick={() => deleteMut.mutate(p.id)}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

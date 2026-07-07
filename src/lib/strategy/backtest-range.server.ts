@@ -117,15 +117,36 @@ export async function runBacktestRange(opts: {
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
 }): Promise<RangeBacktestResult> {
+  const client = createSharkClient();
+  const now = Date.now();
+  const fromMs = now - opts.days * 86_400_000;
+  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+  return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now });
+}
+
+export function simulateFromKlines(
+  klines: Kline[],
+  opts: {
+    symbol: string;
+    sessionStartIst: string;
+    slRiskUsd: number;
+    rr: number;
+    days: number;
+    fromMs: number;
+    nowMs: number;
+    trailEnabled?: boolean;
+    trailActivateR?: number;
+    trailStepR?: number;
+    skipWeekdays?: Weekday[];
+  },
+): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
   const trailActivateR = Math.max(0.1, opts.trailActivateR ?? 2);
   const trailStepR = Math.max(0.1, opts.trailStepR ?? 1);
   const skipSet = new Set<Weekday>(opts.skipWeekdays ?? []);
-  const client = createSharkClient();
-  const now = Date.now();
-  const fromMs = now - opts.days * 86_400_000;
+  const now = opts.nowMs;
+  const fromMs = opts.fromMs;
 
-  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
   // Bucket by IST date for fast session lookup.
   const byOpen = new Map<number, Kline>();

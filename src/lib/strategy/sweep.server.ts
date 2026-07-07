@@ -1,5 +1,8 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
 import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
+import type { FilterConfig } from "@/lib/strategy/filters";
+import { needsDailyBias } from "@/lib/strategy/filters";
+import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 

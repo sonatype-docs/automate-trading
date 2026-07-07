@@ -170,6 +170,26 @@ export interface RangeBacktestResult {
       weekday: CohortDim;
       tp_target: CohortDim;
     };
+    /** MAE distribution across winning (TP) trades in R units. Null when no wins. */
+    mae_wins: {
+      count: number;
+      avg: number;
+      p50: number;
+      p75: number;
+      p90: number;
+      p95: number;
+      max: number;
+    } | null;
+    /** MAE distribution across losing (SL) trades in R units. Null when no losses. */
+    mae_losses: {
+      count: number;
+      avg: number;
+      p50: number;
+      p75: number;
+      p90: number;
+      p95: number;
+      max: number;
+    } | null;
   };
   filters?: FilterConfig;
   entry?: EntryConfig;

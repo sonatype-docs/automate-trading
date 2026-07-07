@@ -3149,6 +3149,31 @@ function LiquiditySweepPanel(props: {
           </Field>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label={`Days — ${days}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={7}
+                max={365}
+                step={1}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                className="h-8 w-20 font-mono text-xs"
+              />
+            </div>
+          </Field>
+        </div>
+
+
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-xs">
             <Switch

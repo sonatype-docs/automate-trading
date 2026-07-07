@@ -102,8 +102,8 @@ function BacktestLab() {
       trailStepR: Number(s.trail_step_r ?? 1),
       skipWeekdays: s.skip_weekends ? [0, 6] : [0, 6],
       entryMode: ((s.entry_mode ?? "fib") as FormState["entryMode"]),
-      entryDepthPct: Number(s.entry_depth_pct ?? 0.25),
-      slDepthPct: Number(s.sl_depth_pct ?? 0.75),
+      entryDepthPct: Number(s.entry_depth_pct ?? 0.15),
+      slDepthPct: Number(s.sl_depth_pct ?? 0.60),
       retestSlR: Number(s.retest_sl_r ?? 0.5),
     });
   }

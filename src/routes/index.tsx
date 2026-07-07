@@ -474,40 +474,38 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-mono tracking-wide">ACTIVITY LOG</CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              {logs.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-6 text-center">Quiet.</p>
-              ) : (
-                <ul className="space-y-2 text-xs font-mono">
-                  {logs.map((l) => (
-                    <li key={l.id} className="flex gap-2">
-                      <span className="text-muted-foreground shrink-0">
-                        {new Date(l.created_at).toLocaleTimeString()}
-                      </span>
-                      <span
-                        className={
-                          l.severity === "error"
-                            ? "text-destructive"
-                            : l.severity === "warn"
-                              ? "text-warning"
-                              : ""
-                        }
-                      >
-                        [{l.severity}]
-                      </span>
-                      <span>{l.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-mono tracking-wide">ACTIVITY LOG</CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-80 overflow-y-auto">
+            {logs.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">Quiet.</p>
+            ) : (
+              <ul className="space-y-2 text-xs font-mono">
+                {logs.map((l) => (
+                  <li key={l.id} className="flex gap-2">
+                    <span className="text-muted-foreground shrink-0">
+                      {new Date(l.created_at).toLocaleTimeString()}
+                    </span>
+                    <span
+                      className={
+                        l.severity === "error"
+                          ? "text-destructive"
+                          : l.severity === "warn"
+                            ? "text-warning"
+                            : ""
+                      }
+                    >
+                      [{l.severity}]
+                    </span>
+                    <span>{l.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

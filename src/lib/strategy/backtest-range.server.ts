@@ -465,6 +465,7 @@ export function simulateFromKlines(
   const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
   const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
   const skippedDays = days.filter((d) => d.skipped).length;
+  const filteredDays = days.filter((d) => d.outcome === "filtered").length;
 
   // Per-weekday stats — count only decided trades (tp/sl).
   const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {

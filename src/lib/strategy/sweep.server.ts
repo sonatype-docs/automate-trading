@@ -138,3 +138,144 @@ export async function runSweep(opts: {
     generated_at: now,
   };
 }
+
+// -----------------------------------------------------------------------------
+// Entry-zone grid sweep — varies (mode, entry_depth, sl_depth) at a fixed hour.
+// -----------------------------------------------------------------------------
+
+export interface EntryZoneCell {
+  mode: EntryMode;
+  entry_depth: number;
+  sl_depth: number;
+  trades: number;
+  fill_rate_pct: number;
+  win_rate_pct: number;
+  gross_pnl_usd: number;
+  fees_usd: number;
+  net_pnl_usd: number;
+  expectancy_usd: number;
+  avg_r: number;
+  triggered: number;
+  missed: number;
+}
+
+export interface EntryZoneSweepResult {
+  symbol: string;
+  session_start_ist: string;
+  days: number;
+  sl_risk_usd: number;
+  rr: number;
+  modes: EntryMode[];
+  entry_depths: number[];
+  sl_depths: number[];
+  cells: EntryZoneCell[];
+  generated_at: number;
+}
+
+export async function runEntryZoneSweep(opts: {
+  symbol: string;
+  days: number;
+  sessionStartIst: string;
+  slRiskUsd: number;
+  rr: number;
+  modes: EntryMode[];
+  entryDepths: number[];
+  slDepths: number[];
+  trailEnabled?: boolean;
+  trailActivateR?: number;
+  trailStepR?: number;
+  skipWeekdays?: Weekday[];
+  filters?: FilterConfig;
+  feeRate?: number;
+}): Promise<EntryZoneSweepResult> {
+  const client = createSharkClient();
+  const now = Date.now();
+  const fromMs = now - opts.days * 86_400_000;
+  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+
+  let dailyBias: Map<string, DailyBiasEntry> | undefined;
+  if (needsDailyBias(opts.filters)) {
+    const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
+    const atrLen = opts.filters?.quality?.atr_len ?? 14;
+    const warmupDays = Math.max(emaLen, atrLen) + 10;
+    const daily = await client.getKlinesRange(opts.symbol, "1d", fromMs - warmupDays * 86_400_000, now);
+    dailyBias = computeDailyBias(daily, { emaLen, atrLen });
+  }
+
+  const cells: EntryZoneCell[] = [];
+
+  const runOne = (mode: EntryMode, entryDepth: number, slDepth: number) => {
+    return simulateFromKlines(klines, {
+      symbol: opts.symbol,
+      sessionStartIst: opts.sessionStartIst,
+      slRiskUsd: opts.slRiskUsd,
+      rr: opts.rr,
+      days: opts.days,
+      fromMs,
+      nowMs: now,
+      trailEnabled: opts.trailEnabled,
+      trailActivateR: opts.trailActivateR,
+      trailStepR: opts.trailStepR,
+      skipWeekdays: opts.skipWeekdays,
+      filters: opts.filters,
+      dailyBias,
+      entry: {
+        mode,
+        entryDepthPct: entryDepth,
+        slDepthPct: slDepth,
+        adaptiveStrongBreakPct: 30,
+        adaptiveShallowDepth: Math.max(0.05, entryDepth / 2),
+        adaptiveDeepDepth: Math.max(entryDepth, 0.1),
+        retestSlR: 0.5,
+      },
+      feeRate: opts.feeRate,
+    });
+  };
+
+  const pushCell = (mode: EntryMode, entryDepth: number, slDepth: number, r: ReturnType<typeof runOne>) => {
+    const decided = r.summary.tp + r.summary.sl;
+    cells.push({
+      mode,
+      entry_depth: entryDepth,
+      sl_depth: slDepth,
+      trades: decided,
+      fill_rate_pct: r.summary.fill_rate_pct,
+      win_rate_pct: r.summary.win_rate_pct,
+      gross_pnl_usd: r.summary.total_pnl_usd,
+      fees_usd: r.summary.est_fees_usd,
+      net_pnl_usd: r.summary.net_pnl_usd,
+      expectancy_usd: r.summary.expectancy_usd,
+      avg_r: r.summary.avg_r,
+      triggered: r.summary.triggered,
+      missed: r.summary.armed_no_trigger,
+    });
+  };
+
+  for (const mode of opts.modes) {
+    if (mode === "retest" || mode === "market") {
+      // These modes ignore entry_depth / sl_depth pair — single cell per mode.
+      pushCell(mode, 0, mode === "retest" ? 0 : 0.75, runOne(mode, 0, 0.75));
+      continue;
+    }
+    for (const entryDepth of opts.entryDepths) {
+      for (const slDepth of opts.slDepths) {
+        if (slDepth <= entryDepth) continue;
+        pushCell(mode, entryDepth, slDepth, runOne(mode, entryDepth, slDepth));
+      }
+    }
+  }
+
+  return {
+    symbol: opts.symbol,
+    session_start_ist: opts.sessionStartIst,
+    days: opts.days,
+    sl_risk_usd: opts.slRiskUsd,
+    rr: opts.rr,
+    modes: opts.modes,
+    entry_depths: opts.entryDepths,
+    sl_depths: opts.slDepths,
+    cells,
+    generated_at: now,
+  };
+}
+

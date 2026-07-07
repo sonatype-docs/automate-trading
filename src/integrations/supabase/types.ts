@@ -299,6 +299,7 @@ export type Database = {
           closed_at: string | null
           created_at: string
           entry_price: number
+          exchange_order_id: string | null
           filled_at: string | null
           id: string
           initial_sl_price: number | null
@@ -320,6 +321,7 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           entry_price: number
+          exchange_order_id?: string | null
           filled_at?: string | null
           id?: string
           initial_sl_price?: number | null
@@ -341,6 +343,7 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           entry_price?: number
+          exchange_order_id?: string | null
           filled_at?: string | null
           id?: string
           initial_sl_price?: number | null

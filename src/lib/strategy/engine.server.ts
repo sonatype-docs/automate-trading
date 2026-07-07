@@ -82,6 +82,7 @@ interface SetupRow {
   closed_at: string | null;
   peak_r?: number;
   initial_sl_price?: number | null;
+  exchange_order_id?: string | null;
 }
 
 export interface StrategyTickResult {
@@ -136,14 +137,33 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
   // Expire leftover armed setups from previous IST session days. Runs first so
   // stale orders are cancelled the moment the new session date rolls (≈05:30 IST).
-  const { data: expiredRows } = await supabaseAdmin
+  // For live setups with a pending LIMIT on the exchange, cancel it there too.
+  const { data: staleSetupsRaw } = await supabaseAdmin
     .from("strategy_setups")
-    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .select("id, exchange_order_id, symbol")
     .lt("ist_date", todayIst)
-    .eq("status", "armed")
-    .select("id");
-  if (expiredRows && expiredRows.length > 0) {
-    actions.push(`expired_prev_day=${expiredRows.length}`);
+    .eq("status", "armed");
+  const staleSetups = (staleSetupsRaw ?? []) as Array<{ id: string; exchange_order_id: string | null; symbol: string }>;
+  if (staleSetups.length > 0) {
+    if (!globalSettings?.paper_mode) {
+      for (const st of staleSetups) {
+        if (!st.exchange_order_id) continue;
+        try {
+          await client.cancelOrder(st.exchange_order_id, st.symbol);
+        } catch (e) {
+          await log("warn", "cancel prior-day pending failed", {
+            setup_id: st.id,
+            exchange_order_id: st.exchange_order_id,
+            error: (e as Error).message,
+          });
+        }
+      }
+    }
+    await supabaseAdmin
+      .from("strategy_setups")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .in("id", staleSetups.map((s) => s.id));
+    actions.push(`expired_prev_day=${staleSetups.length}`);
   }
 
   // Optional: skip Sunday (low volume). Sat/Fri etc. remain tradeable.
@@ -245,6 +265,25 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
       if (qty > 0) {
+        // Place a pending LIMIT on the exchange right now (live only).
+        // Fill is detected on subsequent ticks via open-orders polling.
+        let exchangeOrderId: string | null = null;
+        let placeError: string | null = null;
+        if (!globalSettings?.paper_mode) {
+          try {
+            const res = await client.placeOrder({
+              symbol: s.symbol,
+              side: side === "long" ? "buy" : "sell",
+              qty,
+              type: "limit",
+              price: entry,
+            });
+            exchangeOrderId = res.exchangeOrderId || null;
+            if (res.status === "rejected") placeError = "exchange rejected";
+          } catch (e) {
+            placeError = (e as Error).message;
+          }
+        }
         await supabaseAdmin.from("strategy_setups").insert({
           ist_date: todayIst,
           symbol: s.symbol,
@@ -254,9 +293,18 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty,
-          status: "armed",
+          status: placeError ? "cancelled" : "armed",
+          exchange_order_id: exchangeOrderId,
         });
-        actions.push(`armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}`);
+        if (placeError) {
+          await log("error", "arm: exchange LIMIT place failed", { side, entry, qty, error: placeError });
+          actions.push(`arm_failed ${side} err=${placeError}`);
+        } else {
+          actions.push(
+            `armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
+              (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper)"),
+          );
+        }
       }
     }
   }
@@ -270,13 +318,72 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   }
   const currentBar = klines[klines.length - 1];
 
-  // Trigger armed setups
+  // Detect fills on armed setups.
+  //  - Live (has exchange_order_id): poll Shark open-orders once; if the id is no
+  //    longer open, look up its trade in trade-history and mark the setup triggered.
+  //  - Paper (no exchange_order_id): keep local barLow/barHigh trigger detection.
   const { data: armedRows } = await supabaseAdmin
     .from("strategy_setups")
     .select("*")
     .eq("ist_date", todayIst)
     .eq("status", "armed");
-  for (const setup of (armedRows ?? []) as SetupRow[]) {
+  const armed = (armedRows ?? []) as SetupRow[];
+  const liveArmed = armed.filter((a) => a.exchange_order_id);
+  const paperArmed = armed.filter((a) => !a.exchange_order_id);
+
+  if (liveArmed.length > 0 && !globalSettings?.paper_mode) {
+    let openIds: Set<string> | null = null;
+    try {
+      openIds = new Set(await client.getOpenOrderIds(s.symbol));
+    } catch (e) {
+      await log("warn", "open-orders fetch failed", { error: (e as Error).message });
+    }
+    if (openIds) {
+      for (const setup of liveArmed) {
+        const oid = setup.exchange_order_id!;
+        if (openIds.has(oid)) continue; // still pending on exchange
+        // No longer open → look up fill
+        let fillPrice = setup.entry_price;
+        try {
+          const fill = await client.getFillForClientOrderId(oid);
+          if (fill?.price) fillPrice = fill.price;
+        } catch (e) {
+          await log("warn", "trade-history lookup failed", { setup_id: setup.id, error: (e as Error).message });
+        }
+        // Record an orders row for accounting + update position
+        const webhookEventId = await ensureStrategyEvent(setup, "entry");
+        const { data: orderRow } = await supabaseAdmin
+          .from("orders")
+          .insert({
+            webhook_event_id: webhookEventId,
+            symbol: setup.symbol,
+            side: setup.side === "long" ? "buy" : "sell",
+            order_type: "limit",
+            qty: setup.qty,
+            price: setup.entry_price,
+            filled_price: fillPrice,
+            exchange_order_id: oid,
+            paper: false,
+            status: "filled",
+            filled_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        await supabaseAdmin
+          .from("strategy_setups")
+          .update({
+            status: "triggered",
+            order_id: orderRow?.id ?? null,
+            filled_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", setup.id);
+        actions.push(`fill ${setup.side} @${fillPrice.toFixed(2)}`);
+      }
+    }
+  }
+
+  for (const setup of paperArmed) {
     const barLow = currentBar?.low ?? lastPrice ?? setup.entry_price;
     const barHigh = currentBar?.high ?? lastPrice ?? setup.entry_price;
     const trigger =
@@ -292,7 +399,6 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         size_usd: setup.qty * setup.entry_price,
         alert_id: `strategy-${setup.id}-entry`,
       },
-      // synthesize a webhook_event row so orders link somewhere
       await ensureStrategyEvent(setup, "entry"),
     );
     await supabaseAdmin

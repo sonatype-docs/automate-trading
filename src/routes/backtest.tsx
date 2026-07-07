@@ -2994,6 +2994,8 @@ function LiquiditySweepPanel(props: {
     requireCloseInside: true,
   });
   const [days, setDays] = useState<number>(props.defaults.days);
+  const [skipSat, setSkipSat] = useState<boolean>(props.defaults.skipWeekdays.includes(6));
+  const [skipSun, setSkipSun] = useState<boolean>(props.defaults.skipWeekdays.includes(0));
 
   const [data, setData] = useState<LiquiditySweepData | null>(null);
 
@@ -3017,7 +3019,11 @@ function LiquiditySweepPanel(props: {
           sl_buffer_pct: cfg.slBufferPct,
           tp_mode: cfg.tpMode,
           require_close_inside: cfg.requireCloseInside,
-          skip_weekdays: props.defaults.skipWeekdays,
+          skip_weekdays: Array.from(new Set([
+            ...props.defaults.skipWeekdays.filter((d) => d !== 0 && d !== 6),
+            ...(skipSat ? [6] : []),
+            ...(skipSun ? [0] : []),
+          ])).sort(),
         },
       }),
     onSuccess: (r) => {
@@ -3182,6 +3188,14 @@ function LiquiditySweepPanel(props: {
               onCheckedChange={(v) => setK("requireCloseInside", !!v)}
             />
             <span>Require close back inside range</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSat} onCheckedChange={(v) => setSkipSat(!!v)} />
+            <span>Skip Sat</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSun} onCheckedChange={(v) => setSkipSun(!!v)} />
+            <span>Skip Sun</span>
           </label>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
@@ -3353,6 +3367,8 @@ function SilverBulletPanel(props: {
     executionTf: "5m",
   });
   const [days, setDays] = useState<number>(props.defaults.days);
+  const [skipSat, setSkipSat] = useState<boolean>(props.defaults.skipWeekdays.includes(6));
+  const [skipSun, setSkipSun] = useState<boolean>(props.defaults.skipWeekdays.includes(0));
 
   const [data, setData] = useState<SilverBulletData | null>(null);
   const setK = <K extends keyof SbFormState>(k: K, v: SbFormState[K]) =>
@@ -3375,7 +3391,11 @@ function SilverBulletPanel(props: {
           sl_buffer_usd: cfg.slBufferUsd,
           max_trades_per_day: cfg.maxTradesPerDay,
           execution_tf: cfg.executionTf,
-          skip_weekdays: props.defaults.skipWeekdays,
+          skip_weekdays: Array.from(new Set([
+            ...props.defaults.skipWeekdays.filter((d) => d !== 0 && d !== 6),
+            ...(skipSat ? [6] : []),
+            ...(skipSun ? [0] : []),
+          ])).sort(),
         },
       }),
     onSuccess: (r) => {
@@ -3532,6 +3552,14 @@ function SilverBulletPanel(props: {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSat} onCheckedChange={(v) => setSkipSat(!!v)} />
+            <span>Skip Sat</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={skipSun} onCheckedChange={(v) => setSkipSun(!!v)} />
+            <span>Skip Sun</span>
+          </label>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
             {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars

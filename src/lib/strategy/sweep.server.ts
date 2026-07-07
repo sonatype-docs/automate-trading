@@ -49,7 +49,9 @@ export async function runSweep(opts: {
   const fromMs = now - maxDays * 86_400_000;
   const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
-  const hours: string[] = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
+  // IST candles open at HH:30 (UTC hour boundaries + 5:30). Use :30 slots so each
+  // sweep hour maps to a real candle instead of getting floored onto the previous one.
+  const hours: string[] = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:30`);
   const rangeResults: SweepRangeResult[] = [];
 
   for (const days of opts.ranges) {

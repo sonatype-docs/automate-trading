@@ -146,7 +146,11 @@ export async function runBacktestRange(opts: {
   trailStepR?: number;
   skipWeekdays?: Weekday[]; // e.g. [0, 6] to skip Sun & Sat
   filters?: FilterConfig;
+  entry?: EntryConfig;
+  /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
+  feeRate?: number;
 }): Promise<RangeBacktestResult> {
+
   const client = createSharkClient();
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;

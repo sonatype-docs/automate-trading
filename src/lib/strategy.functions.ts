@@ -320,6 +320,46 @@ export const backtestSessionsCompare = createServerFn({ method: "POST" })
     };
   });
 
+const LiquiditySweepSchema = z.object({
+  symbol: z.string().min(3).max(24),
+  days: z.number().int().min(1).max(365),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+  asian_start_ist: z.number().int().min(0).max(23),
+  asian_end_ist: z.number().int().min(1).max(24),
+  entry_end_ist: z.number().int().min(1).max(24),
+  min_range_usd: z.number().nonnegative().optional(),
+  entry_pullback_pct: z.number().min(0).max(1).optional(),
+  sl_buffer_pct: z.number().min(0).max(1).optional(),
+  tp_mode: z.enum(["rr", "opposite", "midrange"]),
+  require_close_inside: z.boolean().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+});
+
+export const backtestLiquiditySweep = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => LiquiditySweepSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { runSweepBacktest } = await import("@/lib/strategy/sweep-liquidity.server");
+    const r = await runSweepBacktest({
+      symbol: data.symbol,
+      days: data.days,
+      asianStartIst: data.asian_start_ist,
+      asianEndIst: data.asian_end_ist,
+      entryEndIst: data.entry_end_ist,
+      minRangeUsd: data.min_range_usd,
+      entryPullbackPct: data.entry_pullback_pct,
+      slBufferPct: data.sl_buffer_pct,
+      rr: data.rr,
+      tpMode: data.tp_mode,
+      slRiskUsd: data.sl_risk_usd,
+      requireCloseInside: data.require_close_inside,
+      skipWeekdays: data.skip_weekdays,
+    });
+    // Strip Infinity for Seroval.
+    return JSON.parse(JSON.stringify(r)) as typeof r;
+  });
+
+
 const EntryZoneSweepSchema = z.object({
   symbol: z.string().min(3).max(24),
   days: z.number().int().min(1).max(365),

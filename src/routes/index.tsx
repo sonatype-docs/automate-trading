@@ -7,7 +7,16 @@ import {
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import { getStrategyState, runStrategyTickNow, updateStrategySettings } from "@/lib/strategy.functions";
+import {
+  getStrategyState,
+  runStrategyTickNow,
+  updateStrategySettings,
+  listStrategyPresets,
+  createStrategyPreset,
+  deleteStrategyPreset,
+  applyStrategyPreset,
+} from "@/lib/strategy.functions";
+
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

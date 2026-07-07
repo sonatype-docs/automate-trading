@@ -509,6 +509,9 @@ export function simulateFromKlines(
     let peakR = 0;
     // Track how close price got to the entry for missed setups.
     let closestDist = Infinity;
+    // Track whether price reached the swing-side / opposite-side references after trigger.
+    let reachedSwing = false;
+    let reachedOpposite = false;
     if (market) {
       dr.trigger_at = breakBar.closeTime;
       // Market entries: also let the break candle itself resolve TP/SL below.

@@ -226,7 +226,9 @@ export function simulateFromKlines(
       final_sl: null,
       peak_r: 0,
       exit_r: null,
+      closest_approach_r: null,
     };
+
 
     if (skipped) {
       days.push(dr);

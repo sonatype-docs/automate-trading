@@ -15,8 +15,8 @@ export interface EntryConfig {
 
 export const DEFAULT_ENTRY_CONFIG: EntryConfig = {
   mode: "fib",
-  entryDepthPct: 0.25,
-  slDepthPct: 0.75,
+  entryDepthPct: 0.15,
+  slDepthPct: 0.60,
   adaptiveStrongBreakPct: 30,
   adaptiveShallowDepth: 0.10,
   adaptiveDeepDepth: 0.35,

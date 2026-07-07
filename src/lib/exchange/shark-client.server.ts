@@ -58,10 +58,26 @@ export interface Kline {
   closeTime: number;
 }
 
+export interface OpenOrderRow {
+  clientOrderId: string;
+  symbol: string;
+  side: string;
+  type: string;
+  status: string;
+  price: number | null;
+  quantity: number | null;
+  filledAmount: number | null;
+  stopLossPrice: number | null;
+  takeProfitPrice: number | null;
+  createdAt: string | null;
+  raw: unknown;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
+  getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;

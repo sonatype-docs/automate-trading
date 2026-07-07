@@ -489,8 +489,12 @@ export function simulateFromKlines(
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";
     }
+    if (dr.outcome === "armed_no_trigger" && Number.isFinite(closestDist) && risk > 0) {
+      dr.closest_approach_r = closestDist / risk;
+    }
     days.push(dr);
   }
+
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;
   const breaks = days.filter((d) => d.break_side !== null).length;

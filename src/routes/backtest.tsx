@@ -609,7 +609,7 @@ function ResultsView({ data }: { data: RangeData }) {
               </tr>
             </thead>
             <tbody>
-              {data.days
+              {filteredDays
                 .slice()
                 .reverse()
                 .map((d) => (

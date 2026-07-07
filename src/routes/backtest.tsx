@@ -27,6 +27,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
+import { BacktestAnalytics } from "@/components/backtest-analytics";
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,
@@ -3276,6 +3277,8 @@ function LiquiditySweepPanel(props: {
                 </p>
               </div>
             )}
+
+            <BacktestAnalytics days={data.days} />
           </div>
         )}
       </CardContent>
@@ -3619,6 +3622,14 @@ function SilverBulletPanel(props: {
                 </table>
               </div>
             )}
+
+            <BacktestAnalytics
+              days={data.days.flatMap((d) =>
+                d.trades.length > 0
+                  ? d.trades.map((t) => ({ ist_date: d.ist_date, pnl_usd: t.pnl_usd, outcome: t.outcome }))
+                  : [{ ist_date: d.ist_date, pnl_usd: 0 }],
+              )}
+            />
           </div>
         )}
       </CardContent>

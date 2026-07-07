@@ -2297,16 +2297,34 @@ function EntryZoneGridPanel(props: {
 // ------------------------------------------------------------------
 
 type MultiSessData = Awaited<ReturnType<typeof backtestSessionsCompare>>;
+type MultiSessRow = MultiSessData["sessions"][number];
 
 const SESSION_PRESETS: { label: string; time: string; hint: string }[] = [
+  { label: "Sydney", time: "02:30", hint: "Sydney open" },
+  { label: "Tokyo", time: "05:30", hint: "Tokyo open" },
   { label: "Asia Open", time: "06:30", hint: "Tokyo/Sydney overlap" },
   { label: "Frankfurt", time: "12:30", hint: "EU pre-open liquidity" },
   { label: "London Open", time: "13:30", hint: "First major EU push" },
   { label: "London Kill Zone", time: "14:30", hint: "1H after London" },
+  { label: "London Fix", time: "15:30", hint: "London PM fix window" },
+  { label: "NY Pre-open", time: "17:30", hint: "1H before US session" },
   { label: "NY Open", time: "18:30", hint: "US session start" },
   { label: "NY AM (Silver Bullet)", time: "19:30", hint: "10-11 AM NY" },
+  { label: "NY Lunch", time: "21:30", hint: "12-1 PM NY quiet zone" },
   { label: "NY PM", time: "22:30", hint: "2-3 PM NY reversal window" },
+  { label: "NY Close", time: "00:30", hint: "US session close" },
 ];
+
+type MSOSortKey =
+  | "session"
+  | "net_pnl_usd"
+  | "expectancy_usd"
+  | "win_rate_pct"
+  | "profit_factor"
+  | "avg_r"
+  | "fill_rate_pct"
+  | "max_drawdown_usd"
+  | "triggered";
 
 function MultiSessionComparePanel(props: {
   defaults: {
@@ -2326,63 +2344,141 @@ function MultiSessionComparePanel(props: {
   filters: NonNullable<FilterConfig>;
 }) {
   const runCompare = useServerFn(backtestSessionsCompare);
-  const [sessions, setSessions] = useState<string[]>([
-    "13:30",
-    "18:30",
-    "19:30",
-  ]);
+  const [sessions, setSessions] = useState<string[]>(["13:30", "18:30", "19:30"]);
   const [customTime, setCustomTime] = useState("15:30");
   const [data, setData] = useState<MultiSessData | null>(null);
+
+  // Independent overrides — start off (use main form values).
+  const [overrideOn, setOverrideOn] = useState(false);
+  const [ovDays, setOvDays] = useState<number>(props.defaults.days);
+  const [ovRr, setOvRr] = useState<number>(props.defaults.rr);
+  const [ovRisk, setOvRisk] = useState<number>(props.defaults.slRiskUsd);
+  const [ovEntryMode, setOvEntryMode] = useState<FormState["entryMode"]>(props.defaults.entryMode);
+  const [ovEntryDepth, setOvEntryDepth] = useState<number>(props.defaults.entryDepthPct);
+  const [ovSlDepth, setOvSlDepth] = useState<number>(props.defaults.slDepthPct);
+  const [ovRetestSlR, setOvRetestSlR] = useState<number>(props.defaults.retestSlR);
+  const [ovTrail, setOvTrail] = useState<boolean>(props.defaults.trailEnabled);
+  const [ovTrailAct, setOvTrailAct] = useState<number>(props.defaults.trailActivateR);
+  const [ovTrailStep, setOvTrailStep] = useState<number>(props.defaults.trailStepR);
+  const [ovSkipWeekends, setOvSkipWeekends] = useState<boolean>(
+    props.defaults.skipWeekdays.includes(0) && props.defaults.skipWeekdays.includes(6),
+  );
+  const [feeRate, setFeeRate] = useState<number>(0.0004);
+  const [feesOn, setFeesOn] = useState<boolean>(true);
+  const [sortKey, setSortKey] = useState<MSOSortKey>("net_pnl_usd");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [showEquity, setShowEquity] = useState(true);
+
+  const eff = overrideOn
+    ? {
+        days: ovDays,
+        rr: ovRr,
+        risk: ovRisk,
+        entryMode: ovEntryMode,
+        entryDepth: ovEntryDepth,
+        slDepth: ovSlDepth,
+        retestSlR: ovRetestSlR,
+        trail: ovTrail,
+        trailAct: ovTrailAct,
+        trailStep: ovTrailStep,
+        skipWeekdays: ovSkipWeekends ? [0, 6] : [],
+      }
+    : {
+        days: props.defaults.days,
+        rr: props.defaults.rr,
+        risk: props.defaults.slRiskUsd,
+        entryMode: props.defaults.entryMode,
+        entryDepth: props.defaults.entryDepthPct,
+        slDepth: props.defaults.slDepthPct,
+        retestSlR: props.defaults.retestSlR,
+        trail: props.defaults.trailEnabled,
+        trailAct: props.defaults.trailActivateR,
+        trailStep: props.defaults.trailStepR,
+        skipWeekdays: props.defaults.skipWeekdays,
+      };
 
   const mut = useMutation({
     mutationFn: () =>
       runCompare({
         data: {
           sessions,
-          days: props.defaults.days,
+          days: eff.days,
           symbol: props.defaults.symbol,
-          sl_risk_usd: props.defaults.slRiskUsd,
-          rr: props.defaults.rr,
-          trail_enabled: props.defaults.trailEnabled,
-          trail_activate_r: props.defaults.trailActivateR,
-          trail_step_r: props.defaults.trailStepR,
-          skip_weekdays: props.defaults.skipWeekdays,
+          sl_risk_usd: eff.risk,
+          rr: eff.rr,
+          trail_enabled: eff.trail,
+          trail_activate_r: eff.trailAct,
+          trail_step_r: eff.trailStep,
+          skip_weekdays: eff.skipWeekdays,
           filters: props.filters,
           entry: {
-            mode: props.defaults.entryMode,
-            entry_depth_pct: props.defaults.entryDepthPct,
-            sl_depth_pct: props.defaults.slDepthPct,
-            retest_sl_r: props.defaults.retestSlR,
+            mode: eff.entryMode,
+            entry_depth_pct: eff.entryDepth,
+            sl_depth_pct: eff.slDepth,
+            retest_sl_r: eff.retestSlR,
           },
+          fee_rate: feesOn ? feeRate : 0,
         },
       }),
     onSuccess: (r) => {
       setData(r);
-      toast.success(`Compared ${r.sessions.length} sessions across ${r.days}d`);
+      toast.success(`Compared ${r.sessions.length} sessions · ${r.days}d`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const toggle = (t: string) => {
-    setSessions((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t].sort(),
-    );
-  };
+  const toggle = (t: string) =>
+    setSessions((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t].sort()));
   const addCustom = () => {
-    if (!/^\d{2}:\d{2}$/.test(customTime)) {
-      toast.error("Time must be HH:MM (24h IST)");
-      return;
-    }
+    if (!/^\d{2}:\d{2}$/.test(customTime)) return toast.error("Time must be HH:MM (24h IST)");
     if (sessions.includes(customTime)) return;
     setSessions([...sessions, customTime].sort());
   };
 
-  const best = data
-    ? data.sessions.reduce(
-        (a, x) => (x.summary.net_pnl_usd > a.summary.net_pnl_usd ? x : a),
-        data.sessions[0],
-      )
-    : null;
+  const sorted = useMemo(() => {
+    if (!data) return [];
+    const rows = [...data.sessions];
+    rows.sort((a, b) => {
+      const av = sortKey === "session" ? a.session : (a.summary as unknown as Record<string, number>)[sortKey] ?? 0;
+      const bv = sortKey === "session" ? b.session : (b.summary as unknown as Record<string, number>)[sortKey] ?? 0;
+      if (av === bv) return 0;
+      const cmp = av > bv ? 1 : -1;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return rows;
+  }, [data, sortKey, sortDir]);
+
+  const bestBy = (
+    metric: (r: MultiSessRow) => number,
+    dir: "max" | "min" = "max",
+  ): string | null => {
+    if (!data || !data.sessions.length) return null;
+    return data.sessions.reduce((acc, r) => {
+      if (!acc) return r.session;
+      const a = metric(data.sessions.find((s) => s.session === acc)!);
+      const b = metric(r);
+      return dir === "max" ? (b > a ? r.session : acc) : (b < a ? r.session : acc);
+    }, null as string | null);
+  };
+  const bestNet = data ? bestBy((r) => r.summary.net_pnl_usd) : null;
+  const bestPF = data ? bestBy((r) => (Number.isFinite(r.summary.profit_factor) ? r.summary.profit_factor : -1)) : null;
+  const bestWin = data ? bestBy((r) => r.summary.win_rate_pct) : null;
+
+  const H = (key: MSOSortKey, label: string, align: "left" | "right" = "right") => (
+    <th
+      className={`py-1.5 px-2 text-${align} cursor-pointer select-none hover:text-foreground`}
+      onClick={() => {
+        if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+        else {
+          setSortKey(key);
+          setSortDir(align === "left" ? "asc" : "desc");
+        }
+      }}
+    >
+      {label}
+      {sortKey === key && <span className="ml-1 text-[9px]">{sortDir === "asc" ? "▲" : "▼"}</span>}
+    </th>
+  );
 
   return (
     <Card>
@@ -2392,7 +2488,8 @@ function MultiSessionComparePanel(props: {
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Runs the same rules & filters against multiple session start times so
-          you can see which sessions the ORB edge actually lives in.
+          you can see which sessions the ORB edge actually lives in. Toggle
+          overrides to tune RR, entry, trail, days independently.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -2434,10 +2531,18 @@ function MultiSessionComparePanel(props: {
           <Button variant="outline" size="sm" onClick={addCustom} className="h-8">
             + Add
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => setSessions(SESSION_PRESETS.map((p) => p.time))}
+          >
+            All presets
+          </Button>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
-            {sessions.length} session{sessions.length === 1 ? "" : "s"} selected · {props.defaults.days}d ·
-            {" "}RR 1:{props.defaults.rr} · risk ${props.defaults.slRiskUsd}
+            {sessions.length} session{sessions.length === 1 ? "" : "s"} · {eff.days}d ·
+            {" "}RR 1:{eff.rr} · risk ${eff.risk}
           </div>
         </div>
 
@@ -2462,13 +2567,164 @@ function MultiSessionComparePanel(props: {
           </div>
         )}
 
+        <div className="rounded border border-border p-3 space-y-3">
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={overrideOn} onCheckedChange={(v) => setOverrideOn(!!v)} />
+            <span className="uppercase tracking-widest text-[10px] text-muted-foreground">
+              Override main form (per-comparison)
+            </span>
+          </label>
+
+          {overrideOn && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Field label="Days back">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={ovDays}
+                    onChange={(e) => setOvDays(Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="RR (1:R)">
+                  <Input
+                    type="number"
+                    min={0.1}
+                    step="0.1"
+                    value={ovRr}
+                    onChange={(e) => setOvRr(Math.max(0.1, Number(e.target.value) || 0.1))}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="SL risk ($)">
+                  <Input
+                    type="number"
+                    min={1}
+                    step="1"
+                    value={ovRisk}
+                    onChange={(e) => setOvRisk(Math.max(1, Number(e.target.value) || 1))}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="Entry mode">
+                  <select
+                    value={ovEntryMode}
+                    onChange={(e) => setOvEntryMode(e.target.value as FormState["entryMode"])}
+                    className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+                  >
+                    <option value="fib">Fib zone</option>
+                    <option value="retest">Retest</option>
+                    <option value="market">Market</option>
+                    <option value="adaptive">Adaptive</option>
+                  </select>
+                </Field>
+                <Field label="Entry depth %">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="1"
+                    value={Math.round(ovEntryDepth * 100)}
+                    onChange={(e) => setOvEntryDepth(Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100)}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="SL depth %">
+                  <Input
+                    type="number"
+                    min={10}
+                    max={100}
+                    step="1"
+                    value={Math.round(ovSlDepth * 100)}
+                    onChange={(e) => setOvSlDepth(Math.max(0.1, Math.min(1, (Number(e.target.value) || 10) / 100)))}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="Retest SL (R)">
+                  <Input
+                    type="number"
+                    min={0.1}
+                    step="0.1"
+                    value={ovRetestSlR}
+                    onChange={(e) => setOvRetestSlR(Math.max(0.1, Number(e.target.value) || 0.1))}
+                    className="h-8 font-mono text-xs"
+                  />
+                </Field>
+                <Field label="Trailing">
+                  <label className="h-8 flex items-center gap-2 text-xs">
+                    <Switch checked={ovTrail} onCheckedChange={(v) => setOvTrail(!!v)} />
+                    <span className="text-muted-foreground">Enabled</span>
+                  </label>
+                </Field>
+                {ovTrail && (
+                  <>
+                    <Field label="Trail activate (R)">
+                      <Input
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={ovTrailAct}
+                        onChange={(e) => setOvTrailAct(Math.max(0.1, Number(e.target.value) || 0.1))}
+                        className="h-8 font-mono text-xs"
+                      />
+                    </Field>
+                    <Field label="Trail step (R)">
+                      <Input
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={ovTrailStep}
+                        onChange={(e) => setOvTrailStep(Math.max(0.1, Number(e.target.value) || 0.1))}
+                        className="h-8 font-mono text-xs"
+                      />
+                    </Field>
+                  </>
+                )}
+                <Field label="Skip weekends">
+                  <label className="h-8 flex items-center gap-2 text-xs">
+                    <Switch checked={ovSkipWeekends} onCheckedChange={(v) => setOvSkipWeekends(!!v)} />
+                    <span className="text-muted-foreground">Sat & Sun</span>
+                  </label>
+                </Field>
+              </div>
+            </>
+          )}
+
+          <div className="flex items-end gap-3 flex-wrap pt-2 border-t border-border">
+            <Field label="Fees / side (bps)">
+              <div className="flex items-center gap-2">
+                <Switch checked={feesOn} onCheckedChange={(v) => setFeesOn(!!v)} />
+                <Input
+                  type="number"
+                  min={0}
+                  max={20}
+                  step="0.1"
+                  disabled={!feesOn}
+                  value={Math.round(feeRate * 10000 * 10) / 10}
+                  onChange={(e) => setFeeRate((Number(e.target.value) || 0) / 10000)}
+                  className="h-8 font-mono text-xs w-24"
+                />
+              </div>
+            </Field>
+            <div className="flex-1" />
+            <label className="flex items-center gap-2 text-xs">
+              <Switch checked={showEquity} onCheckedChange={(v) => setShowEquity(!!v)} />
+              <span className="text-muted-foreground">Show per-session equity curves</span>
+            </label>
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <Button
             onClick={() => mut.mutate()}
             disabled={mut.isPending || sessions.length === 0}
             size="sm"
           >
-            {mut.isPending ? "Running…" : `Compare ${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
+            {mut.isPending
+              ? "Running…"
+              : `Compare ${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
           </Button>
           {sessions.length > 0 && (
             <Button
@@ -2483,88 +2739,184 @@ function MultiSessionComparePanel(props: {
         </div>
 
         {data && (
-          <div className="rounded border border-border overflow-x-auto">
-            <table className="w-full text-[11px] font-mono">
-              <thead className="bg-secondary/40 text-muted-foreground">
-                <tr>
-                  <th className="text-left py-1.5 px-2">Session</th>
-                  <th className="text-right py-1.5 px-2">Days</th>
-                  <th className="text-right py-1.5 px-2">Breaks</th>
-                  <th className="text-right py-1.5 px-2">Fills</th>
-                  <th className="text-right py-1.5 px-2">W/L</th>
-                  <th className="text-right py-1.5 px-2">Win%</th>
-                  <th className="text-right py-1.5 px-2">Fill%</th>
-                  <th className="text-right py-1.5 px-2">PF</th>
-                  <th className="text-right py-1.5 px-2">Expect $</th>
-                  <th className="text-right py-1.5 px-2">Avg R</th>
-                  <th className="text-right py-1.5 px-2">Net $</th>
-                  <th className="text-right py-1.5 px-2">Max DD</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sessions.map((s) => {
-                  const isBest = best && s.session === best.session;
-                  const net = s.summary.net_pnl_usd;
-                  const netCls =
-                    net > 0 ? "text-emerald-400" : net < 0 ? "text-red-400" : "text-muted-foreground";
-                  return (
-                    <tr
-                      key={s.session}
-                      className={`border-t border-border ${isBest ? "bg-primary/5" : ""}`}
-                    >
-                      <td className="py-1 px-2 text-left">
-                        {s.session}
-                        {isBest && (
-                          <span className="ml-1 text-[9px] text-primary uppercase">
-                            best
+          <>
+            <div className="rounded border border-border overflow-x-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="bg-secondary/40 text-muted-foreground">
+                  <tr>
+                    {H("session", "Session", "left")}
+                    <th className="text-right py-1.5 px-2">Days</th>
+                    {H("triggered", "Fills")}
+                    <th className="text-right py-1.5 px-2">W/L</th>
+                    {H("win_rate_pct", "Win%")}
+                    {H("fill_rate_pct", "Fill%")}
+                    {H("profit_factor", "PF")}
+                    {H("expectancy_usd", "Expect$")}
+                    {H("avg_r", "AvgR")}
+                    <th className="text-right py-1.5 px-2">AvgWin$</th>
+                    <th className="text-right py-1.5 px-2">AvgLoss$</th>
+                    <th className="text-right py-1.5 px-2">Best$</th>
+                    <th className="text-right py-1.5 px-2">Worst$</th>
+                    <th className="text-right py-1.5 px-2">Streak W/L</th>
+                    <th className="text-right py-1.5 px-2">MAE p95 W/L</th>
+                    <th className="text-right py-1.5 px-2">NearMiss</th>
+                    {H("net_pnl_usd", "Net$")}
+                    <th className="text-right py-1.5 px-2">Fees$</th>
+                    {H("max_drawdown_usd", "MaxDD")}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((s) => {
+                    const net = s.summary.net_pnl_usd;
+                    const netCls =
+                      net > 0 ? "text-emerald-400" : net < 0 ? "text-red-400" : "text-muted-foreground";
+                    const isBestNet = s.session === bestNet;
+                    const badges = [
+                      isBestNet && "net",
+                      s.session === bestPF && "pf",
+                      s.session === bestWin && "wr",
+                    ].filter(Boolean) as string[];
+                    return (
+                      <tr key={s.session} className={`border-t border-border ${isBestNet ? "bg-primary/5" : ""}`}>
+                        <td className="py-1 px-2 text-left whitespace-nowrap">
+                          {s.session}
+                          {badges.length > 0 && (
+                            <span className="ml-1 text-[9px] text-primary uppercase">★ {badges.join(" ")}</span>
+                          )}
+                        </td>
+                        <td className="py-1 px-2 text-right">{s.summary.days_with_session}</td>
+                        <td className="py-1 px-2 text-right">{s.summary.triggered}</td>
+                        <td className="py-1 px-2 text-right whitespace-nowrap">
+                          <span className="text-emerald-400">{s.summary.tp}</span>
+                          {" / "}
+                          <span className="text-red-400">{s.summary.sl}</span>
+                        </td>
+                        <td className="py-1 px-2 text-right">{s.summary.win_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{s.summary.fill_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">
+                          {Number.isFinite(s.summary.profit_factor) ? s.summary.profit_factor.toFixed(2) : "∞"}
+                        </td>
+                        <td className="py-1 px-2 text-right">
+                          {s.summary.expectancy_usd >= 0 ? "+" : ""}
+                          {s.summary.expectancy_usd.toFixed(2)}
+                        </td>
+                        <td className="py-1 px-2 text-right">
+                          {s.summary.avg_r >= 0 ? "+" : ""}
+                          {s.summary.avg_r.toFixed(2)}
+                        </td>
+                        <td className="py-1 px-2 text-right text-emerald-400">
+                          {s.summary.avg_win_usd > 0 ? `+${s.summary.avg_win_usd.toFixed(0)}` : "—"}
+                        </td>
+                        <td className="py-1 px-2 text-right text-red-400">
+                          {s.summary.avg_loss_usd < 0 ? s.summary.avg_loss_usd.toFixed(0) : "—"}
+                        </td>
+                        <td className="py-1 px-2 text-right text-emerald-400">
+                          {s.summary.best_pnl_usd ? `+${s.summary.best_pnl_usd.toFixed(0)}` : "—"}
+                        </td>
+                        <td className="py-1 px-2 text-right text-red-400">
+                          {s.summary.worst_pnl_usd ? s.summary.worst_pnl_usd.toFixed(0) : "—"}
+                        </td>
+                        <td className="py-1 px-2 text-right whitespace-nowrap">
+                          <span className="text-emerald-400">{s.summary.max_consec_wins}</span>
+                          {" / "}
+                          <span className="text-red-400">{s.summary.max_consec_losses}</span>
+                        </td>
+                        <td className="py-1 px-2 text-right whitespace-nowrap">
+                          <span className="text-emerald-400">
+                            {s.summary.mae_wins_p95 !== null ? s.summary.mae_wins_p95.toFixed(2) : "—"}
                           </span>
-                        )}
-                      </td>
-                      <td className="py-1 px-2 text-right">{s.summary.days_with_session}</td>
-                      <td className="py-1 px-2 text-right">{s.summary.breaks}</td>
-                      <td className="py-1 px-2 text-right">{s.summary.triggered}</td>
-                      <td className="py-1 px-2 text-right">
-                        <span className="text-emerald-400">{s.summary.tp}</span>
-                        {" / "}
-                        <span className="text-red-400">{s.summary.sl}</span>
-                      </td>
-                      <td className="py-1 px-2 text-right">
-                        {s.summary.win_rate_pct.toFixed(0)}%
-                      </td>
-                      <td className="py-1 px-2 text-right">
-                        {s.summary.fill_rate_pct.toFixed(0)}%
-                      </td>
-                      <td className="py-1 px-2 text-right">
-                        {Number.isFinite(s.summary.profit_factor)
-                          ? s.summary.profit_factor.toFixed(2)
-                          : "∞"}
-                      </td>
-                      <td className="py-1 px-2 text-right">
-                        {s.summary.expectancy_usd >= 0 ? "+" : ""}
-                        {s.summary.expectancy_usd.toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 text-right">
-                        {s.summary.avg_r >= 0 ? "+" : ""}
-                        {s.summary.avg_r.toFixed(2)}
-                      </td>
-                      <td className={`py-1 px-2 text-right ${netCls}`}>
-                        {net >= 0 ? "+" : ""}
-                        {net.toFixed(2)}
-                      </td>
-                      <td className="py-1 px-2 text-right text-red-400">
-                        {s.summary.max_drawdown_usd.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          {" / "}
+                          <span className="text-red-400">
+                            {s.summary.mae_losses_p95 !== null ? s.summary.mae_losses_p95.toFixed(2) : "—"}
+                          </span>
+                        </td>
+                        <td className="py-1 px-2 text-right">
+                          {s.summary.near_miss_count}
+                          {s.summary.median_miss_r !== null && Number.isFinite(s.summary.median_miss_r) && (
+                            <span className="text-muted-foreground">
+                              {" "}({s.summary.median_miss_r.toFixed(1)}R)
+                            </span>
+                          )}
+                        </td>
+                        <td className={`py-1 px-2 text-right ${netCls}`}>
+                          {net >= 0 ? "+" : ""}
+                          {net.toFixed(0)}
+                        </td>
+                        <td className="py-1 px-2 text-right text-muted-foreground">
+                          {s.summary.est_fees_usd.toFixed(1)}
+                        </td>
+                        <td className="py-1 px-2 text-right text-red-400">
+                          -{s.summary.max_drawdown_usd.toFixed(0)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-[10px] text-muted-foreground font-mono">
+              ★ badges: <span className="text-primary">net</span> = best net P&L ·
+              {" "}<span className="text-primary">pf</span> = best profit factor ·
+              {" "}<span className="text-primary">wr</span> = best win rate. Click any column header to sort.
+            </p>
+
+            {showEquity && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sorted.map((s) => (
+                  <div key={s.session} className="rounded border border-border p-2">
+                    <div className="text-[11px] font-mono mb-1 flex items-center justify-between">
+                      <span>{s.session}</span>
+                      <span
+                        className={
+                          s.summary.net_pnl_usd > 0
+                            ? "text-emerald-400"
+                            : s.summary.net_pnl_usd < 0
+                              ? "text-red-400"
+                              : "text-muted-foreground"
+                        }
+                      >
+                        {s.summary.net_pnl_usd >= 0 ? "+" : ""}${s.summary.net_pnl_usd.toFixed(0)}
+                      </span>
+                    </div>
+                    <div className="h-24">
+                      <ResponsiveContainer>
+                        <LineChart data={s.equity}>
+                          <XAxis dataKey="ist_date" hide />
+                          <YAxis hide domain={["auto", "auto"]} />
+                          <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                          <Line
+                            type="monotone"
+                            dataKey="cum_pnl_usd"
+                            stroke={
+                              s.summary.net_pnl_usd >= 0
+                                ? "hsl(var(--primary))"
+                                : "hsl(0 84% 60%)"
+                            }
+                            dot={false}
+                            strokeWidth={1.2}
+                          />
+                          <ReTooltip
+                            contentStyle={{
+                              background: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              fontSize: 10,
+                            }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
+
 
 // ------------------------------------------------------------------
 // Asian Liquidity Sweep — after the Asian window closes, catch bars that

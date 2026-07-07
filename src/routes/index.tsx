@@ -293,40 +293,8 @@ function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-mono tracking-wide">
-                  <Shield className="w-4 h-4 text-destructive" /> KILL SWITCH
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {settings?.kill_switch ? "Blocking all new orders." : "Orders will execute normally."}
-                </p>
-              </div>
-              <Switch
-                checked={!!settings?.kill_switch}
-                onCheckedChange={(v) => settingsMut.mutate({ kill_switch: v })}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-mono tracking-wide">
-                  <Zap className="w-4 h-4 text-warning" /> PAPER MODE
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {settings?.paper_mode ? "Simulated fills, no exchange calls." : "LIVE — real orders on SharkExchange."}
-                </p>
-              </div>
-              <Switch
-                checked={!!settings?.paper_mode}
-                onCheckedChange={(v) => settingsMut.mutate({ paper_mode: v })}
-              />
-            </CardContent>
-          </Card>
-        </div>
+        <LiveTicker defaultSymbol="XAUUSDT" />
+
 
         <StrategyCard />
 

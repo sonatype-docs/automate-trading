@@ -410,8 +410,7 @@ export function simulateFromKlines(
     }
 
 
-    const entry = breakSide === "long" ? fib_25 : fib_75;
-    const sl    = breakSide === "long" ? fib_75 : fib_25;
+    const { entry, sl, market } = computeEntry(breakSide, zone_high, zone_low, breakBar.close, entryCfg);
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
     const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;
@@ -419,14 +418,24 @@ export function simulateFromKlines(
     dr.sl = sl;
     dr.tp = tp;
     dr.qty = qty;
+    dr.entry_mode = entryCfg.mode;
 
     const post = laterSameDay.filter((k) => k.openTime > breakBar.openTime);
-    let triggered = false;
+    let triggered = market;
     let resolved = false;
     let dynSl = sl;
     let peakR = 0;
-    for (const k of post) {
+    // Track how close price got to the entry for missed setups.
+    let closestDist = Infinity;
+    if (market) {
+      dr.trigger_at = breakBar.closeTime;
+      // Market entries: also let the break candle itself resolve TP/SL below.
+    }
+    const bars = market ? [breakBar, ...post] : post;
+    for (const k of bars) {
       if (!triggered) {
+        const dist = breakSide === "long" ? Math.max(0, k.low - entry) : Math.max(0, entry - k.high);
+        if (dist < closestDist) closestDist = dist;
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
         if (hit) {
           triggered = true;
@@ -435,6 +444,7 @@ export function simulateFromKlines(
           continue;
         }
       }
+
       // Update peak-R using bar extremes in the favorable direction.
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;

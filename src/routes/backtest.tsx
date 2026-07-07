@@ -3622,6 +3622,8 @@ function SilverBulletPanel(props: {
                 </table>
               </div>
             )}
+
+            <BacktestAnalytics days={data.days} />
           </div>
         )}
       </CardContent>

@@ -1330,7 +1330,7 @@ function MonthGrid({
 }
 
 
-type SweepData = Awaited<ReturnType<typeof sweepHoursBacktest>>;
+type LiquiditySweepData = Awaited<ReturnType<typeof sweepHoursBacktest>>;
 
 const SWEEP_RANGE_OPTIONS = [7, 30, 60, 90, 180, 365];
 
@@ -1355,7 +1355,7 @@ function HourSweepPanel({
   const [slRiskUsd, setSl] = useState<number>(defaults.slRiskUsd);
   const [rr, setRr] = useState<number>(defaults.rr);
   const [skipWeekdays, setSkipWeekdays] = useState<number[]>(defaults.skipWeekdays ?? [0]);
-  const [data, setData] = useState<SweepData | null>(null);
+  const [data, setData] = useState<LiquiditySweepData | null>(null);
   const [activeRange, setActiveRange] = useState<number>(90);
   const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");
   const [cohortDim, setCohortDim] = useState<"none" | CohortDimKey>("none");
@@ -2571,7 +2571,7 @@ function MultiSessionComparePanel(props: {
 // wick past Asian H/L and close back inside (stop-run reversals).
 // ------------------------------------------------------------------
 
-type SweepData = Awaited<ReturnType<typeof backtestLiquiditySweep>>;
+type LiquiditySweepData = Awaited<ReturnType<typeof backtestLiquiditySweep>>;
 
 interface SweepFormState {
   asianStartIst: number;
@@ -2629,7 +2629,7 @@ function LiquiditySweepPanel(props: {
     tpMode: "rr",
     requireCloseInside: true,
   });
-  const [data, setData] = useState<SweepData | null>(null);
+  const [data, setData] = useState<LiquiditySweepData | null>(null);
 
   const setK = <K extends keyof SweepFormState>(k: K, v: SweepFormState[K]) =>
     setCfg((c) => ({ ...c, [k]: v }));

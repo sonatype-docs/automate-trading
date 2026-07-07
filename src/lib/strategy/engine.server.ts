@@ -636,3 +636,150 @@ async function ensureStrategyEvent(
     .single();
   return (data?.id as string) ?? "";
 }
+
+/**
+ * Force-reprice every armed setup for today that still has a pending exchange
+ * order, using current strategy settings. Bypasses the "changed" tolerance
+ * check in the tick — cancels the pending order and places a fresh one with
+ * the latest entry/SL/TP/qty. Returns per-setup action strings.
+ */
+export async function repriceArmedSetupsNow(): Promise<{
+  ok: boolean;
+  reason?: string;
+  actions: string[];
+}> {
+  const actions: string[] = [];
+
+  const { data: settings } = await supabaseAdmin
+    .from("strategy_settings")
+    .select("*")
+    .eq("id", true)
+    .single();
+  const s = settings as StrategySettingsRow | null;
+  if (!s) return { ok: false, reason: "settings_missing", actions };
+
+  const { data: globalSettings } = await supabaseAdmin
+    .from("settings")
+    .select("kill_switch, paper_mode")
+    .eq("id", true)
+    .single();
+  if (globalSettings?.paper_mode) return { ok: true, reason: "paper_mode", actions };
+
+  const todayIst = sessionDate(Date.now(), s.session_start_ist);
+
+  const { data: sessionRow } = await supabaseAdmin
+    .from("strategy_sessions")
+    .select("*")
+    .eq("ist_date", todayIst)
+    .maybeSingle();
+  const session = sessionRow as SessionRow | null;
+  if (!session) return { ok: true, reason: "no_session_today", actions };
+
+  const { data: armedRows } = await supabaseAdmin
+    .from("strategy_setups")
+    .select("*")
+    .eq("ist_date", todayIst)
+    .eq("status", "armed");
+  const armed = ((armedRows ?? []) as SetupRow[]).filter((a) => a.exchange_order_id);
+  if (armed.length === 0) return { ok: true, reason: "no_pending_armed", actions };
+
+  const client = createSharkClient();
+  const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
+
+  let openIds: Set<string> | null = null;
+  try {
+    openIds = new Set(await client.getOpenOrderIds(s.symbol));
+  } catch (e) {
+    await log("warn", "reprice_now: open-orders probe failed", { error: (e as Error).message });
+  }
+
+  for (const setup of armed) {
+    const side = setup.side;
+    const oldOid = setup.exchange_order_id!;
+    const breakClose = Number(
+      session.break_close_price ?? (side === "long" ? session.zone_high : session.zone_low),
+    );
+    const { entry, sl, market } = computeEntry(side, session.zone_high, session.zone_low, breakClose, cfg);
+    const risk = Math.abs(entry - sl);
+    const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+    const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
+    if (qty <= 0) {
+      actions.push(`reprice_now_skip ${side} qty=0`);
+      continue;
+    }
+
+    if (openIds && !openIds.has(oldOid)) {
+      actions.push(`reprice_now_skip ${side} oid=${oldOid} (not open — likely filled)`);
+      continue;
+    }
+
+    let cancelOk = false;
+    let cancelStatus = 0;
+    let cancelBody = "";
+    try {
+      const cx = await client.cancelOrder(oldOid, setup.symbol);
+      cancelOk = cx.ok;
+      cancelStatus = cx.status;
+      cancelBody = cx.body;
+    } catch (e) {
+      await log("warn", "reprice_now: cancel threw", { setup_id: setup.id, oid: oldOid, error: (e as Error).message });
+    }
+    if (!cancelOk) {
+      await log("warn", "reprice_now: cancel non-ok", {
+        setup_id: setup.id,
+        oid: oldOid,
+        status: cancelStatus,
+        body: cancelBody.slice(0, 500),
+      });
+      actions.push(`reprice_now_skip ${side} oid=${oldOid} cancel_status=${cancelStatus}`);
+      continue;
+    }
+
+    let newOid: string | null = null;
+    let placeError: string | null = null;
+    try {
+      const res = await client.placeOrder({
+        symbol: s.symbol,
+        side: side === "long" ? "buy" : "sell",
+        qty,
+        type: market ? "market" : "limit",
+        price: entry,
+        stopLossPrice: sl,
+        takeProfitPrice: tp,
+      });
+      newOid = res.exchangeOrderId || null;
+      if (res.status === "rejected") placeError = "exchange rejected";
+    } catch (e) {
+      placeError = (e as Error).message;
+    }
+
+    if (placeError) {
+      await supabaseAdmin
+        .from("strategy_setups")
+        .update({ status: "cancelled", exchange_order_id: null, updated_at: new Date().toISOString() })
+        .eq("id", setup.id);
+      await log("error", "reprice_now: replace place failed", { setup_id: setup.id, error: placeError });
+      actions.push(`reprice_now_failed ${side} err=${placeError}`);
+      continue;
+    }
+
+    await supabaseAdmin
+      .from("strategy_setups")
+      .update({
+        entry_price: entry,
+        sl_price: sl,
+        initial_sl_price: sl,
+        tp_price: tp,
+        qty,
+        exchange_order_id: newOid,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", setup.id);
+    actions.push(
+      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
+    );
+  }
+
+  return { ok: true, actions };
+}
+

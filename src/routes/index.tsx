@@ -228,17 +228,6 @@ function Dashboard() {
   // with the top-level EQUITY / REALIZED P&L metrics.
   let eqRun = netDeposits;
   const equityCurve: Array<{ t: number; eq: number }> = [];
-  const journal: Array<{
-    time: number;
-    symbol: string;
-    side: string;
-    qty: number;
-    price: number;
-    fee: number;
-    pnl: number;
-    equity: number;
-    id: string;
-  }> = [];
   if (pnlTrades.length > 0) {
     equityCurve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits });
   } else {
@@ -248,7 +237,6 @@ function Dashboard() {
   for (const t of pnlTrades) {
     eqRun += t.pnl - t.fee;
     equityCurve.push({ t: t.time, eq: eqRun });
-    journal.push({ ...t, equity: eqRun });
   }
   // Reconcile last point with real wallet if there's drift (trade history may be paged).
   if (hasWallet && pnlTrades.length > 0 && Math.abs(equity - eqRun) > 0.01) {

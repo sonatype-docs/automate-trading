@@ -1031,6 +1031,7 @@ function HourSweepPanel({
   const [ranges, setRanges] = useState<number[]>([7, 30, 60, 90]);
   const [slRiskUsd, setSl] = useState<number>(defaults.slRiskUsd);
   const [rr, setRr] = useState<number>(defaults.rr);
+  const [skipWeekdays, setSkipWeekdays] = useState<number[]>(defaults.skipWeekdays ?? [0]);
   const [data, setData] = useState<SweepData | null>(null);
   const [activeRange, setActiveRange] = useState<number>(90);
   const [sortKey, setSortKey] = useState<"pnl" | "wr" | "dd" | "hour">("pnl");

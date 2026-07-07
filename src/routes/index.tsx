@@ -1171,6 +1171,16 @@ function StrategyCard() {
           <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={repriceMut.isPending}
+            onClick={() => repriceMut.mutate()}
+            title="Cancel any still-pending exchange order for today's armed setup and re-place it with current entry/SL/TP depths."
+          >
+            {repriceMut.isPending ? "Repricing…" : "Reprice now"}
+          </Button>
+
           <Link to="/backtest">
             <Button size="sm" variant="secondary">
               <Beaker className="w-4 h-4 mr-1" /> Backtest Lab

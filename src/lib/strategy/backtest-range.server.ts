@@ -791,6 +791,28 @@ export function simulateFromKlines(
     tp_target: dimFor<TpTarget>(["swing", "opposite", "both", "neither"], (d) => d.tp_target, null),
   };
 
+  // ---- MAE distributions across winners / losers ----
+  function maeStats(outcome: "tp" | "sl") {
+    const vals = days
+      .filter((d) => d.outcome === outcome && d.mae_r !== null)
+      .map((d) => d.mae_r as number)
+      .sort((a, b) => a - b);
+    if (vals.length === 0) return null;
+    const pct = (p: number) => vals[Math.min(vals.length - 1, Math.floor(vals.length * p))];
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return {
+      count: vals.length,
+      avg,
+      p50: pct(0.5),
+      p75: pct(0.75),
+      p90: pct(0.9),
+      p95: pct(0.95),
+      max: vals[vals.length - 1],
+    };
+  }
+  const maeWins = maeStats("tp");
+  const maeLosses = maeStats("sl");
+
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,

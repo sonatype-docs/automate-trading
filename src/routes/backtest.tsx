@@ -386,7 +386,7 @@ function ResultsView({ data }: { data: RangeData }) {
           <Kv k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
           <Kv k="breaks / triggered" v={`${s.breaks} / ${s.triggered}`} />
           <Kv k="wins / losses" v={`${s.tp} / ${s.sl}`} />
-          <Kv k="open / skipped" v={`${s.open} / ${s.skipped_days}`} />
+          <Kv k="open / skipped / filtered" v={`${s.open} / ${s.skipped_days} / ${s.filtered_days ?? 0}`} />
           <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
           <Kv
             k="best weekday"

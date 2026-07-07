@@ -161,12 +161,16 @@ function BacktestLab() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Field label="Symbol">
-                    <Input
+                    <select
                       value={form.symbol}
-                      onChange={(e) => set("symbol", e.target.value.toUpperCase())}
-                      className="h-8 font-mono text-xs"
-                    />
+                      onChange={(e) => set("symbol", e.target.value)}
+                      className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+                    >
+                      <option value="XAUUSDT">XAUUSDT · Gold</option>
+                      <option value="BTCUSDT">BTCUSDT · Bitcoin</option>
+                    </select>
                   </Field>
+
                   <Field label="Session start (IST)">
                     <Input
                       type="time"

@@ -3184,7 +3184,8 @@ function LiquiditySweepPanel(props: {
           </label>
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
-            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}
+            {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}
+
           </div>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
             {mut.isPending ? "Running…" : "Run sweep backtest"}

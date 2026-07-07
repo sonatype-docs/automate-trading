@@ -1,4 +1,7 @@
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import type { FilterConfig } from "@/lib/strategy/filters";
+import { needsDailyBias } from "@/lib/strategy/filters";
+import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 
 const IST_OFFSET_MIN = 330;
 

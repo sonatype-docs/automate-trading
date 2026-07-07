@@ -1653,3 +1653,181 @@ function FiltersCard({
     </Card>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Entry-zone grid sweep panel — scans (mode, entry_depth, sl_depth) combos.
+// -----------------------------------------------------------------------------
+function EntryZoneGridPanel(props: {
+  defaults: {
+    symbol: string;
+    sessionStartIst: string;
+    slRiskUsd: number;
+    rr: number;
+    trailEnabled: boolean;
+    trailActivateR: number;
+    trailStepR: number;
+    skipWeekdays: number[];
+  };
+  filters: NonNullable<FilterConfig>;
+}) {
+  const run = useServerFn(runEntryZoneSweep);
+  const [days, setDays] = useState(90);
+  const [modes, setModes] = useState<Array<"fib" | "retest" | "market" | "adaptive">>(["fib"]);
+  const [entryDepthsStr, setEntryDepthsStr] = useState("0, 0.1, 0.2, 0.25, 0.35, 0.5");
+  const [slDepthsStr, setSlDepthsStr] = useState("0.5, 0.75, 1.0");
+  const [result, setResult] = useState<Awaited<ReturnType<typeof runEntryZoneSweep>> | null>(null);
+
+  const parseList = (s: string) =>
+    s.split(/[,\s]+/).map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
+
+  const mut = useMutation({
+    mutationFn: () =>
+      run({
+        data: {
+          symbol: props.defaults.symbol,
+          days,
+          session_start_ist: props.defaults.sessionStartIst,
+          sl_risk_usd: props.defaults.slRiskUsd,
+          rr: props.defaults.rr,
+          entry_depths: parseList(entryDepthsStr),
+          sl_depths: parseList(slDepthsStr),
+          modes,
+          trail_enabled: props.defaults.trailEnabled,
+          trail_activate_r: props.defaults.trailActivateR,
+          trail_step_r: props.defaults.trailStepR,
+          skip_weekdays: props.defaults.skipWeekdays,
+          filters: props.filters,
+        },
+      }),
+    onSuccess: (r) => {
+      setResult(r);
+      const best = r.cells.reduce<(typeof r.cells)[number] | null>(
+        (a, b) => (a == null || b.net_pnl_usd > a.net_pnl_usd ? b : a),
+        null,
+      );
+      if (best) {
+        toast.success(
+          `Best: ${best.mode} depth=${(best.entry_depth * 100).toFixed(0)}%/${(best.sl_depth * 100).toFixed(0)}% net $${best.net_pnl_usd.toFixed(2)}`,
+        );
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bestNet = result
+    ? Math.max(...result.cells.map((c) => c.net_pnl_usd), 0)
+    : 0;
+  const worstNet = result
+    ? Math.min(...result.cells.map((c) => c.net_pnl_usd), 0)
+    : 0;
+  const cellTone = (net: number) => {
+    if (net >= bestNet * 0.85 && net > 0) return "bg-emerald-500/25 text-emerald-300";
+    if (net > 0) return "bg-emerald-500/10 text-emerald-400";
+    if (net <= worstNet * 0.85 && net < 0) return "bg-red-500/25 text-red-300";
+    if (net < 0) return "bg-red-500/10 text-red-400";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">ENTRY / SL GRID SWEEP</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Backtests every combination of entry mode and depth on your history. Optimized on <b>net</b> P&L (after fees).
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Field label={`Days — ${days}`}>
+            <input type="range" min={14} max={365} step={7} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full" />
+          </Field>
+          <div className="md:col-span-3 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Modes</Label>
+            <div className="flex flex-wrap gap-1">
+              {(["fib", "retest", "market", "adaptive"] as const).map((m) => {
+                const on = modes.includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setModes(on ? modes.filter((x) => x !== m) : [...modes, m])}
+                    className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                      on
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              Entry depths (0–0.5)
+            </Label>
+            <Input value={entryDepthsStr} onChange={(e) => setEntryDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              SL depths (0.1–1.0)
+            </Label>
+            <Input value={slDepthsStr} onChange={(e) => setSlDepthsStr(e.target.value)} className="h-7 font-mono text-xs" />
+          </div>
+        </div>
+        <div>
+          <Button size="sm" disabled={mut.isPending || modes.length === 0} onClick={() => mut.mutate()}>
+            {mut.isPending ? "Sweeping…" : `Run grid — ${days}d × ${modes.length} modes`}
+          </Button>
+        </div>
+
+        {result && (
+          <div className="overflow-x-auto border border-border rounded">
+            <table className="w-full text-[11px]">
+              <thead className="text-muted-foreground">
+                <tr className="border-b border-border text-left">
+                  <th className="py-1.5 px-2">Mode</th>
+                  <th className="py-1.5 px-2 text-right">Entry %</th>
+                  <th className="py-1.5 px-2 text-right">SL %</th>
+                  <th className="py-1.5 px-2 text-right">Fills</th>
+                  <th className="py-1.5 px-2 text-right">Miss</th>
+                  <th className="py-1.5 px-2 text-right">Fill %</th>
+                  <th className="py-1.5 px-2 text-right">Win %</th>
+                  <th className="py-1.5 px-2 text-right">Trades</th>
+                  <th className="py-1.5 px-2 text-right">Gross</th>
+                  <th className="py-1.5 px-2 text-right">Fees</th>
+                  <th className="py-1.5 px-2 text-right">Net</th>
+                  <th className="py-1.5 px-2 text-right">Expect</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...result.cells]
+                  .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
+                  .map((c, i) => (
+                    <tr key={i} className="border-b border-border/40">
+                      <td className="py-1 px-2 uppercase">{c.mode}</td>
+                      <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.triggered}</td>
+                      <td className="py-1 px-2 text-right">{c.missed}</td>
+                      <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
+                      <td className="py-1 px-2 text-right">{c.trades}</td>
+                      <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
+                      <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
+                      <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
+                        {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
+                      </td>
+                      <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

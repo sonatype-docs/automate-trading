@@ -403,9 +403,22 @@ function BacktestLab() {
               filters={filters}
             />
 
-
+            <EntryZoneGridPanel
+              defaults={{
+                symbol: form.symbol,
+                sessionStartIst: form.sessionStartIst,
+                slRiskUsd: form.slRiskUsd,
+                rr: form.rr,
+                trailEnabled: form.trailEnabled,
+                trailActivateR: form.trailActivateR,
+                trailStepR: form.trailStepR,
+                skipWeekdays: form.skipWeekdays,
+              }}
+              filters={filters}
+            />
           </>
         )}
+
       </main>
     </div>
   );

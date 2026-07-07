@@ -256,6 +256,7 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async testConnection() {
+      const { apiKey, apiSecret } = requireCreds();
       // Matches the Python example in SharkExchange docs and rules out
       // any URLSearchParams encoding differences.
       const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {});

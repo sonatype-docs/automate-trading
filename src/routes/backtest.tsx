@@ -588,6 +588,8 @@ function ResultsView({ data }: { data: RangeData }) {
 
         <CohortBreakdowns cohorts={s.cohorts} active={cohort} onSelect={setCohort} />
 
+        <MaeBreakdown wins={s.mae_wins} losses={s.mae_losses} />
+
         <CalendarView data={data} />
 
 

@@ -104,7 +104,7 @@ function PendingOrdersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.rows.map((r) => {
+                    {(data.rows as Row[]).map((r) => {
                       const sideUp = r.side.toUpperCase();
                       const sideTone =
                         sideUp === "BUY" ? "text-emerald-500" :

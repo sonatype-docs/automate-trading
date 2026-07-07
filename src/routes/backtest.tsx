@@ -3349,6 +3349,8 @@ function SilverBulletPanel(props: {
     maxTradesPerDay: 1,
     executionTf: "5m",
   });
+  const [days, setDays] = useState<number>(props.defaults.days);
+
   const [data, setData] = useState<SilverBulletData | null>(null);
   const setK = <K extends keyof SbFormState>(k: K, v: SbFormState[K]) =>
     setCfg((c) => ({ ...c, [k]: v }));

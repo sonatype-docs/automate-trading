@@ -1479,9 +1479,8 @@ function LiveSessionRulesEditor({
     form.rr !== settings.rr ||
     form.skip_weekends !== settings.skip_weekends;
   return (
-    <div className="border border-border rounded p-3 bg-muted/30 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="font-mono text-xs tracking-widest text-muted-foreground">LIVE SESSION RULES</div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
         <Button
           size="sm"
           variant="secondary"

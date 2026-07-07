@@ -1630,14 +1630,20 @@ function StrategyPresetsCard({
           <label className="text-[10px] font-mono tracking-widest text-muted-foreground">SCOPE</label>
           <select
             value={scope}
-            onChange={(e) => setScope(e.target.value as "current" | "any")}
+            onChange={(e) => setScope(e.target.value)}
             className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
           >
-            <option value="current">Symbol: {symbol}</option>
+            <option value="current">Current symbol ({currentSymbol})</option>
             <option value="any">Any symbol</option>
+            {extraSymbols.map((sym) => (
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
+            ))}
           </select>
         </div>
       </div>
+
 
       <div className="flex justify-end">
         <Button

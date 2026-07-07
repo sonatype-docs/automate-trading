@@ -1930,48 +1930,85 @@ function EntryZoneGridPanel(props: {
         </div>
 
         {result && (
-          <div className="overflow-x-auto border border-border rounded">
-            <table className="w-full text-[11px]">
-              <thead className="text-muted-foreground">
-                <tr className="border-b border-border text-left">
-                  <th className="py-1.5 px-2">Mode</th>
-                  <th className="py-1.5 px-2 text-right">Entry %</th>
-                  <th className="py-1.5 px-2 text-right">SL %</th>
-                  <th className="py-1.5 px-2 text-right">Fills</th>
-                  <th className="py-1.5 px-2 text-right">Miss</th>
-                  <th className="py-1.5 px-2 text-right">Fill %</th>
-                  <th className="py-1.5 px-2 text-right">Win %</th>
-                  <th className="py-1.5 px-2 text-right">Trades</th>
-                  <th className="py-1.5 px-2 text-right">Gross</th>
-                  <th className="py-1.5 px-2 text-right">Fees</th>
-                  <th className="py-1.5 px-2 text-right">Net</th>
-                  <th className="py-1.5 px-2 text-right">Expect</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.cells]
-                  .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
-                  .map((c, i) => (
-                    <tr key={i} className="border-b border-border/40">
-                      <td className="py-1 px-2 uppercase">{c.mode}</td>
-                      <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.triggered}</td>
-                      <td className="py-1 px-2 text-right">{c.missed}</td>
-                      <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
-                      <td className="py-1 px-2 text-right">{c.trades}</td>
-                      <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
-                      <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
-                      <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
-                        {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
-                      </td>
-                      <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] tracking-widest text-muted-foreground">COHORT:</span>
+              <select
+                value={cohortDim}
+                onChange={(e) => setCohortDim(e.target.value as "none" | CohortDimKey)}
+                className="h-7 rounded border border-input bg-background px-2 text-[11px]"
+              >
+                <option value="none">Overall</option>
+                {(Object.keys(COHORT_DIM_LABELS) as CohortDimKey[]).map((k) => (
+                  <option key={k} value={k}>{COHORT_DIM_LABELS[k]}</option>
+                ))}
+              </select>
+              {cohortDim !== "none" && (
+                <span className="text-[10px] text-muted-foreground">Shows best bucket in that dimension per cell.</span>
+              )}
+            </div>
+            <div className="overflow-x-auto border border-border rounded">
+              <table className="w-full text-[11px]">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b border-border text-left">
+                    <th className="py-1.5 px-2">Mode</th>
+                    <th className="py-1.5 px-2 text-right">Entry %</th>
+                    <th className="py-1.5 px-2 text-right">SL %</th>
+                    <th className="py-1.5 px-2 text-right">Fills</th>
+                    <th className="py-1.5 px-2 text-right">Miss</th>
+                    <th className="py-1.5 px-2 text-right">Fill %</th>
+                    <th className="py-1.5 px-2 text-right">Win %</th>
+                    <th className="py-1.5 px-2 text-right">Trades</th>
+                    <th className="py-1.5 px-2 text-right">Gross</th>
+                    <th className="py-1.5 px-2 text-right">Fees</th>
+                    <th className="py-1.5 px-2 text-right">Net</th>
+                    <th className="py-1.5 px-2 text-right">Expect</th>
+                    {cohortDim !== "none" && (
+                      <th className="py-1.5 px-2 text-left">Best {COHORT_DIM_LABELS[cohortDim]}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...result.cells]
+                    .sort((a, b) => b.net_pnl_usd - a.net_pnl_usd)
+                    .map((c, i) => (
+                      <tr key={i} className="border-b border-border/40">
+                        <td className="py-1 px-2 uppercase">{c.mode}</td>
+                        <td className="py-1 px-2 text-right">{(c.entry_depth * 100).toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{(c.sl_depth * 100).toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.triggered}</td>
+                        <td className="py-1 px-2 text-right">{c.missed}</td>
+                        <td className="py-1 px-2 text-right">{c.fill_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.win_rate_pct.toFixed(0)}%</td>
+                        <td className="py-1 px-2 text-right">{c.trades}</td>
+                        <td className="py-1 px-2 text-right">{c.gross_pnl_usd >= 0 ? "+" : ""}{c.gross_pnl_usd.toFixed(1)}</td>
+                        <td className="py-1 px-2 text-right text-muted-foreground">-{c.fees_usd.toFixed(1)}</td>
+                        <td className={`py-1 px-2 text-right font-semibold ${cellTone(c.net_pnl_usd)}`}>
+                          {c.net_pnl_usd >= 0 ? "+" : ""}{c.net_pnl_usd.toFixed(1)}
+                        </td>
+                        <td className="py-1 px-2 text-right">{c.expectancy_usd >= 0 ? "+" : ""}{c.expectancy_usd.toFixed(2)}</td>
+                        {cohortDim !== "none" && (
+                          <td className="py-1 px-2 text-left">
+                            {(() => {
+                              const buckets = c.cohorts[cohortDim].buckets.filter((b) => b.trades > 0);
+                              if (!buckets.length) return <span className="text-muted-foreground">—</span>;
+                              const b = buckets.reduce((a, x) => (x.total_pnl_usd > a.total_pnl_usd ? x : a));
+                              const t = b.total_pnl_usd > 0 ? "text-emerald-400" : b.total_pnl_usd < 0 ? "text-red-400" : "text-muted-foreground";
+                              return (
+                                <span className={t}>
+                                  <span className="uppercase">{b.bucket}</span>
+                                  <span className="text-muted-foreground"> · {b.trades}t · {b.win_rate_pct.toFixed(0)}% · {b.total_pnl_usd >= 0 ? "+" : ""}{b.total_pnl_usd.toFixed(0)}</span>
+                                </span>
+                              );
+                            })()}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

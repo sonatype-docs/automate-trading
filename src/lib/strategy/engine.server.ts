@@ -265,6 +265,25 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
       if (qty > 0) {
+        // Place a pending LIMIT on the exchange right now (live only).
+        // Fill is detected on subsequent ticks via open-orders polling.
+        let exchangeOrderId: string | null = null;
+        let placeError: string | null = null;
+        if (!globalSettings?.paper_mode) {
+          try {
+            const res = await client.placeOrder({
+              symbol: s.symbol,
+              side: side === "long" ? "buy" : "sell",
+              qty,
+              type: "limit",
+              price: entry,
+            });
+            exchangeOrderId = res.exchangeOrderId || null;
+            if (res.status === "rejected") placeError = "exchange rejected";
+          } catch (e) {
+            placeError = (e as Error).message;
+          }
+        }
         await supabaseAdmin.from("strategy_setups").insert({
           ist_date: todayIst,
           symbol: s.symbol,
@@ -274,9 +293,18 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty,
-          status: "armed",
+          status: placeError ? "cancelled" : "armed",
+          exchange_order_id: exchangeOrderId,
         });
-        actions.push(`armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}`);
+        if (placeError) {
+          await log("error", "arm: exchange LIMIT place failed", { side, entry, qty, error: placeError });
+          actions.push(`arm_failed ${side} err=${placeError}`);
+        } else {
+          actions.push(
+            `armed ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
+              (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper)"),
+          );
+        }
       }
     }
   }

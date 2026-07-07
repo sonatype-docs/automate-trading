@@ -202,9 +202,60 @@ export function createSharkClient(): ExchangeClient {
       };
     },
 
-    async testConnection() {
+    async cancelOrder(clientOrderId, symbol) {
       const { apiKey, apiSecret } = requireCreds();
-      // Minimal signed probe: only `timestamp` in the querystring.
+      const body: Record<string, unknown> = { clientOrderId };
+      if (symbol) body.symbol = symbol.toUpperCase();
+      const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/cancel-order", body);
+      return { ok: res.ok, status: res.status, body: res.body };
+    },
+
+    async getOpenOrderIds(symbol) {
+      const { apiKey, apiSecret } = requireCreds();
+      const params: Record<string, string | number> = { sortOrder: "desc", pageSize: "100" };
+      if (symbol) params.symbol = symbol.toUpperCase();
+      const res = await signedGet(apiKey, apiSecret, "/v1/order/open-orders", params);
+      if (!res.ok) throw new Error(`open-orders failed [${res.status}]: ${res.body.slice(0, 200)}`);
+      const rows =
+        (res.json as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(res.json) ? (res.json as unknown[]) : []);
+      const ids: string[] = [];
+      for (const r of rows) {
+        const o = r as Record<string, unknown>;
+        const id =
+          (o.clientOrderId as string | undefined) ??
+          (o.orderId as string | undefined) ??
+          (o.id as string | undefined);
+        if (typeof id === "string" && id.length > 0) ids.push(id);
+      }
+      return ids;
+    },
+
+    async getFillForClientOrderId(clientOrderId) {
+      const { apiKey, apiSecret } = requireCreds();
+      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {
+        sortOrder: "desc",
+        pageSize: "200",
+      });
+      if (!res.ok) return null;
+      const rows =
+        (res.json as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(res.json) ? (res.json as unknown[]) : []);
+      for (const r of rows) {
+        const o = r as Record<string, unknown>;
+        const id =
+          (o.clientOrderId as string | undefined) ??
+          (o.orderId as string | undefined);
+        if (id === clientOrderId) {
+          const price = Number(o.price ?? o.fillPrice ?? o.avgPrice);
+          const qty = Number(o.qty ?? o.quantity ?? o.filledAmount ?? 0);
+          if (Number.isFinite(price) && price > 0) return { price, qty };
+        }
+      }
+      return null;
+    },
+
+    async testConnection() {
       // Matches the Python example in SharkExchange docs and rules out
       // any URLSearchParams encoding differences.
       const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {});

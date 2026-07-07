@@ -29,6 +29,11 @@ function istWeekday(dateStr: string): Weekday {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay() as Weekday;
 }
 
+export type TpTarget = "swing" | "opposite" | "both" | "neither";
+export type Tercile = "low" | "mid" | "high";
+export type OrBucket = "small" | "medium" | "large";
+export type DistBucket = "near" | "mid" | "far";
+
 export interface DayResult {
   ist_date: string;
   weekday: Weekday;
@@ -64,6 +69,17 @@ export interface DayResult {
   /** For armed_no_trigger days: how close price got to the entry, in R units (0 = filled, higher = further). Null when not applicable. */
   closest_approach_r: number | null;
   entry_mode?: EntryConfig["mode"];
+  // Cohort inputs (populated when a break is found).
+  body_pct: number | null;
+  or_size_usd: number | null;
+  break_distance_usd: number | null;
+  swing_ref: number | null;
+  opposite_ref: number | null;
+  tp_target: TpTarget | null;
+  // Bucket assignments (populated after tertile computation).
+  body_bucket: Tercile | null;
+  or_bucket: OrBucket | null;
+  break_distance_bucket: DistBucket | null;
 }
 
 
@@ -76,6 +92,23 @@ export interface WeekdayStat {
   win_rate_pct: number;
   total_pnl_usd: number;
   avg_pnl_usd: number;
+}
+
+export interface CohortStat {
+  bucket: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate_pct: number;
+  total_pnl_usd: number;
+  avg_pnl_usd: number;
+  avg_r: number;
+}
+
+export interface CohortDim {
+  buckets: CohortStat[];
+  /** Tertile edges [t1, t2] where bucket = low if x<=t1, mid if x<=t2, high otherwise. */
+  edges: [number, number] | null;
 }
 
 

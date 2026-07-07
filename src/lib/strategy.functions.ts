@@ -325,14 +325,21 @@ export const backtestSessionsCompare = createServerFn({ method: "POST" })
         };
       }),
     );
-    return {
+    return JSON.parse(JSON.stringify({
       symbol,
       days: data.days,
       sl_risk_usd: slRiskUsd,
       rr,
       sessions: results,
+    })) as {
+      symbol: string;
+      days: number;
+      sl_risk_usd: number;
+      rr: number;
+      sessions: typeof results;
     };
   });
+
 
 const LiquiditySweepSchema = z.object({
   symbol: z.string().min(3).max(24),

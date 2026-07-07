@@ -238,7 +238,7 @@ export const backtestRange = createServerFn({ method: "POST" })
   });
 
 const SessionsCompareSchema = RangeSchema.omit({ session_start_ist: true }).extend({
-  sessions: z.array(z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)).min(1).max(12),
+  sessions: z.array(z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)).min(1).max(48),
 });
 
 export const backtestSessionsCompare = createServerFn({ method: "POST" })

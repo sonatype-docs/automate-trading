@@ -114,17 +114,3 @@ export function needsDailyBias(cfg: FilterConfig | undefined): boolean {
       q.atr_squeeze_enabled,
   );
 }
-
-
-/** True if any filter that needs daily klines is turned on. */
-export function needsDailyBias(cfg: FilterConfig | undefined): boolean {
-  if (!cfg?.enabled) return false;
-  const h = cfg.htf ?? {};
-  const q = cfg.quality ?? {};
-  return Boolean(
-    h.daily_ema_enabled ||
-      h.prev_day_close_enabled ||
-      h.weekly_open_enabled ||
-      q.atr_enabled,
-  );
-}

@@ -1200,7 +1200,7 @@ function StrategyCard() {
             STRATEGY — {s?.symbol ?? "XAUUSDT"} · 1H
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            IST {s?.session_start_ist?.slice(0, 5) ?? "06:00"} session · SL ${s?.sl_risk_usd ?? 25} · RR 1:{s?.rr ?? 2}
+            IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 25} · RR 1:{s?.rr ?? 2}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1232,7 +1232,7 @@ function StrategyCard() {
         />
         <LiveSessionRulesEditor
           settings={{
-            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "06:00",
+            session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
             sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
             rr: Number(s?.rr ?? 2),
             skip_weekends: !!s?.skip_weekends,
@@ -1266,7 +1266,7 @@ function StrategyCard() {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground font-mono">
-            Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "06:00"}–07:00 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
+            Zone is always the {s?.session_start_ist?.slice(0, 5) ?? "05:30"}–06:30 IST 1H candle — no other candle is used. Waiting for that candle to close, or hit “Run tick” to sync.
           </p>
         )}
 
@@ -1467,7 +1467,7 @@ function LiveSessionRulesEditor({
           <Input
             value={form.session_start_ist}
             onChange={(e) => setForm({ ...form, session_start_ist: e.target.value })}
-            placeholder="06:00"
+            placeholder="05:30"
             className="h-8 font-mono text-xs"
           />
         </div>

@@ -3505,12 +3505,34 @@ function SilverBulletPanel(props: {
               className="h-8 font-mono text-xs"
             />
           </Field>
+          <Field label={`Days — ${days}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={7}
+                max={365}
+                step={1}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                className="h-8 w-20 font-mono text-xs"
+              />
+            </div>
+          </Field>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1" />
           <div className="text-[10px] text-muted-foreground font-mono">
-            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars
+            {days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd} · {cfg.executionTf} bars
+
           </div>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
             {mut.isPending ? "Running…" : "Run Silver Bullet backtest"}

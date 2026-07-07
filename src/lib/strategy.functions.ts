@@ -120,6 +120,7 @@ export const backtestRange = createServerFn({ method: "POST" })
       trailActivateR,
       trailStepR,
       skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+      filters: data.filters,
     });
   });
 

@@ -1222,7 +1222,7 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <CollapsibleSection title="Trailing SL" defaultOpen>
+        <CollapsibleSection title="Trailing SL" defaultOpen={false}>
           <TrailingSlControls
             saved={{
               enabled: !!s?.trail_enabled,

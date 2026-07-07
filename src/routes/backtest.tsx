@@ -279,7 +279,71 @@ function BacktestLab() {
                   </Field>
                 </div>
 
+                <div className="border-t border-border pt-3 space-y-3">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Entry mechanics
+                  </Label>
+                  <div className="flex flex-wrap gap-1">
+                    {(["fib", "retest", "market", "adaptive"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => set("entryMode", m)}
+                        className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                          form.entryMode === m
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  {(form.entryMode === "fib" || form.entryMode === "market") && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {form.entryMode === "fib" && (
+                        <Field label={`Entry depth (${(form.entryDepthPct * 100).toFixed(0)}%)`}>
+                          <input
+                            type="range"
+                            min={0}
+                            max={0.5}
+                            step={0.05}
+                            value={form.entryDepthPct}
+                            onChange={(e) => set("entryDepthPct", Number(e.target.value))}
+                            className="w-full"
+                          />
+                        </Field>
+                      )}
+                      <Field label={`SL depth (${(form.slDepthPct * 100).toFixed(0)}%)`}>
+                        <input
+                          type="range"
+                          min={Math.max(0.15, form.entryDepthPct + 0.05)}
+                          max={1}
+                          step={0.05}
+                          value={form.slDepthPct}
+                          onChange={(e) => set("slDepthPct", Number(e.target.value))}
+                          className="w-full"
+                        />
+                      </Field>
+                    </div>
+                  )}
+                  {form.entryMode === "retest" && (
+                    <Field label={`Retest SL distance (R × range) — ${form.retestSlR.toFixed(2)}`}>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={2}
+                        step={0.1}
+                        value={form.retestSlR}
+                        onChange={(e) => set("retestSlR", Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </Field>
+                  )}
+                </div>
+
                 <div>
+
                   <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
                     Skip weekdays
                   </Label>

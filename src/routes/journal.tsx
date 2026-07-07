@@ -66,6 +66,8 @@ function parseTime(v: unknown): number {
 }
 const fmtINR = (n: number, digits = 2) =>
   `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+const fmtUSD = (n: number, digits = 2) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const fmtNum = (n: number | null | undefined, dp = 2) =>
   n == null || !Number.isFinite(n) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
 

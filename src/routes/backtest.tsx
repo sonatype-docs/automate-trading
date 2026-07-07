@@ -567,63 +567,29 @@ function ResultsView({ data }: { data: RangeData }) {
           </div>
         )}
 
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">By weekday</div>
-          <div className="border border-border rounded overflow-hidden">
-            <table className="w-full text-[11px]">
-              <thead className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted/60">
-                <tr>
-                  <th className="text-left px-2 py-1">Day</th>
-                  <th className="text-right px-2 py-1">Trades</th>
-                  <th className="text-right px-2 py-1">W / L</th>
-                  <th className="text-right px-2 py-1">Win %</th>
-                  <th className="text-right px-2 py-1">Total $</th>
-                  <th className="text-right px-2 py-1">Avg $</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.weekdays.map((w) => {
-                  const skipped = data.skip_weekdays.includes(w.weekday);
-                  const tone =
-                    w.trades === 0
-                      ? "text-muted-foreground"
-                      : w.total_pnl_usd > 0
-                        ? "text-long"
-                        : w.total_pnl_usd < 0
-                          ? "text-short"
-                          : "";
-                  return (
-                    <tr key={w.weekday} className="border-t border-border">
-                      <td className="px-2 py-1">
-                        {w.label}
-                        {skipped && (
-                          <span className="ml-1 text-[9px] uppercase tracking-widest text-muted-foreground">
-                            (skipped)
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-right px-2 py-1">{w.trades}</td>
-                      <td className="text-right px-2 py-1">
-                        {w.wins} / {w.losses}
-                      </td>
-                      <td className="text-right px-2 py-1">
-                        {w.trades > 0 ? `${w.win_rate_pct.toFixed(0)}%` : "—"}
-                      </td>
-                      <td className={`text-right px-2 py-1 ${tone}`}>
-                        {w.trades > 0 ? fmtUsd(w.total_pnl_usd) : "—"}
-                      </td>
-                      <td className={`text-right px-2 py-1 ${tone}`}>
-                        {w.trades > 0 ? fmtUsd(w.avg_pnl_usd) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {cohort && (
+          <div className="flex items-center gap-2 text-[11px] font-mono">
+            <span className="text-muted-foreground uppercase tracking-widest">Filter:</span>
+            <span className="px-2 py-0.5 rounded border border-primary/60 bg-primary/10 text-primary">
+              {COHORT_DIM_LABELS[cohort.dim]}: {cohort.bucket}
+            </span>
+            <span className="text-muted-foreground">
+              ({filteredDays.filter((d) => d.outcome === "tp" || d.outcome === "sl").length} trades)
+            </span>
+            <button
+              type="button"
+              onClick={() => setCohort(null)}
+              className="text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              clear
+            </button>
           </div>
-        </div>
+        )}
+
+        <CohortBreakdowns cohorts={s.cohorts} active={cohort} onSelect={setCohort} />
 
         <CalendarView data={data} />
+
 
 
 

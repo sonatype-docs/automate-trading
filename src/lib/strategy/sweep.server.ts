@@ -232,6 +232,7 @@ export async function runEntryZoneSweep(opts: {
     });
   };
 
+  const finite = (n: number) => (Number.isFinite(n) ? n : 0);
   const pushCell = (mode: EntryMode, entryDepth: number, slDepth: number, r: ReturnType<typeof runOne>) => {
     const decided = r.summary.tp + r.summary.sl;
     cells.push({
@@ -239,13 +240,13 @@ export async function runEntryZoneSweep(opts: {
       entry_depth: entryDepth,
       sl_depth: slDepth,
       trades: decided,
-      fill_rate_pct: r.summary.fill_rate_pct,
-      win_rate_pct: r.summary.win_rate_pct,
-      gross_pnl_usd: r.summary.total_pnl_usd,
-      fees_usd: r.summary.est_fees_usd,
-      net_pnl_usd: r.summary.net_pnl_usd,
-      expectancy_usd: r.summary.expectancy_usd,
-      avg_r: r.summary.avg_r,
+      fill_rate_pct: finite(r.summary.fill_rate_pct),
+      win_rate_pct: finite(r.summary.win_rate_pct),
+      gross_pnl_usd: finite(r.summary.total_pnl_usd),
+      fees_usd: finite(r.summary.est_fees_usd),
+      net_pnl_usd: finite(r.summary.net_pnl_usd),
+      expectancy_usd: finite(r.summary.expectancy_usd),
+      avg_r: finite(r.summary.avg_r),
       triggered: r.summary.triggered,
       missed: r.summary.armed_no_trigger,
     });

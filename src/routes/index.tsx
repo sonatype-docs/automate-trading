@@ -1330,7 +1330,7 @@ function SessionTimeline() {
     at: (session as { created_at: string }).created_at,
     kind: "session",
     title: `Zone set · ${session.zone_low.toFixed(2)} – ${session.zone_high.toFixed(2)}`,
-    detail: `fib 0.25 ${session.fib_25.toFixed(2)} · fib 0.75 ${session.fib_75.toFixed(2)}`,
+    detail: `range ${(session.zone_high - session.zone_low).toFixed(2)} · high ${session.zone_high.toFixed(2)} · low ${session.zone_low.toFixed(2)}`,
     tone: "info",
   });
 

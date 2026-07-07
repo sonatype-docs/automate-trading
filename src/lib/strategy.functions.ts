@@ -31,6 +31,8 @@ export const getStrategyState = createServerFn({ method: "GET" }).handler(async 
   };
 });
 
+const EntryModeEnum = z.enum(["fib", "retest", "market", "adaptive"]);
+
 const StrategySettingsSchema = z.object({
   enabled: z.boolean().optional(),
   symbol: z.string().min(3).max(24).optional(),
@@ -44,7 +46,15 @@ const StrategySettingsSchema = z.object({
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
   skip_weekends: z.boolean().optional(),
+  entry_mode: EntryModeEnum.optional(),
+  entry_depth_pct: z.number().min(0).max(0.5).optional(),
+  sl_depth_pct: z.number().min(0.1).max(1).optional(),
+  adaptive_strong_break_pct: z.number().min(1).max(100).optional(),
+  adaptive_shallow_depth: z.number().min(0).max(0.5).optional(),
+  adaptive_deep_depth: z.number().min(0).max(0.5).optional(),
+  retest_sl_r: z.number().positive().max(5).optional(),
 });
+
 
 export const updateStrategySettings = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => StrategySettingsSchema.parse(input))

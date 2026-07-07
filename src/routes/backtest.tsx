@@ -2566,3 +2566,328 @@ function MultiSessionComparePanel(props: {
   );
 }
 
+// ------------------------------------------------------------------
+// Asian Liquidity Sweep — after the Asian window closes, catch bars that
+// wick past Asian H/L and close back inside (stop-run reversals).
+// ------------------------------------------------------------------
+
+type SweepData = Awaited<ReturnType<typeof backtestLiquiditySweep>>;
+
+interface SweepFormState {
+  asianStartIst: number;
+  asianEndIst: number;
+  entryEndIst: number;
+  minRangeUsd: number;
+  entryPullbackPct: number;
+  slBufferPct: number;
+  rr: number;
+  tpMode: "rr" | "opposite" | "midrange";
+  requireCloseInside: boolean;
+}
+
+const SWEEP_PRESETS: { label: string; hint: string; cfg: Partial<SweepFormState> }[] = [
+  {
+    label: "Classic (03→13 IST)",
+    hint: "Tokyo/Sydney Asia, hunt during London+NY",
+    cfg: { asianStartIst: 3, asianEndIst: 13, entryEndIst: 24 },
+  },
+  {
+    label: "Tokyo tight (05→11)",
+    hint: "Narrower Asia window, hunt through NY close",
+    cfg: { asianStartIst: 5, asianEndIst: 11, entryEndIst: 24 },
+  },
+  {
+    label: "London kill-zone only",
+    hint: "Sweep must trigger before US session",
+    cfg: { asianStartIst: 3, asianEndIst: 13, entryEndIst: 19 },
+  },
+  {
+    label: "NY kill-zone only",
+    hint: "Ignore London sweeps, hunt 18-24 IST",
+    cfg: { asianStartIst: 3, asianEndIst: 18, entryEndIst: 24 },
+  },
+];
+
+function LiquiditySweepPanel(props: {
+  defaults: {
+    symbol: string;
+    days: number;
+    slRiskUsd: number;
+    rr: number;
+    skipWeekdays: number[];
+  };
+}) {
+  const runSweep = useServerFn(backtestLiquiditySweep);
+  const [cfg, setCfg] = useState<SweepFormState>({
+    asianStartIst: 3,
+    asianEndIst: 13,
+    entryEndIst: 24,
+    minRangeUsd: 0,
+    entryPullbackPct: 0,
+    slBufferPct: 0.10,
+    rr: props.defaults.rr,
+    tpMode: "rr",
+    requireCloseInside: true,
+  });
+  const [data, setData] = useState<SweepData | null>(null);
+
+  const setK = <K extends keyof SweepFormState>(k: K, v: SweepFormState[K]) =>
+    setCfg((c) => ({ ...c, [k]: v }));
+
+  const mut = useMutation({
+    mutationFn: () =>
+      runSweep({
+        data: {
+          symbol: props.defaults.symbol,
+          days: props.defaults.days,
+          sl_risk_usd: props.defaults.slRiskUsd,
+          rr: cfg.rr,
+          asian_start_ist: cfg.asianStartIst,
+          asian_end_ist: cfg.asianEndIst,
+          entry_end_ist: cfg.entryEndIst,
+          min_range_usd: cfg.minRangeUsd,
+          entry_pullback_pct: cfg.entryPullbackPct,
+          sl_buffer_pct: cfg.slBufferPct,
+          tp_mode: cfg.tpMode,
+          require_close_inside: cfg.requireCloseInside,
+          skip_weekdays: props.defaults.skipWeekdays,
+        },
+      }),
+    onSuccess: (r) => {
+      setData(r);
+      toast.success(
+        `Sweep done — ${r.summary.tp}W / ${r.summary.sl}L · net $${r.summary.total_pnl_usd.toFixed(0)}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const applyPreset = (p: Partial<SweepFormState>) => setCfg((c) => ({ ...c, ...p }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">
+          ASIAN LIQUIDITY SWEEP
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Counter-trend setup: price wicks past the Asian session H/L and closes
+          back inside → enter opposite direction. SL past the sweep wick,
+          TP by R multiple or opposite range level.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Presets
+          </Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {SWEEP_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyPreset(p.cfg)}
+                title={p.hint}
+                className="px-2 py-1 rounded border border-input bg-background hover:bg-secondary text-[11px] font-mono text-muted-foreground hover:text-foreground"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Field label="Asia start (IST hour)">
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={cfg.asianStartIst}
+              onChange={(e) => setK("asianStartIst", Math.max(0, Math.min(23, Number(e.target.value) || 0)))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Asia end (IST hour)">
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={cfg.asianEndIst}
+              onChange={(e) => setK("asianEndIst", Math.max(1, Math.min(24, Number(e.target.value) || 1)))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Entry cutoff (IST hour)">
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={cfg.entryEndIst}
+              onChange={(e) => setK("entryEndIst", Math.max(1, Math.min(24, Number(e.target.value) || 1)))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Min Asia range ($)">
+            <Input
+              type="number"
+              min={0}
+              step="1"
+              value={cfg.minRangeUsd}
+              onChange={(e) => setK("minRangeUsd", Math.max(0, Number(e.target.value) || 0))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+
+          <Field label="SL buffer (% of range)">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="1"
+              value={Math.round(cfg.slBufferPct * 100)}
+              onChange={(e) => setK("slBufferPct", Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100)}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="Pullback entry (% of range)">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="1"
+              value={Math.round(cfg.entryPullbackPct * 100)}
+              onChange={(e) => setK("entryPullbackPct", Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100)}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="RR (when TP=rr)">
+            <Input
+              type="number"
+              min={0.1}
+              step="0.1"
+              value={cfg.rr}
+              onChange={(e) => setK("rr", Math.max(0.1, Number(e.target.value) || 0.1))}
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+          <Field label="TP mode">
+            <select
+              value={cfg.tpMode}
+              onChange={(e) => setK("tpMode", e.target.value as SweepFormState["tpMode"])}
+              className="h-8 w-full rounded border border-input bg-background px-2 font-mono text-xs"
+            >
+              <option value="rr">RR multiple</option>
+              <option value="opposite">Opposite Asia level</option>
+              <option value="midrange">Asia midrange</option>
+            </select>
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs">
+            <Switch
+              checked={cfg.requireCloseInside}
+              onCheckedChange={(v) => setK("requireCloseInside", !!v)}
+            />
+            <span>Require close back inside range</span>
+          </label>
+          <div className="flex-1" />
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {props.defaults.days}d · {props.defaults.symbol} · risk ${props.defaults.slRiskUsd}
+          </div>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm">
+            {mut.isPending ? "Running…" : "Run sweep backtest"}
+          </Button>
+        </div>
+
+        {data && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono">
+              <Kv k="days w/ range" v={`${data.summary.days_with_range} / ${data.summary.total_days}`} />
+              <Kv k="sweeps" v={String(data.summary.sweeps)} />
+              <Kv k="fills" v={`${data.summary.triggered} (${data.summary.fill_rate_pct.toFixed(0)}%)`} />
+              <Kv k="W / L / open" v={`${data.summary.tp} / ${data.summary.sl} / ${data.summary.open}`} />
+              <Kv k="win rate" v={`${data.summary.win_rate_pct.toFixed(1)}%`} />
+              <Kv k="profit factor" v={Number.isFinite(data.summary.profit_factor) ? data.summary.profit_factor.toFixed(2) : "∞"} />
+              <Kv k="expectancy $" v={`${data.summary.expectancy_usd >= 0 ? "+" : ""}${data.summary.expectancy_usd.toFixed(2)}`} />
+              <Kv k="avg R" v={`${data.summary.avg_r >= 0 ? "+" : ""}${data.summary.avg_r.toFixed(2)}`} />
+              <Kv k="net P&L" v={`${data.summary.total_pnl_usd >= 0 ? "+" : ""}$${data.summary.total_pnl_usd.toFixed(0)}`} />
+              <Kv k="max DD" v={`-$${data.summary.max_drawdown_usd.toFixed(0)}`} />
+              <Kv k="consec W / L" v={`${data.summary.max_consec_wins} / ${data.summary.max_consec_losses}`} />
+              <Kv k="bars scanned" v={String(data.bars_scanned)} />
+            </div>
+
+            {data.equity.length > 1 && (
+              <div className="h-40 w-full">
+                <ResponsiveContainer>
+                  <LineChart data={data.equity}>
+                    <XAxis dataKey="ist_date" tick={{ fontSize: 10 }} minTickGap={40} />
+                    <YAxis tick={{ fontSize: 10 }} width={48} />
+                    <ReTooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11 }}
+                    />
+                    <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                    <Line type="monotone" dataKey="cum_pnl_usd" stroke="hsl(var(--primary))" dot={false} strokeWidth={1.5} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {(data.summary.mae_wins || data.summary.mae_losses) && (
+              <div className="rounded border border-border p-3 text-[11px] font-mono">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+                  MAE distribution (R units)
+                </div>
+                <table className="w-full">
+                  <thead className="text-muted-foreground">
+                    <tr>
+                      <th className="text-left py-1">Cohort</th>
+                      <th className="text-right py-1">n</th>
+                      <th className="text-right py-1">avg</th>
+                      <th className="text-right py-1">p50</th>
+                      <th className="text-right py-1">p75</th>
+                      <th className="text-right py-1">p90</th>
+                      <th className="text-right py-1">p95</th>
+                      <th className="text-right py-1">max</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.summary.mae_wins && (
+                      <tr className="border-t border-border">
+                        <td className="py-1 text-emerald-400">wins</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.count}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.avg.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p50.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p75.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p90.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.p95.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_wins.max.toFixed(2)}</td>
+                      </tr>
+                    )}
+                    {data.summary.mae_losses && (
+                      <tr className="border-t border-border">
+                        <td className="py-1 text-red-400">losses</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.count}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.avg.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p50.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p75.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p90.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.p95.toFixed(2)}</td>
+                        <td className="py-1 text-right">{data.summary.mae_losses.max.toFixed(2)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Tip: if winner p95 MAE is well below 1.0R, your SL is wider than needed —
+                  tighten SL buffer to boost R:R.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

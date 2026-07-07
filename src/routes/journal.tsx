@@ -175,6 +175,7 @@ function JournalPage() {
     const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
     const todaysPnl = pnlTrades.filter((t) => t.time >= dayStart.getTime()).reduce((s, t) => s + t.net, 0);
 
+    const USD_INR = 102;
     let eqRun = netDeposits;
     const curve: Array<{ t: number; eq: number }> = [];
     const all: Array<{
@@ -187,7 +188,7 @@ function JournalPage() {
       curve.push({ t: Date.now(), eq: equity });
     }
     for (const t of pnlTrades) {
-      eqRun += t.net;
+      eqRun += t.net * USD_INR;
       curve.push({ t: t.time, eq: eqRun });
       all.push({ ...t, equity: eqRun });
     }

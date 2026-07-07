@@ -196,3 +196,30 @@ export const applyStrategyPreset = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return row;
   });
+
+const SweepSchema = z.object({
+  symbol: z.string().min(3).max(24),
+  ranges: z.array(z.number().int().min(1).max(365)).min(1).max(6),
+  sl_risk_usd: z.number().positive(),
+  rr: z.number().positive(),
+  trail_enabled: z.boolean().optional(),
+  trail_activate_r: z.number().positive().optional(),
+  trail_step_r: z.number().positive().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+});
+
+export const sweepHoursBacktest = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => SweepSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { runSweep } = await import("@/lib/strategy/sweep.server");
+    return runSweep({
+      symbol: data.symbol,
+      ranges: Array.from(new Set(data.ranges)).sort((a, b) => a - b),
+      slRiskUsd: data.sl_risk_usd,
+      rr: data.rr,
+      trailEnabled: data.trail_enabled,
+      trailActivateR: data.trail_activate_r,
+      trailStepR: data.trail_step_r,
+      skipWeekdays: (data.skip_weekdays ?? []) as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+    });
+  });

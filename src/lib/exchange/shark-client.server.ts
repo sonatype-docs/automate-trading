@@ -270,11 +270,15 @@ export function createSharkClient(): ExchangeClient {
 
     async cancelOrder(clientOrderId, symbol) {
       const { apiKey, apiSecret } = requireCreds();
+      // Shark uses DELETE /v1/order/delete-order (docs: "Deleting an Order").
+      // `symbol` is not part of the documented body, but we pass it when known
+      // so any future validation still succeeds.
       const body: Record<string, unknown> = { clientOrderId };
       if (symbol) body.symbol = symbol.toUpperCase();
-      const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/cancel-order", body);
+      const res = await signedJson(apiKey, apiSecret, "DELETE", "/v1/order/delete-order", body);
       return { ok: res.ok, status: res.status, body: res.body };
     },
+
 
     async getOpenOrderIds(symbol) {
       const rows = await fetchOpenOrders(symbol);

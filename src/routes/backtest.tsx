@@ -1511,6 +1511,23 @@ function HourSweepPanel({
                         {isFinite(h.profit_factor) ? h.profit_factor.toFixed(2) : "∞"}
                       </td>
                       <td className="px-2 py-1.5 text-right">{h.avg_r.toFixed(2)}</td>
+                      {cohortDim !== "none" && (
+                        <td className="px-2 py-1.5 text-left">
+                          {(() => {
+                            const buckets = h.cohorts[cohortDim].buckets.filter((b) => b.trades > 0);
+                            if (!buckets.length) return <span className="text-muted-foreground">—</span>;
+                            const b = buckets.reduce((a, c) => (c.total_pnl_usd > a.total_pnl_usd ? c : a));
+                            return (
+                              <span className={tone(b.total_pnl_usd)}>
+                                <span className="uppercase">{b.bucket}</span>{" "}
+                                <span className="text-muted-foreground">
+                                  · {b.trades}t · {b.win_rate_pct.toFixed(0)}% · {fmtUsd(b.total_pnl_usd)}
+                                </span>
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
                       <td className="px-2 py-1.5 text-left">
                         {h.best_day ? (
                           <span className={tone(h.best_day.pnl_usd)}>

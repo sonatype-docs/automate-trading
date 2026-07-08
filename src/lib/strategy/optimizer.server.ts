@@ -291,29 +291,61 @@ interface EvalInput {
   windowSlices: { days: number; klines: Kline[]; fromMs: number; toMs: number }[];
 }
 
-function scoreGenome(evaluator: Evaluator | null, input: EvalInput): {
+type ScoreResult = {
   score: number;
   total_net_pnl: number;
   total_oos_pnl: number;
+  total_trades: number;
+  total_wins: number;
+  total_losses: number;
+  total_win_rate: number;
+  total_avg_r: number;
   windows: WindowScore[];
   windows_passed: number;
-} {
-  if (!evaluator) {
-    return {
-      score: -Infinity,
-      total_net_pnl: 0,
-      total_oos_pnl: 0,
-      windows: [],
-      windows_passed: 0,
-    };
-  }
+};
+
+function combineLegs(a: WindowLegStats, b: WindowLegStats): WindowLegStats {
+  const trades = a.trades + b.trades;
+  const wins = a.wins + b.wins;
+  const losses = a.losses + b.losses;
+  return {
+    trades,
+    wins,
+    losses,
+    win_rate: trades > 0 ? (wins / trades) * 100 : 0,
+    net_pnl: a.net_pnl + b.net_pnl,
+    avg_r: trades > 0 ? (a.avg_r * a.trades + b.avg_r * b.trades) / trades : 0,
+    profit_factor:
+      a.profit_factor === Infinity || b.profit_factor === Infinity
+        ? Infinity
+        : (a.profit_factor * a.trades + b.profit_factor * b.trades) / Math.max(1, trades),
+  };
+}
+
+function scoreGenome(evaluator: Evaluator | null, input: EvalInput): ScoreResult {
+  const empty: ScoreResult = {
+    score: -Infinity,
+    total_net_pnl: 0,
+    total_oos_pnl: 0,
+    total_trades: 0,
+    total_wins: 0,
+    total_losses: 0,
+    total_win_rate: 0,
+    total_avg_r: 0,
+    windows: [],
+    windows_passed: 0,
+  };
+  if (!evaluator) return empty;
   let score = 0;
   let totalNet = 0;
   let totalOos = 0;
+  let totalTrades = 0;
+  let totalWins = 0;
+  let totalLosses = 0;
+  let totalRWeighted = 0;
   let passed = 0;
   const windows: WindowScore[] = [];
   for (const w of input.windowSlices) {
-    // Split klines chronologically 70/30 by time.
     const split = w.fromMs + Math.floor((w.toMs - w.fromMs) * 0.7);
     const isBars = w.klines.filter((k) => k.openTime < split);
     const oosBars = w.klines.filter((k) => k.openTime >= split);
@@ -321,13 +353,18 @@ function scoreGenome(evaluator: Evaluator | null, input: EvalInput): {
     const oosDays = Math.max(1, Math.round((w.toMs - split) / 86_400_000));
     const isR = evaluator(isBars, w.fromMs, split, isDays);
     const oosR = evaluator(oosBars, split, w.toMs, oosDays);
+    const combined = combineLegs(isR, oosR);
     const minTrades = Math.max(5, Math.floor(isR.trades * 0.2));
     const oosPass =
       oosR.net_pnl > 0 &&
       oosR.trades >= minTrades &&
       (isR.net_pnl <= 0 || oosR.net_pnl > 0);
-    totalNet += isR.net_pnl;
+    totalNet += combined.net_pnl;
     totalOos += oosR.net_pnl;
+    totalTrades += combined.trades;
+    totalWins += combined.wins;
+    totalLosses += combined.losses;
+    totalRWeighted += combined.avg_r * combined.trades;
     let contribution = 0;
     if (oosPass && isR.net_pnl > 0) {
       const robust = Math.min(1, oosR.net_pnl / Math.max(1, isR.net_pnl * 0.3));
@@ -335,22 +372,17 @@ function scoreGenome(evaluator: Evaluator | null, input: EvalInput): {
       score += contribution;
       passed += 1;
     }
-    windows.push({
-      days: w.days,
-      is_trades: isR.trades,
-      is_net_pnl: isR.net_pnl,
-      is_win_rate: isR.win_rate,
-      oos_trades: oosR.trades,
-      oos_net_pnl: oosR.net_pnl,
-      oos_win_rate: oosR.win_rate,
-      oos_pass: oosPass,
-      contribution,
-    });
+    windows.push({ days: w.days, is: isR, oos: oosR, combined, oos_pass: oosPass, contribution });
   }
   return {
     score: passed === 0 ? -Infinity : score,
     total_net_pnl: totalNet,
     total_oos_pnl: totalOos,
+    total_trades: totalTrades,
+    total_wins: totalWins,
+    total_losses: totalLosses,
+    total_win_rate: totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0,
+    total_avg_r: totalTrades > 0 ? totalRWeighted / totalTrades : 0,
     windows,
     windows_passed: passed,
   };

@@ -12,7 +12,7 @@ type OptResult = Awaited<ReturnType<typeof runStrategyOptimizer>>;
 const ALL_WINDOWS = [30, 60, 90, 180, 365];
 
 export function OptimizerPanel(props: {
-  strategy: "silver_bullet" | "asian_sweep";
+  strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
   title: string;
   defaults: { symbol: string; slRiskUsd: number; skipWeekdays: number[] };
 }) {

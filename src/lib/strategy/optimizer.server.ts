@@ -23,14 +23,21 @@ import {
 
 export type OptimizerStrategy = "silver_bullet" | "asian_sweep";
 
+export interface WindowLegStats {
+  trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  net_pnl: number;
+  avg_r: number;
+  profit_factor: number;
+}
+
 export interface WindowScore {
   days: number;
-  is_trades: number;
-  is_net_pnl: number;
-  is_win_rate: number;
-  oos_trades: number;
-  oos_net_pnl: number;
-  oos_win_rate: number;
+  is: WindowLegStats;
+  oos: WindowLegStats;
+  combined: WindowLegStats;
   oos_pass: boolean;
   contribution: number;
 }
@@ -41,8 +48,13 @@ export interface OptimizerPreset {
   symbol: string;
   genome: Record<string, string | number | boolean>;
   score: number;
-  total_net_pnl: number;
+  total_net_pnl: number;    // combined IS+OOS across all windows
   total_oos_pnl: number;
+  total_trades: number;
+  total_wins: number;
+  total_losses: number;
+  total_win_rate: number;
+  total_avg_r: number;
   windows: WindowScore[];
   windows_passed: number;
 }

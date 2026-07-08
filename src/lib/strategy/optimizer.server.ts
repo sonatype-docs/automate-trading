@@ -68,7 +68,7 @@ type TimeGene = { kind: "time"; startMin: number; endMin: number; stepMin: numbe
 type Gene = NumGene | EnumGene<string> | BoolGene | TimeGene;
 type ParamSpace = Record<string, Gene>;
 
-function sampleGene(g: Gene): unknown {
+function sampleGene(g: Gene): string | number | boolean {
   if (g.kind === "bool") return Math.random() < 0.5;
   if (g.kind === "enum") return g.values[Math.floor(Math.random() * g.values.length)];
   if (g.kind === "time") {
@@ -83,7 +83,7 @@ function sampleGene(g: Gene): unknown {
   return g.kind === "int" ? Math.round(raw) : Math.round(raw / g.step) * g.step;
 }
 
-function mutateGene(g: Gene, current: unknown): unknown {
+function mutateGene(g: Gene, current: string | number | boolean): string | number | boolean {
   if (g.kind === "bool") return !current;
   if (g.kind === "enum") return sampleGene(g);
   if (g.kind === "time") {

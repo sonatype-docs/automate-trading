@@ -173,6 +173,26 @@ export const ASIAN_SWEEP_SPACE: ParamSpace = {
   rr: { kind: "float", min: 1, max: 4, step: 0.25 },
 };
 
+// Multi-session ORB — searches over session start time, RR, entry mode, depths,
+// trailing behaviour. Uses the same underlying ORB engine as the main backtest.
+export const ORB_SESSIONS_SPACE: ParamSpace = {
+  session_start_ist: {
+    kind: "enum",
+    values: [
+      "02:30", "05:30", "06:30", "12:30", "13:30", "14:30",
+      "15:30", "17:30", "18:30", "19:30", "21:30", "22:30", "00:30",
+    ] as const,
+  },
+  rr: { kind: "float", min: 1, max: 4, step: 0.25 },
+  entry_mode: { kind: "enum", values: ["fib", "retest", "market", "adaptive"] as const },
+  entry_depth_pct: { kind: "float", min: 0.1, max: 0.9, step: 0.05 },
+  sl_depth_pct: { kind: "float", min: 0, max: 0.5, step: 0.05 },
+  retest_sl_r: { kind: "float", min: 0.5, max: 2, step: 0.1 },
+  trail_enabled: { kind: "bool" },
+  trail_activate_r: { kind: "float", min: 1, max: 3, step: 0.25 },
+  trail_step_r: { kind: "float", min: 0.5, max: 2, step: 0.25 },
+};
+
 // ---------- Genome → concrete opts ----------
 function sbGenomeToOpts(
   g: Record<string, string | number | boolean>,

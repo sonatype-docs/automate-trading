@@ -410,6 +410,16 @@ function BacktestLab() {
               filters={filters}
             />
 
+            <OptimizerPanel
+              strategy="orb_sessions"
+              title="Multi-Session ORB"
+              defaults={{
+                symbol: form.symbol,
+                slRiskUsd: form.slRiskUsd,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
             <LiquiditySweepPanel
               defaults={{
                 symbol: form.symbol,

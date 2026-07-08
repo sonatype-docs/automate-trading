@@ -39,7 +39,7 @@ export interface OptimizerPreset {
   rank: number;
   strategy: OptimizerStrategy;
   symbol: string;
-  genome: Record<string, unknown>;
+  genome: Record<string, string | number | boolean>;
   score: number;
   total_net_pnl: number;
   total_oos_pnl: number;
@@ -107,19 +107,19 @@ function mutateGene(g: Gene, current: unknown): unknown {
   return g.kind === "int" ? Math.round(snapped) : Number(snapped.toFixed(6));
 }
 
-function randomGenome(space: ParamSpace): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+function randomGenome(space: ParamSpace): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
   for (const [k, g] of Object.entries(space)) out[k] = sampleGene(g);
   return out;
 }
 
-function crossover(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+function crossover(a: Record<string, string | number | boolean>, b: Record<string, string | number | boolean>): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
   for (const k of Object.keys(a)) out[k] = Math.random() < 0.5 ? a[k] : b[k];
   return out;
 }
 
-function mutate(g: Record<string, unknown>, space: ParamSpace, rate: number) {
+function mutate(g: Record<string, string | number | boolean>, space: ParamSpace, rate: number) {
   const out = { ...g };
   for (const [k, gene] of Object.entries(space)) {
     if (Math.random() < rate) out[k] = mutateGene(gene, out[k]);
@@ -127,7 +127,7 @@ function mutate(g: Record<string, unknown>, space: ParamSpace, rate: number) {
   return out;
 }
 
-function stableKey(g: Record<string, unknown>): string {
+function stableKey(g: Record<string, string | number | boolean>): string {
   return Object.keys(g)
     .sort()
     .map((k) => `${k}=${JSON.stringify(g[k])}`)
@@ -161,7 +161,7 @@ export const ASIAN_SWEEP_SPACE: ParamSpace = {
 
 // ---------- Genome → concrete opts ----------
 function sbGenomeToOpts(
-  g: Record<string, unknown>,
+  g: Record<string, string | number | boolean>,
   symbol: string,
   slRiskUsd: number,
   skipWeekdays: number[],
@@ -192,7 +192,7 @@ function sbGenomeToOpts(
 }
 
 function sweepGenomeToOpts(
-  g: Record<string, unknown>,
+  g: Record<string, string | number | boolean>,
   symbol: string,
   slRiskUsd: number,
   skipWeekdays: number[],
@@ -226,7 +226,7 @@ type Evaluator = (
 ) => { trades: number; net_pnl: number; win_rate: number };
 
 function sbEvaluator(
-  g: Record<string, unknown>,
+  g: Record<string, string | number | boolean>,
   symbol: string,
   slRiskUsd: number,
   skipWeekdays: number[],
@@ -243,7 +243,7 @@ function sbEvaluator(
 }
 
 function sweepEvaluator(
-  g: Record<string, unknown>,
+  g: Record<string, string | number | boolean>,
   symbol: string,
   slRiskUsd: number,
   skipWeekdays: number[],
@@ -353,7 +353,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   const topN = Math.max(5, Math.min(50, input.topN ?? 20));
 
   const space = input.strategy === "silver_bullet" ? SILVER_BULLET_SPACE : ASIAN_SWEEP_SPACE;
-  const evaluatorBuilder = (g: Record<string, unknown>): Evaluator | null =>
+  const evaluatorBuilder = (g: Record<string, string | number | boolean>): Evaluator | null =>
     input.strategy === "silver_bullet"
       ? sbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays)
       : sweepEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
@@ -383,7 +383,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
     return klinesByTf[tf].filter((k) => k.openTime >= cutoff);
   };
 
-  const buildInput = (g: Record<string, unknown>): EvalInput => {
+  const buildInput = (g: Record<string, string | number | boolean>): EvalInput => {
     const tf =
       input.strategy === "silver_bullet"
         ? ((g.execution_tf as string) ?? "5m")
@@ -400,7 +400,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   let evaluated = 0;
   let cacheHits = 0;
 
-  const evaluate = (g: Record<string, unknown>) => {
+  const evaluate = (g: Record<string, string | number | boolean>) => {
     const key = stableKey(g);
     const cached = cache.get(key);
     if (cached) {
@@ -431,7 +431,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   };
 
   type Individual = {
-    genome: Record<string, unknown>;
+    genome: Record<string, string | number | boolean>;
     scored: ReturnType<typeof scoreGenome>;
   };
 
@@ -473,7 +473,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
     if (seen.has(key)) continue;
     seen.add(key);
     // Rebuild genome from key by parsing JSON pairs.
-    const genome: Record<string, unknown> = {};
+    const genome: Record<string, string | number | boolean> = {};
     for (const seg of key.split("|")) {
       const eq = seg.indexOf("=");
       genome[seg.slice(0, eq)] = JSON.parse(seg.slice(eq + 1));

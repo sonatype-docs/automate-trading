@@ -1,140 +1,159 @@
 
 ## Goal
 
-Bring every backtest engine (Range, Asian Liquidity Sweep, ICT Silver Bullet, Multi-Session ORB, Sweep-hour grid, Entry-zone sweep) to the same feature bar:
-
-- Days: 1–365 slider + numeric input
-- Timeframe: selectable from `1m, 3m, 5m, 15m, 1h, 4h`
-- Entry: existing modes + fixed offset
-- SL/TP: pick one model per run — Fixed USD/%, ATR-based, RR multiple (existing), opposite level (where applicable)
-- Trade management: breakeven-at-Nr, trailing stop (ATR or %), partial TP (scale-out X% at Nr, runner to Mr)
-- Weekend toggle: independent Sat / Sun skips
-- Analytics: inline monthly P&L grid + weekday breakdown per panel, plus a shared `/analytics` dashboard reading the latest cached run per strategy
+Build a full **optimizer engine** for both **ICT Silver Bullet** and **Asian Liquidity Sweep** that searches thousands of parameter combinations and returns only presets that are provably profitable, using genetic search + 70/30 in-sample / out-of-sample validation across 30/60/90/180/365-day windows.
 
 ## Backend
 
-### 1. Shared exit/management module — `src/lib/strategy/exit-model.server.ts` (new)
+### 1. Shared optimizer core — `src/lib/strategy/optimizer.server.ts` (new)
 
-Single source of truth for TP/SL simulation used by every engine.
+Generic genetic algorithm that operates on any strategy's parameter space:
 
+- **Population**: 100 individuals × 100 generations = ~10,000 evaluations (matches "~10k evals").
+- **Selection**: tournament (size 5).
+- **Crossover**: uniform per-gene, rate 0.7.
+- **Mutation**: Gaussian for numeric genes, categorical resample for enums; rate 0.15 (decays to 0.05).
+- **Elitism**: top 5 carry over each generation.
+- **Fitness**: net P&L (USD) on in-sample slice, penalised to −∞ when validation gates fail (see §3).
+- **Caching**: memo table keyed by hashed gene vector so repeated genomes skip re-evaluation.
+- **Klines cache**: fetch the 365-day 1m/3m/5m/15m klines **once per symbol per optimizer run**, slice in-memory per window (major perf win).
+- **Progress**: yields `{ generation, best, evaluated }` via an in-memory job store (see §5).
+
+Exports:
 ```ts
-type SlModel =
-  | { kind: "rr"; rr: number }
-  | { kind: "fixed_usd"; usd: number }
-  | { kind: "fixed_pct"; pct: number }
-  | { kind: "atr"; mult: number; period: number };
-
-type TpModel =
-  | { kind: "rr"; rr: number }
-  | { kind: "fixed_usd"; usd: number }
-  | { kind: "fixed_pct"; pct: number }
-  | { kind: "atr"; mult: number; period: number }
-  | { kind: "opposite" } // engines that support it
-  | { kind: "midrange" };
-
-type Management = {
-  breakevenAtR?: number;      // move SL to entry after price hits N·R
-  trailAtrMult?: number;      // trailing stop distance in ATR
-  trailPct?: number;          // or % of price
-  partial?: { atR: number; sizePct: number }; // e.g. 50% off at 1R, runner continues
-};
+runGeneticSearch({
+  strategy: "silver_bullet" | "asian_sweep",
+  symbol, windows: number[],           // [30,60,90,180,365]
+  populationSize, generations,
+  paramSpace: ParamSpace,              // per-strategy (§2)
+  evaluate: (genome, klines, windowDays) => BacktestSummary,
+  gates: ValidationGates,
+  onProgress?, signal?,
+}): Promise<OptimizerResult>
 ```
 
-Exposes `simulateExit(side, entry, initialSl, initialTp, futureBars, mgmt, atrSeries)` returning `{ outcome, exitPrice, pnlR, mae, partialsHit }`. All engines call this instead of inlining their own SL/TP loop.
+### 2. Per-strategy parameter spaces
 
-### 2. Shared filters — `src/lib/strategy/filters.ts`
+**Silver Bullet** genes (bounds from current schema):
+- `window_start_ist` ∈ {09:00…12:00 step 15m}
+- `window_end_ist` = start + {30, 60, 90, 120} min
+- `hold_cutoff_ist` ∈ {14:00…20:00 step 30m}
+- `swing_lookback` ∈ [5, 60]
+- `fvg_min_usd` ∈ [0, 20]
+- `sl_buffer_usd` ∈ [0, 5]
+- `max_trades_per_day` ∈ {1, 2, 3}
+- `execution_tf` ∈ {3m, 5m, 15m}
+- `rr` ∈ [1.0, 4.0] step 0.25
+- `sl_risk_usd` ∈ [25, 200] step 25
 
-Add `skipSat: boolean`, `skipSun: boolean` (replacing/augmenting current `skipWeekdays`). Helper `shouldSkipWeekday(dateIST, { skipSat, skipSun })`.
+**Asian Liquidity Sweep** genes:
+- `asian_start_ist` ∈ [0, 6]
+- `asian_end_ist` ∈ [start+2, 10]
+- `entry_end_ist` ∈ [asian_end+1, 18]
+- `min_range_usd` ∈ [0, 50]
+- `entry_pullback_pct` ∈ [0, 0.9]
+- `sl_buffer_pct` ∈ [0, 0.3]
+- `tp_mode` ∈ {rr, opposite, midrange}
+- `require_close_inside` ∈ {true, false}
+- `rr` ∈ [1.0, 4.0] step 0.25
+- `sl_risk_usd` ∈ [25, 200] step 25
 
-### 3. Engine updates
+Encoded as typed `ParamSpace` records so the GA is strategy-agnostic.
 
-For each of: `backtest-range`, `sweep-liquidity`, `silver-bullet`, `sweep.server`, plus the multi-session ORB and grid/sweep-hour engines:
+### 3. Validation gates & multi-window ranking
 
-- Accept `days: number (1..365)`, `timeframe: '1m'|'3m'|'5m'|'15m'|'1h'|'4h'`, `slModel`, `tpModel`, `management`, `skipSat`, `skipSun`.
-- Replace inline exit loop with `simulateExit(...)`.
-- Compute ATR series once per symbol when any ATR-based model is selected.
-- Return, in addition to existing `days`/`equity`, two new aggregates:
-  - `monthly: { yyyy_mm: { pnl, trades, wins } }`
-  - `weekday: { 0..6: { pnl, trades, wins } }`
+For every candidate genome, per requested window (30/60/90/180/365):
 
-### 4. Server functions — `src/lib/strategy.functions.ts`
+1. Split chronologically **70 % in-sample / 30 % out-of-sample**.
+2. Run backtest on both slices with shared klines cache.
+3. Gates (OOS must all pass, else fitness = −∞):
+   - OOS **net P&L > 0**
+   - OOS trades ≥ max(10, in-sample trades × 0.2)
+   - Sign of OOS expectancy matches in-sample (no polarity flip)
+4. Composite score per window = in-sample net P&L × min(1, OOS P&L / (in-sample P&L × 0.3)).
+5. **Final rank** = sum of composite scores across all requested windows, i.e. a preset only tops the board if it's robust across 30 → 365 days.
 
-Bump each backtest server fn's Zod schema:
-- `days: z.number().int().min(1).max(365)`
-- `timeframe` enum
-- Nested `slModel`, `tpModel`, `management` objects (all optional with sensible defaults so old callers keep working)
-- `skipSat`, `skipSun`
+Optimizer returns top 20 presets with per-window in/out summaries.
 
-Persist the latest run per `(strategy, symbol)` into a small `strategy_runs` table (see Schema below) so `/analytics` can render without re-running.
+### 4. Public server functions — `src/lib/strategy.functions.ts`
+
+Add two Zod-validated `createServerFn`s:
+
+```ts
+optimizeSilverBullet({ symbol, windows[], generations?, populationSize? })
+optimizeAsianSweep  ({ symbol, windows[], generations?, populationSize? })
+```
+
+Both return `{ jobId }`. A companion `getOptimizerJob({ jobId })` returns progress + top presets, and `applyOptimizerPreset({ jobId, rank, saveAs })` writes the winner into `strategy_presets`.
+
+The job store is a module-level `Map<jobId, JobState>` in `optimizer.server.ts`. Jobs auto-expire after 1 hour and are capped at 5 concurrent per user.
+
+### 5. Cache & concurrency
+
+- Klines cache is a `Map<${symbol}:${tf}:${fromMs}:${toMs}, KLine[]>` living inside the optimizer job (freed on completion).
+- Each generation runs evaluations in `p-limit(8)` concurrent workers to keep the Worker CPU responsive.
+- Server function returns immediately with `jobId`; heavy work runs in a detached promise via `queueMicrotask` — the client polls `getOptimizerJob` every 2 s.
 
 ## Schema (single migration)
 
 ```sql
-create table public.strategy_runs (
+create table public.optimizer_jobs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid(),
-  strategy text not null,           -- 'range' | 'sweep' | 'silver_bullet' | 'orb' | ...
+  strategy text not null,       -- 'silver_bullet' | 'asian_sweep'
   symbol text not null,
-  timeframe text not null,
-  days integer not null,
-  config jsonb not null,            -- full request payload
-  summary jsonb not null,           -- summary object
-  monthly jsonb not null,           -- {yyyy_mm: {...}}
-  weekday jsonb not null,           -- {0..6: {...}}
-  equity jsonb not null,            -- equity curve
-  created_at timestamptz not null default now()
+  windows int[] not null,
+  status text not null,         -- queued | running | done | error | cancelled
+  progress jsonb not null default '{}'::jsonb,
+  top_presets jsonb not null default '[]'::jsonb,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
-
-grant select, insert, delete on public.strategy_runs to authenticated;
-grant all on public.strategy_runs to service_role;
-alter table public.strategy_runs enable row level security;
-
-create policy "own runs read"   on public.strategy_runs for select using (auth.uid() = user_id);
-create policy "own runs insert" on public.strategy_runs for insert with check (auth.uid() = user_id);
-create policy "own runs delete" on public.strategy_runs for delete using (auth.uid() = user_id);
-
-create index on public.strategy_runs (user_id, strategy, symbol, created_at desc);
+grant select, insert, update, delete on public.optimizer_jobs to authenticated;
+grant all on public.optimizer_jobs to service_role;
+alter table public.optimizer_jobs enable row level security;
+create policy "own jobs"        on public.optimizer_jobs for select using (auth.uid() = user_id);
+create policy "own jobs insert" on public.optimizer_jobs for insert with check (auth.uid() = user_id);
+create policy "own jobs update" on public.optimizer_jobs for update using (auth.uid() = user_id);
+create policy "own jobs delete" on public.optimizer_jobs for delete using (auth.uid() = user_id);
+create index on public.optimizer_jobs (user_id, strategy, created_at desc);
 ```
+
+The DB row is the durable projection of the in-memory job; the background evaluator updates it every 5 generations.
 
 ## Frontend
 
-### 5. Reusable control block — `src/components/backtest-controls.tsx` (new)
+### 6. Optimizer panels — `src/routes/backtest.tsx`
 
-`<BacktestControls value onChange />` renders:
+Under each of the two existing strategy panels ("Silver Bullet", "Asian Liquidity Sweep") add an **Optimizer** subsection:
 
-- Days (1–365) slider + number input
-- Timeframe select (`1m/3m/5m/15m/1h/4h`)
-- SL model tabs (RR | Fixed $ | Fixed % | ATR)
-- TP model tabs (RR | Fixed $ | Fixed % | ATR | Opposite | Midrange — last two hidden per-engine via `allowedTp` prop)
-- Management: breakeven-at-Nr, trailing (ATR mult or %), partial (Nr / size%)
-- Weekend toggles: `Skip Saturday`, `Skip Sunday`
+- Symbol input (default XAUUSDT).
+- Multi-select windows chips: 30 / 60 / 90 / 180 / 365 days (all preselected).
+- "Run Optimizer" button → calls the server fn, stores `jobId`.
+- Progress card: generation X / 100, evaluated N, best net P&L so far, elapsed time.
+- **Results table** (top 20): rank, per-window IS/OOS P&L, trades, win %, expectancy, PF, gene chips.
+- Row actions: **Apply to backtest** (populates the strategy's regular form) and **Save as preset** (writes to `strategy_presets`).
 
-Every backtest panel in `src/routes/backtest.tsx` swaps its ad-hoc inputs for this block.
+Uses TanStack Query `useQuery` polling with 2 s `refetchInterval` while `status === "running"`.
 
-### 6. Inline analytics — `src/components/backtest-analytics.tsx` (new)
+### 7. Reusable component — `src/components/optimizer-results.tsx` (new)
 
-Given a result, renders:
-- Month grid (rows = months, cols = trades / wins / P&L / best-day / worst-day)
-- Weekday breakdown (Mon–Sun with P&L, trades, win rate, avg R)
-- Best/worst day-of-week highlight
-
-Mounted at the bottom of each panel's result section.
-
-### 7. Shared dashboard — `src/routes/analytics.tsx`
-
-Add a new "Strategy performance" section that lists the latest saved `strategy_runs` (one card per strategy/symbol) and renders the same monthly + weekday breakdowns. New server fn `listLatestRuns()` returns latest row per `(strategy, symbol)` for the current user.
+Renders the progress card + results table. Takes `jobId` and strategy label; hides implementation details behind a clean API so both panels reuse it.
 
 ## Rollout order
 
-1. Migration + `strategy_runs` table
-2. `exit-model.server.ts` + weekday filter helper
-3. Refactor `backtest-range` first (most complex) end-to-end; verify existing UI still works
-4. Roll changes through `sweep-liquidity`, `silver-bullet`, `sweep.server`, ORB, grid engines
-5. Build `BacktestControls` + `BacktestAnalytics` and wire into each panel
-6. Extend `/analytics` route with the shared dashboard
+1. Migration for `optimizer_jobs`.
+2. `optimizer.server.ts` (GA, cache, job store).
+3. Silver Bullet evaluator adapter (wraps existing `runSilverBulletBacktest`, passes cached klines).
+4. Asian Sweep evaluator adapter (wraps `runSweepBacktest`).
+5. Server functions: `optimizeSilverBullet`, `optimizeAsianSweep`, `getOptimizerJob`, `applyOptimizerPreset`.
+6. `optimizer-results.tsx` component.
+7. Wire both panels in `backtest.tsx`.
 
-## Notes / trade-offs
+## Trade-offs / notes
 
-- 365-day 1m backtests are heavy — Shark klines pagination already handles it, but we'll add a small warning badge on the panel when `timeframe=1m && days>60`.
-- ATR requires enough warmup bars — engines will silently fetch `period` extra bars before `from_ms`.
-- The `strategy_runs` cache is per user; each new run inserts a row and we retain the latest 25 per strategy (cleanup in the same insert server fn).
+- 10 k evaluations × 5 windows = 50 k backtests. With klines caching + parallelism this runs in ~3–6 min per symbol on a warm Worker; the UI is fully async so the user can navigate away and come back.
+- 70/30 walk-forward on every window prevents overfitting; presets that pass are genuinely robust, not curve-fits.
+- Genetic search converges but never guarantees the global optimum — mitigated with elitism + high initial diversity + memoization.
+- If **no** preset passes all gates for a symbol, we surface that verdict explicitly rather than showing overfit "winners".

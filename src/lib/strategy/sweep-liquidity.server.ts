@@ -148,6 +148,20 @@ function distStats(values: number[]) {
 }
 
 export async function runSweepBacktest(opts: SweepOpts): Promise<SweepBacktestResult> {
+  const client = createSharkClient();
+  const now = Date.now();
+  const fromMs = now - opts.days * 86_400_000;
+  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+  return runSweepCore(klines, opts, fromMs, now);
+}
+
+/** Pure core — same logic but takes pre-fetched klines. Used by the optimizer. */
+export function runSweepCore(
+  klines: Kline[],
+  opts: SweepOpts,
+  fromMs: number,
+  toMs: number,
+): SweepBacktestResult {
   const asianStart = opts.asianStartIst ?? 3;
   const asianEnd = opts.asianEndIst ?? 13;
   const entryEnd = opts.entryEndIst ?? 24;
@@ -158,11 +172,8 @@ export async function runSweepBacktest(opts: SweepOpts): Promise<SweepBacktestRe
   const tpMode: SweepTpMode = opts.tpMode ?? "rr";
   const requireCloseInside = opts.requireCloseInside ?? true;
   const skipWeekdays = new Set(opts.skipWeekdays ?? []);
+  const now = toMs;
 
-  const client = createSharkClient();
-  const now = Date.now();
-  const fromMs = now - opts.days * 86_400_000;
-  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
   // Group bars by IST date.
   const byDate = new Map<string, Kline[]>();

@@ -206,6 +206,21 @@ function findFvg(
 }
 
 export async function runSilverBulletBacktest(opts: SbOpts): Promise<SbBacktestResult> {
+  const executionTf = opts.executionTf ?? "5m";
+  const client = createSharkClient();
+  const now = Date.now();
+  const fromMs = now - opts.days * 86_400_000;
+  const klines: Kline[] = await client.getKlinesRange(opts.symbol, executionTf, fromMs, now);
+  return runSilverBulletCore(klines, opts, fromMs, now);
+}
+
+/** Pure core — same logic but takes pre-fetched klines. Used by the optimizer. */
+export function runSilverBulletCore(
+  klines: Kline[],
+  opts: SbOpts,
+  fromMs: number,
+  toMs: number,
+): SbBacktestResult {
   const winStart = parseHhMm(opts.windowStartIst ?? "19:00");
   const winEnd = parseHhMm(opts.windowEndIst ?? "21:00");
   const holdCutoff = parseHhMm(opts.holdCutoffIst ?? "23:00");
@@ -216,11 +231,8 @@ export async function runSilverBulletBacktest(opts: SbOpts): Promise<SbBacktestR
   const maxTradesPerDay = Math.max(1, opts.maxTradesPerDay ?? 1);
   const executionTf = opts.executionTf ?? "5m";
   const skipWeekdays = new Set(opts.skipWeekdays ?? []);
+  const now = toMs;
 
-  const client = createSharkClient();
-  const now = Date.now();
-  const fromMs = now - opts.days * 86_400_000;
-  const klines: Kline[] = await client.getKlinesRange(opts.symbol, executionTf, fromMs, now);
 
   // Group by IST date.
   const byDate = new Map<string, Kline[]>();

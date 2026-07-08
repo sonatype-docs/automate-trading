@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { OptimizerPanel } from "@/components/optimizer-panel";
 import {
   Sheet,
   SheetContent,
@@ -419,6 +420,16 @@ function BacktestLab() {
               }}
             />
 
+            <OptimizerPanel
+              strategy="asian_sweep"
+              title="Asian Liquidity Sweep"
+              defaults={{
+                symbol: form.symbol,
+                slRiskUsd: form.slRiskUsd,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
             <SilverBulletPanel
               defaults={{
                 symbol: form.symbol,
@@ -428,6 +439,17 @@ function BacktestLab() {
                 skipWeekdays: form.skipWeekdays,
               }}
             />
+
+            <OptimizerPanel
+              strategy="silver_bullet"
+              title="ICT Silver Bullet"
+              defaults={{
+                symbol: form.symbol,
+                slRiskUsd: form.slRiskUsd,
+                skipWeekdays: form.skipWeekdays,
+              }}
+            />
+
 
 
 

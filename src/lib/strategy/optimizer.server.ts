@@ -308,6 +308,70 @@ function sweepEvaluator(
   };
 }
 
+function orbGenomeToOpts(
+  g: Record<string, string | number | boolean>,
+  symbol: string,
+  slRiskUsd: number,
+  skipWeekdays: number[],
+): {
+  symbol: string;
+  sessionStartIst: string;
+  slRiskUsd: number;
+  rr: number;
+  trailEnabled: boolean;
+  trailActivateR: number;
+  trailStepR: number;
+  skipWeekdays: number[];
+  entry: EntryConfig;
+} {
+  return {
+    symbol,
+    sessionStartIst: g.session_start_ist as string,
+    slRiskUsd,
+    rr: g.rr as number,
+    trailEnabled: g.trail_enabled as boolean,
+    trailActivateR: g.trail_activate_r as number,
+    trailStepR: g.trail_step_r as number,
+    skipWeekdays,
+    entry: {
+      mode: g.entry_mode as EntryConfig["mode"],
+      entryDepthPct: g.entry_depth_pct as number,
+      slDepthPct: g.sl_depth_pct as number,
+      retestSlR: g.retest_sl_r as number,
+    } as EntryConfig,
+  };
+}
+
+function orbEvaluator(
+  g: Record<string, string | number | boolean>,
+  symbol: string,
+  slRiskUsd: number,
+  skipWeekdays: number[],
+): Evaluator {
+  const opts = orbGenomeToOpts(g, symbol, slRiskUsd, skipWeekdays);
+  return (klines, fromMs, toMs, days) => {
+    const r = simulateFromKlines(klines, {
+      ...opts,
+      days,
+      fromMs,
+      nowMs: toMs,
+      skipWeekdays: skipWeekdays as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+    });
+    const wins = r.summary.tp;
+    const losses = r.summary.sl;
+    const trades = wins + losses;
+    return {
+      trades,
+      wins,
+      losses,
+      win_rate: r.summary.win_rate_pct,
+      net_pnl: r.summary.net_pnl_usd,
+      avg_r: r.summary.avg_r,
+      profit_factor: r.summary.profit_factor,
+    };
+  };
+}
+
 // ---------- Multi-window scoring ----------
 interface EvalInput {
   windowSlices: { days: number; klines: Kline[]; fromMs: number; toMs: number }[];

@@ -496,11 +496,19 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   const mutationRate = input.mutationRate ?? 0.18;
   const topN = Math.max(5, Math.min(50, input.topN ?? 20));
 
-  const space = input.strategy === "silver_bullet" ? SILVER_BULLET_SPACE : ASIAN_SWEEP_SPACE;
-  const evaluatorBuilder = (g: Record<string, string | number | boolean>): Evaluator | null =>
+  const space =
     input.strategy === "silver_bullet"
-      ? sbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays)
-      : sweepEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+      ? SILVER_BULLET_SPACE
+      : input.strategy === "asian_sweep"
+        ? ASIAN_SWEEP_SPACE
+        : ORB_SESSIONS_SPACE;
+  const evaluatorBuilder = (g: Record<string, string | number | boolean>): Evaluator | null => {
+    if (input.strategy === "silver_bullet")
+      return sbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+    if (input.strategy === "asian_sweep")
+      return sweepEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+    return orbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+  };
 
   // Fetch klines for max window, once per required timeframe.
   const client = createSharkClient();
@@ -508,8 +516,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   const maxDays = Math.max(...input.windows);
   const fromMsMax = now - maxDays * 86_400_000;
 
-  // Silver Bullet needs 3m/5m/15m depending on genome; fetch smallest (3m) so we can downsample-slice.
-  // For simplicity, fetch each execution tf the strategy space allows. Asian Sweep only needs 1h.
+  // Silver Bullet needs intraday tfs. Asian Sweep + ORB use 1h.
   const timeframes: string[] =
     input.strategy === "silver_bullet" ? ["3m", "5m", "15m"] : ["1h"];
 

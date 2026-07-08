@@ -20,8 +20,10 @@ import {
   type SweepOpts,
   type SweepTpMode,
 } from "@/lib/strategy/sweep-liquidity.server";
+import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
+import type { EntryConfig } from "@/lib/strategy/entry-modes.server";
 
-export type OptimizerStrategy = "silver_bullet" | "asian_sweep";
+export type OptimizerStrategy = "silver_bullet" | "asian_sweep" | "orb_sessions";
 
 export interface WindowLegStats {
   trades: number;

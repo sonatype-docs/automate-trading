@@ -549,6 +549,11 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
       score: scored.score,
       total_net_pnl: scored.total_net_pnl,
       total_oos_pnl: scored.total_oos_pnl,
+      total_trades: scored.total_trades,
+      total_wins: scored.total_wins,
+      total_losses: scored.total_losses,
+      total_win_rate: scored.total_win_rate,
+      total_avg_r: scored.total_avg_r,
       windows: scored.windows,
       windows_passed: scored.windows_passed,
     });

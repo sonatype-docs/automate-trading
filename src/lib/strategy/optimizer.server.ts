@@ -20,8 +20,10 @@ import {
   type SweepOpts,
   type SweepTpMode,
 } from "@/lib/strategy/sweep-liquidity.server";
+import { simulateFromKlines } from "@/lib/strategy/backtest-range.server";
+import type { EntryConfig } from "@/lib/strategy/entry-modes.server";
 
-export type OptimizerStrategy = "silver_bullet" | "asian_sweep";
+export type OptimizerStrategy = "silver_bullet" | "asian_sweep" | "orb_sessions";
 
 export interface WindowLegStats {
   trades: number;
@@ -171,6 +173,26 @@ export const ASIAN_SWEEP_SPACE: ParamSpace = {
   rr: { kind: "float", min: 1, max: 4, step: 0.25 },
 };
 
+// Multi-session ORB — searches over session start time, RR, entry mode, depths,
+// trailing behaviour. Uses the same underlying ORB engine as the main backtest.
+export const ORB_SESSIONS_SPACE: ParamSpace = {
+  session_start_ist: {
+    kind: "enum",
+    values: [
+      "02:30", "05:30", "06:30", "12:30", "13:30", "14:30",
+      "15:30", "17:30", "18:30", "19:30", "21:30", "22:30", "00:30",
+    ] as const,
+  },
+  rr: { kind: "float", min: 1, max: 4, step: 0.25 },
+  entry_mode: { kind: "enum", values: ["fib", "retest", "market", "adaptive"] as const },
+  entry_depth_pct: { kind: "float", min: 0.1, max: 0.9, step: 0.05 },
+  sl_depth_pct: { kind: "float", min: 0, max: 0.5, step: 0.05 },
+  retest_sl_r: { kind: "float", min: 0.5, max: 2, step: 0.1 },
+  trail_enabled: { kind: "bool" },
+  trail_activate_r: { kind: "float", min: 1, max: 3, step: 0.25 },
+  trail_step_r: { kind: "float", min: 0.5, max: 2, step: 0.25 },
+};
+
 // ---------- Genome → concrete opts ----------
 function sbGenomeToOpts(
   g: Record<string, string | number | boolean>,
@@ -280,6 +302,70 @@ function sweepEvaluator(
       losses,
       win_rate: r.summary.win_rate_pct,
       net_pnl: r.summary.total_pnl_usd,
+      avg_r: r.summary.avg_r,
+      profit_factor: r.summary.profit_factor,
+    };
+  };
+}
+
+function orbGenomeToOpts(
+  g: Record<string, string | number | boolean>,
+  symbol: string,
+  slRiskUsd: number,
+  skipWeekdays: number[],
+): {
+  symbol: string;
+  sessionStartIst: string;
+  slRiskUsd: number;
+  rr: number;
+  trailEnabled: boolean;
+  trailActivateR: number;
+  trailStepR: number;
+  skipWeekdays: number[];
+  entry: EntryConfig;
+} {
+  return {
+    symbol,
+    sessionStartIst: g.session_start_ist as string,
+    slRiskUsd,
+    rr: g.rr as number,
+    trailEnabled: g.trail_enabled as boolean,
+    trailActivateR: g.trail_activate_r as number,
+    trailStepR: g.trail_step_r as number,
+    skipWeekdays,
+    entry: {
+      mode: g.entry_mode as EntryConfig["mode"],
+      entryDepthPct: g.entry_depth_pct as number,
+      slDepthPct: g.sl_depth_pct as number,
+      retestSlR: g.retest_sl_r as number,
+    } as EntryConfig,
+  };
+}
+
+function orbEvaluator(
+  g: Record<string, string | number | boolean>,
+  symbol: string,
+  slRiskUsd: number,
+  skipWeekdays: number[],
+): Evaluator {
+  const opts = orbGenomeToOpts(g, symbol, slRiskUsd, skipWeekdays);
+  return (klines, fromMs, toMs, days) => {
+    const r = simulateFromKlines(klines, {
+      ...opts,
+      days,
+      fromMs,
+      nowMs: toMs,
+      skipWeekdays: skipWeekdays as (0 | 1 | 2 | 3 | 4 | 5 | 6)[],
+    });
+    const wins = r.summary.tp;
+    const losses = r.summary.sl;
+    const trades = wins + losses;
+    return {
+      trades,
+      wins,
+      losses,
+      win_rate: r.summary.win_rate_pct,
+      net_pnl: r.summary.net_pnl_usd,
       avg_r: r.summary.avg_r,
       profit_factor: r.summary.profit_factor,
     };
@@ -410,11 +496,19 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   const mutationRate = input.mutationRate ?? 0.18;
   const topN = Math.max(5, Math.min(50, input.topN ?? 20));
 
-  const space = input.strategy === "silver_bullet" ? SILVER_BULLET_SPACE : ASIAN_SWEEP_SPACE;
-  const evaluatorBuilder = (g: Record<string, string | number | boolean>): Evaluator | null =>
+  const space =
     input.strategy === "silver_bullet"
-      ? sbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays)
-      : sweepEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+      ? SILVER_BULLET_SPACE
+      : input.strategy === "asian_sweep"
+        ? ASIAN_SWEEP_SPACE
+        : ORB_SESSIONS_SPACE;
+  const evaluatorBuilder = (g: Record<string, string | number | boolean>): Evaluator | null => {
+    if (input.strategy === "silver_bullet")
+      return sbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+    if (input.strategy === "asian_sweep")
+      return sweepEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+    return orbEvaluator(g, input.symbol, input.slRiskUsd, input.skipWeekdays);
+  };
 
   // Fetch klines for max window, once per required timeframe.
   const client = createSharkClient();
@@ -422,8 +516,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   const maxDays = Math.max(...input.windows);
   const fromMsMax = now - maxDays * 86_400_000;
 
-  // Silver Bullet needs 3m/5m/15m depending on genome; fetch smallest (3m) so we can downsample-slice.
-  // For simplicity, fetch each execution tf the strategy space allows. Asian Sweep only needs 1h.
+  // Silver Bullet needs intraday tfs. Asian Sweep + ORB use 1h.
   const timeframes: string[] =
     input.strategy === "silver_bullet" ? ["3m", "5m", "15m"] : ["1h"];
 

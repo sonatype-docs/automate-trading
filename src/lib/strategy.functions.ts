@@ -674,7 +674,7 @@ export const sweepHoursBacktest = createServerFn({ method: "POST" })
 // Optimizer — genetic search over ICT Silver Bullet / Asian Sweep params.
 // ------------------------------------------------------------------
 const OptimizerSchema = z.object({
-  strategy: z.enum(["silver_bullet", "asian_sweep"]),
+  strategy: z.enum(["silver_bullet", "asian_sweep", "orb_sessions"]),
   symbol: z.string().min(3).max(24),
   windows: z.array(z.number().int().min(15).max(365)).min(1).max(5),
   sl_risk_usd: z.number().positive(),

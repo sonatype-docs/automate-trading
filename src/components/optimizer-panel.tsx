@@ -12,7 +12,7 @@ type OptResult = Awaited<ReturnType<typeof runStrategyOptimizer>>;
 const ALL_WINDOWS = [30, 60, 90, 180, 365];
 
 export function OptimizerPanel(props: {
-  strategy: "silver_bullet" | "asian_sweep";
+  strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
   title: string;
   defaults: { symbol: string; slRiskUsd: number; skipWeekdays: number[] };
 }) {
@@ -174,15 +174,31 @@ const SWEEP_LABELS: Record<string, string> = {
   require_close_inside: "Require close back inside",
   rr: "RR (when TP=RR)",
 };
+const ORB_LABELS: Record<string, string> = {
+  session_start_ist: "Session start (IST)",
+  rr: "RR",
+  entry_mode: "Entry mode",
+  entry_depth_pct: "Entry depth (% of range)",
+  sl_depth_pct: "SL depth (% of range)",
+  retest_sl_r: "Retest SL (R)",
+  trail_enabled: "Trailing SL",
+  trail_activate_r: "Trail activate (R)",
+  trail_step_r: "Trail step (R)",
+};
 
 function PresetCard({
   preset,
   strategy,
 }: {
   preset: OptResult["top"][number];
-  strategy: "silver_bullet" | "asian_sweep";
+  strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
 }) {
-  const labels = strategy === "silver_bullet" ? SB_LABELS : SWEEP_LABELS;
+  const labels =
+    strategy === "silver_bullet"
+      ? SB_LABELS
+      : strategy === "asian_sweep"
+        ? SWEEP_LABELS
+        : ORB_LABELS;
   const net = preset.total_net_pnl;
   return (
     <div className="rounded-md border border-border/60 p-3 space-y-3">

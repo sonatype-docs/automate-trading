@@ -235,7 +235,7 @@ type Evaluator = (
   fromMs: number,
   toMs: number,
   days: number,
-) => { trades: number; net_pnl: number; win_rate: number };
+) => WindowLegStats;
 
 function sbEvaluator(
   g: Record<string, string | number | boolean>,
@@ -246,10 +246,17 @@ function sbEvaluator(
   const opts = sbGenomeToOpts(g, symbol, slRiskUsd, skipWeekdays);
   return (klines, fromMs, toMs, days) => {
     const r: SbBacktestResult = runSilverBulletCore(klines, { ...opts, days }, fromMs, toMs);
+    const wins = r.summary.tp;
+    const losses = r.summary.sl;
+    const trades = wins + losses;
     return {
-      trades: r.summary.trades,
-      net_pnl: r.summary.total_pnl_usd,
+      trades,
+      wins,
+      losses,
       win_rate: r.summary.win_rate_pct,
+      net_pnl: r.summary.total_pnl_usd,
+      avg_r: r.summary.avg_r,
+      profit_factor: r.summary.profit_factor,
     };
   };
 }
@@ -264,10 +271,17 @@ function sweepEvaluator(
   if (!opts) return null;
   return (klines, fromMs, toMs, days) => {
     const r: SweepBacktestResult = runSweepCore(klines, { ...opts, days }, fromMs, toMs);
+    const wins = r.summary.tp;
+    const losses = r.summary.sl;
+    const trades = wins + losses;
     return {
-      trades: r.summary.tp + r.summary.sl,
-      net_pnl: r.summary.total_pnl_usd,
+      trades,
+      wins,
+      losses,
       win_rate: r.summary.win_rate_pct,
+      net_pnl: r.summary.total_pnl_usd,
+      avg_r: r.summary.avg_r,
+      profit_factor: r.summary.profit_factor,
     };
   };
 }

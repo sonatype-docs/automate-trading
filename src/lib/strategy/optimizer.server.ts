@@ -479,6 +479,11 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
         score: -Infinity,
         total_net_pnl: 0,
         total_oos_pnl: 0,
+        total_trades: 0,
+        total_wins: 0,
+        total_losses: 0,
+        total_win_rate: 0,
+        total_avg_r: 0,
         windows: [],
         windows_passed: 0,
       };

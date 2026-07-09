@@ -53,12 +53,12 @@ function PendingOrdersPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen bg-background p-3 md:p-8">
       <div className="max-w-6xl mx-auto space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Pending Orders</h1>
-            <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold">Pending Orders</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Live open orders on SharkExchange. Auto-refreshes every 10s.
             </p>
           </div>
@@ -73,14 +73,16 @@ function PendingOrdersPage() {
           </div>
         </div>
 
+
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
+            <CardTitle className="text-base flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <span>Open Orders</span>
               <span className="text-xs font-normal text-muted-foreground">
                 {data?.fetchedAt ? `Fetched: ${fmtTs(data.fetchedAt)}` : ""}
               </span>
             </CardTitle>
+
           </CardHeader>
           <CardContent>
             {isLoading ? (

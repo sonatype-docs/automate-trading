@@ -150,6 +150,24 @@
   button, a, [role="button"] {
     transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, opacity 180ms ease, transform 180ms ease;
   }
+  /* Mobile-friendly defaults — prevent page-level horizontal overflow */
+  html, body { overflow-x: hidden; }
+  main { min-width: 0; }
+  @media (max-width: 767px) {
+    /* Any raw <table> in page content becomes horizontally scrollable */
+    main table {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
+    }
+    main .recharts-responsive-container { max-width: 100%; }
+    main pre { overflow-x: auto; max-width: 100%; }
+    /* Break long unbroken strings so they don't push layout wider */
+    main p, main li, main dd, main dt { overflow-wrap: anywhere; }
+  }
 }
 
 @utility text-long { color: var(--color-long); }

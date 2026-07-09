@@ -252,46 +252,49 @@ function Dashboard() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="w-5 h-5 text-primary" />
-            <span className="font-mono text-sm tracking-widest">SHARK.AUTO</span>
+        <div className="max-w-7xl mx-auto px-3 md:px-6 min-h-14 flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between md:py-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Activity className="w-5 h-5 text-primary shrink-0" />
+            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">SHARK.AUTO</span>
             <StatusBar
               paperMode={!!settings?.paper_mode}
               killSwitch={!!settings?.kill_switch}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Link to="/backtest">
-              <Button variant="ghost" size="sm">
-                <Beaker className="w-4 h-4 mr-2" /> Backtest
-              </Button>
-            </Link>
-            <Link to="/pending-orders">
-              <Button variant="ghost" size="sm">
-                <ListOrdered className="w-4 h-4 mr-2" /> Pending Orders
-              </Button>
-            </Link>
-            <Link to="/journal">
-              <Button variant="ghost" size="sm">
-                <BookOpen className="w-4 h-4 mr-2" /> Journal
-              </Button>
-            </Link>
-            <Link to="/docs">
-              <Button variant="ghost" size="sm">
-                <BookOpen className="w-4 h-4 mr-2" /> Webhook setup
-              </Button>
-            </Link>
-            <Link to="/settings">
-              <Button variant="ghost" size="sm">
-                <SettingsIcon className="w-4 h-4 mr-2" /> Settings
-              </Button>
-            </Link>
+          <div className="-mx-3 md:mx-0 overflow-x-auto">
+            <div className="flex items-center gap-1 px-3 md:px-0 md:flex-wrap">
+              <Link to="/backtest">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <Beaker className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Backtest</span>
+                </Button>
+              </Link>
+              <Link to="/pending-orders">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <ListOrdered className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Pending Orders</span>
+                </Button>
+              </Link>
+              <Link to="/journal">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Journal</span>
+                </Button>
+              </Link>
+              <Link to="/docs">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <BookOpen className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Webhook setup</span>
+                </Button>
+              </Link>
+              <Link to="/settings">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <SettingsIcon className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Settings</span>
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
+
         <LiveTicker defaultSymbol="XAUUSDT" />
 
 

@@ -157,20 +157,21 @@ function BacktestLab() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Beaker className="w-5 h-5 text-primary" />
-            <span className="font-mono text-sm tracking-widest">BACKTEST LAB</span>
+        <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Beaker className="w-5 h-5 text-primary shrink-0" />
+            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">BACKTEST LAB</span>
           </div>
           <Link to="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back to dashboard
+            <Button variant="ghost" size="sm" className="shrink-0">
+              <ArrowLeft className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">Back to dashboard</span>
             </Button>
           </Link>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
+
         {!form ? (
           <p className="font-mono text-xs text-muted-foreground">Loading strategy defaults…</p>
         ) : (

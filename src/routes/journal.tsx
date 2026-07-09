@@ -259,22 +259,25 @@ function JournalPage() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BookOpen className="w-5 h-5 text-primary" />
-            <span className="font-mono text-sm tracking-widest">TRADING JOURNAL</span>
+        <div className="max-w-7xl mx-auto px-3 md:px-6 flex flex-col gap-2 py-2 md:h-14 md:flex-row md:items-center md:justify-between md:py-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="w-5 h-5 text-primary shrink-0" />
+            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">TRADING JOURNAL</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link to="/"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <Link to="/pending-orders"><Button variant="ghost" size="sm">Pending Orders</Button></Link>
-            <Button size="sm" variant="outline" onClick={() => { acctQ.refetch(); pendingQ.refetch(); }} disabled={acctQ.isFetching}>
-              <RefreshCw className={`w-4 h-4 mr-1 ${acctQ.isFetching ? "animate-spin" : ""}`} />Refresh
-            </Button>
+          <div className="-mx-3 md:mx-0 overflow-x-auto">
+            <div className="flex items-center gap-2 px-3 md:px-0">
+              <Link to="/"><Button variant="ghost" size="sm" className="shrink-0"><ArrowLeft className="w-4 h-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Button></Link>
+              <Link to="/pending-orders"><Button variant="ghost" size="sm" className="shrink-0">Pending</Button></Link>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={() => { acctQ.refetch(); pendingQ.refetch(); }} disabled={acctQ.isFetching}>
+                <RefreshCw className={`w-4 h-4 md:mr-1 ${acctQ.isFetching ? "animate-spin" : ""}`} /><span className="hidden md:inline">Refresh</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+      <main className="max-w-7xl mx-auto p-3 md:p-6 space-y-4">
+
         {/* Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
           <SummaryCell label="EQUITY" value={fmtINR(equity)} />
@@ -367,7 +370,7 @@ function JournalPage() {
 
         {/* Upcoming pending orders */}
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-sm font-mono tracking-wide">UPCOMING · PENDING ORDERS ({pending.length})</CardTitle>
             <span className="text-xs text-muted-foreground">Auto-refresh 10s</span>
           </CardHeader>
@@ -470,7 +473,7 @@ function JournalPage() {
         {/* Historical fills */}
         <Card>
           <CardHeader className="pb-2 space-y-3">
-            <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-sm font-mono tracking-wide">
                 HISTORICAL FILLS ({journal.length} / {allJournal.length})
               </CardTitle>

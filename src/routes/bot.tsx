@@ -167,10 +167,10 @@ function BotPage() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+    <div className="mx-auto max-w-7xl space-y-4 p-3 sm:p-4 md:space-y-6 md:p-6">
       {/* Header status */}
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" /> ORB Bot — 05:30 Tokyo Multi-Session
@@ -198,7 +198,7 @@ function BotPage() {
               </Badge>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             <Button
               size="sm"
               variant="outline"
@@ -261,7 +261,7 @@ function BotPage() {
                 No session yet today. The 05:30 IST 1h candle must close first.
               </p>
             )}
-            <div className="pt-3 flex gap-2">
+            <div className="pt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => cancelMut.mutate()} disabled={cancelMut.isPending}>
                 <XCircle className="mr-2 h-4 w-4" /> Cancel today's armed setup
               </Button>
@@ -284,7 +284,7 @@ function BotPage() {
             <CardTitle className="text-base">Guardrails · today</CardTitle>
             <CardDescription>Global risk caps from Settings.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-y-2 text-sm">
+          <CardContent className="grid grid-cols-1 gap-y-2 text-sm sm:grid-cols-2 sm:gap-x-6">
             <Row k="Max position" v={`$${Number(global?.max_position_usd ?? 0)}`} />
             <Row k="Max open" v={String(global?.max_open_positions ?? 0)} />
             <Row k="Daily loss cap" v={`$${Number(global?.max_daily_loss_usd ?? 0)}`} />

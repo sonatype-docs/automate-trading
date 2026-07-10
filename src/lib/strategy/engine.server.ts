@@ -319,7 +319,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     }
   }
 
-  // Arm setup if break happened and no setup yet for that side today
+  // Arm setup if break happened and no ACTIVE setup yet for that side today.
+  // A previously "cancelled" setup (e.g. insufficient margin on first attempt)
+  // is eligible for re-arm — we UPDATE that row instead of inserting a new one.
   if (session.break_side) {
     const { data: existingSetup } = await supabaseAdmin
       .from("strategy_setups")
@@ -328,41 +330,45 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       .eq("side", session.break_side)
       .maybeSingle();
 
-    if (!existingSetup) {
+    const eligibleForArm = !existingSetup || existingSetup.status === "cancelled";
+
+    if (eligibleForArm) {
       const side = session.break_side;
       const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
       const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
       const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
-      const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
-      if (qty > 0) {
+      const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;
+      if (requestedQty > 0) {
         // Place a pending LIMIT (or MARKET when entry_mode='market') on the exchange.
         let exchangeOrderId: string | null = null;
         let placeError: string | null = null;
+        let finalQty = requestedQty;
         if (!globalSettings?.paper_mode) {
-          try {
-            const res = await client.placeOrder({
-              symbol: s.symbol,
-              side: side === "long" ? "buy" : "sell",
-              qty,
-              type: market ? "market" : "limit",
-              price: entry,
-              stopLossPrice: sl,
-              takeProfitPrice: tp,
-            });
-            exchangeOrderId = res.exchangeOrderId || null;
-            if (res.status === "rejected") placeError = "exchange rejected";
+          const attempt = await placeOrderWithMarginRetry(client, {
+            symbol: s.symbol,
+            side: side === "long" ? "buy" : "sell",
+            qty: requestedQty,
+            type: market ? "market" : "limit",
+            price: entry,
+            stopLossPrice: sl,
+            takeProfitPrice: tp,
+          });
+          if (attempt.res) {
+            exchangeOrderId = attempt.res.exchangeOrderId || null;
+            finalQty = attempt.finalQty;
             await log("info", "arm: shark placeOrder response", {
-              side, entry, qty, mode: cfg.mode, market,
-              parsed: { exchangeOrderId: res.exchangeOrderId, status: res.status, filledPrice: res.filledPrice },
-              raw: res.raw,
+              side, entry, qty: finalQty, requestedQty, shrunk: attempt.shrunk,
+              attempts: attempt.attempts, mode: cfg.mode, market,
+              parsed: { exchangeOrderId: attempt.res.exchangeOrderId, status: attempt.res.status, filledPrice: attempt.res.filledPrice },
+              raw: attempt.res.raw,
             });
-          } catch (e) {
-            placeError = (e as Error).message;
+          } else {
+            placeError = attempt.error;
           }
         }
-        await supabaseAdmin.from("strategy_setups").insert({
+        const setupPayload = {
           ist_date: todayIst,
           symbol: s.symbol,
           side,
@@ -370,23 +376,31 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           sl_price: sl,
           initial_sl_price: sl,
           tp_price: tp,
-          qty,
-          // Market orders may fill immediately — treat as triggered when the placeOrder
-          // returned a filled price; otherwise armed as usual.
-          status: placeError ? "cancelled" : "armed",
+          qty: finalQty,
+          status: placeError ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
-        });
+          updated_at: new Date().toISOString(),
+        };
+        if (existingSetup) {
+          await supabaseAdmin
+            .from("strategy_setups")
+            .update(setupPayload)
+            .eq("id", existingSetup.id);
+        } else {
+          await supabaseAdmin.from("strategy_setups").insert(setupPayload);
+        }
         if (placeError) {
-          await log("error", "arm: exchange order place failed", { side, entry, qty, mode: cfg.mode, error: placeError });
+          await log("error", "arm: exchange order place failed", { side, entry, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
           actions.push(`arm_failed ${side} err=${placeError}`);
         } else {
           actions.push(
-            `armed ${side} mode=${cfg.mode} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)}` +
+            `${existingSetup ? "re-armed" : "armed"} ${side} mode=${cfg.mode} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)}` +
               (exchangeOrderId ? ` pending=${exchangeOrderId}` : " (paper/no-id)"),
           );
         }
       }
     } else if (
+
       existingSetup.status === "armed" &&
       existingSetup.exchange_order_id &&
       !globalSettings?.paper_mode

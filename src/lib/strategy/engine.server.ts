@@ -104,7 +104,7 @@ async function log(severity: "info" | "warn" | "error", message: string, context
 }
 
 // Detect "Insufficient margin" style rejections from SharkExchange so we can
-// retry with a smaller quantity instead of cancelling the setup outright.
+// retry full planned qty after the exchange releases any locked margin.
 function isInsufficientMarginError(msg: string | null | undefined): boolean {
   if (!msg) return false;
   const s = msg.toLowerCase();

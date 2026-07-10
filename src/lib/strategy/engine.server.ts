@@ -103,6 +103,75 @@ async function log(severity: "info" | "warn" | "error", message: string, context
   });
 }
 
+// Detect "Insufficient margin" style rejections from SharkExchange so we can
+// retry with a smaller quantity instead of cancelling the setup outright.
+function isInsufficientMarginError(msg: string | null | undefined): boolean {
+  if (!msg) return false;
+  const s = msg.toLowerCase();
+  return s.includes("insufficient margin") || s.includes('"3018"') || s.includes("code:3018");
+}
+
+interface MarginRetryResult {
+  res: Awaited<ReturnType<ReturnType<typeof createSharkClient>["placeOrder"]>> | null;
+  finalQty: number;
+  error: string | null;
+  attempts: number;
+  shrunk: boolean;
+}
+
+// Place a Shark order, shrinking qty on "Insufficient margin" until it fits or
+// we run out of attempts / hit the min-notional floor. All price levels stay
+// the same — only qty is scaled down. Returns error string on final failure.
+async function placeOrderWithMarginRetry(
+  client: ReturnType<typeof createSharkClient>,
+  params: {
+    symbol: string;
+    side: "buy" | "sell";
+    qty: number;
+    type: "market" | "limit";
+    price: number;
+    stopLossPrice: number;
+    takeProfitPrice: number;
+  },
+  opts: { minQty?: number; shrinkFactor?: number; maxAttempts?: number } = {},
+): Promise<MarginRetryResult> {
+  const minQty = opts.minQty ?? 0.001;
+  const shrink = opts.shrinkFactor ?? 0.7;
+  const maxAttempts = opts.maxAttempts ?? 6;
+  let qty = Math.round(params.qty * 1000) / 1000;
+  let attempts = 0;
+  let lastError: string | null = null;
+  let shrunk = false;
+  while (attempts < maxAttempts && qty >= minQty) {
+    attempts += 1;
+    try {
+      const res = await client.placeOrder({ ...params, qty });
+      if (res.status === "rejected") {
+        lastError = "exchange rejected";
+        break;
+      }
+      return { res, finalQty: qty, error: null, attempts, shrunk };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      lastError = msg;
+      if (!isInsufficientMarginError(msg)) break;
+      const next = Math.round(qty * shrink * 1000) / 1000;
+      if (next >= qty) break;
+      await log("warn", "arm: shrinking qty on insufficient margin", {
+        symbol: params.symbol,
+        side: params.side,
+        prevQty: qty,
+        nextQty: next,
+        attempt: attempts,
+      });
+      qty = next;
+      shrunk = true;
+    }
+  }
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk };
+}
+
+
 export async function runStrategyTick(): Promise<StrategyTickResult> {
   const actions: string[] = [];
 

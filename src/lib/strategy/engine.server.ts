@@ -822,20 +822,21 @@ export async function repriceArmedSetupsNow(): Promise<{
 
     let newOid: string | null = null;
     let placeError: string | null = null;
-    try {
-      const res = await client.placeOrder({
-        symbol: s.symbol,
-        side: side === "long" ? "buy" : "sell",
-        qty,
-        type: market ? "market" : "limit",
-        price: entry,
-        stopLossPrice: sl,
-        takeProfitPrice: tp,
-      });
-      newOid = res.exchangeOrderId || null;
-      if (res.status === "rejected") placeError = "exchange rejected";
-    } catch (e) {
-      placeError = (e as Error).message;
+    let finalQty = qty;
+    const attempt = await placeOrderWithMarginRetry(client, {
+      symbol: s.symbol,
+      side: side === "long" ? "buy" : "sell",
+      qty,
+      type: market ? "market" : "limit",
+      price: entry,
+      stopLossPrice: sl,
+      takeProfitPrice: tp,
+    });
+    if (attempt.res) {
+      newOid = attempt.res.exchangeOrderId || null;
+      finalQty = attempt.finalQty;
+    } else {
+      placeError = attempt.error;
     }
 
     if (placeError) {
@@ -855,14 +856,15 @@ export async function repriceArmedSetupsNow(): Promise<{
         sl_price: sl,
         initial_sl_price: sl,
         tp_price: tp,
-        qty,
+        qty: finalQty,
         exchange_order_id: newOid,
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
     actions.push(
-      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${qty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
+      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
     );
+
   }
 
   return { ok: true, actions };

@@ -111,6 +111,18 @@ function isInsufficientMarginError(msg: string | null | undefined): boolean {
   return s.includes("insufficient margin") || s.includes('"3018"') || s.includes("code:3018");
 }
 
+function roundExchangeQty(qty: number): number {
+  return Math.round(qty * 1000) / 1000;
+}
+
+function roundExchangePrice(price: number): number {
+  return Math.round(price * 100) / 100;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 interface MarginRetryResult {
   res: Awaited<ReturnType<ReturnType<typeof createSharkClient>["placeOrder"]>> | null;
   finalQty: number;
@@ -119,9 +131,11 @@ interface MarginRetryResult {
   shrunk: boolean;
 }
 
-// Place a Shark order, shrinking qty on "Insufficient margin" until it fits or
-// we run out of attempts / hit the min-notional floor. All price levels stay
-// the same — only qty is scaled down. Returns error string on final failure.
+// Place a Shark order at the exact exchange-supported planned size. We do NOT
+// shrink qty here: the strategy's qty is derived from the configured SL risk,
+// so reducing it silently changes planned risk. On insufficient-margin errors
+// we retry the same full exchange-rounded qty, which handles the exchange's
+// brief margin-release delay after cancel/replace.
 async function placeOrderWithMarginRetry(
   client: ReturnType<typeof createSharkClient>,
   params: {
@@ -136,12 +150,11 @@ async function placeOrderWithMarginRetry(
   opts: { minQty?: number; shrinkFactor?: number; maxAttempts?: number } = {},
 ): Promise<MarginRetryResult> {
   const minQty = opts.minQty ?? 0.001;
-  const shrink = opts.shrinkFactor ?? 0.7;
-  const maxAttempts = opts.maxAttempts ?? 6;
-  let qty = Math.round(params.qty * 1000) / 1000;
+  const retryDelayMs = opts.shrinkFactor ?? 1500;
+  const maxAttempts = opts.maxAttempts ?? 5;
+  const qty = roundExchangeQty(params.qty);
   let attempts = 0;
   let lastError: string | null = null;
-  let shrunk = false;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -150,25 +163,21 @@ async function placeOrderWithMarginRetry(
         lastError = "exchange rejected";
         break;
       }
-      return { res, finalQty: qty, error: null, attempts, shrunk };
+      return { res, finalQty: qty, error: null, attempts, shrunk: false };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
       if (!isInsufficientMarginError(msg)) break;
-      const next = Math.round(qty * shrink * 1000) / 1000;
-      if (next >= qty) break;
-      await log("warn", "arm: shrinking qty on insufficient margin", {
+      await log("warn", "place: retrying full qty on insufficient margin", {
         symbol: params.symbol,
         side: params.side,
-        prevQty: qty,
-        nextQty: next,
+        qty,
         attempt: attempts,
       });
-      qty = next;
-      shrunk = true;
+      if (attempts < maxAttempts) await wait(retryDelayMs);
     }
   }
-  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk };
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk: false };
 }
 
 
@@ -415,21 +424,25 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
+      const exchangeEntry = roundExchangePrice(entry);
+      const exchangeSl = roundExchangePrice(sl);
+      const exchangeTp = roundExchangePrice(tp);
+      const exchangeQty = roundExchangeQty(qty);
 
       const tol = 1e-6;
       const changed =
         qty > 0 &&
-        (Math.abs(entry - Number(existingSetup.entry_price)) > tol ||
-          Math.abs(sl - Number(existingSetup.sl_price)) > tol ||
-          Math.abs(tp - Number(existingSetup.tp_price)) > tol ||
-          Math.abs(qty - Number(existingSetup.qty)) > 1e-8);
+        (Math.abs(exchangeEntry - roundExchangePrice(Number(existingSetup.entry_price))) > tol ||
+          Math.abs(exchangeSl - roundExchangePrice(Number(existingSetup.sl_price))) > tol ||
+          Math.abs(exchangeTp - roundExchangePrice(Number(existingSetup.tp_price))) > tol ||
+          Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol);
 
       if (changed) {
         const oldOid = existingSetup.exchange_order_id;
 
         // Check whether the pending order is still open on the exchange. If
-        // it's gone (filled or already cancelled), don't reprice — the fill
-        // detection below will pick up the fill.
+        // it's gone (filled or externally cancelled), don't reprice — the
+        // fill/missing-order detector below will reconcile it safely.
         let stillOpen = true;
         try {
           const openIds = new Set(await client.getOpenOrderIds(s.symbol));

@@ -740,6 +740,20 @@ export async function repriceArmedSetupsNow(): Promise<{
       continue;
     }
 
+    await log("warn", "reprice_now: live order kept", {
+      setup_id: setup.id,
+      exchange_order_id: oldOid,
+      current: {
+        entry: setup.entry_price,
+        sl: setup.sl_price,
+        tp: setup.tp_price,
+        qty: setup.qty,
+      },
+      planned: { entry, sl, tp, qty },
+    });
+    actions.push(`reprice_now_hold ${side} live order kept; cancel manually before replacing`);
+    continue;
+
     if (openIds && !openIds.has(oldOid)) {
       actions.push(`reprice_now_skip ${side} oid=${oldOid} (not open — likely filled)`);
       continue;

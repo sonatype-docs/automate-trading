@@ -111,6 +111,12 @@ function isInsufficientMarginError(msg: string | null | undefined): boolean {
   return s.includes("insufficient margin") || s.includes('"3018"') || s.includes("code:3018");
 }
 
+function isRecoverableCapacityError(msg: string | null | undefined): boolean {
+  if (!msg) return false;
+  const s = msg.toLowerCase();
+  return isInsufficientMarginError(msg) || s.includes('"3070"') || s.includes("maximum position size");
+}
+
 function roundExchangeQty(qty: number): number {
   return Math.round(qty * 1000) / 1000;
 }
@@ -167,7 +173,7 @@ async function placeOrderWithMarginRetry(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
-      if (!isInsufficientMarginError(msg)) break;
+      if (!isRecoverableCapacityError(msg)) break;
       await log("warn", "place: retrying full qty on insufficient margin", {
         symbol: params.symbol,
         side: params.side,
@@ -386,7 +392,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty: finalQty,
-          status: placeError ? ("cancelled" as const) : ("armed" as const),
+          status: "armed" as const,
           exchange_order_id: exchangeOrderId,
           updated_at: new Date().toISOString(),
         };
@@ -399,8 +405,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await supabaseAdmin.from("strategy_setups").insert(setupPayload);
         }
         if (placeError) {
-          await log("error", "arm: exchange order place failed", { side, entry, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
-          actions.push(`arm_failed ${side} err=${placeError}`);
+          await log(isRecoverableCapacityError(placeError) ? "warn" : "error", "arm: exchange order place failed", { side, entry, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
+          actions.push(`arm_blocked ${side} qty=${finalQty.toFixed(4)} err=${placeError}`);
         } else {
           actions.push(
             `${existingSetup ? "re-armed" : "armed"} ${side} mode=${cfg.mode} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)}` +
@@ -498,10 +504,6 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             placeError = attempt.error;
           }
           if (placeError) {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({ status: "cancelled", exchange_order_id: null, updated_at: new Date().toISOString() })
-              .eq("id", existingSetup.id);
             await log("error", "reprice: replace place failed", { setup_id: existingSetup.id, error: placeError });
             actions.push(`reprice_failed ${side} err=${placeError}`);
           } else {
@@ -853,10 +855,6 @@ export async function repriceArmedSetupsNow(): Promise<{
     }
 
     if (placeError) {
-      await supabaseAdmin
-        .from("strategy_setups")
-        .update({ status: "cancelled", exchange_order_id: null, updated_at: new Date().toISOString() })
-        .eq("id", setup.id);
       await log("error", "reprice_now: replace place failed", { setup_id: setup.id, error: placeError });
       actions.push(`reprice_now_failed ${side} err=${placeError}`);
       continue;

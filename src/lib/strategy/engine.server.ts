@@ -715,15 +715,7 @@ export async function repriceArmedSetupsNow(): Promise<{
   const armed = ((armedRows ?? []) as SetupRow[]).filter((a) => a.exchange_order_id);
   if (armed.length === 0) return { ok: true, reason: "no_pending_armed", actions };
 
-  const client = createSharkClient();
   const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
-
-  let openIds: Set<string> | null = null;
-  try {
-    openIds = new Set(await client.getOpenOrderIds(s.symbol));
-  } catch (e) {
-    await log("warn", "reprice_now: open-orders probe failed", { error: (e as Error).message });
-  }
 
   for (const setup of armed) {
     const side = setup.side;
@@ -731,7 +723,7 @@ export async function repriceArmedSetupsNow(): Promise<{
     const breakClose = Number(
       session.break_close_price ?? (side === "long" ? session.zone_high : session.zone_low),
     );
-    const { entry, sl, market } = computeEntry(side, session.zone_high, session.zone_low, breakClose, cfg);
+    const { entry, sl } = computeEntry(side, session.zone_high, session.zone_low, breakClose, cfg);
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
     const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
@@ -752,75 +744,6 @@ export async function repriceArmedSetupsNow(): Promise<{
       planned: { entry, sl, tp, qty },
     });
     actions.push(`reprice_now_hold ${side} live order kept; cancel manually before replacing`);
-    continue;
-
-    if (openIds && !openIds.has(oldOid)) {
-      actions.push(`reprice_now_skip ${side} oid=${oldOid} (not open — likely filled)`);
-      continue;
-    }
-
-    let cancelOk = false;
-    let cancelStatus = 0;
-    let cancelBody = "";
-    try {
-      const cx = await client.cancelOrder(oldOid, setup.symbol);
-      cancelOk = cx.ok;
-      cancelStatus = cx.status;
-      cancelBody = cx.body;
-    } catch (e) {
-      await log("warn", "reprice_now: cancel threw", { setup_id: setup.id, oid: oldOid, error: (e as Error).message });
-    }
-    if (!cancelOk) {
-      await log("warn", "reprice_now: cancel non-ok", {
-        setup_id: setup.id,
-        oid: oldOid,
-        status: cancelStatus,
-        body: cancelBody.slice(0, 500),
-      });
-      actions.push(`reprice_now_skip ${side} oid=${oldOid} cancel_status=${cancelStatus}`);
-      continue;
-    }
-
-    let newOid: string | null = null;
-    let placeError: string | null = null;
-    let finalQty = qty;
-    const attempt = await placeOrderWithMarginRetry(client, {
-      symbol: s.symbol,
-      side: side === "long" ? "buy" : "sell",
-      qty,
-      type: market ? "market" : "limit",
-      price: entry,
-      stopLossPrice: sl,
-      takeProfitPrice: tp,
-    });
-    if (attempt.res) {
-      newOid = attempt.res.exchangeOrderId || null;
-      finalQty = attempt.finalQty;
-    } else {
-      placeError = attempt.error;
-    }
-
-    if (placeError) {
-      await log("error", "reprice_now: replace place failed", { setup_id: setup.id, error: placeError });
-      actions.push(`reprice_now_failed ${side} err=${placeError}`);
-      continue;
-    }
-
-    await supabaseAdmin
-      .from("strategy_setups")
-      .update({
-        entry_price: entry,
-        sl_price: sl,
-        initial_sl_price: sl,
-        tp_price: tp,
-        qty: finalQty,
-        exchange_order_id: newOid,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", setup.id);
-    actions.push(
-      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
-    );
 
   }
 

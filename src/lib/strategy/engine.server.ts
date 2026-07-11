@@ -444,86 +444,18 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol);
 
       if (changed) {
-        const oldOid = existingSetup.exchange_order_id;
-
-        // Check whether the pending order is still open on the exchange. If
-        // it's gone (filled or externally cancelled), don't reprice — the
-        // fill/missing-order detector below will reconcile it safely.
-        let stillOpen = true;
-        try {
-          const openIds = new Set(await client.getOpenOrderIds(s.symbol));
-          stillOpen = openIds.has(oldOid);
-        } catch (e) {
-          await log("warn", "reprice: open-orders probe failed", { setup_id: existingSetup.id, error: (e as Error).message });
-        }
-
-        let cancelOk = false;
-        let cancelStatus = 0;
-        let cancelBody = "";
-        if (stillOpen) {
-          try {
-            const cx = await client.cancelOrder(oldOid, existingSetup.symbol);
-            cancelOk = cx.ok;
-            cancelStatus = cx.status;
-            cancelBody = cx.body;
-          } catch (e) {
-            await log("warn", "reprice: cancel threw", { setup_id: existingSetup.id, oid: oldOid, error: (e as Error).message });
-          }
-          if (!cancelOk) {
-            await log("warn", "reprice: cancel non-ok", {
-              setup_id: existingSetup.id,
-              oid: oldOid,
-              status: cancelStatus,
-              body: cancelBody.slice(0, 500),
-            });
-          }
-        }
-
-        if (!stillOpen) {
-          actions.push(`reprice_skip ${side} oid=${oldOid} (no longer open — fill detector will handle)`);
-        } else if (!cancelOk) {
-          actions.push(`reprice_skip ${side} oid=${oldOid} cancel_status=${cancelStatus}`);
-        } else {
-
-          let newOid: string | null = null;
-          let placeError: string | null = null;
-          let finalQty = qty;
-          const attempt = await placeOrderWithMarginRetry(client, {
-            symbol: s.symbol,
-            side: side === "long" ? "buy" : "sell",
-            qty,
-            type: market ? "market" : "limit",
-            price: entry,
-            stopLossPrice: sl,
-            takeProfitPrice: tp,
-          });
-          if (attempt.res) {
-            newOid = attempt.res.exchangeOrderId || null;
-            finalQty = attempt.finalQty;
-          } else {
-            placeError = attempt.error;
-          }
-          if (placeError) {
-            await log("error", "reprice: replace place failed", { setup_id: existingSetup.id, error: placeError });
-            actions.push(`reprice_failed ${side} err=${placeError}`);
-          } else {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({
-                entry_price: entry,
-                sl_price: sl,
-                initial_sl_price: sl,
-                tp_price: tp,
-                qty: finalQty,
-                exchange_order_id: newOid,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", existingSetup.id);
-            actions.push(
-              `repriced ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)} old=${oldOid} new=${newOid ?? "?"}`,
-            );
-          }
-        }
+        await log("warn", "reprice: settings changed but live order kept", {
+          setup_id: existingSetup.id,
+          exchange_order_id: existingSetup.exchange_order_id,
+          current: {
+            entry: existingSetup.entry_price,
+            sl: existingSetup.sl_price,
+            tp: existingSetup.tp_price,
+            qty: existingSetup.qty,
+          },
+          planned: { entry, sl, tp, qty },
+        });
+        actions.push(`reprice_hold ${side} live order kept; manual reprice required`);
 
       }
     }

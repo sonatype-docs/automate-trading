@@ -174,7 +174,7 @@ async function placeOrderWithMarginRetry(
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
       if (!isRecoverableCapacityError(msg)) break;
-      await log("warn", "place: retrying full qty on insufficient margin", {
+      await log("warn", "place: retrying full qty after exchange capacity rejection", {
         symbol: params.symbol,
         side: params.side,
         qty,
@@ -392,7 +392,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty: finalQty,
-          status: "armed" as const,
+          status: placeError ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
           updated_at: new Date().toISOString(),
         };
@@ -550,7 +550,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     .eq("status", "armed");
   const armed = (armedRows ?? []) as SetupRow[];
   const liveArmed = armed.filter((a) => a.exchange_order_id);
-  const paperArmed = armed.filter((a) => !a.exchange_order_id);
+  const paperArmed = globalSettings?.paper_mode ? armed.filter((a) => !a.exchange_order_id) : [];
 
   if (liveArmed.length > 0 && !globalSettings?.paper_mode) {
     let openIds: Set<string> | null = null;

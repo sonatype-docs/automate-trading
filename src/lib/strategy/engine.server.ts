@@ -152,6 +152,48 @@ interface MarginRetryResult {
   shrunk: boolean;
 }
 
+function extractNumericField(source: unknown, keys: string[]): number | null {
+  if (!source || typeof source !== "object") return null;
+  const obj = source as Record<string, unknown>;
+  for (const key of keys) {
+    const n = Number(obj[key]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+async function estimateMaxCapacityQty(
+  client: ReturnType<typeof createSharkClient>,
+  symbol: string,
+  price: number,
+): Promise<number | null> {
+  try {
+    const snap = await client.getAccountSnapshot();
+    const wallet = snap.futuresWallet;
+    const marginBalance = extractNumericField(wallet, [
+      "marginBalance",
+      "withdrawableBalance",
+      "maxWithdrawableBalance",
+      "walletBalance",
+      "inrBalance",
+    ]);
+    if (!marginBalance || !Number.isFinite(price) || price <= 0) return null;
+
+    const marginAsset =
+      wallet && typeof wallet === "object"
+        ? String((wallet as Record<string, unknown>).marginAsset ?? "").toUpperCase()
+        : "";
+    // Shark reports the XAUUSDT futures wallet in INR on this account while
+    // order prices are USDT. Successful exchange responses show ~102 INR/USDT.
+    // Keep a safety buffer so the exchange does not auto-reject after rounding.
+    const quoteToMarginRate = marginAsset === "INR" && symbol.toUpperCase().endsWith("USDT") ? 102 : 1;
+    const leverage = 75;
+    return Math.floor(((marginBalance / quoteToMarginRate) * leverage * 0.94 / price) * 1000) / 1000;
+  } catch {
+    return null;
+  }
+}
+
 // Place a Shark order at the exact exchange-supported planned size. We do NOT
 // shrink qty here: the strategy's qty is derived from the configured SL risk,
 // so reducing it silently changes planned risk. On insufficient-margin errors
@@ -168,14 +210,17 @@ async function placeOrderWithMarginRetry(
     stopLossPrice: number;
     takeProfitPrice: number;
   },
-  opts: { minQty?: number; shrinkFactor?: number; maxAttempts?: number } = {},
+  opts: { minQty?: number; shrinkFactor?: number; maxAttempts?: number; fullQtyAttempts?: number; retryDelayMs?: number } = {},
 ): Promise<MarginRetryResult> {
   const minQty = opts.minQty ?? 0.001;
-  const retryDelayMs = opts.shrinkFactor ?? 1500;
-  const maxAttempts = opts.maxAttempts ?? 5;
-  const qty = roundExchangeQty(params.qty);
+  const retryDelayMs = opts.retryDelayMs ?? 1500;
+  const maxAttempts = opts.maxAttempts ?? 10;
+  const shrinkFactor = opts.shrinkFactor ?? 0.9;
+  const fullQtyAttempts = opts.fullQtyAttempts ?? 1;
+  let qty = roundExchangeQty(params.qty);
   let attempts = 0;
   let lastError: string | null = null;
+  let shrunk = false;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -184,21 +229,43 @@ async function placeOrderWithMarginRetry(
         lastError = "exchange rejected";
         break;
       }
-      return { res, finalQty: qty, error: null, attempts, shrunk: false };
+      return { res, finalQty: qty, error: null, attempts, shrunk };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
       if (!isRecoverableCapacityError(msg)) break;
-      await log("warn", "place: retrying full qty after exchange capacity rejection", {
+      if (attempts < fullQtyAttempts) {
+        await log("warn", "place: retrying full qty after exchange capacity rejection", {
+          symbol: params.symbol,
+          side: params.side,
+          qty,
+          attempt: attempts,
+        });
+        await wait(retryDelayMs);
+        continue;
+      }
+
+      const estimatedMax = await estimateMaxCapacityQty(client, params.symbol, params.price);
+      const nextQty = roundExchangeQty(
+        estimatedMax && estimatedMax > 0 && estimatedMax < qty
+          ? estimatedMax
+          : qty * shrinkFactor,
+      );
+      if (nextQty >= qty || nextQty < minQty) break;
+      await log("warn", "place: full planned qty exceeds exchange capacity; retrying capped qty", {
         symbol: params.symbol,
         side: params.side,
-        qty,
+        planned_qty: roundExchangeQty(params.qty),
+        retry_qty: nextQty,
         attempt: attempts,
+        error: msg,
       });
+      qty = nextQty;
+      shrunk = true;
       if (attempts < maxAttempts) await wait(retryDelayMs);
     }
   }
-  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk: false };
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk };
 }
 
 
@@ -407,7 +474,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty: finalQty,
-          status: placeError ? ("cancelled" as const) : ("armed" as const),
+          status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
           updated_at: new Date().toISOString(),
         };
@@ -434,6 +501,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       !existingSetup.exchange_order_id &&
       !globalSettings?.paper_mode
     ) {
+      const lastAttemptAt = existingSetup.updated_at ? new Date(existingSetup.updated_at).getTime() : 0;
+      if (Number.isFinite(lastAttemptAt) && Date.now() - lastAttemptAt < 120_000) {
+        actions.push(`restore_pending_wait ${existingSetup.side}`);
+      } else {
       const side = existingSetup.side as "long" | "short";
       const attempt = await placeOrderWithMarginRetry(client, {
         symbol: existingSetup.symbol,
@@ -467,6 +538,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           error: attempt.error,
         });
         actions.push(`restore_pending_failed ${side} err=${attempt.error}`);
+      }
       }
 
     } else if (

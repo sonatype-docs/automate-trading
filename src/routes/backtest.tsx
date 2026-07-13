@@ -138,6 +138,7 @@ function BacktestLab() {
             retest_sl_r: f.retestSlR,
           },
           zone_source: f.zoneSource,
+          fee_usd_per_order: f.feeUsdPerOrder,
         },
       }),
     onSuccess: (r) => {

@@ -211,6 +211,8 @@ export async function runBacktestRange(opts: {
   entry?: EntryConfig;
   /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
   feeRate?: number;
+  /** "range" = fib zone from opening range candle (default). "breakout" = fib zone from the breakout candle itself. */
+  zoneSource?: "range" | "breakout";
 }): Promise<RangeBacktestResult> {
 
   const client = createSharkClient();

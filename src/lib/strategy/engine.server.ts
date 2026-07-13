@@ -1025,6 +1025,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     initial_sl_price: sl,
                     tp_price: tp,
                     qty: attempt.finalQty,
+                    reprice_count: priorReprices + 1,
                     status: "armed",
                     exchange_order_id: attempt.res.exchangeOrderId || null,
                     close_reason: null,

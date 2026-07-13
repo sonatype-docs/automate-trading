@@ -1270,8 +1270,9 @@ function CalendarView({ data }: { data: RangeData }) {
       months.map((m) => {
         const rows = [...m.days.values()];
         const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
-        const wins = rows.filter((r) => r.outcome === "tp").length;
-        const losses = rows.filter((r) => r.outcome === "sl").length;
+        const closed = rows.filter((r) => r.outcome === "tp" || r.outcome === "sl");
+        const wins = closed.filter((r) => r.pnl_usd > 0).length;
+        const losses = closed.filter((r) => r.pnl_usd < 0).length;
         return { year: m.year, month: m.month, total, wins, losses, trades: wins + losses };
       }),
     [months],

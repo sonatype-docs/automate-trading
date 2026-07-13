@@ -59,7 +59,7 @@ const SettingsSchema = z.object({
 });
 
 export const updateSettings = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => SettingsSchema.parse(input))
+  .validator((input: unknown) => SettingsSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: row, error } = await supabase
@@ -80,7 +80,7 @@ export const getWebhookInfo = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const sendTestSignal = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         symbol: z.string().min(1).max(32),
@@ -179,7 +179,7 @@ const TickerInputSchema = z.object({
 });
 
 export const getMarketTicker = createServerFn({ method: "GET" })
-  .inputValidator((input: { symbol: string }) => TickerInputSchema.parse(input))
+  .validator((input: { symbol: string }) => TickerInputSchema.parse(input))
   .handler(async ({ data }) => {
     const url = `https://api.sharkexchange.in/v1/market/ticker24Hr/${encodeURIComponent(data.symbol)}`;
     const res = await fetch(url, {

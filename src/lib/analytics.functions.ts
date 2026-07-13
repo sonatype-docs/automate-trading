@@ -35,7 +35,7 @@ type DayCell = {
 };
 
 export const getPnlCalendar = createServerFn({ method: "GET" })
-  .inputValidator((raw: unknown) => CalendarInput.parse(raw))
+  .validator((raw: unknown) => CalendarInput.parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { startUtc, endUtc } = istRangeForMonth(data.month);

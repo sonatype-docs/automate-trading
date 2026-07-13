@@ -81,7 +81,7 @@ const GradingModelSchema = z.object({
 });
 
 export const saveGradingModel = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => GradingModelSchema.parse(input))
+  .validator((input: unknown) => GradingModelSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { error } = await supabase
@@ -161,7 +161,7 @@ export async function retrainGradingCore(opts: { days?: number; minSamplesPerBuc
 }
 
 export const retrainGradingModelNow = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => RetrainSchema.parse(input))
+  .validator((input: unknown) => RetrainSchema.parse(input))
   .handler(async ({ data }) =>
     retrainGradingCore({ days: data?.days, minSamplesPerBucket: data?.min_samples_per_bucket }),
   );
@@ -169,7 +169,7 @@ export const retrainGradingModelNow = createServerFn({ method: "POST" })
 
 
 export const updateStrategySettings = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => StrategySettingsSchema.parse(input))
+  .validator((input: unknown) => StrategySettingsSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: row, error } = await supabase
@@ -323,7 +323,7 @@ export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).handler(
 });
 
 export const flattenSymbol = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ symbol: z.string().min(3).max(24) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -465,7 +465,7 @@ const RangeSchema = z.object({
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => RangeSchema.parse(input))
+  .validator((input: unknown) => RangeSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: settings } = await supabase
@@ -512,7 +512,7 @@ const SessionsCompareSchema = RangeSchema.omit({ session_start_ist: true }).exte
 });
 
 export const backtestSessionsCompare = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => SessionsCompareSchema.parse(input))
+  .validator((input: unknown) => SessionsCompareSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: settings } = await supabase
@@ -629,7 +629,7 @@ const LiquiditySweepSchema = z.object({
 });
 
 export const backtestLiquiditySweep = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => LiquiditySweepSchema.parse(input))
+  .validator((input: unknown) => LiquiditySweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSweepBacktest } = await import("@/lib/strategy/sweep-liquidity.server");
     const r = await runSweepBacktest({
@@ -668,7 +668,7 @@ const SilverBulletSchema = z.object({
 });
 
 export const backtestSilverBullet = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => SilverBulletSchema.parse(input))
+  .validator((input: unknown) => SilverBulletSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSilverBulletBacktest } = await import("@/lib/strategy/silver-bullet.server");
     const r = await runSilverBulletBacktest({
@@ -708,7 +708,7 @@ const EntryZoneSweepSchema = z.object({
 });
 
 export const runEntryZoneSweep = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => EntryZoneSweepSchema.parse(input))
+  .validator((input: unknown) => EntryZoneSweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runEntryZoneSweep: run } = await import("@/lib/strategy/sweep.server");
     const result = await run({
@@ -750,7 +750,7 @@ const PresetCreateSchema = z.object({
 });
 
 export const createStrategyPreset = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => PresetCreateSchema.parse(input))
+  .validator((input: unknown) => PresetCreateSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: row, error } = await supabase
@@ -768,7 +768,7 @@ export const createStrategyPreset = createServerFn({ method: "POST" })
   });
 
 export const deleteStrategyPreset = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { error } = await supabase.from("strategy_presets").delete().eq("id", data.id);
@@ -777,7 +777,7 @@ export const deleteStrategyPreset = createServerFn({ method: "POST" })
   });
 
 export const applyStrategyPreset = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: preset, error: pErr } = await supabase
@@ -821,7 +821,7 @@ const SweepSchema = z.object({
 });
 
 export const sweepHoursBacktest = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => SweepSchema.parse(input))
+  .validator((input: unknown) => SweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSweep } = await import("@/lib/strategy/sweep.server");
     return runSweep({
@@ -852,7 +852,7 @@ const OptimizerSchema = z.object({
 });
 
 export const runStrategyOptimizer = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => OptimizerSchema.parse(input))
+  .validator((input: unknown) => OptimizerSchema.parse(input))
   .handler(async ({ data }) => {
     const { runOptimizer } = await import("@/lib/strategy/optimizer.server");
     const r = await runOptimizer({
@@ -893,7 +893,7 @@ const EditLevelSchema = z.object({
 });
 
 export const editLiveTradeLevels = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => EditLevelSchema.parse(input))
+  .validator((input: unknown) => EditLevelSchema.parse(input))
   .handler(async ({ data }) => {
     if (data.sl_price === undefined && data.tp_price === undefined) {
       throw new Error("Nothing to update — provide sl_price and/or tp_price.");
@@ -1037,7 +1037,7 @@ export const editLiveTradeLevels = createServerFn({ method: "POST" })
   });
 
 export const closeLiveTradeNow = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ setup_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ setup_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
     const { data: setup, error } = await supabase

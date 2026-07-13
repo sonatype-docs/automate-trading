@@ -94,7 +94,39 @@ function StatusBar({
   );
 }
 
-const INITIAL_CAPITAL_INR = 51770;
+const MANUAL_DEPOSITS_INR = [51770, 25000, 25000] as const;
+const MANUAL_NET_DEPOSITS_INR = MANUAL_DEPOSITS_INR.reduce((sum, amount) => sum + amount, 0);
+const FEE_TYPES = new Set([
+  "COMMISSION",
+  "GST_ON_COMMISSION",
+  "FUNDING_FEE",
+  "GST_ON_FUNDING_FEE",
+  "FUNDING",
+  "INSURANCE_CLEAR",
+  "LIQUIDATION",
+  "LIQUIDATION_FEE",
+]);
+
+function finiteNumber(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function marginRate(row: Record<string, unknown>): number {
+  return finiteNumber(row.marginSettlementRate ?? row.marginConversionRate, 1);
+}
+
+function tradeFeeInr(row: Record<string, unknown>): number {
+  const direct = finiteNumber(row.feeInMarginAsset, NaN);
+  if (Number.isFinite(direct)) return Math.abs(direct);
+  return Math.abs(finiteNumber(row.fee) * marginRate(row));
+}
+
+function tradePnlInr(row: Record<string, unknown>): number {
+  const direct = finiteNumber(row.realizedProfitInMarginAsset, NaN);
+  if (Number.isFinite(direct)) return direct;
+  return finiteNumber(row.realizedProfit) * marginRate(row);
+}
 
 function Dashboard() {
   const qc = useQueryClient();
@@ -143,11 +175,11 @@ function Dashboard() {
     fw?.withdrawableBalance ?? fw?.availableBalance ?? fw?.balance ?? 0,
   );
   const walletTotal = walletLocked + walletFree;
-  const walletAsset = String(fw?.asset ?? "INR");
+  const walletAsset = String(fw?.asset ?? fw?.marginAsset ?? "INR");
 
-  const tradeFeesSum = exTrades.reduce((s, t) => s + Math.abs(Number(t.fee ?? 0)), 0);
+  const tradeFeesSum = exTrades.reduce((s, t) => s + tradeFeeInr(t), 0);
   const commissionTxSum = exTxns
-    .filter((x) => String(x.type ?? "").toUpperCase() === "COMMISSION")
+    .filter((x) => FEE_TYPES.has(String(x.type ?? "").toUpperCase()))
     .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
   // Commissions in transactionHistory and fees on trades represent the same charges —
   // pick the higher of the two to avoid double counting while still catching any fills
@@ -175,8 +207,8 @@ function Dashboard() {
       side: String(t.side ?? "").toUpperCase(),
       qty: Number(t.quantity ?? t.qty ?? 0),
       price: Number(t.price ?? 0),
-      fee: Math.abs(Number(t.fee ?? 0)),
-      pnl: Number(t.realizedProfit ?? 0),
+      fee: tradeFeeInr(t),
+      pnl: tradePnlInr(t),
       raw: t,
     }))
     .filter((t) => t.time > 0)
@@ -215,7 +247,6 @@ function Dashboard() {
   const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT", "WALLET_DEPOSIT", "USER_DEPOSIT"]);
   const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT", "WALLET_WITHDRAWAL", "USER_WITHDRAWAL"]);
   const REALIZED_TYPES = new Set(["REALIZED_PNL", "REALIZED_PROFIT", "PNL", "PROFIT_AND_LOSS", "TRADE"]);
-  const FEE_TYPES = new Set(["COMMISSION", "FUNDING_FEE", "FUNDING", "INSURANCE_CLEAR", "LIQUIDATION", "LIQUIDATION_FEE"]);
   let depositsIn = 0;
   let depositsOut = 0;
   let realizedGross = 0;
@@ -239,15 +270,12 @@ function Dashboard() {
     : tradeHistoryRealized;
 
   // netDeposits = the actual capital placed on the exchange.
-  //   1. Use explicit deposit/withdrawal entries when present.
-  //   2. Else derive from wallet: walletTotal = deposits + realizedPnl → deposits = walletTotal - realizedPnl.
-  //   3. Else fall back to configured initial capital.
+  // Shark currently omits deposit rows from transactionHistory, so keep the
+  // user's known cash deposits as the authoritative fallback: 51,770 + 25,000 + 25,000.
   const netDeposits = explicitNetDeposits > 0
     ? explicitNetDeposits
-    : hasWallet
-      ? Math.max(0, walletTotal - realizedAllTime)
-      : INITIAL_CAPITAL_INR;
-  const netDepositsFromTx = explicitNetDeposits > 0 ? explicitNetDeposits : 0;
+    : MANUAL_NET_DEPOSITS_INR;
+  const netDepositsSource = explicitNetDeposits > 0 ? "from exchange txns" : "manual deposits";
 
   // Definitive realized P&L when there are no open positions:
   //   wallet_now - net_deposits.  Falls back to trade-history sum only when wallet is unknown.
@@ -372,11 +400,7 @@ function Dashboard() {
             label="DEPOSITS"
             value={fmtINR(netDeposits)}
             sub={
-              netDepositsFromTx > 0
-                ? "from exchange txns"
-                : hasWallet
-                  ? "derived from wallet"
-                  : "fallback"
+              netDepositsSource
             }
           />
           <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />

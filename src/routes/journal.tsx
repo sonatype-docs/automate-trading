@@ -151,21 +151,33 @@ function JournalPage() {
       .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
     const feesTotal = Math.max(tradeFeesSum, commissionTxSum);
 
-    const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT"]);
-    const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT"]);
-    let dIn = 0, dOut = 0;
+    // Deposits & realized P&L from transactionHistory. See index.tsx for rationale.
+    const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT", "WALLET_DEPOSIT", "USER_DEPOSIT"]);
+    const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT", "WALLET_WITHDRAWAL", "USER_WITHDRAWAL"]);
+    const REALIZED_TYPES = new Set(["REALIZED_PNL", "REALIZED_PROFIT", "PNL", "PROFIT_AND_LOSS", "TRADE"]);
+    const FEE_TYPES = new Set(["COMMISSION", "FUNDING_FEE", "FUNDING", "INSURANCE_CLEAR", "LIQUIDATION", "LIQUIDATION_FEE"]);
+    let dIn = 0, dOut = 0, realizedGross = 0, feeChargesSigned = 0;
     for (const x of exTxns) {
       const type = String(x.type ?? "").toUpperCase();
       const amt = Number(x.amount ?? 0);
       if (!Number.isFinite(amt)) continue;
       if (DEPOSIT_TYPES.has(type)) dIn += Math.abs(amt);
       else if (WITHDRAW_TYPES.has(type)) dOut += Math.abs(amt);
+      else if (REALIZED_TYPES.has(type)) realizedGross += amt;
+      else if (FEE_TYPES.has(type)) feeChargesSigned += amt < 0 ? amt : -amt;
     }
-    const netDepositsFromTx = dIn - dOut;
-    const netDeposits = netDepositsFromTx > 0 ? netDepositsFromTx : INITIAL_CAPITAL_INR;
-
+    const explicitNetDeposits = dIn - dOut;
     const tradeHistoryRealized = pnlTrades.reduce((s, t) => s + t.net, 0);
-    const realizedPnl = hasWallet ? walletTotal - netDeposits : tradeHistoryRealized;
+    const realizedFromTx = realizedGross + feeChargesSigned;
+    const realizedAllTime = Math.abs(realizedFromTx) > Math.abs(tradeHistoryRealized)
+      ? realizedFromTx
+      : tradeHistoryRealized;
+    const netDeposits = explicitNetDeposits > 0
+      ? explicitNetDeposits
+      : hasWallet
+        ? Math.max(0, walletTotal - realizedAllTime)
+        : INITIAL_CAPITAL_INR;
+    const realizedPnl = hasWallet ? walletTotal - netDeposits : realizedAllTime;
     const equity = hasWallet ? walletTotal : netDeposits + realizedPnl;
 
     const grossPnl = pnlTrades.reduce((s, t) => s + t.pnl, 0);

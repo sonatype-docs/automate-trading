@@ -1656,21 +1656,24 @@ function MonthGrid({
           const alpha = 0.15 + intensity * 0.55;
           let bg = "transparent";
           let textCls = "text-muted-foreground";
-          if (c.outcome === "tp") {
-            bg = `hsl(var(--primary) / ${alpha})`;
-            textCls = "text-long";
-          } else if (c.outcome === "sl") {
-            bg = `hsl(var(--destructive) / ${alpha})`;
-            textCls = "text-short";
+          // Color by realized P&L sign, not the outcome tag: trailed-stop exits
+          // above entry are tagged "sl" but should render green.
+          if (c.outcome === "tp" || c.outcome === "sl") {
+            if (pnl > 0) {
+              bg = `hsl(var(--primary) / ${alpha})`;
+              textCls = "text-long";
+            } else if (pnl < 0) {
+              bg = `hsl(var(--destructive) / ${alpha})`;
+              textCls = "text-short";
+            } else {
+              bg = "hsl(var(--muted) / 0.4)";
+            }
           } else if (c.skipped) {
             bg = "hsl(var(--muted) / 0.4)";
           } else if (c.outcome === "open") {
             bg = "hsl(var(--warning, var(--primary)) / 0.15)";
             textCls = "text-warning";
           }
-          const title = `${c.ist_date} · ${c.outcome.replace(/_/g, " ")}${
-            pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""
-          }`;
           const clickable = !!onDayClick;
           return (
             <button

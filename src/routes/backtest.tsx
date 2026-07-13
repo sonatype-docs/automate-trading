@@ -325,7 +325,19 @@ function BacktestLab() {
                       disabled={!form.trailEnabled}
                     />
                   </Field>
+                  <Field label="Fee $ per order (entry & exit)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.feeUsdPerOrder}
+                      onChange={(e) => set("feeUsdPerOrder", Math.max(0, Number(e.target.value) || 0))}
+                      className="h-8 font-mono text-xs"
+                      placeholder="0.00"
+                    />
+                  </Field>
                 </div>
+
 
                 <div className="border-t border-border pt-3 space-y-3">
                   <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">

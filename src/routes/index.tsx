@@ -1791,6 +1791,7 @@ function StrategyCard() {
                   variant="outline"
                   disabled={watchdogMut.isPending}
                   onClick={() => watchdogMut.mutate()}
+                  aria-label="Run order watchdog and re-arm missing orders"
                   title="Verify every active setup has a live pending order on the exchange and place one if missing (leverage escalation + capped fallback)."
                 >
                   {watchdogMut.isPending ? "Checking…" : "Verify & re-arm"}

@@ -818,6 +818,11 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         qty: existingSetup.qty,
       });
       const wdSide: "buy" | "sell" = existingSetup.side === "long" ? "buy" : "sell";
+      await logSetupEvent(existingSetup.id, "watchdog_rearm", {
+        qty: existingSetup.qty,
+        price: existingSetup.entry_price,
+        reason: "armed_setup_missing_exchange_order_id",
+      });
       const wdAttempt = await placeOrderWithMarginRetry(client, {
         symbol: existingSetup.symbol,
         side: wdSide,
@@ -827,6 +832,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         stopLossPrice: existingSetup.sl_price,
         takeProfitPrice: existingSetup.tp_price,
       });
+      await emitPlacementOutcome(existingSetup.id, wdAttempt, existingSetup.qty, existingSetup.entry_price);
       if (wdAttempt.res) {
         await supabaseAdmin
           .from("strategy_setups")

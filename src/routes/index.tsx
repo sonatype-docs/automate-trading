@@ -1435,20 +1435,42 @@ function StrategyCard() {
               )}
             </div>
             <div className="border border-border rounded divide-y divide-border">
-              {active.map((a) => (
-                <div key={a.id} className="grid grid-cols-2 md:grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
-                  <span className={a.side === "long" ? "text-long" : "text-short"}>
-                    {a.side.toUpperCase()}
-                  </span>
-                  <span>entry {a.entry_price.toFixed(2)}</span>
-                  <span>sl {a.sl_price.toFixed(2)}</span>
-                  <span>tp {a.tp_price.toFixed(2)}</span>
-                  <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
-                  <span className="uppercase text-muted-foreground">{a.status}</span>
-                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
-                </div>
-              ))}
+              {active.map((a) => {
+                const notional = a.entry_price * a.qty;
+                const marginAt50x = notional / 50;
+                const marginAt25x = notional / 25;
+                const marginAt10x = notional / 10;
+                return (
+                  <div key={a.id} className="px-3 py-2 text-xs font-mono">
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 items-center">
+                      <span className={a.side === "long" ? "text-long" : "text-short"}>
+                        {a.side.toUpperCase()}
+                      </span>
+                      <span>entry {a.entry_price.toFixed(2)}</span>
+                      <span>sl {a.sl_price.toFixed(2)}</span>
+                      <span>tp {a.tp_price.toFixed(2)}</span>
+                      <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
+                      <span className="uppercase text-muted-foreground">{a.status}</span>
+                      <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
+                      <span>margin@50x <span className="text-foreground">${marginAt50x.toFixed(2)}</span></span>
+                      <span>margin@25x <span className="text-foreground">${marginAt25x.toFixed(2)}</span></span>
+                      <span>margin@10x <span className="text-foreground">${marginAt10x.toFixed(2)}</span></span>
+                      <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+            <RejectionReasonBanner setupIds={active.map((a) => a.id)} logs={(q.data?.logs ?? []) as LogRow[]} />
+            <GradeRiskTable
+              currentEntry={active[0]?.entry_price ?? null}
+              currentSl={active[0]?.sl_price ?? null}
+              currentSide={active[0]?.side ?? null}
+              overrides={(s?.ai_risk_multipliers as Record<string, number> | undefined) ?? undefined}
+            />
           </div>
         )}
 

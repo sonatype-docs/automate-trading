@@ -111,6 +111,7 @@ function BacktestLab() {
       slDepthPct: Number(s.sl_depth_pct ?? 0.60),
       retestSlR: Number(s.retest_sl_r ?? 0.5),
       zoneSource: "range",
+      feeUsdPerOrder: 0,
     });
   }
 

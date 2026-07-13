@@ -304,15 +304,22 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
   const client = createSharkClient();
 
-  // Fetch enough 1h klines to cover today's session + subsequent bars
+  // Historical candles for zone/break detection. Order routing still uses Shark.
+  const dataSourceId = (s.data_source ?? "shark") === "yahoo" ? "yahoo" : "shark";
   let klines: Kline[];
   try {
-    klines = await client.getKlines(s.symbol, "1h", 96);
+    if (dataSourceId === "yahoo") {
+      const source = await getKlineSource("yahoo");
+      klines = await source.getKlines(s.symbol, "1h", 96);
+    } else {
+      klines = await client.getKlines(s.symbol, "1h", 96);
+    }
   } catch (e) {
-    await log("error", "klines fetch failed", { error: (e as Error).message });
+    await log("error", "klines fetch failed", { error: (e as Error).message, source: dataSourceId });
     return { ok: false, reason: "klines_failed", actions };
   }
   if (klines.length === 0) return { ok: false, reason: "no_klines", actions };
+
 
   const now = Date.now();
   const todayIst = sessionDate(now, s.session_start_ist);

@@ -1207,6 +1207,7 @@ function StrategyCard() {
         ai_grading_enabled?: boolean;
         ai_min_grade?: string | null;
         ai_grading_model?: unknown;
+        ai_risk_multipliers?: Record<string, number> | null;
       }
     | null
     | undefined;

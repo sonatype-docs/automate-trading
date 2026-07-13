@@ -278,6 +278,7 @@ export function simulateFromKlines(
   const quality = filters?.quality;
   const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
   const feeRate = opts.feeRate ?? 0; // fees disabled — exchange rebates cover them once profitable
+  const feeUsdPerOrder = Math.max(0, opts.feeUsdPerOrder ?? 0);
 
 
 

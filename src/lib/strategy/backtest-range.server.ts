@@ -819,8 +819,8 @@ export function simulateFromKlines(
   // ---- Cohort aggregation over decided trades ----
   const decidedAll = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
   function statFor(rows: DayResult[], bucket: string): CohortStat {
-    const wins = rows.filter((d) => d.outcome === "tp").length;
-    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const wins = rows.filter((d) => d.pnl_usd > 0).length;
+    const losses = rows.filter((d) => d.pnl_usd <= 0).length;
     const trades = rows.length;
     const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
     const rs = rows.map((d) => d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1));

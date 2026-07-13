@@ -1099,7 +1099,12 @@ function StrategyCard() {
   const rearmMut = useMutation({
     mutationFn: () => rearmAi(),
     onSuccess: (r) => {
-      toast.success(`Cancelled ${r.cancelled}, re-armed — ${(r.tick.actions ?? []).length} action(s)`);
+      const skipped = (r.skipped ?? []).length;
+      if (r.cancelled > 0) {
+        toast.success(`Cancelled ${r.cancelled}, AI re-armed — ${(r.tick.actions ?? []).length} action(s)`);
+      } else {
+        toast.error(skipped ? `Re-arm blocked: ${r.skipped[0]}` : "No armed order was cancelled");
+      }
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -1199,6 +1204,9 @@ function StrategyCard() {
         adaptive_shallow_depth?: number;
         adaptive_deep_depth?: number;
         retest_sl_r?: number;
+        ai_grading_enabled?: boolean;
+        ai_min_grade?: string | null;
+        ai_grading_model?: unknown;
       }
     | null
     | undefined;
@@ -1231,6 +1239,9 @@ function StrategyCard() {
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
   const closed = setups.filter((x) => x.status === "closed" || x.status === "expired");
+  const aiEnabled = !!s?.ai_grading_enabled;
+  const hasAiModel = !!s?.ai_grading_model;
+  const currentSetup = active[0] ?? setups[0] ?? null;
 
   const status = !s?.enabled
     ? { label: "DISABLED", cls: "bg-muted" }
@@ -1333,6 +1344,31 @@ function StrategyCard() {
           <SessionTimeline />
         </CollapsibleSection>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <AiDecisionTile
+            label="AI TRADE GRADE"
+            grade={currentSetup?.ai_grade}
+            score={currentSetup?.ai_score}
+            mult={currentSetup?.ai_risk_mult}
+            enabled={aiEnabled}
+            hasModel={hasAiModel}
+          />
+          <AiDecisionTile
+            label="AI ORDER QTY"
+            value={currentSetup ? currentSetup.qty.toFixed(4) : "—"}
+            sub={currentSetup ? `${currentSetup.status.toUpperCase()} · ${currentSetup.side.toUpperCase()}` : "Waiting for setup"}
+            enabled={aiEnabled}
+            hasModel={hasAiModel}
+          />
+          <AiDecisionTile
+            label="MIN GRADE"
+            value={String(s?.ai_min_grade ?? "B")}
+            sub={hasAiModel ? "AI model ready" : "Train model first"}
+            enabled={aiEnabled}
+            hasModel={hasAiModel}
+          />
+        </div>
+
         {session ? (() => {
           const eDepth = s?.entry_depth_pct ?? 0.15;
           const slDepth = s?.sl_depth_pct ?? 0.60;
@@ -1397,14 +1433,14 @@ function StrategyCard() {
             </div>
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => (
-                <div key={a.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
+                <div key={a.id} className="grid grid-cols-2 md:grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
                   <span className={a.side === "long" ? "text-long" : "text-short"}>
                     {a.side.toUpperCase()}
                   </span>
                   <span>entry {a.entry_price.toFixed(2)}</span>
                   <span>sl {a.sl_price.toFixed(2)}</span>
                   <span>tp {a.tp_price.toFixed(2)}</span>
-                  <span>qty {a.qty.toFixed(4)}</span>
+                  <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
                   <span className="uppercase text-muted-foreground">{a.status}</span>
                   <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} />
                 </div>

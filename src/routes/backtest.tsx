@@ -211,6 +211,8 @@ function BacktestLab() {
           <p className="font-mono text-xs text-muted-foreground">Loading strategy defaults…</p>
         ) : (
           <>
+            <Section title="Parameters" subtitle="Live strategy settings are not modified — every run is isolated.">
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-mono tracking-widest">PARAMETERS</CardTitle>

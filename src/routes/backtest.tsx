@@ -909,7 +909,13 @@ function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: numbe
           <Kv k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
           <Kv k="breaks / triggered" v={`${s.breaks} / ${s.triggered}`} />
           <Kv k="missed / near-miss" v={`${s.armed_no_trigger} / ${s.near_miss_count}`} tone={s.near_miss_count > 0 ? "text-warning" : undefined} />
-          <Kv k="wins / losses" v={`${s.tp} / ${s.sl}`} />
+          {(() => {
+            const closed = data.days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
+            const winCnt = closed.filter((d) => d.pnl_usd > 0).length;
+            const lossCnt = closed.filter((d) => d.pnl_usd < 0).length;
+            const beCnt = closed.length - winCnt - lossCnt;
+            return <Kv k="wins / losses" v={`${winCnt} / ${lossCnt}${beCnt > 0 ? ` (+${beCnt} BE)` : ""}`} />;
+          })()}
           <Kv k="open / skipped / filtered" v={`${s.open} / ${s.skipped_days} / ${s.filtered_days ?? 0}`} />
           <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
 

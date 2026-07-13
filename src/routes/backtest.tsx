@@ -32,6 +32,8 @@ import {
 import { BacktestAnalytics } from "@/components/backtest-analytics";
 import { exportBacktest } from "@/lib/backtest-export";
 import { ResearchPanel } from "@/components/research/research-panel";
+import { HourFilterBar } from "@/components/research/hour-filter-bar";
+import { recomputeRangeDataForHour } from "@/lib/research/hour-filter";
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,
@@ -78,6 +80,7 @@ function BacktestLab() {
   const [form, setForm] = useState<FormState | null>(null);
   const [result, setResult] = useState<RangeData | null>(null);
   const [filters, setFilters] = useState<NonNullable<FilterConfig>>(DEFAULT_FILTERS);
+  const [hourFilter, setHourFilter] = useState<number | null>(null);
 
   // Seed the form once settings load.
   const s = settingsQ.data?.settings as
@@ -522,8 +525,16 @@ function BacktestLab() {
             <div ref={resultsRef} className="scroll-mt-32 space-y-4 md:space-y-6">
               {result ? (
                 <>
-                  <ResultsView data={result} />
-                  <ResearchPanel data={result} />
+                  <HourFilterBar data={result} value={hourFilter} onChange={setHourFilter} />
+                  {(() => {
+                    const view = hourFilter == null ? result : recomputeRangeDataForHour(result, hourFilter);
+                    return (
+                      <>
+                        <ResultsView data={view} hourFilter={hourFilter} />
+                        <ResearchPanel data={view} />
+                      </>
+                    );
+                  })()}
                 </>
               ) : (
                 <Card className="border-dashed">
@@ -753,7 +764,7 @@ function dayMatchesCohort(d: RangeData["days"][number], f: NonNullable<CohortFil
   }
 }
 
-function ResultsView({ data }: { data: RangeData }) {
+function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: number | null }) {
   const s = data.summary;
   const [cohort, setCohort] = useState<CohortFilter>(null);
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
@@ -791,7 +802,14 @@ function ResultsView({ data }: { data: RangeData }) {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-sm font-mono tracking-widest">RESULTS</CardTitle>
+            <CardTitle className="text-sm font-mono tracking-widest">
+              RESULTS
+              {hourFilter != null && (
+                <span className="ml-2 rounded border border-primary/60 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
+                  Hour {String(hourFilter).padStart(2, "0")}:00
+                </span>
+              )}
+            </CardTitle>
             <p className="text-xs text-muted-foreground">
               {data.symbol} · IST {data.session_start_ist} · SL ${data.sl_risk_usd} · RR 1:{data.rr}
               {" · "}

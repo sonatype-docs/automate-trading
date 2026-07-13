@@ -1355,7 +1355,7 @@ function StrategyCard() {
             <div className="text-xs font-mono text-muted-foreground mb-2">ACTIVE SETUPS</div>
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => (
-                <div key={a.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                <div key={a.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
                   <span className={a.side === "long" ? "text-long" : "text-short"}>
                     {a.side.toUpperCase()}
                   </span>
@@ -1364,6 +1364,7 @@ function StrategyCard() {
                   <span>tp {a.tp_price.toFixed(2)}</span>
                   <span>qty {a.qty.toFixed(4)}</span>
                   <span className="uppercase text-muted-foreground">{a.status}</span>
+                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} />
                 </div>
               ))}
             </div>

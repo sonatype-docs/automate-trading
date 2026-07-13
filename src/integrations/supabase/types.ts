@@ -334,6 +334,7 @@ export type Database = {
           sl_price: number
           status: string
           symbol: string
+          tp_child_order_id: string | null
           tp_price: number
           updated_at: string
         }
@@ -357,6 +358,7 @@ export type Database = {
           sl_price: number
           status?: string
           symbol: string
+          tp_child_order_id?: string | null
           tp_price: number
           updated_at?: string
         }
@@ -380,6 +382,7 @@ export type Database = {
           sl_price?: number
           status?: string
           symbol?: string
+          tp_child_order_id?: string | null
           tp_price?: number
           updated_at?: string
         }

@@ -121,6 +121,75 @@ async function log(severity: "info" | "warn" | "error", message: string, context
   });
 }
 
+/**
+ * Append an audit event to the per-setup timeline. Fire-and-forget: any error
+ * is logged to activity_log but never blocks the caller. Accepts a nullable
+ * setupId so callers that don't have one (e.g. paper mode) become a no-op.
+ */
+async function logSetupEvent(
+  setupId: string | null | undefined,
+  event_type: string,
+  fields?: {
+    exchange_order_id?: string | null;
+    leverage?: number | null;
+    qty?: number | null;
+    price?: number | null;
+    reason?: string | null;
+    payload?: Record<string, unknown> | null;
+  },
+): Promise<void> {
+  if (!setupId) return;
+  try {
+    await supabaseAdmin.from("strategy_setup_events").insert({
+      setup_id: setupId,
+      event_type,
+      exchange_order_id: fields?.exchange_order_id ?? null,
+      leverage: fields?.leverage ?? null,
+      qty: fields?.qty ?? null,
+      price: fields?.price ?? null,
+      reason: fields?.reason ?? null,
+      payload: (fields?.payload as never) ?? null,
+    });
+  } catch (e) {
+    await log("warn", "setup_event insert failed", {
+      setup_id: setupId,
+      event_type,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/**
+ * Convenience: emit a placement outcome (success / capped / failed) event
+ * summarising a MarginRetryResult. Called at every place-order call site
+ * after the setup id is known.
+ */
+async function emitPlacementOutcome(
+  setupId: string | null | undefined,
+  attempt: MarginRetryResult,
+  requestedQty: number,
+  price: number | null,
+): Promise<void> {
+  if (!setupId) return;
+  const kind = attempt.res
+    ? attempt.capped
+      ? "placement_capped"
+      : "placement_success"
+    : "placement_failed";
+  await logSetupEvent(setupId, kind, {
+    exchange_order_id: attempt.res?.exchangeOrderId ?? null,
+    leverage: attempt.leverage,
+    qty: attempt.finalQty,
+    price,
+    reason: attempt.error,
+    payload: {
+      attempts: attempt.attempts,
+      requested_qty: requestedQty,
+      capped: attempt.capped,
+    },
+  });
+}
+
 // Detect "Insufficient margin" style rejections from SharkExchange so we can
 // retry full planned qty after the exchange releases any locked margin.
 function isInsufficientMarginError(msg: string | null | undefined): boolean {
@@ -709,13 +778,23 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           updated_at: new Date().toISOString(),
           ...(liveAttempt ? placementFields(liveAttempt, requestedQty) : {}),
         };
+        let armedSetupId: string | null = existingSetup?.id ?? null;
         if (existingSetup) {
           await supabaseAdmin
             .from("strategy_setups")
             .update(setupPayload)
             .eq("id", existingSetup.id);
         } else {
-          await supabaseAdmin.from("strategy_setups").insert(setupPayload);
+          const { data: inserted } = await supabaseAdmin
+            .from("strategy_setups")
+            .insert(setupPayload)
+            .select("id")
+            .single();
+          armedSetupId = (inserted?.id as string | undefined) ?? null;
+        }
+
+        if (liveAttempt) {
+          await emitPlacementOutcome(armedSetupId, liveAttempt, requestedQty, entry);
         }
 
         if (placeError) {
@@ -739,6 +818,11 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         qty: existingSetup.qty,
       });
       const wdSide: "buy" | "sell" = existingSetup.side === "long" ? "buy" : "sell";
+      await logSetupEvent(existingSetup.id, "watchdog_rearm", {
+        qty: existingSetup.qty,
+        price: existingSetup.entry_price,
+        reason: "armed_setup_missing_exchange_order_id",
+      });
       const wdAttempt = await placeOrderWithMarginRetry(client, {
         symbol: existingSetup.symbol,
         side: wdSide,
@@ -748,6 +832,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         stopLossPrice: existingSetup.sl_price,
         takeProfitPrice: existingSetup.tp_price,
       });
+      await emitPlacementOutcome(existingSetup.id, wdAttempt, existingSetup.qty, existingSetup.entry_price);
       if (wdAttempt.res) {
         await supabaseAdmin
           .from("strategy_setups")
@@ -854,10 +939,15 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               });
               actions.push(`auto_reprice_cancel_failed ${side} [${cancel.status}]`);
             } else {
+              await logSetupEvent(existingSetup.id, "reprice_cancel", {
+                exchange_order_id: oldOid,
+                reason: "auto_reprice_settings_changed",
+              });
               await supabaseAdmin
                 .from("strategy_setups")
                 .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
                 .eq("id", existingSetup.id);
+
 
               const attempt = await placeOrderWithMarginRetry(client, {
                 symbol: s.symbol,
@@ -868,6 +958,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 stopLossPrice: sl,
                 takeProfitPrice: tp,
               });
+              await emitPlacementOutcome(existingSetup.id, attempt, qty, entry);
+
 
               if (!attempt.res) {
                 await supabaseAdmin
@@ -1014,6 +1106,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             entry: setup.entry_price,
           });
           const wdSide: "buy" | "sell" = setup.side === "long" ? "buy" : "sell";
+          await logSetupEvent(setup.id, "watchdog_rearm", {
+            exchange_order_id: oid,
+            qty: setup.qty,
+            price: setup.entry_price,
+            reason: "pending_order_missing_on_exchange",
+          });
           const wdAttempt = await placeOrderWithMarginRetry(client, {
             symbol: setup.symbol,
             side: wdSide,
@@ -1023,6 +1121,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             stopLossPrice: setup.sl_price,
             takeProfitPrice: setup.tp_price,
           });
+          await emitPlacementOutcome(setup.id, wdAttempt, setup.qty, setup.entry_price);
+
           if (wdAttempt.res) {
             await supabaseAdmin
               .from("strategy_setups")
@@ -1094,10 +1194,16 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             updated_at: new Date().toISOString(),
           })
           .eq("id", setup.id);
+        await logSetupEvent(setup.id, "filled", {
+          exchange_order_id: oid,
+          qty: setup.qty,
+          price: fillPrice,
+        });
         actions.push(`fill ${setup.side} @${fillPrice.toFixed(2)}`);
       }
     }
   }
+
 
   for (const setup of paperArmed) {
     const barLow = currentBar?.low ?? lastPrice ?? setup.entry_price;
@@ -1322,6 +1428,13 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
+    await logSetupEvent(setup.id, reason === "tp" ? "tp_hit" : "sl_hit", {
+      qty: setup.qty,
+      price: lastPrice,
+      reason: `pnl=${pnl.toFixed(2)}`,
+      payload: { gross_pnl: grossPnl, fee: 2 * feePerOrder },
+    });
+    await logSetupEvent(setup.id, "closed", { price: lastPrice, reason });
     actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)} (fee=$${(2 * feePerOrder).toFixed(2)})`);
 
     // Auto-retrain the AI grading model so this new trade is folded into the
@@ -1546,6 +1659,10 @@ export async function repriceArmedSetupsNow(): Promise<{
     }
 
     // Detach the stale id right away so a concurrent tick doesn't reuse it.
+    await logSetupEvent(setup.id, "reprice_cancel", {
+      exchange_order_id: oldOid,
+      reason: "reprice_now",
+    });
     await supabaseAdmin
       .from("strategy_setups")
       .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
@@ -1561,6 +1678,8 @@ export async function repriceArmedSetupsNow(): Promise<{
       stopLossPrice: sl,
       takeProfitPrice: tp,
     });
+    await emitPlacementOutcome(setup.id, attempt, requestedQty, entry);
+
 
     if (!attempt.res) {
       await supabaseAdmin

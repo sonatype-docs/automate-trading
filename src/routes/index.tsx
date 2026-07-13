@@ -10,6 +10,7 @@ import {
 import {
   getStrategyState,
   getStrategyTimeline,
+  getSetupTimeline,
   runStrategyTickNow,
   repriceArmedNow,
   updateStrategySettings,
@@ -1172,6 +1173,257 @@ function PlacementStatusRow({ setup }: { setup: PlacementSetup }) {
 }
 
 
+/**
+ * Fill-risk meter — estimates whether a pending LIMIT order will actually fill
+ * based on current free margin headroom vs. required margin, and the price
+ * distance from mark to entry. Purely client-side; uses the same
+ * getExchangeAccount / getMarketTicker queries already used elsewhere on the
+ * dashboard so the cache is shared.
+ */
+type FillRiskSetup = {
+  side: "long" | "short";
+  entry_price: number;
+  qty: number;
+  exchange_order_id?: string | null;
+  placement_leverage?: number | null;
+};
+
+function FillRiskMeter({ setup, symbol }: { setup: FillRiskSetup; symbol: string }) {
+  const getAcct = useServerFn(getExchangeAccount);
+  const getTicker = useServerFn(getMarketTicker);
+  const acctQ = useQuery({
+    queryKey: ["exchange-account"],
+    queryFn: () => getAcct(),
+    refetchInterval: 15_000,
+  });
+  const tickerQ = useQuery({
+    queryKey: ["market-ticker", symbol],
+    queryFn: () => getTicker({ data: { symbol } }),
+    refetchInterval: 5_000,
+  });
+
+  if (!setup.exchange_order_id) return null;
+
+  const fw = (acctQ.data?.snapshot as { futuresWallet?: Record<string, unknown> } | null | undefined)?.futuresWallet ?? null;
+  const freeMargin = fw
+    ? Number(
+        (fw.withdrawableBalance ?? fw.availableBalance ?? fw.balance ?? 0) as number,
+      )
+    : null;
+  const mark = (tickerQ.data as { lastPrice?: number | null } | null | undefined)?.lastPrice ?? null;
+  const lev = setup.placement_leverage && setup.placement_leverage > 0 ? setup.placement_leverage : 75;
+  const notional = setup.entry_price * setup.qty;
+  const marginRequired = notional / lev;
+
+  // Margin headroom score (0–50)
+  let marginPts = 0;
+  let marginReason = "";
+  if (freeMargin == null) {
+    marginPts = 25;
+    marginReason = "free margin unknown";
+  } else if (marginRequired <= 0) {
+    marginPts = 50;
+  } else {
+    const ratio = freeMargin / marginRequired;
+    marginPts = Math.max(0, Math.min(50, Math.round((ratio - 1) * 50 + 25)));
+    if (ratio < 1) marginReason = "low free margin";
+  }
+
+  // Price proximity score (0–50)
+  let priceReason = "";
+  let pricePts = 0;
+  let distanceBps: number | null = null;
+  let crossed = false;
+  if (mark != null && setup.entry_price > 0) {
+    distanceBps = (Math.abs(mark - setup.entry_price) / setup.entry_price) * 10_000;
+    // For a LIMIT: LONG fills when mark drops to entry; SHORT fills when mark rises to entry.
+    // "Crossed" = adverse gap past entry on the fill side (should have filled already).
+    crossed =
+      setup.side === "long" ? mark < setup.entry_price - 0.01 : mark > setup.entry_price + 0.01;
+    if (crossed) {
+      pricePts = 10;
+      priceReason = "entry crossed — order should have filled, verify on exchange";
+    } else if (distanceBps < 5) pricePts = 50;
+    else if (distanceBps < 15) pricePts = 42;
+    else if (distanceBps < 30) pricePts = 32;
+    else if (distanceBps < 60) pricePts = 22;
+    else if (distanceBps < 120) pricePts = 12;
+    else {
+      pricePts = 4;
+      priceReason = "price far from entry";
+    }
+  } else {
+    pricePts = 25;
+  }
+
+  const score = Math.max(0, Math.min(100, marginPts + pricePts));
+  const bucket =
+    score >= 75 ? "likely" : score >= 40 ? "possible" : "risk";
+  const tone =
+    bucket === "likely"
+      ? { text: "text-long", bar: "bg-long", ring: "border-long/40 bg-long/5", label: "Likely to fill" }
+      : bucket === "possible"
+        ? { text: "text-warning", bar: "bg-warning", ring: "border-warning/40 bg-warning-soft/40", label: "Possible fill" }
+        : { text: "text-short", bar: "bg-short", ring: "border-short/40 bg-short/5", label: "At risk" };
+
+  const dominant = crossed
+    ? priceReason
+    : marginPts < pricePts
+      ? marginReason || "low free margin"
+      : priceReason || (bucket === "likely" ? "conditions good" : "price gap");
+
+  return (
+    <div className={`mt-2 rounded border ${tone.ring} px-2 py-1.5 text-[11px]`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`font-semibold tracking-wide ${tone.text}`}>FILL RISK · {tone.label}</span>
+          <span className="text-muted-foreground">
+            score <span className="text-foreground">{score}/100</span>
+          </span>
+        </div>
+        <div className="text-muted-foreground">{dominant}</div>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuenow={score}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Fill likelihood ${score} of 100 — ${tone.label}. ${dominant}`}
+        className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      >
+        <div className={`h-full ${tone.bar}`} style={{ width: `${score}%` }} />
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+        <span>
+          free <span className="text-foreground">${freeMargin != null ? freeMargin.toFixed(2) : "—"}</span>
+        </span>
+        <span>
+          need <span className="text-foreground">${marginRequired.toFixed(2)}</span>
+          <span className="ml-1 text-[10px]">@{lev}x</span>
+        </span>
+        <span>
+          mark <span className="text-foreground">{mark != null ? mark.toFixed(2) : "—"}</span>
+        </span>
+        <span>
+          entry <span className="text-foreground">{setup.entry_price.toFixed(2)}</span>
+        </span>
+        <span>
+          Δ <span className="text-foreground">{distanceBps != null ? `${distanceBps.toFixed(1)} bps` : "—"}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const TIMELINE_EVENT_META: Record<string, { label: string; tone: string }> = {
+  placement_attempt: { label: "Attempt", tone: "text-muted-foreground" },
+  placement_success: { label: "Placed", tone: "text-long" },
+  placement_capped: { label: "Placed (capped)", tone: "text-warning" },
+  placement_failed: { label: "Place failed", tone: "text-short" },
+  reprice_cancel: { label: "Reprice cancel", tone: "text-warning" },
+  manual_cancel: { label: "Manual cancel", tone: "text-warning" },
+  watchdog_rearm: { label: "Watchdog re-arm", tone: "text-warning" },
+  filled: { label: "Filled", tone: "text-long" },
+  tp_hit: { label: "TP hit", tone: "text-long" },
+  sl_hit: { label: "SL hit", tone: "text-short" },
+  closed: { label: "Closed", tone: "text-muted-foreground" },
+};
+
+type SetupTimelineEvent = {
+  id: string;
+  event_type: string;
+  exchange_order_id: string | null;
+  leverage: number | null;
+  qty: number | null;
+  price: number | null;
+  reason: string | null;
+  payload: unknown;
+  created_at: string;
+};
+
+function SetupTimeline({ setupId }: { setupId: string }) {
+  const [open, setOpen] = useState(false);
+  const getTimeline = useServerFn(getSetupTimeline);
+  const q = useQuery({
+    queryKey: ["setup-timeline", setupId],
+    queryFn: () => getTimeline({ data: { setupId } }),
+    enabled: open,
+    refetchInterval: open ? 15_000 : false,
+  });
+  const events = (q.data?.events ?? []) as SetupTimelineEvent[];
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="mt-2">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded px-1"
+          aria-label={open ? "Hide setup timeline" : "Show setup timeline"}
+        >
+          <ChevronDown
+            className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+          <span>TIMELINE</span>
+          {q.data && <span>· {events.length}</span>}
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {q.isLoading ? (
+          <div className="mt-1 text-[11px] text-muted-foreground">Loading…</div>
+        ) : events.length === 0 ? (
+          <div className="mt-1 text-[11px] text-muted-foreground">No events recorded yet.</div>
+        ) : (
+          <ol className="mt-1 space-y-1 border-l border-border pl-3 text-[11px] font-mono">
+            <li className="sr-only">Setup lifecycle timeline, newest first.</li>
+            {events.map((ev) => {
+              const meta = TIMELINE_EVENT_META[ev.event_type] ?? {
+                label: ev.event_type,
+                tone: "text-muted-foreground",
+              };
+              const t = new Date(ev.created_at);
+              return (
+                <li key={ev.id} className="relative">
+                  <span className="absolute -left-[15px] top-1.5 h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className={`font-semibold ${meta.tone}`}>{meta.label}</span>
+                    <span className="text-muted-foreground">
+                      {t.toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" })} IST
+                    </span>
+                    {ev.leverage != null && (
+                      <span className="text-muted-foreground">
+                        lev <span className="text-foreground">{ev.leverage}x</span>
+                      </span>
+                    )}
+                    {ev.qty != null && (
+                      <span className="text-muted-foreground">
+                        qty <span className="text-foreground">{Number(ev.qty).toFixed(4)}</span>
+                      </span>
+                    )}
+                    {ev.price != null && (
+                      <span className="text-muted-foreground">
+                        @ <span className="text-foreground">{Number(ev.price).toFixed(2)}</span>
+                      </span>
+                    )}
+                    {ev.exchange_order_id && (
+                      <span className="text-muted-foreground truncate max-w-[220px]">
+                        oid <span className="text-foreground">{ev.exchange_order_id}</span>
+                      </span>
+                    )}
+                  </div>
+                  {ev.reason && (
+                    <div className="text-muted-foreground/90 break-all">{ev.reason}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+
 
 
 
@@ -1369,7 +1621,7 @@ function StrategyCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-3">
         <div>
           <CardTitle className="text-sm font-mono tracking-widest">
             STRATEGY — {s?.symbol ?? "XAUUSDT"} · 1H
@@ -1378,12 +1630,22 @@ function StrategyCard() {
             IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 25} · RR 1:{s?.rr ?? 2}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${status.cls}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${status.cls}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" aria-hidden />
             {status.label}
           </span>
-          <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={mut.isPending}
+            onClick={() => mut.mutate()}
+            aria-label="Run a strategy tick now"
+          >
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
           <Button
@@ -1391,6 +1653,7 @@ function StrategyCard() {
             variant="outline"
             disabled={repriceMut.isPending}
             onClick={() => repriceMut.mutate()}
+            aria-label="Reprice pending order with current settings"
             title="Cancel any still-pending exchange order for today's armed setup and re-place it with current entry/SL/TP depths."
           >
             {repriceMut.isPending ? "Repricing…" : "Reprice now"}
@@ -1528,6 +1791,7 @@ function StrategyCard() {
                   variant="outline"
                   disabled={watchdogMut.isPending}
                   onClick={() => watchdogMut.mutate()}
+                  aria-label="Run order watchdog and re-arm missing orders"
                   title="Verify every active setup has a live pending order on the exchange and place one if missing (leverage escalation + capped fallback)."
                 >
                   {watchdogMut.isPending ? "Checking…" : "Verify & re-arm"}
@@ -1544,6 +1808,7 @@ function StrategyCard() {
                       rearmMut.mutate();
                     }
                   }}
+                  aria-label="Cancel and re-arm the current setup with latest AI grading"
                   title="Cancels the currently pending exchange order and immediately re-arms so the AI grading model + risk multiplier are applied."
                 >
                   {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
@@ -1578,6 +1843,8 @@ function StrategyCard() {
                       <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
                     </div>
                     <PlacementStatusRow setup={a} />
+                    <FillRiskMeter setup={a} symbol={s?.symbol ?? "XAUUSDT"} />
+                    <SetupTimeline setupId={a.id} />
                   </div>
                 );
               })}
@@ -1601,6 +1868,7 @@ function StrategyCard() {
                       <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
                     </div>
                     <PlacementStatusRow setup={a} />
+                    <SetupTimeline setupId={a.id} />
                   </div>
                 );
               })}

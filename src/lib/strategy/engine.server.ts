@@ -121,6 +121,75 @@ async function log(severity: "info" | "warn" | "error", message: string, context
   });
 }
 
+/**
+ * Append an audit event to the per-setup timeline. Fire-and-forget: any error
+ * is logged to activity_log but never blocks the caller. Accepts a nullable
+ * setupId so callers that don't have one (e.g. paper mode) become a no-op.
+ */
+async function logSetupEvent(
+  setupId: string | null | undefined,
+  event_type: string,
+  fields?: {
+    exchange_order_id?: string | null;
+    leverage?: number | null;
+    qty?: number | null;
+    price?: number | null;
+    reason?: string | null;
+    payload?: Record<string, unknown> | null;
+  },
+): Promise<void> {
+  if (!setupId) return;
+  try {
+    await supabaseAdmin.from("strategy_setup_events").insert({
+      setup_id: setupId,
+      event_type,
+      exchange_order_id: fields?.exchange_order_id ?? null,
+      leverage: fields?.leverage ?? null,
+      qty: fields?.qty ?? null,
+      price: fields?.price ?? null,
+      reason: fields?.reason ?? null,
+      payload: (fields?.payload as never) ?? null,
+    });
+  } catch (e) {
+    await log("warn", "setup_event insert failed", {
+      setup_id: setupId,
+      event_type,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/**
+ * Convenience: emit a placement outcome (success / capped / failed) event
+ * summarising a MarginRetryResult. Called at every place-order call site
+ * after the setup id is known.
+ */
+async function emitPlacementOutcome(
+  setupId: string | null | undefined,
+  attempt: MarginRetryResult,
+  requestedQty: number,
+  price: number | null,
+): Promise<void> {
+  if (!setupId) return;
+  const kind = attempt.res
+    ? attempt.capped
+      ? "placement_capped"
+      : "placement_success"
+    : "placement_failed";
+  await logSetupEvent(setupId, kind, {
+    exchange_order_id: attempt.res?.exchangeOrderId ?? null,
+    leverage: attempt.leverage,
+    qty: attempt.finalQty,
+    price,
+    reason: attempt.error,
+    payload: {
+      attempts: attempt.attempts,
+      requested_qty: requestedQty,
+      capped: attempt.capped,
+    },
+  });
+}
+
 // Detect "Insufficient margin" style rejections from SharkExchange so we can
 // retry full planned qty after the exchange releases any locked margin.
 function isInsufficientMarginError(msg: string | null | undefined): boolean {

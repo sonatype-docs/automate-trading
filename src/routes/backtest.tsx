@@ -909,7 +909,13 @@ function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: numbe
           <Kv k="sessions" v={`${s.days_with_session} / ${s.total_days}`} />
           <Kv k="breaks / triggered" v={`${s.breaks} / ${s.triggered}`} />
           <Kv k="missed / near-miss" v={`${s.armed_no_trigger} / ${s.near_miss_count}`} tone={s.near_miss_count > 0 ? "text-warning" : undefined} />
-          <Kv k="wins / losses" v={`${s.tp} / ${s.sl}`} />
+          {(() => {
+            const closed = data.days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
+            const winCnt = closed.filter((d) => d.pnl_usd > 0).length;
+            const lossCnt = closed.filter((d) => d.pnl_usd < 0).length;
+            const beCnt = closed.length - winCnt - lossCnt;
+            return <Kv k="wins / losses" v={`${winCnt} / ${lossCnt}${beCnt > 0 ? ` (+${beCnt} BE)` : ""}`} />;
+          })()}
           <Kv k="open / skipped / filtered" v={`${s.open} / ${s.skipped_days} / ${s.filtered_days ?? 0}`} />
           <Kv k="best / worst day $" v={`+${s.best_pnl_usd.toFixed(0)} / ${s.worst_pnl_usd.toFixed(0)}`} />
 
@@ -1264,8 +1270,9 @@ function CalendarView({ data }: { data: RangeData }) {
       months.map((m) => {
         const rows = [...m.days.values()];
         const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
-        const wins = rows.filter((r) => r.outcome === "tp").length;
-        const losses = rows.filter((r) => r.outcome === "sl").length;
+        const closed = rows.filter((r) => r.outcome === "tp" || r.outcome === "sl");
+        const wins = closed.filter((r) => r.pnl_usd > 0).length;
+        const losses = closed.filter((r) => r.pnl_usd < 0).length;
         return { year: m.year, month: m.month, total, wins, losses, trades: wins + losses };
       }),
     [months],
@@ -1608,8 +1615,11 @@ function MonthGrid({
   const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=Sun
   const rows = [...days.values()];
   const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
-  const wins = rows.filter((r) => r.outcome === "tp").length;
-  const losses = rows.filter((r) => r.outcome === "sl").length;
+  // Classify by realized P&L sign so trailed-stop exits above entry count as wins
+  // (engine still tags those "sl" because the stop-loss order fired).
+  const closedRows = rows.filter((r) => r.outcome === "tp" || r.outcome === "sl");
+  const wins = closedRows.filter((r) => r.pnl_usd > 0).length;
+  const losses = closedRows.filter((r) => r.pnl_usd < 0).length;
   const totalTone = total > 0 ? "text-long" : total < 0 ? "text-short" : "text-muted-foreground";
 
   // Extremes for color intensity scaling.
@@ -1647,21 +1657,26 @@ function MonthGrid({
           const alpha = 0.15 + intensity * 0.55;
           let bg = "transparent";
           let textCls = "text-muted-foreground";
-          if (c.outcome === "tp") {
-            bg = `hsl(var(--primary) / ${alpha})`;
-            textCls = "text-long";
-          } else if (c.outcome === "sl") {
-            bg = `hsl(var(--destructive) / ${alpha})`;
-            textCls = "text-short";
+          // Color by realized P&L sign, not the outcome tag: trailed-stop exits
+          // above entry are tagged "sl" but should render green.
+          if (c.outcome === "tp" || c.outcome === "sl") {
+            if (pnl > 0) {
+              bg = `hsl(var(--primary) / ${alpha})`;
+              textCls = "text-long";
+            } else if (pnl < 0) {
+              bg = `hsl(var(--destructive) / ${alpha})`;
+              textCls = "text-short";
+            } else {
+              bg = "hsl(var(--muted) / 0.4)";
+            }
           } else if (c.skipped) {
             bg = "hsl(var(--muted) / 0.4)";
           } else if (c.outcome === "open") {
             bg = "hsl(var(--warning, var(--primary)) / 0.15)";
             textCls = "text-warning";
           }
-          const title = `${c.ist_date} · ${c.outcome.replace(/_/g, " ")}${
-            pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""
-          }`;
+          const outcomeLabel = (c.outcome === "sl" && pnl > 0) ? "trail win" : c.outcome.replace(/_/g, " ");
+          const title = `${c.ist_date} · ${outcomeLabel}${pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""}`;
           const clickable = !!onDayClick;
           return (
             <button

@@ -792,14 +792,14 @@ export function simulateFromKlines(
   const medianMissR = missRs.length ? missRs[Math.floor(missRs.length / 2)] : 0;
   const nearMissCount = missRs.filter((r) => r <= 0.1).length;
 
-  // Fee model — approximate 2-sided taker fees on the notional of each triggered trade.
-  // Notional = qty * entry_price. Applied per side (entry + exit).
+  // Fee model — notional-rate taker fees plus a flat $/order fee, both applied per side (entry + exit).
   let estFees = 0;
   for (const d of days) {
     if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
     const notionalEntry = d.qty * d.entry;
     const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
     estFees += (notionalEntry + notionalExit) * feeRate;
+    estFees += 2 * feeUsdPerOrder; // entry + exit flat fee
   }
   const netPnl = totalPnl - estFees;
 

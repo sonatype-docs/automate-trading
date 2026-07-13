@@ -1631,7 +1631,7 @@ export async function repriceArmedSetupsNow(): Promise<{
       Math.abs(Number(setup.entry_price) - entry) < priceEps &&
       Math.abs(Number(setup.sl_price) - sl) < priceEps &&
       Math.abs(Number(setup.tp_price) - tp) < priceEps &&
-      Math.abs(Number(setup.qty) - requestedQty) < qtyEps &&
+      Math.abs(Number((setup as unknown as { requested_qty?: number | null }).requested_qty ?? setup.qty) - requestedQty) < qtyEps &&
       (!s.ai_grading_enabled || (
         setup.ai_grade === aiDecision.grade &&
         sameNullableNumber(setup.ai_score, aiDecision.score, 0) &&

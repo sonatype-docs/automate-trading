@@ -425,10 +425,13 @@ function BacktestLab() {
                     Fetches 1H candles from SharkExchange and replays every session with the rules above.
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </Section>
 
-            <FiltersCard value={filters} onChange={setFilters} />
+            <Section title="Filters" subtitle="Session bias, volatility, and ATR gates for this run.">
+              <FiltersCard value={filters} onChange={setFilters} />
+            </Section>
+
 
             {/* Results anchor — appears immediately below Parameters/Filters after a run */}
             <div ref={resultsRef} className="scroll-mt-32">

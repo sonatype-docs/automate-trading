@@ -1390,7 +1390,7 @@ function StrategyCard() {
             <div className="text-xs font-mono text-muted-foreground mb-2">RECENT SETUPS</div>
             <div className="border border-border rounded divide-y divide-border">
               {closed.slice(0, 8).map((c) => (
-                <div key={c.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                <div key={c.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
                   <span>{c.ist_date}</span>
                   <span className={c.side === "long" ? "text-long" : "text-short"}>
                     {c.side.toUpperCase()}
@@ -1401,6 +1401,7 @@ function StrategyCard() {
                   <span className={((c.pnl_usd ?? 0) >= 0) ? "text-long" : "text-short"}>
                     {c.pnl_usd == null ? "—" : `${c.pnl_usd >= 0 ? "+" : ""}${c.pnl_usd.toFixed(2)}`}
                   </span>
+                  <GradeBadge grade={c.ai_grade} score={c.ai_score} mult={c.ai_risk_mult} qty={c.qty} />
                 </div>
               ))}
             </div>

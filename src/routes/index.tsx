@@ -1094,7 +1094,17 @@ function StrategyCard() {
   const getState = useServerFn(getStrategyState);
   const runNow = useServerFn(runStrategyTickNow);
   const repriceNow = useServerFn(repriceArmedNow);
+  const rearmAi = useServerFn(cancelAndReArmWithAi);
   const updateStrat = useServerFn(updateStrategySettings);
+  const rearmMut = useMutation({
+    mutationFn: () => rearmAi(),
+    onSuccess: (r) => {
+      toast.success(`Cancelled ${r.cancelled}, re-armed — ${(r.tick.actions ?? []).length} action(s)`);
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const q = useQuery({
     queryKey: ["strategy-state"],
     queryFn: () => getState(),

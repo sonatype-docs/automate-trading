@@ -747,8 +747,8 @@ export function simulateFromKlines(
   // Per-weekday stats — count only decided trades (tp/sl).
   const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {
     const rows = days.filter((d) => d.weekday === wd && (d.outcome === "tp" || d.outcome === "sl"));
-    const wins = rows.filter((d) => d.outcome === "tp").length;
-    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const wins = rows.filter((d) => d.pnl_usd > 0).length;
+    const losses = rows.filter((d) => d.pnl_usd <= 0).length;
     const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
     const trades = rows.length;
     return {

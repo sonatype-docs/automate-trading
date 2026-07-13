@@ -83,6 +83,28 @@ export interface DayResult {
   body_bucket: Tercile | null;
   or_bucket: OrBucket | null;
   break_distance_bucket: DistBucket | null;
+  // ---- Phase 1 research features (always populated when data is available) ----
+  /** Daily ATR(14) known at start of this IST day. */
+  daily_atr: number | null;
+  /** EMA20 of daily closes known at start of day. */
+  ema20: number | null;
+  ema50: number | null;
+  ema100: number | null;
+  ema200: number | null;
+  /** Wilder ADX(14). */
+  adx14: number | null;
+  /** Prior IST-day OHLC. */
+  prev_open: number | null;
+  prev_close: number | null;
+  prev_high: number | null;
+  prev_low: number | null;
+  prev2_high: number | null;
+  prev2_low: number | null;
+  /** Breakout-candle geometry. */
+  upper_wick_pct: number | null;
+  lower_wick_pct: number | null;
+  close_position_pct: number | null;
+  candle_range_usd: number | null;
 }
 
 
@@ -225,23 +247,33 @@ export async function runBacktestRange(opts: {
   const fromMs = now - opts.days * 86_400_000;
   const klines: Kline[] = await source.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
+  // Always fetch daily bias — Phase 1 research features (ATR, EMA20/50/100/200,
+  // ADX14, prev-day OHL) live on every DayResult so the research panel works
+  // regardless of whether pre-trade filters are enabled.
   let dailyBias: Map<string, DailyBiasEntry> | undefined;
-  if (needsDailyBias(opts.filters)) {
+  {
     const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
     const atrLen = opts.filters?.quality?.atr_len ?? 14;
     const emaFastLen = opts.filters?.htf?.ema_bias_fast ?? 21;
     const emaSlowLen = opts.filters?.htf?.ema_bias_slow ?? 50;
     const atrSqueezeLookback = opts.filters?.quality?.atr_squeeze_lookback ?? 20;
-    const warmupDays = Math.max(emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 10;
+    // Warm-up needs enough history for EMA200 + ADX(14) to stabilise too.
+    const warmupDays = Math.max(200, emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 20;
     const dailyFromMs = fromMs - warmupDays * 86_400_000;
-    const daily = await source.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
-    dailyBias = computeDailyBias(daily, {
-      emaLen,
-      atrLen,
-      emaFastLen,
-      emaSlowLen,
-      atrSqueezeLookback,
-    });
+    try {
+      const daily = await source.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
+      dailyBias = computeDailyBias(daily, {
+        emaLen,
+        atrLen,
+        emaFastLen,
+        emaSlowLen,
+        atrSqueezeLookback,
+      });
+    } catch {
+      // Some sources may not have daily bars for the full warm-up window — fall
+      // back to no bias rather than failing the whole backtest.
+      dailyBias = undefined;
+    }
   }
 
   return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now, dailyBias });

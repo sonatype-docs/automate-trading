@@ -360,9 +360,15 @@ function Dashboard() {
           <Metric label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}/${decided} closes`} tone="long" />
           <Metric label="LOSS RATE" value={`${lossRate.toFixed(1)}%`} sub={`${losses}/${decided} closes`} tone="short" />
           <Metric
-            label="INITIAL CAPITAL"
+            label="DEPOSITS"
             value={fmtINR(netDeposits)}
-            sub={netDepositsFromTx > 0 ? "from deposits" : "fallback"}
+            sub={
+              netDepositsFromTx > 0
+                ? "from exchange txns"
+                : hasWallet
+                  ? "derived from wallet"
+                  : "fallback"
+            }
           />
           <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />
         </div>

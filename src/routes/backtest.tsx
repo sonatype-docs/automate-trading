@@ -33,7 +33,7 @@ import { BacktestAnalytics } from "@/components/backtest-analytics";
 import { exportBacktest } from "@/lib/backtest-export";
 import { ResearchPanel } from "@/components/research/research-panel";
 import { HourFilterBar } from "@/components/research/hour-filter-bar";
-import { recomputeRangeDataForHour } from "@/lib/research/hour-filter";
+
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,
@@ -81,6 +81,10 @@ function BacktestLab() {
   const [result, setResult] = useState<RangeData | null>(null);
   const [filters, setFilters] = useState<NonNullable<FilterConfig>>(DEFAULT_FILTERS);
   const [hourFilter, setHourFilter] = useState<number | null>(null);
+  // Cache per-hour re-runs so switching between hours is instant after
+  // the first request. Key: hour number (0-23). "All" = the base `result`.
+  const [hourCache, setHourCache] = useState<Record<number, RangeData>>({});
+  const [hourLoading, setHourLoading] = useState<number | null>(null);
 
   // Seed the form once settings load.
   const s = settingsQ.data?.settings as
@@ -151,6 +155,8 @@ function BacktestLab() {
       }),
     onSuccess: (r) => {
       setResult(r);
+      setHourCache({});
+      setHourFilter(null);
       toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -525,9 +531,53 @@ function BacktestLab() {
             <div ref={resultsRef} className="scroll-mt-32 space-y-4 md:space-y-6">
               {result ? (
                 <>
-                  <HourFilterBar data={result} value={hourFilter} onChange={setHourFilter} />
+                  <HourFilterBar
+                    value={hourFilter}
+                    loadingHour={hourLoading}
+                    cachedHours={new Set<number | "all">(Object.keys(hourCache).map((k) => Number(k)))}
+                    configuredSessionLabel={form ? `${form.sessionStartIst} IST` : undefined}
+                    onChange={async (h) => {
+                      if (h == null) {
+                        setHourFilter(null);
+                        return;
+                      }
+                      setHourFilter(h);
+                      if (hourCache[h] || !form) return;
+                      setHourLoading(h);
+                      try {
+                        const r = await runRange({
+                          data: {
+                            days: form.days,
+                            symbol: form.symbol,
+                            session_start_ist: `${String(h).padStart(2, "0")}:00`,
+                            sl_risk_usd: form.slRiskUsd,
+                            rr: form.rr,
+                            trail_enabled: form.trailEnabled,
+                            trail_activate_r: form.trailActivateR,
+                            trail_step_r: form.trailStepR,
+                            skip_weekdays: form.skipWeekdays,
+                            filters,
+                            entry: {
+                              mode: form.entryMode,
+                              entry_depth_pct: form.entryDepthPct,
+                              sl_depth_pct: form.slDepthPct,
+                              retest_sl_r: form.retestSlR,
+                            },
+                            zone_source: form.zoneSource,
+                            fee_usd_per_order: form.feeUsdPerOrder,
+                            data_source: form.dataSource,
+                          },
+                        });
+                        setHourCache((prev) => ({ ...prev, [h]: r }));
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      } finally {
+                        setHourLoading(null);
+                      }
+                    }}
+                  />
                   {(() => {
-                    const view = hourFilter == null ? result : recomputeRangeDataForHour(result, hourFilter);
+                    const view = hourFilter == null ? result : hourCache[hourFilter] ?? result;
                     return (
                       <>
                         <ResultsView data={view} hourFilter={hourFilter} />
@@ -806,7 +856,7 @@ function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: numbe
               RESULTS
               {hourFilter != null && (
                 <span className="ml-2 rounded border border-primary/60 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-                  Hour {String(hourFilter).padStart(2, "0")}:00
+                  Session {String(hourFilter).padStart(2, "0")}:00 IST
                 </span>
               )}
             </CardTitle>

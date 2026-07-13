@@ -730,7 +730,54 @@ export function simulateFromKlines(
     const { entry, sl, market } = computeEntry(breakSide, entryZoneHigh, entryZoneLow, breakBar.close, entryCfg);
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
-    const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;
+
+    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd; when an AI
+    // grading model is supplied, we grade the candidate and use the absolute
+    // per-grade risk from opts.gradeRiskMap (falls back to GRADE_RISK_USD).
+    let daySlRisk = opts.slRiskUsd;
+    if (opts.gradingModel) {
+      const orRangeUsd = zone_high - zone_low;
+      const bcRange = breakBar.high - breakBar.low;
+      const bcBody = Math.abs(breakBar.close - breakBar.open);
+      const breakDistanceUsd = breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+      const breakHourIst = new Date(breakBar.openTime + IST_OFFSET_MIN * 60_000).getUTCHours();
+      const istD = new Date(`${dateStr}T00:00:00Z`);
+      const candidate = {
+        side: breakSide,
+        or_size_usd: orRangeUsd,
+        break_distance_usd: breakDistanceUsd,
+        break_distance_pct_or: orRangeUsd > 0 ? (breakDistanceUsd / orRangeUsd) * 100 : null,
+        body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
+        upper_wick_pct: bcRange > 0 ? ((breakBar.high - Math.max(breakBar.open, breakBar.close)) / bcRange) * 100 : null,
+        lower_wick_pct: bcRange > 0 ? ((Math.min(breakBar.open, breakBar.close) - breakBar.low) / bcRange) * 100 : null,
+        break_hour_ist: breakHourIst,
+        weekday: istD.getUTCDay(),
+        month: istD.getUTCMonth() + 1,
+        quarter: Math.floor(istD.getUTCMonth() / 3) + 1,
+      };
+      try {
+        const graded = scoreCandidate(candidate as never, opts.gradingModel as Parameters<typeof scoreCandidate>[1]);
+        const map = opts.gradeRiskMap ?? (GRADE_RISK_USD as unknown as Record<string, number>);
+        const gradeRisk = Number(map[graded.grade] ?? GRADE_RISK_USD[graded.grade as GradeLabel] ?? 0);
+        const minGrade = opts.minGrade ?? "B";
+        const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
+        const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);
+        if (gradeRank > minRank || gradeRisk <= 0) {
+          dr.outcome = "filtered";
+          dr.filter_reason = `ai grade ${graded.grade} < ${minGrade}`;
+          days.push(dr);
+          continue;
+        }
+        daySlRisk = gradeRisk;
+        dr.ai_grade = graded.grade;
+        dr.ai_score = graded.score;
+        dr.ai_risk_usd = gradeRisk;
+      } catch {
+        // fall back to base risk on any grading error
+      }
+    }
+
+    const qty   = risk > 0 ? daySlRisk / risk : 0;
     dr.entry = entry;
     dr.sl = sl;
     dr.tp = tp;

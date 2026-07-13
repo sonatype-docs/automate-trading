@@ -105,6 +105,28 @@ export interface DayResult {
   lower_wick_pct: number | null;
   close_position_pct: number | null;
   candle_range_usd: number | null;
+  // ---- Phase 2 trade-quality features ----
+  /** Bars from break close to trigger (0 for market). Null when never triggered. */
+  time_to_fill_bars: number | null;
+  time_to_fill_hours: number | null;
+  /** Bars from trigger to resolution (tp/sl); null if still open or missed. */
+  duration_bars: number | null;
+  /** Maximum favourable excursion in R (same as peak_r; kept as an explicit feature). */
+  mfe_r: number | null;
+  mfe_usd: number | null;
+  mae_usd: number | null;
+  /** Number of times price re-touched the entry line after trigger. */
+  retest_count: number | null;
+  // ---- Phase 3 timing features ----
+  /** Hour of break in IST (0-23). */
+  break_hour_ist: number | null;
+  month: number | null;
+  quarter: number | null;
+  // ---- Phase 5 structure flags ----
+  /** True when a 3-candle FVG exists on the break candle (candle[-2] vs breakBar). */
+  fvg_present: boolean | null;
+  /** True when the break candle swept a recent swing (broke prior high/low, then closed back). */
+  sweep_present: boolean | null;
 }
 
 

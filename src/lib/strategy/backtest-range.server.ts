@@ -450,6 +450,21 @@ export function simulateFromKlines(
     }
 
     const biasEntry = opts.dailyBias?.get(dateStr);
+    // Research features — always attach whatever daily bias is available.
+    if (biasEntry) {
+      dr.daily_atr = biasEntry.atr;
+      dr.ema20 = biasEntry.ema20;
+      dr.ema50 = biasEntry.ema50;
+      dr.ema100 = biasEntry.ema100;
+      dr.ema200 = biasEntry.ema200;
+      dr.adx14 = biasEntry.adx14;
+      dr.prev_open = biasEntry.prev_open;
+      dr.prev_close = biasEntry.prev_close;
+      dr.prev_high = biasEntry.prev_high;
+      dr.prev_low = biasEntry.prev_low;
+      dr.prev2_high = biasEntry.prev2_high;
+      dr.prev2_low = biasEntry.prev2_low;
+    }
     if (quality?.atr_enabled) {
       const atr = biasEntry?.atr ?? null;
       const min = quality.atr_min ?? 0;
@@ -558,6 +573,15 @@ export function simulateFromKlines(
     const barRange0 = breakBar.high - breakBar.low;
     const body0 = Math.abs(breakBar.close - breakBar.open);
     dr.body_pct = barRange0 > 0 ? (body0 / barRange0) * 100 : 0;
+    // Phase 1 candle-quality features.
+    dr.candle_range_usd = barRange0;
+    if (barRange0 > 0) {
+      const upperWick = breakBar.high - Math.max(breakBar.open, breakBar.close);
+      const lowerWick = Math.min(breakBar.open, breakBar.close) - breakBar.low;
+      dr.upper_wick_pct = (upperWick / barRange0) * 100;
+      dr.lower_wick_pct = (lowerWick / barRange0) * 100;
+      dr.close_position_pct = ((breakBar.close - breakBar.low) / barRange0) * 100;
+    }
     dr.or_size_usd = range;
     dr.break_distance_usd =
       breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;

@@ -330,6 +330,7 @@ export type Database = {
           pnl_usd: number | null
           qty: number
           side: string
+          sl_child_order_id: string | null
           sl_price: number
           status: string
           symbol: string
@@ -352,6 +353,7 @@ export type Database = {
           pnl_usd?: number | null
           qty: number
           side: string
+          sl_child_order_id?: string | null
           sl_price: number
           status?: string
           symbol: string
@@ -374,6 +376,7 @@ export type Database = {
           pnl_usd?: number | null
           qty?: number
           side?: string
+          sl_child_order_id?: string | null
           sl_price?: number
           status?: string
           symbol?: string

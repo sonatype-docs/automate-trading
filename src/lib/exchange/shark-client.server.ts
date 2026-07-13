@@ -69,13 +69,29 @@ export interface OpenOrderRow {
   filledAmount: number | null;
   stopLossPrice: number | null;
   takeProfitPrice: number | null;
+  /** For child SL/TP orders attached to a position: "STOP_LOSS" | "TAKE_PROFIT" | undefined. */
+  subType: string | null;
+  /** e.g. "ORDER_SL" / "ORDER_TP" / "ORDER". Helps identify SL/TP children. */
+  linkType: string | null;
+  /** True when the order is a reduce-only exit (SL/TP child). */
+  reduceOnly: boolean | null;
+  /** Stop trigger price for STOP_MARKET / STOP_LIMIT child orders. */
+  stopPrice: number | null;
   createdAt: string | null;
   raw: unknown;
+}
+
+export interface EditOrderParams {
+  clientOrderId: string;
+  stopPrice?: number;
+  price?: number;
+  quantity?: number;
 }
 
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
+  editOrder(p: EditOrderParams): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
@@ -95,6 +111,7 @@ export interface ExchangeClient {
   ): Promise<Kline[]>;
   getLastPrice(symbol: string): Promise<number>;
 }
+
 
 
 const BASE_URL = "https://api.sharkexchange.in";
@@ -213,6 +230,10 @@ export function createSharkClient(): ExchangeClient {
         filledAmount: num(o.filledAmount),
         stopLossPrice: num(o.stopLossPrice ?? o.slPrice),
         takeProfitPrice: num(o.takeProfitPrice ?? o.tpPrice),
+        subType: (o.subType as string | undefined) ?? null,
+        linkType: (o.linkType as string | undefined) ?? null,
+        reduceOnly: typeof o.reduceOnly === "boolean" ? (o.reduceOnly as boolean) : null,
+        stopPrice: num(o.stopPrice ?? o.triggerPrice),
         createdAt: (o.time as string | undefined) ?? (o.createdAt as string | undefined) ?? null,
         raw: o,
       });
@@ -275,6 +296,22 @@ export function createSharkClient(): ExchangeClient {
       const body: Record<string, unknown> = { clientOrderId };
       const res = await signedJson(apiKey, apiSecret, "DELETE", "/v1/order/delete-order", body);
       return { ok: res.ok, status: res.status, body: res.body };
+    },
+
+    async editOrder({ clientOrderId, stopPrice, price, quantity }) {
+      const { apiKey, apiSecret } = requireCreds();
+      const body: Record<string, unknown> = { clientOrderId };
+      if (stopPrice !== undefined && stopPrice > 0) {
+        body.stopPrice = Math.round(stopPrice * 100) / 100;
+      }
+      if (price !== undefined && price > 0) {
+        body.price = Math.round(price * 100) / 100;
+      }
+      if (quantity !== undefined && quantity > 0) {
+        body.quantity = Math.round(quantity * 1000) / 1000;
+      }
+      const res = await signedJson(apiKey, apiSecret, "PATCH", "/v1/order/edit-order", body);
+      return { ok: res.ok, status: res.status, body: res.body, json: res.json };
     },
 
 

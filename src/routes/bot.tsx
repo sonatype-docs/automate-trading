@@ -835,6 +835,8 @@ function AiGradingCard({
                 ai_grading_enabled: enabled,
                 ai_min_grade: minGrade,
                 ai_risk_multipliers: mults,
+                ai_auto_retrain: autoRetrain,
+                ai_retrain_days: retrainDays,
               })
             }
             disabled={saving}

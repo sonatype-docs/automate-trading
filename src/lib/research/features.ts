@@ -51,6 +51,22 @@ export interface TradeFeatures {
   atr_bucket4: QuartileBucket | null;
   trend_bucket: TrendBucket | null;
   prev_day_bucket: PrevDayBucket | null;
+  // ---- Phase 2/3/5 features ----
+  mae_r: number | null;
+  mfe_r: number | null;
+  duration_bars: number | null;
+  time_to_fill_bars: number | null;
+  retest_count: number | null;
+  break_hour_ist: number | null;
+  weekday: number | null;
+  month: number | null;
+  quarter: number | null;
+  fvg_present: boolean | null;
+  sweep_present: boolean | null;
+  mae_bucket5: QuintileBucket | null;
+  mfe_bucket5: QuintileBucket | null;
+  duration_bucket5: QuintileBucket | null;
+  ttl_bucket5: QuintileBucket | null;
 }
 
 const QUINTILE_LABELS: QuintileBucket[] = [

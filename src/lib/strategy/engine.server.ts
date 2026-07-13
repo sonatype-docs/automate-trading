@@ -402,6 +402,32 @@ async function placeOrderWithMarginRetry(
   return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false, leverage: currentLeverage };
 }
 
+function placementFields(
+  attempt: MarginRetryResult,
+  requestedQty: number,
+): {
+  placement_status: string;
+  placement_leverage: number | null;
+  placement_error: string | null;
+  placement_capped: boolean;
+  requested_qty: number;
+  placement_attempts: number;
+  placement_at: string;
+} {
+  return {
+    placement_status: attempt.res ? (attempt.capped ? "placed_capped" : "placed") : "failed",
+    placement_leverage: attempt.leverage,
+    placement_error: attempt.error,
+    placement_capped: attempt.capped,
+    requested_qty: requestedQty,
+    placement_attempts: attempt.attempts,
+    placement_at: new Date().toISOString(),
+  };
+}
+
+
+
+
 
 
 

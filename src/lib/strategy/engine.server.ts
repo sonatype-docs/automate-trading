@@ -458,9 +458,21 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const side = session.break_side;
       const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
       const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
-      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
+      // Fib zone source: "breakout" swaps the OR high/low for the breakout candle's high/low.
+      let entryZoneHigh = zone_high;
+      let entryZoneLow = zone_low;
+      if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+        const breakCloseMs = new Date(session.break_detected_at).getTime();
+        const breakBar = klines.find((k) => k.closeTime === breakCloseMs) ?? klines.find((k) => k.openTime === breakCloseMs - 3_600_000);
+        if (breakBar) {
+          entryZoneHigh = breakBar.high;
+          entryZoneLow = breakBar.low;
+        }
+      }
+      const { entry, sl, market } = computeEntry(side, entryZoneHigh, entryZoneLow, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+
 
       // ---- AI Grading gate + risk scaling (post-hoc model) ----
       let effectiveSlRiskUsd = s.sl_risk_usd;

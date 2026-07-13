@@ -27,6 +27,22 @@ export const DEFAULT_RISK_MULTIPLIERS: Record<GradeLabel, number> = {
   C: 0.0,
 };
 
+/**
+ * Absolute per-grade SL risk in USD. This is the source of truth for
+ * position sizing when AI grading is enabled — the live engine and
+ * backtester both size trades to lose exactly this much on stop-out,
+ * bypassing the legacy multiplier-based approach.
+ * C-grade stays at 0 (skip).
+ */
+export const GRADE_RISK_USD: Record<GradeLabel, number> = {
+  "A+++": 40,
+  "A++": 35,
+  "A+": 30,
+  A: 28,
+  B: 25,
+  C: 0,
+};
+
 // Percentile share (in 0..1) for each grade, top-down.
 const GRADE_SHARES: Array<[GradeLabel, number]> = [
   ["A+++", 0.05],

@@ -8,6 +8,7 @@ import {
   DEFAULT_ENTRY_CONFIG,
   type EntryConfig,
 } from "@/lib/strategy/entry-modes.server";
+import { scoreCandidate, GRADE_ORDER, GRADE_RISK_USD, type GradeLabel } from "@/lib/research/grading";
 
 
 const IST_OFFSET_MIN = 330;
@@ -127,6 +128,10 @@ export interface DayResult {
   fvg_present: boolean | null;
   /** True when the break candle swept a recent swing (broke prior high/low, then closed back). */
   sweep_present: boolean | null;
+  // ---- AI grading (populated when a grading model is supplied) ----
+  ai_grade?: string | null;
+  ai_score?: number | null;
+  ai_risk_usd?: number | null;
 }
 
 
@@ -262,6 +267,11 @@ export async function runBacktestRange(opts: {
   zoneSource?: "range" | "breakout";
   /** Historical candle source. "shark" (default, ~180d) or "yahoo" (GC=F, ~730d, no key). */
   dataSource?: KlineSourceId;
+  /** Optional AI grading model — when provided, each candidate is graded and
+   *  the day's SL$ is set from gradeRiskMap[grade] (default GRADE_RISK_USD). */
+  gradingModel?: unknown;
+  gradeRiskMap?: Record<string, number>;
+  minGrade?: string;
 }): Promise<RangeBacktestResult> {
 
   const source = await getKlineSource(opts.dataSource ?? "shark");
@@ -322,6 +332,12 @@ export function simulateFromKlines(
     feeRate?: number;
     feeUsdPerOrder?: number;
     zoneSource?: "range" | "breakout";
+    /** Optional AI grading model — when provided together with gradeRiskMap,
+     *  each day's SL$ risk is set to gradeRiskMap[grade] (absolute USD).
+     *  Rows graded below minGrade are marked filtered. */
+    gradingModel?: unknown;
+    gradeRiskMap?: Record<string, number>;
+    minGrade?: string;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -723,7 +739,54 @@ export function simulateFromKlines(
     const { entry, sl, market } = computeEntry(breakSide, entryZoneHigh, entryZoneLow, breakBar.close, entryCfg);
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
-    const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;
+
+    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd; when an AI
+    // grading model is supplied, we grade the candidate and use the absolute
+    // per-grade risk from opts.gradeRiskMap (falls back to GRADE_RISK_USD).
+    let daySlRisk = opts.slRiskUsd;
+    if (opts.gradingModel) {
+      const orRangeUsd = zone_high - zone_low;
+      const bcRange = breakBar.high - breakBar.low;
+      const bcBody = Math.abs(breakBar.close - breakBar.open);
+      const breakDistanceUsd = breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;
+      const breakHourIst = new Date(breakBar.openTime + IST_OFFSET_MIN * 60_000).getUTCHours();
+      const istD = new Date(`${dateStr}T00:00:00Z`);
+      const candidate = {
+        side: breakSide,
+        or_size_usd: orRangeUsd,
+        break_distance_usd: breakDistanceUsd,
+        break_distance_pct_or: orRangeUsd > 0 ? (breakDistanceUsd / orRangeUsd) * 100 : null,
+        body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
+        upper_wick_pct: bcRange > 0 ? ((breakBar.high - Math.max(breakBar.open, breakBar.close)) / bcRange) * 100 : null,
+        lower_wick_pct: bcRange > 0 ? ((Math.min(breakBar.open, breakBar.close) - breakBar.low) / bcRange) * 100 : null,
+        break_hour_ist: breakHourIst,
+        weekday: istD.getUTCDay(),
+        month: istD.getUTCMonth() + 1,
+        quarter: Math.floor(istD.getUTCMonth() / 3) + 1,
+      };
+      try {
+        const graded = scoreCandidate(candidate as never, opts.gradingModel as Parameters<typeof scoreCandidate>[1]);
+        const map = opts.gradeRiskMap ?? (GRADE_RISK_USD as unknown as Record<string, number>);
+        const gradeRisk = Number(map[graded.grade] ?? GRADE_RISK_USD[graded.grade as GradeLabel] ?? 0);
+        const minGrade = opts.minGrade ?? "B";
+        const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
+        const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);
+        if (gradeRank > minRank || gradeRisk <= 0) {
+          dr.outcome = "filtered";
+          dr.filter_reason = `ai grade ${graded.grade} < ${minGrade}`;
+          days.push(dr);
+          continue;
+        }
+        daySlRisk = gradeRisk;
+        dr.ai_grade = graded.grade;
+        dr.ai_score = graded.score;
+        dr.ai_risk_usd = gradeRisk;
+      } catch {
+        // fall back to base risk on any grading error
+      }
+    }
+
+    const qty   = risk > 0 ? daySlRisk / risk : 0;
     dr.entry = entry;
     dr.sl = sl;
     dr.tp = tp;
@@ -805,21 +868,21 @@ export function simulateFromKlines(
       if (hitTp && hitSl) {
         // Conservative same-bar assumption: SL first.
         dr.outcome = "sl";
-        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.pnl_usd = slR * daySlRisk;
         dr.exit_r = slR;
         resolved = true;
         break;
       }
       if (hitTp) {
         dr.outcome = "tp";
-        dr.pnl_usd = opts.slRiskUsd * opts.rr;
+        dr.pnl_usd = daySlRisk * opts.rr;
         dr.exit_r = opts.rr;
         resolved = true;
         break;
       }
       if (hitSl) {
         dr.outcome = "sl";
-        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.pnl_usd = slR * daySlRisk;
         dr.exit_r = slR;
         resolved = true;
         break;
@@ -830,12 +893,12 @@ export function simulateFromKlines(
     if (triggered && adverseExtreme !== null && risk > 0) {
       const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
       dr.mae_r = Math.max(0, adverseR);
-      dr.mae_usd = dr.mae_r * opts.slRiskUsd;
+      dr.mae_usd = dr.mae_r * daySlRisk;
     }
     // Phase 2: populate MFE + duration + time-to-fill + retest count.
     if (triggered) {
       dr.mfe_r = peakR;
-      dr.mfe_usd = peakR * opts.slRiskUsd;
+      dr.mfe_usd = peakR * daySlRisk;
       dr.time_to_fill_bars = market ? 0 : Math.max(0, barsUntilFill);
       dr.time_to_fill_hours = (dr.time_to_fill_bars ?? 0) * 1;
       if (resolved) dr.duration_bars = barsInTrade;

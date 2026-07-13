@@ -1207,6 +1207,7 @@ function StrategyCard() {
         ai_grading_enabled?: boolean;
         ai_min_grade?: string | null;
         ai_grading_model?: unknown;
+        ai_risk_multipliers?: Record<string, number> | null;
       }
     | null
     | undefined;
@@ -1435,20 +1436,42 @@ function StrategyCard() {
               )}
             </div>
             <div className="border border-border rounded divide-y divide-border">
-              {active.map((a) => (
-                <div key={a.id} className="grid grid-cols-2 md:grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
-                  <span className={a.side === "long" ? "text-long" : "text-short"}>
-                    {a.side.toUpperCase()}
-                  </span>
-                  <span>entry {a.entry_price.toFixed(2)}</span>
-                  <span>sl {a.sl_price.toFixed(2)}</span>
-                  <span>tp {a.tp_price.toFixed(2)}</span>
-                  <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
-                  <span className="uppercase text-muted-foreground">{a.status}</span>
-                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
-                </div>
-              ))}
+              {active.map((a) => {
+                const notional = a.entry_price * a.qty;
+                const marginAt50x = notional / 50;
+                const marginAt25x = notional / 25;
+                const marginAt10x = notional / 10;
+                return (
+                  <div key={a.id} className="px-3 py-2 text-xs font-mono">
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 items-center">
+                      <span className={a.side === "long" ? "text-long" : "text-short"}>
+                        {a.side.toUpperCase()}
+                      </span>
+                      <span>entry {a.entry_price.toFixed(2)}</span>
+                      <span>sl {a.sl_price.toFixed(2)}</span>
+                      <span>tp {a.tp_price.toFixed(2)}</span>
+                      <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
+                      <span className="uppercase text-muted-foreground">{a.status}</span>
+                      <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
+                      <span>margin@50x <span className="text-foreground">${marginAt50x.toFixed(2)}</span></span>
+                      <span>margin@25x <span className="text-foreground">${marginAt25x.toFixed(2)}</span></span>
+                      <span>margin@10x <span className="text-foreground">${marginAt10x.toFixed(2)}</span></span>
+                      <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+            <RejectionReasonBanner setupIds={active.map((a) => a.id)} logs={(q.data?.logs ?? []) as LogRow[]} />
+            <GradeRiskTable
+              currentEntry={active[0]?.entry_price ?? null}
+              currentSl={active[0]?.sl_price ?? null}
+              currentSide={active[0]?.side ?? null}
+              overrides={(s?.ai_risk_multipliers as Record<string, number> | undefined) ?? undefined}
+            />
           </div>
         )}
 
@@ -1490,6 +1513,131 @@ function StrategyCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const GRADE_RISK_USD_UI: Record<string, number> = {
+  "A+++": 40,
+  "A++": 35,
+  "A+": 30,
+  A: 28,
+  B: 25,
+  C: 0,
+};
+
+type LogRow = {
+  severity: string;
+  message: string;
+  context: unknown;
+  created_at: string;
+};
+
+function RejectionReasonBanner({ setupIds, logs }: { setupIds: string[]; logs: LogRow[] }) {
+  if (!logs || logs.length === 0 || setupIds.length === 0) return null;
+  const idSet = new Set(setupIds);
+  // Look for arm_blocked / place: rejected / place-margin / cancel entries in the last 30 logs
+  // that reference one of the current active setup IDs.
+  const relevant = logs.find((l) => {
+    const ctx = (l.context ?? {}) as Record<string, unknown>;
+    const setupId = String(ctx.setup_id ?? ctx.setupId ?? "");
+    const msg = l.message.toLowerCase();
+    const isRelevant =
+      msg.includes("arm_blocked") ||
+      msg.includes("rejected") ||
+      msg.includes("margin") ||
+      msg.includes("insufficient") ||
+      msg.includes("max position") ||
+      msg.includes("maximum position");
+    return isRelevant && (setupId ? idSet.has(setupId) : true);
+  });
+  if (!relevant) return null;
+  const ctx = (relevant.context ?? {}) as Record<string, unknown>;
+  const err = String(ctx.error ?? ctx.reason ?? "");
+  return (
+    <div className={`mt-2 rounded border px-3 py-2 text-xs font-mono ${relevant.severity === "error" ? "border-destructive/50 bg-destructive/10 text-destructive" : "border-warning/50 bg-warning-soft"}`}>
+      <div className="font-semibold uppercase tracking-widest text-[10px] mb-1">
+        LAST EXCHANGE / ARM ISSUE
+      </div>
+      <div className="whitespace-pre-wrap break-words">
+        {relevant.message}
+        {err ? <div className="opacity-80 mt-1">reason: {err}</div> : null}
+      </div>
+      <div className="mt-1 opacity-60">{new Date(relevant.created_at).toLocaleString()}</div>
+    </div>
+  );
+}
+
+function GradeRiskTable({
+  currentEntry,
+  currentSl,
+  currentSide,
+  overrides,
+}: {
+  currentEntry: number | null;
+  currentSl: number | null;
+  currentSide: "long" | "short" | null;
+  overrides?: Record<string, number>;
+}) {
+  const hasLive = currentEntry != null && currentSl != null && Math.abs(currentEntry - currentSl) > 0;
+  const risk = hasLive ? Math.abs(currentEntry - currentSl) : null;
+  const rows = ["A+++", "A++", "A+", "A", "B"].map((g) => {
+    const overrideRaw = overrides ? Number(overrides[g]) : NaN;
+    const slUsd = Number.isFinite(overrideRaw) && overrideRaw > 5 ? overrideRaw : GRADE_RISK_USD_UI[g];
+    const qty = hasLive && risk ? slUsd / risk : null;
+    const notional = qty != null && currentEntry != null ? qty * currentEntry : null;
+    return {
+      grade: g,
+      slUsd,
+      qty,
+      notional,
+      m50: notional != null ? notional / 50 : null,
+      m25: notional != null ? notional / 25 : null,
+      m10: notional != null ? notional / 10 : null,
+    };
+  });
+  return (
+    <div className="mt-3">
+      <div className="text-xs font-mono text-muted-foreground mb-1">
+        PER-GRADE RISK &amp; REQUIRED MARGIN{" "}
+        {hasLive ? (
+          <span className="opacity-70">
+            · using {currentSide?.toUpperCase()} entry {currentEntry!.toFixed(2)} / sl {currentSl!.toFixed(2)} · risk {risk!.toFixed(2)} pts
+          </span>
+        ) : (
+          <span className="opacity-70">· no live setup — SL$ shown only</span>
+        )}
+      </div>
+      <div className="overflow-x-auto border border-border rounded">
+        <table className="w-full text-xs font-mono">
+          <thead className="bg-muted/40 text-muted-foreground">
+            <tr>
+              <th className="text-left px-2 py-1">GRADE</th>
+              <th className="text-right px-2 py-1">SL $</th>
+              <th className="text-right px-2 py-1">QTY</th>
+              <th className="text-right px-2 py-1">NOTIONAL</th>
+              <th className="text-right px-2 py-1">MARGIN @50x</th>
+              <th className="text-right px-2 py-1">MARGIN @25x</th>
+              <th className="text-right px-2 py-1">MARGIN @10x</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.grade} className="border-t border-border">
+                <td className="px-2 py-1">
+                  <span className={`px-1.5 py-0.5 rounded border ${GRADE_BADGE_STYLES[r.grade] ?? ""}`}>{r.grade}</span>
+                </td>
+                <td className="text-right px-2 py-1">${r.slUsd.toFixed(0)}</td>
+                <td className="text-right px-2 py-1">{r.qty != null ? r.qty.toFixed(4) : "—"}</td>
+                <td className="text-right px-2 py-1">{r.notional != null ? `$${r.notional.toFixed(2)}` : "—"}</td>
+                <td className="text-right px-2 py-1">{r.m50 != null ? `$${r.m50.toFixed(2)}` : "—"}</td>
+                <td className="text-right px-2 py-1">{r.m25 != null ? `$${r.m25.toFixed(2)}` : "—"}</td>
+                <td className="text-right px-2 py-1">{r.m10 != null ? `$${r.m10.toFixed(2)}` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

@@ -11,7 +11,7 @@ async function admin() {
 
 export const getStrategyState = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await admin();
-  const [settingsRes, sessionsRes, setupsRes] = await Promise.all([
+  const [settingsRes, sessionsRes, setupsRes, logsRes] = await Promise.all([
     supabase.from("strategy_settings").select("*").eq("id", true).maybeSingle(),
     supabase
       .from("strategy_sessions")
@@ -23,11 +23,17 @@ export const getStrategyState = createServerFn({ method: "GET" }).handler(async 
       .select("*")
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("activity_log")
+      .select("severity, message, context, created_at")
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
   return {
     settings: settingsRes.data,
     session: sessionsRes.data?.[0] ?? null,
     setups: setupsRes.data ?? [],
+    logs: logsRes.data ?? [],
   };
 });
 
@@ -508,6 +514,11 @@ export const backtestRange = createServerFn({ method: "POST" })
       adaptiveDeepDepth: data.entry?.adaptive_deep_depth ?? savedEntry.adaptiveDeepDepth,
       retestSlR: data.entry?.retest_sl_r ?? savedEntry.retestSlR,
     };
+    const s = settings as unknown as Record<string, unknown>;
+    const aiEnabled = Boolean(s.ai_grading_enabled) && !!s.ai_grading_model;
+    const overrideMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+      ? (s.ai_risk_multipliers as Record<string, number>)
+      : undefined);
     return runBacktestRange({
       symbol: data.symbol ?? settings.symbol,
       sessionStartIst: (data.session_start_ist ?? String(settings.session_start_ist)).slice(0, 5),
@@ -524,6 +535,9 @@ export const backtestRange = createServerFn({ method: "POST" })
       feeUsdPerOrder: data.fee_usd_per_order,
       zoneSource: data.zone_source,
       dataSource: data.data_source,
+      gradingModel: aiEnabled ? s.ai_grading_model : undefined,
+      gradeRiskMap: overrideMap,
+      minGrade: aiEnabled ? String(s.ai_min_grade ?? "B") : undefined,
     });
   });
 

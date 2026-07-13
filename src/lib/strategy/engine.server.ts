@@ -744,21 +744,86 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             )));
 
         if (changed) {
-          await log("warn", "reprice: settings changed but live order kept", {
-            setup_id: existingSetup.id,
-            exchange_order_id: existingSetup.exchange_order_id,
-            current: {
-              entry: existingSetup.entry_price,
-              sl: existingSetup.sl_price,
-              tp: existingSetup.tp_price,
-              qty: existingSetup.qty,
-              ai_grade: existingSetup.ai_grade,
-              ai_score: existingSetup.ai_score,
-              ai_risk_mult: existingSetup.ai_risk_mult,
-            },
-            planned: { entry, sl, tp, qty, ai_grade: aiDecision.grade, ai_score: aiDecision.score, ai_risk_mult: aiDecision.riskMult },
-          });
-          actions.push(`reprice_hold ${side} live order kept; manual reprice required`);
+          // Auto cancel + replace so the live order always reflects the
+          // current AI grade / multiplier / risk-based qty. Previously we
+          // logged "manual reprice required" which left stale qty on the
+          // exchange (e.g. base-risk qty after AI upgraded the grade to A++).
+          const oldOid = existingSetup.exchange_order_id;
+          try {
+            const cancel = await client.cancelOrder(oldOid, s.symbol);
+            if (!cancel.ok) {
+              await log("warn", "auto-reprice: cancel rejected, keeping live order", {
+                setup_id: existingSetup.id,
+                exchange_order_id: oldOid,
+                status: cancel.status,
+                body: cancel.body.slice(0, 300),
+              });
+              actions.push(`auto_reprice_cancel_failed ${side} [${cancel.status}]`);
+            } else {
+              await supabaseAdmin
+                .from("strategy_setups")
+                .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
+                .eq("id", existingSetup.id);
+
+              const attempt = await placeOrderWithMarginRetry(client, {
+                symbol: s.symbol,
+                side: side === "long" ? "buy" : "sell",
+                qty,
+                type: market ? "market" : "limit",
+                price: entry,
+                stopLossPrice: sl,
+                takeProfitPrice: tp,
+              });
+
+              if (!attempt.res) {
+                await supabaseAdmin
+                  .from("strategy_setups")
+                  .update({ status: "cancelled", updated_at: new Date().toISOString() })
+                  .eq("id", existingSetup.id);
+                await log("error", "auto-reprice: replace placeOrder failed", {
+                  setup_id: existingSetup.id,
+                  error: attempt.error,
+                });
+                actions.push(`auto_reprice_replace_failed ${side}`);
+              } else {
+                await supabaseAdmin
+                  .from("strategy_setups")
+                  .update({
+                    entry_price: entry,
+                    sl_price: sl,
+                    initial_sl_price: sl,
+                    tp_price: tp,
+                    qty: attempt.finalQty,
+                    status: "armed",
+                    exchange_order_id: attempt.res.exchangeOrderId || null,
+                    ai_grade: aiDecision.grade,
+                    ai_score: aiDecision.score,
+                    ai_risk_mult: aiDecision.riskMult,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", existingSetup.id);
+                await log("info", "auto-reprice: replaced live order", {
+                  setup_id: existingSetup.id,
+                  old_exchange_order_id: oldOid,
+                  new_exchange_order_id: attempt.res.exchangeOrderId,
+                  entry, sl, tp, qty: attempt.finalQty,
+                  ai_grade: aiDecision.grade,
+                  ai_score: aiDecision.score,
+                  ai_risk_mult: aiDecision.riskMult,
+                });
+                actions.push(
+                  `auto_reprice ${side} grade=${aiDecision.grade ?? "AI_OFF"} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
+                );
+              }
+            }
+          } catch (e) {
+            await log("warn", "auto-reprice: cancel failed", {
+              setup_id: existingSetup.id,
+              exchange_order_id: oldOid,
+              error: (e as Error).message,
+            });
+            actions.push(`auto_reprice_cancel_failed ${side}`);
+          }
         }
       }
     }

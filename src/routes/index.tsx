@@ -196,26 +196,53 @@ function Dashboard() {
 
   const hasWallet = Boolean(fw);
 
-  // Net deposits from transactionHistory (fallback to INITIAL_CAPITAL_INR).
-  // Anything that moved cash IN/OUT of the futures wallet without being a trade.
-  const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT"]);
-  const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT"]);
+  // Deposits & realized P&L from transactionHistory.
+  // SharkExchange doesn't currently expose a dedicated deposit-history endpoint,
+  // but every wallet movement (deposits, withdrawals, realized P&L, commissions,
+  // funding fees, liquidations) surfaces in /v1/user-data/transaction-history.
+  // Strategy: capture any explicit deposit/withdrawal entries AND derive net
+  // deposits from wallet - realized_from_tx, so the equity math still works even
+  // when the exchange doesn't tag entries as DEPOSIT.
+  const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT", "WALLET_DEPOSIT", "USER_DEPOSIT"]);
+  const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT", "WALLET_WITHDRAWAL", "USER_WITHDRAWAL"]);
+  const REALIZED_TYPES = new Set(["REALIZED_PNL", "REALIZED_PROFIT", "PNL", "PROFIT_AND_LOSS", "TRADE"]);
+  const FEE_TYPES = new Set(["COMMISSION", "FUNDING_FEE", "FUNDING", "INSURANCE_CLEAR", "LIQUIDATION", "LIQUIDATION_FEE"]);
   let depositsIn = 0;
   let depositsOut = 0;
+  let realizedGross = 0;
+  let feeChargesSigned = 0; // typically negative
   for (const x of exTxns) {
     const type = String(x.type ?? "").toUpperCase();
     const amt = Number(x.amount ?? 0);
     if (!Number.isFinite(amt)) continue;
     if (DEPOSIT_TYPES.has(type)) depositsIn += Math.abs(amt);
     else if (WITHDRAW_TYPES.has(type)) depositsOut += Math.abs(amt);
+    else if (REALIZED_TYPES.has(type)) realizedGross += amt;
+    else if (FEE_TYPES.has(type)) feeChargesSigned += amt < 0 ? amt : -amt;
   }
-  const netDepositsFromTx = depositsIn - depositsOut;
-  const netDeposits = netDepositsFromTx > 0 ? netDepositsFromTx : INITIAL_CAPITAL_INR;
+  const explicitNetDeposits = depositsIn - depositsOut;
+  const realizedFromTx = realizedGross + feeChargesSigned;
+  const tradeHistoryRealized = pnlTrades.reduce((s, t) => s + t.net, 0);
+  // Prefer the richer of the two realized signals (txn-history usually complete,
+  // trade-history can be a truncated page).
+  const realizedAllTime = Math.abs(realizedFromTx) > Math.abs(tradeHistoryRealized)
+    ? realizedFromTx
+    : tradeHistoryRealized;
+
+  // netDeposits = the actual capital placed on the exchange.
+  //   1. Use explicit deposit/withdrawal entries when present.
+  //   2. Else derive from wallet: walletTotal = deposits + realizedPnl → deposits = walletTotal - realizedPnl.
+  //   3. Else fall back to configured initial capital.
+  const netDeposits = explicitNetDeposits > 0
+    ? explicitNetDeposits
+    : hasWallet
+      ? Math.max(0, walletTotal - realizedAllTime)
+      : INITIAL_CAPITAL_INR;
+  const netDepositsFromTx = explicitNetDeposits > 0 ? explicitNetDeposits : 0;
 
   // Definitive realized P&L when there are no open positions:
   //   wallet_now - net_deposits.  Falls back to trade-history sum only when wallet is unknown.
-  const tradeHistoryRealized = pnlTrades.reduce((s, t) => s + t.net, 0);
-  const realizedPnl = hasWallet ? walletTotal - netDeposits : tradeHistoryRealized;
+  const realizedPnl = hasWallet ? walletTotal - netDeposits : realizedAllTime;
 
   const equity = hasWallet ? walletTotal : netDeposits + realizedPnl;
   const equityChange = equity - netDeposits;
@@ -333,9 +360,15 @@ function Dashboard() {
           <Metric label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}/${decided} closes`} tone="long" />
           <Metric label="LOSS RATE" value={`${lossRate.toFixed(1)}%`} sub={`${losses}/${decided} closes`} tone="short" />
           <Metric
-            label="INITIAL CAPITAL"
+            label="DEPOSITS"
             value={fmtINR(netDeposits)}
-            sub={netDepositsFromTx > 0 ? "from deposits" : "fallback"}
+            sub={
+              netDepositsFromTx > 0
+                ? "from exchange txns"
+                : hasWallet
+                  ? "derived from wallet"
+                  : "fallback"
+            }
           />
           <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />
         </div>

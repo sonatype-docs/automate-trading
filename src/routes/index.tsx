@@ -1499,6 +1499,39 @@ const GRADE_BADGE_STYLES: Record<string, string> = {
   C: "bg-red-500/20 text-red-300 border-red-500/40",
 };
 
+function AiDecisionTile({
+  label,
+  grade,
+  score,
+  mult,
+  value,
+  sub,
+  enabled,
+  hasModel,
+}: {
+  label: string;
+  grade?: string | null;
+  score?: number | null;
+  mult?: number | null;
+  value?: string;
+  sub?: string;
+  enabled: boolean;
+  hasModel: boolean;
+}) {
+  const cls = grade ? GRADE_BADGE_STYLES[grade] ?? "bg-muted text-foreground border-border" : "bg-muted/30 text-muted-foreground border-border";
+  const display = grade ?? value ?? (enabled ? (hasModel ? "WAITING" : "NO MODEL") : "AI OFF");
+  const detail = grade
+    ? `score ${score == null ? "—" : Math.round(score)} · risk ${mult == null ? "—" : `${mult}x`}`
+    : sub ?? (enabled ? "No AI-graded setup yet" : "Enable AI grading in settings");
+  return (
+    <div className={`rounded border px-3 py-3 font-mono ${cls}`}>
+      <div className="text-[10px] tracking-widest opacity-75">{label}</div>
+      <div className="mt-1 text-2xl font-bold leading-none">{display}</div>
+      <div className="mt-1 text-[10px] opacity-80">{detail}</div>
+    </div>
+  );
+}
+
 function GradeBadge({
   grade,
   score,

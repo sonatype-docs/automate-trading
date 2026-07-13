@@ -299,6 +299,7 @@ const RangeSchema = z.object({
   filters: FiltersZod,
   entry: EntryOverrideSchema,
   fee_rate: z.number().min(0).max(0.01).optional(),
+  fee_usd_per_order: z.number().min(0).max(1000).optional(),
   zone_source: z.enum(["range", "breakout"]).optional(),
 });
 

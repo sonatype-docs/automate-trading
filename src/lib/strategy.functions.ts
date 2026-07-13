@@ -60,6 +60,8 @@ const StrategySettingsSchema = z.object({
   ai_grading_enabled: z.boolean().optional(),
   ai_min_grade: z.enum(["A+++", "A++", "A+", "A", "B", "C"]).optional(),
   ai_risk_multipliers: z.record(z.string(), z.number().min(0).max(10)).optional(),
+  ai_auto_retrain: z.boolean().optional(),
+  ai_retrain_days: z.number().int().min(30).max(730).optional(),
 });
 
 

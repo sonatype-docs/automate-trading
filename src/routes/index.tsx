@@ -1233,6 +1233,30 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <CollapsibleSection title="Full Strategy Configuration" defaultOpen>
+          <FullStrategyEditor
+            settings={{
+              enabled: !!s?.enabled,
+              symbol: s?.symbol ?? "XAUUSDT",
+              session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+              entry_mode: (s?.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "adaptive",
+              entry_depth_pct: Number(s?.entry_depth_pct ?? 0.15),
+              sl_depth_pct: Number(s?.sl_depth_pct ?? 0.6),
+              adaptive_strong_break_pct: Number(s?.adaptive_strong_break_pct ?? 30),
+              adaptive_shallow_depth: Number(s?.adaptive_shallow_depth ?? 0.1),
+              adaptive_deep_depth: Number(s?.adaptive_deep_depth ?? 0.35),
+              retest_sl_r: Number(s?.retest_sl_r ?? 0.5),
+              rr: Number(s?.rr ?? 2),
+              sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+              trail_enabled: !!s?.trail_enabled,
+              trail_activate_r: Number(s?.trail_activate_r ?? 2),
+              trail_step_r: Number(s?.trail_step_r ?? 1),
+              skip_weekends: !!s?.skip_weekends,
+            }}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
         <CollapsibleSection title="Trailing SL" defaultOpen={false}>
           <TrailingSlControls
             saved={{

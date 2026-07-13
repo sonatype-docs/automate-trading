@@ -1363,7 +1363,38 @@ function StrategyCard() {
 
         {active.length > 0 && (
           <div>
-            <div className="text-xs font-mono text-muted-foreground mb-2">ACTIVE SETUPS</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-mono text-muted-foreground">ACTIVE SETUPS</div>
+              {active.some((a) => a.status === "armed" && !a.ai_grade) ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={rearmMut.isPending}
+                  onClick={() => {
+                    if (confirm("Cancel the current armed order and re-arm using the AI grading model?")) {
+                      rearmMut.mutate();
+                    }
+                  }}
+                  title="Cancels the currently pending exchange order and immediately re-arms so the AI grading model + risk multiplier are applied."
+                >
+                  {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={rearmMut.isPending || !active.some((a) => a.status === "armed")}
+                  onClick={() => {
+                    if (confirm("Cancel current armed order and re-arm with the latest AI grading + risk settings?")) {
+                      rearmMut.mutate();
+                    }
+                  }}
+                  title="Force a re-arm using the current AI grading settings."
+                >
+                  {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
+                </Button>
+              )}
+            </div>
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => (
                 <div key={a.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">

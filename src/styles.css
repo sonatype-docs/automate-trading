@@ -325,10 +325,30 @@
     0 24px 60px -32px color-mix(in oklch, var(--color-primary) 55%, transparent);
 }
 @utility text-gradient-primary {
-  background: linear-gradient(135deg, var(--color-primary), color-mix(in oklch, var(--color-primary) 40%, white));
+  background: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+@utility text-gradient-sunset {
+  background: linear-gradient(120deg, var(--brand-amber), var(--brand-orange) 40%, var(--brand-pink) 75%, var(--brand-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility bg-gradient-sunset {
+  background-image: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
+}
+@utility bg-gradient-sunset-soft {
+  background-image: linear-gradient(120deg,
+    color-mix(in oklch, var(--brand-orange) 18%, transparent),
+    color-mix(in oklch, var(--brand-pink) 16%, transparent) 55%,
+    color-mix(in oklch, var(--brand-violet) 18%, transparent));
+}
+@utility ring-sunset {
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--brand-orange) 45%, transparent),
+    0 12px 34px -18px color-mix(in oklch, var(--brand-pink) 55%, transparent);
 }
 @utility hairline {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
@@ -340,7 +360,8 @@
 @utility shimmer {
   background: linear-gradient(90deg,
     transparent 0%,
-    color-mix(in oklch, var(--color-primary) 14%, transparent) 50%,
+    color-mix(in oklch, var(--brand-orange) 22%, transparent) 40%,
+    color-mix(in oklch, var(--brand-pink) 22%, transparent) 60%,
     transparent 100%);
   background-size: 200% 100%;
   animation: shark-shimmer 2.4s linear infinite;

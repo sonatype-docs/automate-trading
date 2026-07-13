@@ -99,6 +99,10 @@ interface SetupRow {
   exchange_order_id?: string | null;
   sl_child_order_id?: string | null;
   tp_child_order_id?: string | null;
+  ai_grade?: string | null;
+  ai_score?: number | null;
+  ai_risk_mult?: number | null;
+  updated_at?: string | null;
 }
 
 export interface StrategyTickResult {
@@ -156,6 +160,97 @@ function samePendingSetupOrder(order: { side: string; price: number | null; quan
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function findBreakCandle(klines: Kline[], session: SessionRow, breakClose: number): Kline | null {
+  const breakMs = session.break_detected_at ? new Date(session.break_detected_at).getTime() : NaN;
+  if (Number.isFinite(breakMs)) {
+    return (
+      klines.find((k) => k.closeTime === breakMs) ??
+      klines.find((k) => k.openTime <= breakMs && k.closeTime >= breakMs) ??
+      null
+    );
+  }
+  return klines.find((k) => k.close === breakClose) ?? null;
+}
+
+function sameNullableNumber(a: number | null | undefined, b: number | null | undefined, precision = 4): boolean {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  const factor = 10 ** precision;
+  return Math.round(Number(a) * factor) === Math.round(Number(b) * factor);
+}
+
+type AiSetupDecision = {
+  grade: string | null;
+  score: number | null;
+  riskMult: number | null;
+  effectiveSlRiskUsd: number;
+  skipped: boolean;
+  minGrade?: string;
+};
+
+async function scoreLiveAiSetup(args: {
+  settings: StrategySettingsRow;
+  session: SessionRow;
+  klines: Kline[];
+  todayIst: string;
+  side: "long" | "short";
+  zoneHigh: number;
+  zoneLow: number;
+  breakClose: number;
+}): Promise<AiSetupDecision> {
+  const { settings: s, session, klines, todayIst, side, zoneHigh, zoneLow, breakClose } = args;
+  const baseRisk = Number(s.sl_risk_usd);
+  if (!s.ai_grading_enabled || !s.ai_grading_model) {
+    return { grade: null, score: null, riskMult: null, effectiveSlRiskUsd: baseRisk, skipped: false };
+  }
+
+  try {
+    const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
+    const bc = findBreakCandle(klines, session, breakClose);
+    const bcRange = bc ? bc.high - bc.low : 0;
+    const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
+    const orRange = zoneHigh - zoneLow;
+    const breakDistanceUsd = side === "long" ? breakClose - zoneHigh : zoneLow - breakClose;
+    const breakHourIst = session.break_detected_at
+      ? new Date(new Date(session.break_detected_at).getTime() + IST_OFFSET_MIN * 60_000).getUTCHours()
+      : null;
+    const istDate = new Date(`${todayIst}T00:00:00Z`);
+    const candidate = {
+      side,
+      or_size_usd: orRange,
+      break_distance_usd: breakDistanceUsd,
+      break_distance_pct_or: orRange > 0 ? (breakDistanceUsd / orRange) * 100 : null,
+      body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
+      upper_wick_pct: bc && bcRange > 0 ? ((bc.high - Math.max(bc.open, bc.close)) / bcRange) * 100 : null,
+      lower_wick_pct: bc && bcRange > 0 ? ((Math.min(bc.open, bc.close) - bc.low) / bcRange) * 100 : null,
+      break_hour_ist: breakHourIst,
+      weekday: istDate.getUTCDay(),
+      month: istDate.getUTCMonth() + 1,
+      quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
+    };
+    const graded = scoreCandidate(candidate as never, s.ai_grading_model as Parameters<typeof scoreCandidate>[1]);
+    const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+      ? (s.ai_risk_multipliers as Record<string, number>)
+      : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
+    const mult = Number(multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0);
+    const minGradeCandidate = String(s.ai_min_grade ?? "B");
+    const minGrade = (GRADE_ORDER as readonly string[]).includes(minGradeCandidate) ? minGradeCandidate : "B";
+    const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
+    const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);
+    return {
+      grade: graded.grade,
+      score: graded.score,
+      riskMult: mult,
+      effectiveSlRiskUsd: baseRisk * mult,
+      skipped: gradeRank > minRank || mult <= 0,
+      minGrade,
+    };
+  } catch (e) {
+    await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
+    return { grade: null, score: null, riskMult: null, effectiveSlRiskUsd: baseRisk, skipped: false };
+  }
 }
 
 interface MarginRetryResult {
@@ -445,12 +540,20 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   // A previously "cancelled" setup (e.g. insufficient margin on first attempt)
   // is eligible for re-arm — we UPDATE that row instead of inserting a new one.
   if (session.break_side) {
-    const { data: existingSetup } = await supabaseAdmin
+    const { data: existingSetupRows } = await supabaseAdmin
       .from("strategy_setups")
       .select("*")
       .eq("ist_date", todayIst)
       .eq("side", session.break_side)
-      .maybeSingle();
+      .in("status", ["armed", "triggered", "cancelled"])
+      .order("updated_at", { ascending: false })
+      .limit(20);
+
+    const existingSetups = (existingSetupRows ?? []) as SetupRow[];
+    const existingSetup =
+      existingSetups.find((row) => row.status === "armed" || row.status === "triggered") ??
+      existingSetups.find((row) => row.status === "cancelled") ??
+      null;
 
     const eligibleForArm = !existingSetup || existingSetup.status === "cancelled";
 
@@ -475,64 +578,33 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
 
       // ---- AI Grading gate + risk scaling (post-hoc model) ----
-      let effectiveSlRiskUsd = s.sl_risk_usd;
-      let aiGrade: string | null = null;
-      let aiScore: number | null = null;
-      let aiRiskMult: number | null = null;
-      if (s.ai_grading_enabled && s.ai_grading_model) {
-        try {
-          const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
-          const breakCandle = klines.find(
-            (k) => k.openTime === new Date(session.break_detected_at ?? "").getTime() - 3_600_000 + 3_600_000,
-          ) ?? klines.filter((k) => k.openTime > sessionCandle.openTime && k.close === breakClose)[0];
-          const bc = breakCandle;
-          const bcRange = bc ? bc.high - bc.low : 0;
-          const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
-          const orRange = zone_high - zone_low;
-          const breakDistanceUsd = side === "long" ? breakClose - zone_high : zone_low - breakClose;
-          const breakHourIst = session.break_detected_at
-            ? new Date(new Date(session.break_detected_at).getTime() + IST_OFFSET_MIN * 60_000).getUTCHours()
-            : null;
-          const istDate = new Date(todayIst + "T00:00:00Z");
-          const candidate = {
-            side,
-            or_size_usd: orRange,
-            break_distance_usd: breakDistanceUsd,
-            break_distance_pct_or: orRange > 0 ? (breakDistanceUsd / orRange) * 100 : null,
-            body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
-            upper_wick_pct: bc && bcRange > 0 ? ((bc.high - Math.max(bc.open, bc.close)) / bcRange) * 100 : null,
-            lower_wick_pct: bc && bcRange > 0 ? ((Math.min(bc.open, bc.close) - bc.low) / bcRange) * 100 : null,
-            break_hour_ist: breakHourIst,
-            weekday: istDate.getUTCDay(),
-            month: istDate.getUTCMonth() + 1,
-            quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
-          };
-          const model = s.ai_grading_model as Parameters<typeof scoreCandidate>[1];
-          const graded = scoreCandidate(candidate as never, model);
-          const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
-            ? (s.ai_risk_multipliers as Record<string, number>)
-            : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
-          const mult = multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0;
-          const minGrade = (s.ai_min_grade ?? "C") as (typeof GRADE_ORDER)[number];
-          const gradeRank = GRADE_ORDER.indexOf(graded.grade);
-          const minRank = GRADE_ORDER.indexOf(minGrade);
-          aiGrade = graded.grade;
-          aiScore = graded.score;
-          aiRiskMult = mult;
-          if (gradeRank > minRank || mult <= 0) {
-            await log("info", "ai_grade skip", { side, grade: graded.grade, score: graded.score, minGrade, mult });
-            actions.push(`ai_skip ${side} grade=${graded.grade} score=${graded.score} < min=${minGrade}`);
-            return { ok: true, ist_date: todayIst, actions, session };
-          }
-          effectiveSlRiskUsd = s.sl_risk_usd * mult;
-          actions.push(`ai_grade ${side} grade=${graded.grade} score=${graded.score} mult=${mult}x risk=$${effectiveSlRiskUsd.toFixed(2)}`);
-        } catch (e) {
-          await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
-        }
+      const aiDecision = await scoreLiveAiSetup({
+        settings: s,
+        session,
+        klines,
+        todayIst,
+        side,
+        zoneHigh: zone_high,
+        zoneLow: zone_low,
+        breakClose,
+      });
+      if (aiDecision.skipped) {
+        await log("info", "ai_grade skip", {
+          side,
+          grade: aiDecision.grade,
+          score: aiDecision.score,
+          minGrade: aiDecision.minGrade,
+          mult: aiDecision.riskMult,
+        });
+        actions.push(`ai_skip ${side} grade=${aiDecision.grade} score=${aiDecision.score} < min=${aiDecision.minGrade}`);
+        return { ok: true, ist_date: todayIst, actions, session };
+      }
+      if (aiDecision.grade) {
+        actions.push(`ai_grade ${side} grade=${aiDecision.grade} score=${aiDecision.score} mult=${aiDecision.riskMult}x risk=$${aiDecision.effectiveSlRiskUsd.toFixed(2)}`);
       }
 
 
-      const requestedQty = risk > 0 ? effectiveSlRiskUsd / risk : 0;
+      const requestedQty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
       if (requestedQty > 0) {
 
         // Place a pending LIMIT (or MARKET when entry_mode='market') on the exchange.
@@ -573,9 +645,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           qty: finalQty,
           status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
-          ai_grade: aiGrade,
-          ai_score: aiScore,
-          ai_risk_mult: aiRiskMult,
+          ai_grade: aiDecision.grade,
+          ai_score: aiDecision.score,
+          ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
         };
         if (existingSetup) {
@@ -601,45 +673,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       !existingSetup.exchange_order_id &&
       !globalSettings?.paper_mode
     ) {
-      const lastAttemptAt = existingSetup.updated_at ? new Date(existingSetup.updated_at).getTime() : 0;
-      if (Number.isFinite(lastAttemptAt) && Date.now() - lastAttemptAt < 120_000) {
-        actions.push(`restore_pending_wait ${existingSetup.side}`);
-      } else {
-      const side = existingSetup.side as "long" | "short";
-      const attempt = await placeOrderWithMarginRetry(client, {
-        symbol: existingSetup.symbol,
-        side: side === "long" ? "buy" : "sell",
-        qty: Number(existingSetup.qty),
-        type: "limit",
-        price: Number(existingSetup.entry_price),
-        stopLossPrice: Number(existingSetup.sl_price),
-        takeProfitPrice: Number(existingSetup.tp_price),
-      }, { maxAttempts: 3 });
-      if (attempt.res?.exchangeOrderId) {
-        await supabaseAdmin
-          .from("strategy_setups")
-          .update({
-            exchange_order_id: attempt.res.exchangeOrderId,
-            qty: attempt.finalQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingSetup.id);
-        await log("info", "arm: restored missing live pending order", {
-          setup_id: existingSetup.id,
-          exchange_order_id: attempt.res.exchangeOrderId,
-          qty: attempt.finalQty,
-          attempts: attempt.attempts,
-        });
-        actions.push(`restored_pending ${side} qty=${attempt.finalQty.toFixed(4)} pending=${attempt.res.exchangeOrderId}`);
-      } else {
-        await log("warn", "arm: restore missing pending order failed", {
-          setup_id: existingSetup.id,
-          qty: existingSetup.qty,
-          error: attempt.error,
-        });
-        actions.push(`restore_pending_failed ${side} err=${attempt.error}`);
-      }
-      }
+      await log("warn", "arm: missing exchange order id; not auto-restoring to avoid duplicate live orders", {
+        setup_id: existingSetup.id,
+        side: existingSetup.side,
+        qty: existingSetup.qty,
+      });
+      actions.push(`missing_pending_manual_rearm_required ${existingSetup.side}`);
 
     } else if (
 
@@ -664,34 +703,63 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
 
-      const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
-      const exchangeEntry = roundExchangePrice(entry);
-      const exchangeSl = roundExchangePrice(sl);
-      const exchangeTp = roundExchangePrice(tp);
-      const exchangeQty = roundExchangeQty(qty);
-
-      const tol = 1e-6;
-      const changed =
-        qty > 0 &&
-        (Math.abs(exchangeEntry - roundExchangePrice(Number(existingSetup.entry_price))) > tol ||
-          Math.abs(exchangeSl - roundExchangePrice(Number(existingSetup.sl_price))) > tol ||
-          Math.abs(exchangeTp - roundExchangePrice(Number(existingSetup.tp_price))) > tol ||
-          Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol);
-
-      if (changed) {
-        await log("warn", "reprice: settings changed but live order kept", {
+      const aiDecision = await scoreLiveAiSetup({
+        settings: s,
+        session,
+        klines,
+        todayIst,
+        side,
+        zoneHigh: zone_high,
+        zoneLow: zone_low,
+        breakClose,
+      });
+      if (aiDecision.skipped) {
+        await log("warn", "reprice: current AI grade is below minimum; live order kept for manual action", {
           setup_id: existingSetup.id,
           exchange_order_id: existingSetup.exchange_order_id,
-          current: {
-            entry: existingSetup.entry_price,
-            sl: existingSetup.sl_price,
-            tp: existingSetup.tp_price,
-            qty: existingSetup.qty,
-          },
-          planned: { entry, sl, tp, qty },
+          grade: aiDecision.grade,
+          score: aiDecision.score,
+          minGrade: aiDecision.minGrade,
+          mult: aiDecision.riskMult,
         });
-        actions.push(`reprice_hold ${side} live order kept; manual reprice required`);
+        actions.push(`reprice_ai_skip ${side} grade=${aiDecision.grade}; manual cancel required`);
+      } else {
+        const qty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
+        const exchangeEntry = roundExchangePrice(entry);
+        const exchangeSl = roundExchangePrice(sl);
+        const exchangeTp = roundExchangePrice(tp);
+        const exchangeQty = roundExchangeQty(qty);
 
+        const tol = 1e-6;
+        const changed =
+          qty > 0 &&
+          (Math.abs(exchangeEntry - roundExchangePrice(Number(existingSetup.entry_price))) > tol ||
+            Math.abs(exchangeSl - roundExchangePrice(Number(existingSetup.sl_price))) > tol ||
+            Math.abs(exchangeTp - roundExchangePrice(Number(existingSetup.tp_price))) > tol ||
+            Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol ||
+            (s.ai_grading_enabled && (
+              existingSetup.ai_grade !== aiDecision.grade ||
+              !sameNullableNumber(existingSetup.ai_score, aiDecision.score, 0) ||
+              !sameNullableNumber(existingSetup.ai_risk_mult, aiDecision.riskMult, 4)
+            )));
+
+        if (changed) {
+          await log("warn", "reprice: settings changed but live order kept", {
+            setup_id: existingSetup.id,
+            exchange_order_id: existingSetup.exchange_order_id,
+            current: {
+              entry: existingSetup.entry_price,
+              sl: existingSetup.sl_price,
+              tp: existingSetup.tp_price,
+              qty: existingSetup.qty,
+              ai_grade: existingSetup.ai_grade,
+              ai_score: existingSetup.ai_score,
+              ai_risk_mult: existingSetup.ai_risk_mult,
+            },
+            planned: { entry, sl, tp, qty, ai_grade: aiDecision.grade, ai_score: aiDecision.score, ai_risk_mult: aiDecision.riskMult },
+          });
+          actions.push(`reprice_hold ${side} live order kept; manual reprice required`);
+        }
       }
     }
   }
@@ -756,51 +824,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await log("warn", "trade-history lookup failed", { setup_id: setup.id, error: (e as Error).message });
         }
         if (!fill?.price) {
-          await log("warn", "armed order disappeared without fill; replacing immediately", {
+          await log("warn", "armed order disappeared without fill; not auto-replacing to avoid duplicate live orders", {
             setup_id: setup.id,
             missing_exchange_order_id: oid,
             qty: setup.qty,
             entry: setup.entry_price,
           });
-          const attempt = await placeOrderWithMarginRetry(client, {
-            symbol: setup.symbol,
-            side: setup.side === "long" ? "buy" : "sell",
-            qty: Number(setup.qty),
-            type: "limit",
-            price: Number(setup.entry_price),
-            stopLossPrice: Number(setup.sl_price),
-            takeProfitPrice: Number(setup.tp_price),
-          }, { maxAttempts: 3 });
-          if (attempt.res?.exchangeOrderId) {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({
-                exchange_order_id: attempt.res.exchangeOrderId,
-                qty: attempt.finalQty,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", setup.id);
-            await log("info", "armed order replaced after disappearing without fill", {
-              setup_id: setup.id,
-              old_exchange_order_id: oid,
-              new_exchange_order_id: attempt.res.exchangeOrderId,
-              qty: attempt.finalQty,
-              attempts: attempt.attempts,
-            });
-            actions.push(`replace_missing_pending ${setup.side} qty=${attempt.finalQty.toFixed(4)} pending=${attempt.res.exchangeOrderId}`);
-          } else {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
-              .eq("id", setup.id);
-            await log("error", "armed order disappeared and replacement failed", {
-              setup_id: setup.id,
-              old_exchange_order_id: oid,
-              qty: setup.qty,
-              error: attempt.error,
-            });
-            actions.push(`replace_missing_pending_failed ${setup.side} err=${attempt.error}`);
-          }
+          await supabaseAdmin
+            .from("strategy_setups")
+            .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
+            .eq("id", setup.id);
+          actions.push(`missing_pending_manual_rearm_required ${setup.side}`);
           continue;
         }
         const fillPrice = fill.price;
@@ -1164,7 +1198,7 @@ export async function repriceArmedSetupsNow(): Promise<{
 
   // Preload klines if breakout zone source is on so we can locate the break bar.
   let repriceKlines: Kline[] | null = null;
-  if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+  if (session.break_detected_at) {
     try {
       const src = (s.data_source ?? "shark") === "yahoo" ? await getKlineSource("yahoo") : null;
       repriceKlines = src ? await src.getKlines(s.symbol, "1h", 96) : await client.getKlines(s.symbol, "1h", 96);
@@ -1196,7 +1230,46 @@ export async function repriceArmedSetupsNow(): Promise<{
 
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
-    const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;
+    const todayIst = sessionDate(Date.now(), s.session_start_ist);
+    const aiDecision = await scoreLiveAiSetup({
+      settings: s,
+      session,
+      klines: repriceKlines ?? [],
+      todayIst,
+      side,
+      zoneHigh: session.zone_high,
+      zoneLow: session.zone_low,
+      breakClose,
+    });
+    if (aiDecision.skipped) {
+      try {
+        await client.cancelOrder(oldOid, s.symbol);
+      } catch (e) {
+        await log("warn", "reprice_now: AI skip cancel failed", {
+          setup_id: setup.id,
+          exchange_order_id: oldOid,
+          error: (e as Error).message,
+        });
+        actions.push(`reprice_now_ai_skip_cancel_failed ${side}`);
+        continue;
+      }
+      await supabaseAdmin
+        .from("strategy_setups")
+        .update({
+          status: "cancelled",
+          close_reason: "rearm_with_ai",
+          closed_at: new Date().toISOString(),
+          exchange_order_id: null,
+          ai_grade: aiDecision.grade,
+          ai_score: aiDecision.score,
+          ai_risk_mult: aiDecision.riskMult,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+      actions.push(`reprice_now_ai_skip_cancelled ${side} grade=${aiDecision.grade}`);
+      continue;
+    }
+    const requestedQty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
     if (requestedQty <= 0) {
       actions.push(`reprice_now_skip ${side} qty=0`);
       continue;
@@ -1209,7 +1282,12 @@ export async function repriceArmedSetupsNow(): Promise<{
       Math.abs(Number(setup.entry_price) - entry) < priceEps &&
       Math.abs(Number(setup.sl_price) - sl) < priceEps &&
       Math.abs(Number(setup.tp_price) - tp) < priceEps &&
-      Math.abs(Number(setup.qty) - requestedQty) < qtyEps;
+      Math.abs(Number(setup.qty) - requestedQty) < qtyEps &&
+      (!s.ai_grading_enabled || (
+        setup.ai_grade === aiDecision.grade &&
+        sameNullableNumber(setup.ai_score, aiDecision.score, 0) &&
+        sameNullableNumber(setup.ai_risk_mult, aiDecision.riskMult, 4)
+      ));
     if (unchanged) {
       actions.push(`reprice_now_noop ${side}`);
       continue;
@@ -1217,7 +1295,17 @@ export async function repriceArmedSetupsNow(): Promise<{
 
     // 1) Cancel the still-pending exchange order.
     try {
-      await client.cancelOrder(oldOid, s.symbol);
+      const cancel = await client.cancelOrder(oldOid, s.symbol);
+      if (!cancel.ok) {
+        await log("warn", "reprice_now: cancel rejected, skipping replace", {
+          setup_id: setup.id,
+          exchange_order_id: oldOid,
+          status: cancel.status,
+          body: cancel.body.slice(0, 300),
+        });
+        actions.push(`reprice_now_cancel_failed ${side} [${cancel.status}]`);
+        continue;
+      }
     } catch (e) {
       // If cancel fails the order may have already filled — bail on this setup.
       await log("warn", "reprice_now: cancel failed, skipping replace", {
@@ -1272,6 +1360,9 @@ export async function repriceArmedSetupsNow(): Promise<{
         qty: attempt.finalQty,
         status: "armed",
         exchange_order_id: attempt.res.exchangeOrderId || null,
+        ai_grade: aiDecision.grade,
+        ai_score: aiDecision.score,
+        ai_risk_mult: aiDecision.riskMult,
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
@@ -1281,10 +1372,13 @@ export async function repriceArmedSetupsNow(): Promise<{
       old_exchange_order_id: oldOid,
       new_exchange_order_id: attempt.res.exchangeOrderId,
       entry, sl, tp, qty: attempt.finalQty,
+      ai_grade: aiDecision.grade,
+      ai_score: aiDecision.score,
+      ai_risk_mult: aiDecision.riskMult,
       mode: cfg.mode, market,
     });
     actions.push(
-      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
+      `reprice_now ${side} grade=${aiDecision.grade ?? "AI_OFF"} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
     );
   }
 

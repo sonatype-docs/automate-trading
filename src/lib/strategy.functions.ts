@@ -213,26 +213,46 @@ export const cancelAndReArmWithAi = createServerFn({ method: "POST" }).handler(a
   const istDateStr = todayIstSessionDate(sessionStart);
   const { data: setups } = await supabase
     .from("strategy_setups")
-    .select("id, exchange_order_id, symbol, side")
+    .select("id, exchange_order_id, symbol, side, qty")
     .eq("ist_date", istDateStr)
     .in("status", ["armed"]);
   let cancelled = 0;
+  const skipped: string[] = [];
   if (setups && setups.length > 0) {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
     const client = createSharkClient();
     for (const s of setups) {
       if (s.exchange_order_id) {
-        try { await client.cancelOrder(s.exchange_order_id, s.symbol); } catch { /* best effort */ }
+        try {
+          const cancel = await client.cancelOrder(s.exchange_order_id, s.symbol);
+          if (!cancel.ok) {
+            skipped.push(`${s.side} cancel failed [${cancel.status}]`);
+            continue;
+          }
+        } catch (e) {
+          skipped.push(`${s.side} cancel threw ${(e as Error).message}`);
+          continue;
+        }
       }
-      await supabase
+      const { error } = await supabase
         .from("strategy_setups")
-        .update({ status: "cancelled", closed_at: new Date().toISOString(), close_reason: "rearm_with_ai" })
+        .update({
+          status: "cancelled",
+          exchange_order_id: null,
+          closed_at: new Date().toISOString(),
+          close_reason: "rearm_with_ai",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", s.id);
+      if (error) {
+        skipped.push(`${s.side} database cancel failed: ${error.message}`);
+        continue;
+      }
       cancelled += 1;
     }
   }
-  const tick = await runStrategyTick();
-  return { cancelled, tick };
+  const tick = cancelled > 0 ? await runStrategyTick() : { ok: true, reason: "nothing_cancelled", actions: skipped };
+  return { cancelled, skipped, tick };
 });
 
 // ------------------------------------------------------------------
@@ -375,7 +395,7 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
   const { data: setups } = await supabase
     .from("strategy_setups")
     .select(
-      "id, ist_date, side, entry_price, sl_price, tp_price, qty, status, order_id, close_order_id, close_reason, pnl_usd, exchange_order_id, created_at, filled_at, closed_at, updated_at",
+      "id, ist_date, side, entry_price, sl_price, tp_price, qty, status, order_id, close_order_id, close_reason, pnl_usd, exchange_order_id, ai_grade, ai_score, ai_risk_mult, created_at, filled_at, closed_at, updated_at",
     )
     .eq("ist_date", sessionRow.ist_date)
     .order("created_at", { ascending: true });

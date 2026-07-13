@@ -960,15 +960,6 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             if (!cancel.ok) {
               await log("warn", "auto-reprice: cancel rejected, keeping live order", {
                 setup_id: existingSetup.id,
-          // current AI grade / multiplier / risk-based qty. Previously we
-          // logged "manual reprice required" which left stale qty on the
-          // exchange (e.g. base-risk qty after AI upgraded the grade to A++).
-          const oldOid = existingSetup.exchange_order_id;
-          try {
-            const cancel = await client.cancelOrder(oldOid, s.symbol);
-            if (!cancel.ok) {
-              await log("warn", "auto-reprice: cancel rejected, keeping live order", {
-                setup_id: existingSetup.id,
                 exchange_order_id: oldOid,
                 status: cancel.status,
                 body: cancel.body.slice(0, 300),

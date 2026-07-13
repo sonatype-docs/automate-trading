@@ -99,6 +99,10 @@ interface SetupRow {
   exchange_order_id?: string | null;
   sl_child_order_id?: string | null;
   tp_child_order_id?: string | null;
+  ai_grade?: string | null;
+  ai_score?: number | null;
+  ai_risk_mult?: number | null;
+  updated_at?: string | null;
 }
 
 export interface StrategyTickResult {
@@ -156,6 +160,97 @@ function samePendingSetupOrder(order: { side: string; price: number | null; quan
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function findBreakCandle(klines: Kline[], session: SessionRow, breakClose: number): Kline | null {
+  const breakMs = session.break_detected_at ? new Date(session.break_detected_at).getTime() : NaN;
+  if (Number.isFinite(breakMs)) {
+    return (
+      klines.find((k) => k.closeTime === breakMs) ??
+      klines.find((k) => k.openTime <= breakMs && k.closeTime >= breakMs) ??
+      null
+    );
+  }
+  return klines.find((k) => k.close === breakClose) ?? null;
+}
+
+function sameNullableNumber(a: number | null | undefined, b: number | null | undefined, precision = 4): boolean {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  const factor = 10 ** precision;
+  return Math.round(Number(a) * factor) === Math.round(Number(b) * factor);
+}
+
+type AiSetupDecision = {
+  grade: string | null;
+  score: number | null;
+  riskMult: number | null;
+  effectiveSlRiskUsd: number;
+  skipped: boolean;
+  minGrade?: string;
+};
+
+async function scoreLiveAiSetup(args: {
+  settings: StrategySettingsRow;
+  session: SessionRow;
+  klines: Kline[];
+  todayIst: string;
+  side: "long" | "short";
+  zoneHigh: number;
+  zoneLow: number;
+  breakClose: number;
+}): Promise<AiSetupDecision> {
+  const { settings: s, session, klines, todayIst, side, zoneHigh, zoneLow, breakClose } = args;
+  const baseRisk = Number(s.sl_risk_usd);
+  if (!s.ai_grading_enabled || !s.ai_grading_model) {
+    return { grade: null, score: null, riskMult: null, effectiveSlRiskUsd: baseRisk, skipped: false };
+  }
+
+  try {
+    const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
+    const bc = findBreakCandle(klines, session, breakClose);
+    const bcRange = bc ? bc.high - bc.low : 0;
+    const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
+    const orRange = zoneHigh - zoneLow;
+    const breakDistanceUsd = side === "long" ? breakClose - zoneHigh : zoneLow - breakClose;
+    const breakHourIst = session.break_detected_at
+      ? new Date(new Date(session.break_detected_at).getTime() + IST_OFFSET_MIN * 60_000).getUTCHours()
+      : null;
+    const istDate = new Date(`${todayIst}T00:00:00Z`);
+    const candidate = {
+      side,
+      or_size_usd: orRange,
+      break_distance_usd: breakDistanceUsd,
+      break_distance_pct_or: orRange > 0 ? (breakDistanceUsd / orRange) * 100 : null,
+      body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
+      upper_wick_pct: bc && bcRange > 0 ? ((bc.high - Math.max(bc.open, bc.close)) / bcRange) * 100 : null,
+      lower_wick_pct: bc && bcRange > 0 ? ((Math.min(bc.open, bc.close) - bc.low) / bcRange) * 100 : null,
+      break_hour_ist: breakHourIst,
+      weekday: istDate.getUTCDay(),
+      month: istDate.getUTCMonth() + 1,
+      quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
+    };
+    const graded = scoreCandidate(candidate as never, s.ai_grading_model as Parameters<typeof scoreCandidate>[1]);
+    const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+      ? (s.ai_risk_multipliers as Record<string, number>)
+      : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
+    const mult = Number(multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0);
+    const minGradeCandidate = String(s.ai_min_grade ?? "B");
+    const minGrade = (GRADE_ORDER as readonly string[]).includes(minGradeCandidate) ? minGradeCandidate : "B";
+    const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
+    const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);
+    return {
+      grade: graded.grade,
+      score: graded.score,
+      riskMult: mult,
+      effectiveSlRiskUsd: baseRisk * mult,
+      skipped: gradeRank > minRank || mult <= 0,
+      minGrade,
+    };
+  } catch (e) {
+    await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
+    return { grade: null, score: null, riskMult: null, effectiveSlRiskUsd: baseRisk, skipped: false };
+  }
 }
 
 interface MarginRetryResult {
@@ -475,64 +570,33 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
 
       // ---- AI Grading gate + risk scaling (post-hoc model) ----
-      let effectiveSlRiskUsd = s.sl_risk_usd;
-      let aiGrade: string | null = null;
-      let aiScore: number | null = null;
-      let aiRiskMult: number | null = null;
-      if (s.ai_grading_enabled && s.ai_grading_model) {
-        try {
-          const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
-          const breakCandle = klines.find(
-            (k) => k.openTime === new Date(session.break_detected_at ?? "").getTime() - 3_600_000 + 3_600_000,
-          ) ?? klines.filter((k) => k.openTime > sessionCandle.openTime && k.close === breakClose)[0];
-          const bc = breakCandle;
-          const bcRange = bc ? bc.high - bc.low : 0;
-          const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
-          const orRange = zone_high - zone_low;
-          const breakDistanceUsd = side === "long" ? breakClose - zone_high : zone_low - breakClose;
-          const breakHourIst = session.break_detected_at
-            ? new Date(new Date(session.break_detected_at).getTime() + IST_OFFSET_MIN * 60_000).getUTCHours()
-            : null;
-          const istDate = new Date(todayIst + "T00:00:00Z");
-          const candidate = {
-            side,
-            or_size_usd: orRange,
-            break_distance_usd: breakDistanceUsd,
-            break_distance_pct_or: orRange > 0 ? (breakDistanceUsd / orRange) * 100 : null,
-            body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
-            upper_wick_pct: bc && bcRange > 0 ? ((bc.high - Math.max(bc.open, bc.close)) / bcRange) * 100 : null,
-            lower_wick_pct: bc && bcRange > 0 ? ((Math.min(bc.open, bc.close) - bc.low) / bcRange) * 100 : null,
-            break_hour_ist: breakHourIst,
-            weekday: istDate.getUTCDay(),
-            month: istDate.getUTCMonth() + 1,
-            quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
-          };
-          const model = s.ai_grading_model as Parameters<typeof scoreCandidate>[1];
-          const graded = scoreCandidate(candidate as never, model);
-          const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
-            ? (s.ai_risk_multipliers as Record<string, number>)
-            : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
-          const mult = multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0;
-          const minGrade = (s.ai_min_grade ?? "C") as (typeof GRADE_ORDER)[number];
-          const gradeRank = GRADE_ORDER.indexOf(graded.grade);
-          const minRank = GRADE_ORDER.indexOf(minGrade);
-          aiGrade = graded.grade;
-          aiScore = graded.score;
-          aiRiskMult = mult;
-          if (gradeRank > minRank || mult <= 0) {
-            await log("info", "ai_grade skip", { side, grade: graded.grade, score: graded.score, minGrade, mult });
-            actions.push(`ai_skip ${side} grade=${graded.grade} score=${graded.score} < min=${minGrade}`);
-            return { ok: true, ist_date: todayIst, actions, session };
-          }
-          effectiveSlRiskUsd = s.sl_risk_usd * mult;
-          actions.push(`ai_grade ${side} grade=${graded.grade} score=${graded.score} mult=${mult}x risk=$${effectiveSlRiskUsd.toFixed(2)}`);
-        } catch (e) {
-          await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
-        }
+      const aiDecision = await scoreLiveAiSetup({
+        settings: s,
+        session,
+        klines,
+        todayIst,
+        side,
+        zoneHigh: zone_high,
+        zoneLow: zone_low,
+        breakClose,
+      });
+      if (aiDecision.skipped) {
+        await log("info", "ai_grade skip", {
+          side,
+          grade: aiDecision.grade,
+          score: aiDecision.score,
+          minGrade: aiDecision.minGrade,
+          mult: aiDecision.riskMult,
+        });
+        actions.push(`ai_skip ${side} grade=${aiDecision.grade} score=${aiDecision.score} < min=${aiDecision.minGrade}`);
+        return { ok: true, ist_date: todayIst, actions, session };
+      }
+      if (aiDecision.grade) {
+        actions.push(`ai_grade ${side} grade=${aiDecision.grade} score=${aiDecision.score} mult=${aiDecision.riskMult}x risk=$${aiDecision.effectiveSlRiskUsd.toFixed(2)}`);
       }
 
 
-      const requestedQty = risk > 0 ? effectiveSlRiskUsd / risk : 0;
+      const requestedQty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
       if (requestedQty > 0) {
 
         // Place a pending LIMIT (or MARKET when entry_mode='market') on the exchange.
@@ -573,9 +637,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           qty: finalQty,
           status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
-          ai_grade: aiGrade,
-          ai_score: aiScore,
-          ai_risk_mult: aiRiskMult,
+          ai_grade: aiDecision.grade,
+          ai_score: aiDecision.score,
+          ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
         };
         if (existingSetup) {

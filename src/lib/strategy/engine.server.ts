@@ -298,13 +298,17 @@ async function placeOrderWithMarginRetry(
 ): Promise<MarginRetryResult> {
   const minQty = opts.minQty ?? 0.001;
   const retryDelayMs = opts.retryDelayMs ?? 1500;
-  const fullQtyAttempts = opts.fullQtyAttempts ?? 4;
+  const fullQtyAttempts = opts.fullQtyAttempts ?? 8;
   const maxAttempts = opts.maxAttempts ?? fullQtyAttempts;
   const qty = roundExchangeQty(params.qty);
   let attempts = 0;
   let lastError: string | null = null;
-  const leverageSteps = [50, 25, 10];
-  let leverageStepIndex = 0;
+  // Higher leverage reduces initial margin -> use on "insufficient margin".
+  const marginLevSteps = [75, 100, 125];
+  // Lower leverage reduces effective notional cap -> use on "max position size".
+  const capLevSteps = [50, 25, 10];
+  let marginStepIdx = 0;
+  let capStepIdx = 0;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -318,46 +322,81 @@ async function placeOrderWithMarginRetry(
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
       if (!isRecoverableCapacityError(msg)) break;
-      if (isMaximumPositionSizeError(msg) && leverageStepIndex < leverageSteps.length) {
-        const leverage = leverageSteps[leverageStepIndex++];
+
+      let adjusted = false;
+      if (isMaximumPositionSizeError(msg) && capStepIdx < capLevSteps.length) {
+        const leverage = capLevSteps[capStepIdx++];
         try {
           const levRes = await client.updateLeverage(params.symbol, leverage);
-          await log(levRes.ok ? "info" : "warn", "place: adjusted leverage before retrying full AI-sized qty", {
-            symbol: params.symbol,
-            leverage,
-            status: levRes.status,
-            body: levRes.body.slice(0, 300),
+          await log(levRes.ok ? "info" : "warn", "place: lowered leverage after max-position-size rejection", {
+            symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
           });
+          adjusted = true;
         } catch (levError) {
-          await log("warn", "place: leverage adjustment failed before full-qty retry", {
-            symbol: params.symbol,
-            leverage,
+          await log("warn", "place: leverage adjustment failed", {
+            symbol: params.symbol, leverage,
+            error: levError instanceof Error ? levError.message : String(levError),
+          });
+        }
+      } else if (isInsufficientMarginError(msg) && marginStepIdx < marginLevSteps.length) {
+        const leverage = marginLevSteps[marginStepIdx++];
+        try {
+          const levRes = await client.updateLeverage(params.symbol, leverage);
+          await log(levRes.ok ? "info" : "warn", "place: raised leverage after insufficient-margin rejection", {
+            symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
+          });
+          adjusted = true;
+        } catch (levError) {
+          await log("warn", "place: leverage adjustment failed", {
+            symbol: params.symbol, leverage,
             error: levError instanceof Error ? levError.message : String(levError),
           });
         }
       }
+
       if (attempts < maxAttempts) {
         await log("warn", "place: retrying full AI-sized qty after exchange capacity/margin rejection", {
-          symbol: params.symbol,
-          side: params.side,
-          qty,
-          attempt: attempts,
-          error: msg,
+          symbol: params.symbol, side: params.side, qty, attempt: attempts, adjusted, error: msg,
         });
-        await wait(retryDelayMs);
+        await wait(adjusted ? 400 : retryDelayMs);
         continue;
       }
-      await log("warn", "place: full AI-sized qty rejected; not placing a smaller wrong-risk order", {
-        symbol: params.symbol,
-        side: params.side,
-        planned_qty: qty,
-        error: msg,
+      await log("warn", "place: full AI-sized qty rejected after leverage escalation", {
+        symbol: params.symbol, side: params.side, planned_qty: qty, error: msg,
       });
       break;
     }
   }
+
+  // Final safety net: leverage escalation was exhausted but user requires an
+  // order on the book. Try progressively smaller qty so a pending order lands.
+  // This intentionally deviates from the AI-planned SL risk — logged as capped.
+  if (isRecoverableCapacityError(lastError)) {
+    const cappedSteps = [0.75, 0.5, 0.33, 0.2];
+    for (const frac of cappedSteps) {
+      const cappedQty = roundExchangeQty(qty * frac);
+      if (cappedQty < minQty) continue;
+      attempts += 1;
+      try {
+        const res = await client.placeOrder({ ...params, qty: cappedQty });
+        if (res.status === "rejected") {
+          lastError = "exchange rejected";
+          continue;
+        }
+        await log("warn", "place: capped-qty fallback placed after leverage escalation exhausted", {
+          symbol: params.symbol, side: params.side, planned_qty: qty, capped_qty: cappedQty, fraction: frac,
+        });
+        return { res, finalQty: cappedQty, error: null, attempts, capped: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        lastError = msg;
+        if (!isRecoverableCapacityError(msg)) break;
+      }
+    }
+  }
   return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false };
 }
+
 
 
 export async function runStrategyTick(): Promise<StrategyTickResult> {
@@ -627,7 +666,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           tp_price: tp,
           qty: finalQty,
           status: placeError ? ("cancelled" as const) : ("armed" as const),
-          close_reason: placeError ? "manual" : null,
+          close_reason: placeError ? (isRecoverableCapacityError(placeError) ? "rearm_with_ai" : "manual") : null,
           closed_at: placeError ? new Date().toISOString() : null,
           exchange_order_id: placeError ? null : exchangeOrderId,
           ai_grade: aiDecision.grade,
@@ -765,7 +804,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                   .from("strategy_setups")
                   .update({
                     status: "cancelled",
-                    close_reason: "manual",
+                    close_reason: isRecoverableCapacityError(attempt.error) ? "rearm_with_ai" : "manual",
                     closed_at: new Date().toISOString(),
                     exchange_order_id: null,
                     entry_price: entry,
@@ -1407,7 +1446,7 @@ export async function repriceArmedSetupsNow(): Promise<{
         .from("strategy_setups")
         .update({
           status: "cancelled",
-          close_reason: "manual",
+          close_reason: isRecoverableCapacityError(attempt.error) ? "rearm_with_ai" : "manual",
           closed_at: new Date().toISOString(),
           exchange_order_id: null,
           entry_price: entry,

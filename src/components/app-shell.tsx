@@ -1,9 +1,38 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
+
+const AUTO_COLLAPSE_MS = 4000;
+
+function AutoCollapse({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const schedule = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setOpen(false), AUTO_COLLAPSE_MS);
+    };
+    const sidebarEl = document.querySelector('[data-sidebar="sidebar"]')?.closest('.group\\/sidebar-wrapper, [data-slot="sidebar"], .group') as HTMLElement | null;
+    const el = document.querySelector('[data-slot="sidebar-container"]') as HTMLElement | null ?? sidebarEl;
+    const cancel = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    schedule();
+    el?.addEventListener("mouseenter", cancel);
+    el?.addEventListener("mouseleave", schedule);
+    el?.addEventListener("focusin", cancel);
+    el?.addEventListener("focusout", schedule);
+    return () => {
+      cancel();
+      el?.removeEventListener("mouseenter", cancel);
+      el?.removeEventListener("mouseleave", schedule);
+      el?.removeEventListener("focusin", cancel);
+      el?.removeEventListener("focusout", schedule);
+    };
+  }, [open, setOpen]);
+  return null;
+}
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -19,9 +48,11 @@ const TITLES: Record<string, string> = {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const title = TITLES[pathname] ?? TITLES[Object.keys(TITLES).find((k) => k !== "/" && pathname.startsWith(k)) ?? "/"] ?? "Shark";
+  const [open, setOpen] = useState(true);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={open} onOpenChange={setOpen}>
+      <AutoCollapse open={open} setOpen={setOpen} />
       <AppSidebar />
       <SidebarInset>
         <a

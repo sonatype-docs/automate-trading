@@ -111,6 +111,8 @@ function BacktestLab() {
     });
   }
 
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+
   const runMut = useMutation({
     mutationFn: (f: FormState) =>
       runRange({
@@ -139,6 +141,14 @@ function BacktestLab() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Auto-scroll to results whenever a new result lands.
+  useEffect(() => {
+    if (result && resultsRef.current) {
+      const y = resultsRef.current.getBoundingClientRect().top + window.scrollY - 72;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }
+  }, [result]);
 
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {

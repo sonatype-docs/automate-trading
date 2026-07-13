@@ -1096,7 +1096,22 @@ function StrategyCard() {
   const runNow = useServerFn(runStrategyTickNow);
   const repriceNow = useServerFn(repriceArmedNow);
   const rearmAi = useServerFn(cancelAndReArmWithAi);
+  const runWatchdog = useServerFn(runOrderWatchdog);
   const updateStrat = useServerFn(updateStrategySettings);
+  const watchdogMut = useMutation({
+    mutationFn: () => runWatchdog(),
+    onSuccess: (r: { ok: boolean; tick: { actions?: string[] } }) => {
+      const actions = r.tick?.actions ?? [];
+      const replaced = actions.filter((a) => a.startsWith("watchdog_replaced") || a.startsWith("re-armed") || a.startsWith("armed")).length;
+      const failed = actions.filter((a) => a.startsWith("watchdog_replace_failed") || a.startsWith("arm_blocked")).length;
+      if (replaced > 0) toast.success(`Watchdog placed/verified ${replaced} order(s)`);
+      else if (failed > 0) toast.error(`Watchdog: ${failed} placement(s) failed — see activity log`);
+      else toast.info(`Watchdog: nothing to fix (${actions.length} action(s))`);
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const rearmMut = useMutation({
     mutationFn: () => rearmAi(),
     onSuccess: (r) => {

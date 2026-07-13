@@ -712,13 +712,64 @@ function AiGradingCard({
             <Badge variant="outline">Sample: {model.sample_size} trades</Badge>
             <Badge variant="outline">Symbol: {model.symbol ?? "any"}</Badge>
             <Badge variant="outline">Trained: {new Date(model.trained_at).toLocaleString()}</Badge>
+            {lastRetrain ? (
+              <Badge variant="outline">Last retrain: {new Date(lastRetrain).toLocaleString()}</Badge>
+            ) : null}
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No model saved yet. Go to <strong>Backtest → Grading tab</strong>, train on your candidates, then click
-            <em> "Save to live"</em>. The toggle below only takes effect after a model is saved.
+            No model saved yet. Train once from <strong>Backtest → Grading</strong> and click <em>"Save to live"</em>,
+            or hit <em>"Retrain now"</em> below to train directly from the current live settings.
           </p>
         )}
+
+        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Continuous training
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Every time a live trade closes, the engine folds it into the training window and retrains the AI grading
+            model automatically (debounced to once per 5 min). Backtest window = the last {retrainDays} days of live
+            settings.
+          </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Auto-retrain after each live trade">
+              <Switch checked={autoRetrain} onCheckedChange={setAutoRetrain} />
+            </Field>
+            <Field label="Training window (days)">
+              <Input
+                type="number"
+                min={30}
+                max={730}
+                step={30}
+                value={retrainDays}
+                onChange={(e) => setRetrainDays(Math.max(30, Math.min(730, Number(e.target.value) || 365)))}
+                className="h-8 w-28"
+              />
+            </Field>
+            <Field label="Manual retrain">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={retraining}
+                onClick={async () => {
+                  setRetraining(true);
+                  try {
+                    const r = await retrainNow({ data: { days: retrainDays } });
+                    toast.success(`Retrained on ${r.sample_size} trades over ${r.days} days.`);
+                  } catch (e) {
+                    toast.error(`Retrain failed: ${(e as Error).message}`);
+                  } finally {
+                    setRetraining(false);
+                  }
+                }}
+              >
+                {retraining ? "Training…" : "Retrain now"}
+              </Button>
+            </Field>
+          </div>
+        </div>
+
 
         <div className="grid gap-4 md:grid-cols-3">
           <Field label="Enable AI grading">

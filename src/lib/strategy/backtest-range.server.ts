@@ -8,6 +8,7 @@ import {
   DEFAULT_ENTRY_CONFIG,
   type EntryConfig,
 } from "@/lib/strategy/entry-modes.server";
+import { scoreCandidate, GRADE_ORDER, GRADE_RISK_USD, type GradeLabel } from "@/lib/research/grading";
 
 
 const IST_OFFSET_MIN = 330;

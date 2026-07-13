@@ -755,6 +755,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             exchange_order_id: wdAttempt.res.exchangeOrderId || null,
             qty: wdAttempt.finalQty,
             updated_at: new Date().toISOString(),
+            ...placementFields(wdAttempt, existingSetup.qty),
           })
           .eq("id", existingSetup.id);
         actions.push(`watchdog_replaced ${existingSetup.side} qty=${wdAttempt.finalQty.toFixed(4)} pending=${wdAttempt.res.exchangeOrderId ?? "?"}`);
@@ -766,10 +767,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             close_reason: isRecoverableCapacityError(wdAttempt.error) ? "rearm_with_ai" : "manual",
             closed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            ...placementFields(wdAttempt, existingSetup.qty),
           })
           .eq("id", existingSetup.id);
         actions.push(`watchdog_replace_failed ${existingSetup.side} err=${wdAttempt.error ?? "unknown"}`);
       }
+
 
     } else if (
 

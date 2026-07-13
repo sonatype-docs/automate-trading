@@ -1289,7 +1289,17 @@ export async function repriceArmedSetupsNow(): Promise<{
 
     // 1) Cancel the still-pending exchange order.
     try {
-      await client.cancelOrder(oldOid, s.symbol);
+      const cancel = await client.cancelOrder(oldOid, s.symbol);
+      if (!cancel.ok) {
+        await log("warn", "reprice_now: cancel rejected, skipping replace", {
+          setup_id: setup.id,
+          exchange_order_id: oldOid,
+          status: cancel.status,
+          body: cancel.body.slice(0, 300),
+        });
+        actions.push(`reprice_now_cancel_failed ${side} [${cancel.status}]`);
+        continue;
+      }
     } catch (e) {
       // If cancel fails the order may have already filled — bail on this setup.
       await log("warn", "reprice_now: cancel failed, skipping replace", {

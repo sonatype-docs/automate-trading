@@ -1114,7 +1114,7 @@ export function simulateFromKlines(
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
-    sl_risk_usd: daySlRisk,
+    sl_risk_usd: opts.slRiskUsd,
     rr: opts.rr,
     days_requested: opts.days,
     from_ms: fromMs,

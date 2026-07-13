@@ -1100,7 +1100,9 @@ function StrategyCard() {
   });
 
   const trailSaveMut = useMutation({
-    mutationFn: (patch: {
+    mutationFn: async (patch: {
+      enabled?: boolean;
+      symbol?: string;
       trail_enabled?: boolean;
       trail_activate_r?: number;
       trail_step_r?: number;
@@ -1108,10 +1110,33 @@ function StrategyCard() {
       session_start_ist?: string;
       sl_risk_usd?: number;
       rr?: number;
-    }) => updateStrat({ data: patch }),
-    onSuccess: () => {
-      toast.success("Strategy settings saved");
+      entry_mode?: "fib" | "retest" | "market" | "adaptive";
+      entry_depth_pct?: number;
+      sl_depth_pct?: number;
+      adaptive_strong_break_pct?: number;
+      adaptive_shallow_depth?: number;
+      adaptive_deep_depth?: number;
+      retest_sl_r?: number;
+    }) => {
+      const saved = await updateStrat({ data: patch });
+      // Any change re-prices today's still-armed exchange order so live orders
+      // reflect the new entry / SL / TP / risk immediately.
+      const reprice = await repriceNow().catch((e: Error) => ({
+        actions: [] as string[],
+        reason: e.message,
+      }));
+      return { saved, reprice };
+    },
+    onSuccess: (r) => {
+      const acts = r.reprice?.actions ?? [];
+      const replaced = acts.filter((a) => a.startsWith("reprice_now ")).length;
+      toast.success(
+        replaced > 0
+          ? `Saved · re-priced ${replaced} armed order${replaced === 1 ? "" : "s"}`
+          : "Saved · no armed orders to re-price"
+      );
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

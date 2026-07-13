@@ -1,7 +1,7 @@
 import { type Kline } from "@/lib/exchange/shark-client.server";
 import { getKlineSource, type KlineSourceId } from "@/lib/exchange/kline-source.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
-import { needsDailyBias } from "@/lib/strategy/filters";
+
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 import {
   computeEntry,

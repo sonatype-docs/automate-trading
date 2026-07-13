@@ -286,7 +286,7 @@ const EntryOverrideSchema = z
 
 
 const RangeSchema = z.object({
-  days: z.number().int().min(1).max(365),
+  days: z.number().int().min(1).max(730),
   trail_enabled: z.boolean().optional(),
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
@@ -454,7 +454,7 @@ export const backtestSessionsCompare = createServerFn({ method: "POST" })
 
 const LiquiditySweepSchema = z.object({
   symbol: z.string().min(3).max(24),
-  days: z.number().int().min(1).max(365),
+  days: z.number().int().min(1).max(730),
   sl_risk_usd: z.number().positive(),
   rr: z.number().positive(),
   asian_start_ist: z.number().int().min(0).max(23),
@@ -493,7 +493,7 @@ export const backtestLiquiditySweep = createServerFn({ method: "POST" })
 
 const SilverBulletSchema = z.object({
   symbol: z.string().min(3).max(24),
-  days: z.number().int().min(1).max(365),
+  days: z.number().int().min(1).max(730),
   sl_risk_usd: z.number().positive(),
   rr: z.number().positive(),
   window_start_ist: z.string().regex(/^\d{2}:\d{2}$/).optional(),
@@ -532,7 +532,7 @@ export const backtestSilverBullet = createServerFn({ method: "POST" })
 
 const EntryZoneSweepSchema = z.object({
   symbol: z.string().min(3).max(24),
-  days: z.number().int().min(1).max(365),
+  days: z.number().int().min(1).max(730),
   session_start_ist: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   sl_risk_usd: z.number().positive(),
   rr: z.number().positive(),
@@ -650,7 +650,7 @@ export const applyStrategyPreset = createServerFn({ method: "POST" })
 
 const SweepSchema = z.object({
   symbol: z.string().min(3).max(24),
-  ranges: z.array(z.number().int().min(1).max(365)).min(1).max(6),
+  ranges: z.array(z.number().int().min(1).max(730)).min(1).max(6),
   sl_risk_usd: z.number().positive(),
   rr: z.number().positive(),
   trail_enabled: z.boolean().optional(),
@@ -683,7 +683,7 @@ export const sweepHoursBacktest = createServerFn({ method: "POST" })
 const OptimizerSchema = z.object({
   strategy: z.enum(["silver_bullet", "asian_sweep", "orb_sessions"]),
   symbol: z.string().min(3).max(24),
-  windows: z.array(z.number().int().min(15).max(365)).min(1).max(5),
+  windows: z.array(z.number().int().min(15).max(730)).min(1).max(5),
   sl_risk_usd: z.number().positive(),
   skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
   population: z.number().int().min(20).max(120).optional(),

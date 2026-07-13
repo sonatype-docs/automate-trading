@@ -301,6 +301,7 @@ const RangeSchema = z.object({
   fee_rate: z.number().min(0).max(0.01).optional(),
   fee_usd_per_order: z.number().min(0).max(1000).optional(),
   zone_source: z.enum(["range", "breakout"]).optional(),
+  data_source: z.enum(["shark", "yahoo"]).optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -342,6 +343,7 @@ export const backtestRange = createServerFn({ method: "POST" })
       feeRate: data.fee_rate,
       feeUsdPerOrder: data.fee_usd_per_order,
       zoneSource: data.zone_source,
+      dataSource: data.data_source,
     });
   });
 

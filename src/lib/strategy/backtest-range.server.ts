@@ -1,4 +1,5 @@
-import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import { type Kline } from "@/lib/exchange/shark-client.server";
+import { getKlineSource, type KlineSourceId } from "@/lib/exchange/kline-source.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
 import { needsDailyBias } from "@/lib/strategy/filters";
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
@@ -215,12 +216,14 @@ export async function runBacktestRange(opts: {
   feeUsdPerOrder?: number;
   /** "range" = fib zone from opening range candle (default). "breakout" = fib zone from the breakout candle itself. */
   zoneSource?: "range" | "breakout";
+  /** Historical candle source. "shark" (default, ~180d) or "yahoo" (GC=F, ~730d, no key). */
+  dataSource?: KlineSourceId;
 }): Promise<RangeBacktestResult> {
 
-  const client = createSharkClient();
+  const source = await getKlineSource(opts.dataSource ?? "shark");
   const now = Date.now();
   const fromMs = now - opts.days * 86_400_000;
-  const klines: Kline[] = await client.getKlinesRange(opts.symbol, "1h", fromMs, now);
+  const klines: Kline[] = await source.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
   let dailyBias: Map<string, DailyBiasEntry> | undefined;
   if (needsDailyBias(opts.filters)) {
@@ -231,7 +234,7 @@ export async function runBacktestRange(opts: {
     const atrSqueezeLookback = opts.filters?.quality?.atr_squeeze_lookback ?? 20;
     const warmupDays = Math.max(emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 10;
     const dailyFromMs = fromMs - warmupDays * 86_400_000;
-    const daily = await client.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
+    const daily = await source.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
     dailyBias = computeDailyBias(daily, {
       emaLen,
       atrLen,

@@ -1486,6 +1486,28 @@ function StrategyCard() {
                   </div>
                 );
               })}
+              {pendingRearm.map((a) => {
+                const notional = a.entry_price * a.qty;
+                return (
+                  <div key={a.id} className="px-3 py-2 text-xs font-mono bg-warning-soft/30">
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 items-center">
+                      <span className={a.side === "long" ? "text-long" : "text-short"}>
+                        {a.side.toUpperCase()}
+                      </span>
+                      <span>entry {a.entry_price.toFixed(2)}</span>
+                      <span>sl {a.sl_price.toFixed(2)}</span>
+                      <span>tp {a.tp_price.toFixed(2)}</span>
+                      <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
+                      <span className="uppercase text-warning">pending re-arm</span>
+                      <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
+                      <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <RejectionReasonBanner setupIds={active.map((a) => a.id)} logs={(q.data?.logs ?? []) as LogRow[]} />
             <GradeRiskTable

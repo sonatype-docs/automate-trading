@@ -346,6 +346,53 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_setup_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          exchange_order_id: string | null
+          id: string
+          leverage: number | null
+          payload: Json | null
+          price: number | null
+          qty: number | null
+          reason: string | null
+          setup_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          exchange_order_id?: string | null
+          id?: string
+          leverage?: number | null
+          payload?: Json | null
+          price?: number | null
+          qty?: number | null
+          reason?: string | null
+          setup_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          exchange_order_id?: string | null
+          id?: string
+          leverage?: number | null
+          payload?: Json | null
+          price?: number | null
+          qty?: number | null
+          reason?: string | null
+          setup_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "strategy_setup_events_setup_id_fkey"
+            columns: ["setup_id"]
+            isOneToOne: false
+            referencedRelation: "strategy_setups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       strategy_setups: {
         Row: {
           ai_grade: string | null

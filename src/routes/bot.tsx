@@ -85,11 +85,21 @@ function BotPage() {
     trail_enabled: boolean;
     trail_activate_r: number;
     trail_step_r: number;
-    skip_weekends: boolean;
+    skip_weekdays: number[];
+    fee_usd_per_order: number;
+    zone_source: "range" | "breakout";
+    data_source: "shark" | "yahoo";
   } | null>(null);
 
   useEffect(() => {
     if (!settings || form) return;
+    const s = settings as unknown as Record<string, unknown>;
+    const legacySkip = !!(s.skip_weekends);
+    const skipArr = Array.isArray(s.skip_weekdays)
+      ? (s.skip_weekdays as unknown[]).map((n) => Number(n))
+      : legacySkip
+        ? [0]
+        : [6];
     setForm({
       enabled: !!settings.enabled,
       symbol: settings.symbol,
@@ -106,9 +116,13 @@ function BotPage() {
       trail_enabled: !!settings.trail_enabled,
       trail_activate_r: Number(settings.trail_activate_r ?? 2),
       trail_step_r: Number(settings.trail_step_r ?? 1),
-      skip_weekends: !!settings.skip_weekends,
+      skip_weekdays: skipArr,
+      fee_usd_per_order: Number(s.fee_usd_per_order ?? 0),
+      zone_source: ((s.zone_source as string) ?? "range") === "breakout" ? "breakout" : "range",
+      data_source: ((s.data_source as string) ?? "shark") === "yahoo" ? "yahoo" : "shark",
     });
   }, [settings, form]);
+
 
   const saveMut = useMutation({
     mutationFn: (patch: Record<string, unknown>) => update({ data: patch }),

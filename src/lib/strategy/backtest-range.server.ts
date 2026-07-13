@@ -261,6 +261,7 @@ export function simulateFromKlines(
     dailyBias?: Map<string, DailyBiasEntry>;
     entry?: EntryConfig;
     feeRate?: number;
+    zoneSource?: "range" | "breakout";
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;

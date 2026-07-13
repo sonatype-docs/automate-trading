@@ -213,7 +213,7 @@ async function scoreLiveAiSetup(args: {
   }
 
   try {
-    const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
+    const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_RISK_USD, GRADE_ORDER } = await import("@/lib/research/grading");
     const bc = findBreakCandle(klines, session, breakClose);
     const bcRange = bc ? bc.high - bc.low : 0;
     const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
@@ -237,20 +237,31 @@ async function scoreLiveAiSetup(args: {
       quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
     };
     const graded = scoreCandidate(candidate as never, s.ai_grading_model as Parameters<typeof scoreCandidate>[1]);
-    const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+    // Absolute per-grade SL$ table is the source of truth.
+    // A user-supplied override (settings.ai_risk_multipliers, when values look
+    // like absolute USD amounts, i.e. any value > 5) is treated as an override map.
+    const overrideMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
       ? (s.ai_risk_multipliers as Record<string, number>)
-      : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
-    const mult = Number(multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0);
+      : null);
+    const overrideRaw = overrideMap ? Number(overrideMap[graded.grade]) : NaN;
+    const overrideIsAbsolute = Number.isFinite(overrideRaw) && overrideRaw > 5;
+    const effectiveSlRiskUsd = overrideIsAbsolute
+      ? overrideRaw
+      : Number(GRADE_RISK_USD[graded.grade] ?? 0);
+    const mult = baseRisk > 0 ? effectiveSlRiskUsd / baseRisk : 0;
     const minGradeCandidate = String(s.ai_min_grade ?? "B");
     const minGrade = (GRADE_ORDER as readonly string[]).includes(minGradeCandidate) ? minGradeCandidate : "B";
     const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
     const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);
+    // Reference DEFAULT_RISK_MULTIPLIERS so lint/tree-shake keeps the import
+    // (kept for backward compatibility with older settings payloads).
+    void DEFAULT_RISK_MULTIPLIERS;
     return {
       grade: graded.grade,
       score: graded.score,
       riskMult: mult,
-      effectiveSlRiskUsd: baseRisk * mult,
-      skipped: gradeRank > minRank || mult <= 0,
+      effectiveSlRiskUsd,
+      skipped: gradeRank > minRank || effectiveSlRiskUsd <= 0,
       minGrade,
     };
   } catch (e) {

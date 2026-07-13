@@ -1641,7 +1641,7 @@ function GradeRiskTable({
   );
 }
 
-  "A+++": "bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-100 dark:border-emerald-400/50",
+const GRADE_BADGE_STYLES: Record<string, string> = {
   "A++": "bg-green-500 text-white border-green-600 dark:bg-green-500/25 dark:text-green-100 dark:border-green-400/50",
   "A+": "bg-lime-500 text-neutral-900 border-lime-600 dark:bg-lime-500/25 dark:text-lime-100 dark:border-lime-400/50",
   A: "bg-yellow-400 text-neutral-900 border-yellow-500 dark:bg-yellow-500/25 dark:text-yellow-100 dark:border-yellow-400/50",

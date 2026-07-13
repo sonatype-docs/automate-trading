@@ -731,7 +731,9 @@ export function simulateFromKlines(
   const openCount = days.filter((d) => d.outcome === "open").length;
   const armedNoTrigger = days.filter((d) => d.outcome === "armed_no_trigger").length;
   const decided = tp + sl;
-  const winRate = decided > 0 ? (tp / decided) * 100 : 0;
+  // Any closed trade with positive realized P&L counts as a win (includes trailed exits).
+  const winCount = days.filter((d) => (d.outcome === "tp" || d.outcome === "sl") && d.pnl_usd > 0).length;
+  const winRate = decided > 0 ? (winCount / decided) * 100 : 0;
   const totalPnl = days.reduce((s, d) => s + d.pnl_usd, 0);
   const rMultiples = days
     .filter((d) => d.outcome === "tp" || d.outcome === "sl")

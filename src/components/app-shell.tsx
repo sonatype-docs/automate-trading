@@ -30,12 +30,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           Skip to main content
         </a>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl supports-[backdrop-filter]:bg-background/50">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/50 bg-background/60 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/40">
           <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation" />
-          <Separator orientation="vertical" className="h-5" />
+          <Separator orientation="vertical" className="h-5 opacity-60" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_10px_var(--color-primary)]" aria-hidden />
+            <div className="flex items-center gap-2.5">
+              <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
+                <span className="absolute inset-0 rounded-full bg-primary/50 animate-ping" />
+                <span className="relative inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
+              </span>
               <h1 className="truncate font-display text-sm font-semibold tracking-tight">{title}</h1>
             </div>
           </div>

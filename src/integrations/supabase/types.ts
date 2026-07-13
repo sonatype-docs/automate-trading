@@ -268,6 +268,7 @@ export type Database = {
           entry_mode: string
           fee_usd_per_order: number
           id: boolean
+          max_reprice_attempts: number
           retest_sl_r: number
           rr: number
           session_start_ist: string
@@ -299,6 +300,7 @@ export type Database = {
           entry_mode?: string
           fee_usd_per_order?: number
           id?: boolean
+          max_reprice_attempts?: number
           retest_sl_r?: number
           rr?: number
           session_start_ist?: string
@@ -330,6 +332,7 @@ export type Database = {
           entry_mode?: string
           fee_usd_per_order?: number
           id?: boolean
+          max_reprice_attempts?: number
           retest_sl_r?: number
           rr?: number
           session_start_ist?: string
@@ -418,6 +421,7 @@ export type Database = {
           placement_status: string | null
           pnl_usd: number | null
           qty: number
+          reprice_count: number
           requested_qty: number | null
           side: string
           sl_child_order_id: string | null
@@ -452,6 +456,7 @@ export type Database = {
           placement_status?: string | null
           pnl_usd?: number | null
           qty: number
+          reprice_count?: number
           requested_qty?: number | null
           side: string
           sl_child_order_id?: string | null
@@ -486,6 +491,7 @@ export type Database = {
           placement_status?: string | null
           pnl_usd?: number | null
           qty?: number
+          reprice_count?: number
           requested_qty?: number | null
           side?: string
           sl_child_order_id?: string | null

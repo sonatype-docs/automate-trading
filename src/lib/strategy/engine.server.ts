@@ -930,7 +930,26 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               !sameNullableNumber(existingSetup.ai_risk_mult, aiDecision.riskMult, 4)
             )));
 
-        if (changed) {
+        // Hard cap on cancel+replace cycles per setup — belt-and-suspenders
+        // in case a future "changed" condition regresses into a loop.
+        const maxRepriceAttempts = Number(
+          (s as unknown as { max_reprice_attempts?: number }).max_reprice_attempts ?? 5,
+        );
+        const priorReprices = Number(
+          (existingSetup as unknown as { reprice_count?: number | null }).reprice_count ?? 0,
+        );
+        const overLimit = changed && priorReprices >= maxRepriceAttempts;
+        if (overLimit) {
+          await log("warn", "auto-reprice: attempt limit reached — leaving live order in place", {
+            setup_id: existingSetup.id,
+            exchange_order_id: existingSetup.exchange_order_id,
+            reprice_count: priorReprices,
+            max_reprice_attempts: maxRepriceAttempts,
+          });
+          actions.push(`auto_reprice_limit_reached ${side} count=${priorReprices}/${maxRepriceAttempts}`);
+        }
+
+        if (changed && !overLimit) {
           // Auto cancel + replace so the live order always reflects the
           // current AI grade / multiplier / risk-based qty. Previously we
           // logged "manual reprice required" which left stale qty on the
@@ -982,6 +1001,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     initial_sl_price: sl,
                     tp_price: tp,
                     qty: exchangeQty,
+                    reprice_count: priorReprices + 1,
                     ai_grade: aiDecision.grade,
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
@@ -1005,6 +1025,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     initial_sl_price: sl,
                     tp_price: tp,
                     qty: attempt.finalQty,
+                    reprice_count: priorReprices + 1,
                     status: "armed",
                     exchange_order_id: attempt.res.exchangeOrderId || null,
                     close_reason: null,
@@ -1642,6 +1663,26 @@ export async function repriceArmedSetupsNow(): Promise<{
       continue;
     }
 
+    // Hard cap on cancel+replace cycles per setup — prevents infinite
+    // reprice loops even if a change condition keeps flipping tick to tick.
+    const maxRepriceAttempts = Number(
+      (s as unknown as { max_reprice_attempts?: number }).max_reprice_attempts ?? 5,
+    );
+    const priorReprices = Number(
+      (setup as unknown as { reprice_count?: number | null }).reprice_count ?? 0,
+    );
+    if (priorReprices >= maxRepriceAttempts) {
+      await log("warn", "reprice_now: attempt limit reached — leaving live order in place", {
+        setup_id: setup.id,
+        exchange_order_id: oldOid,
+        reprice_count: priorReprices,
+        max_reprice_attempts: maxRepriceAttempts,
+      });
+      actions.push(`reprice_now_limit_reached ${side} count=${priorReprices}/${maxRepriceAttempts}`);
+      continue;
+    }
+
+
     // 1) Cancel the still-pending exchange order.
     try {
       const cancel = await client.cancelOrder(oldOid, s.symbol);
@@ -1702,6 +1743,7 @@ export async function repriceArmedSetupsNow(): Promise<{
           initial_sl_price: sl,
           tp_price: tp,
           qty: roundExchangeQty(requestedQty),
+          reprice_count: priorReprices + 1,
           ai_grade: aiDecision.grade,
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
@@ -1727,6 +1769,7 @@ export async function repriceArmedSetupsNow(): Promise<{
         initial_sl_price: sl,
         tp_price: tp,
         qty: attempt.finalQty,
+        reprice_count: priorReprices + 1,
         status: "armed",
         exchange_order_id: attempt.res.exchangeOrderId || null,
         close_reason: null,

@@ -931,19 +931,64 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await log("warn", "trade-history lookup failed", { setup_id: setup.id, error: (e as Error).message });
         }
         if (!fill?.price) {
-          await log("warn", "armed order disappeared without fill; not auto-replacing to avoid duplicate live orders", {
+          // Watchdog auto-replace: an armed setup has no live pending order and
+          // no fill on record. Re-place the same setup at its stored entry/SL/TP
+          // and qty so the book always has a working order for the active plan.
+          await log("warn", "watchdog: armed order missing on exchange without fill; auto-replacing", {
             setup_id: setup.id,
             missing_exchange_order_id: oid,
             qty: setup.qty,
             entry: setup.entry_price,
           });
-          await supabaseAdmin
-            .from("strategy_setups")
-            .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
-            .eq("id", setup.id);
-          actions.push(`missing_pending_manual_rearm_required ${setup.side}`);
+          const wdSide: "buy" | "sell" = setup.side === "long" ? "buy" : "sell";
+          const wdAttempt = await placeOrderWithMarginRetry(client, {
+            symbol: setup.symbol,
+            side: wdSide,
+            qty: setup.qty,
+            type: "limit",
+            price: setup.entry_price,
+            stopLossPrice: setup.sl_price,
+            takeProfitPrice: setup.tp_price,
+          });
+          if (wdAttempt.res) {
+            await supabaseAdmin
+              .from("strategy_setups")
+              .update({
+                exchange_order_id: wdAttempt.res.exchangeOrderId || null,
+                qty: wdAttempt.finalQty,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", setup.id);
+            await log("info", "watchdog: re-placed missing pending order", {
+              setup_id: setup.id,
+              new_exchange_order_id: wdAttempt.res.exchangeOrderId,
+              qty: wdAttempt.finalQty,
+              capped: wdAttempt.capped,
+              attempts: wdAttempt.attempts,
+            });
+            actions.push(`watchdog_replaced ${setup.side} qty=${wdAttempt.finalQty.toFixed(4)} pending=${wdAttempt.res.exchangeOrderId ?? "?"}`);
+          } else {
+            // Placement genuinely failed (even after leverage + capped fallback).
+            // Mark as cancelled + rearm-eligible so the next tick tries again.
+            await supabaseAdmin
+              .from("strategy_setups")
+              .update({
+                status: "cancelled",
+                close_reason: isRecoverableCapacityError(wdAttempt.error) ? "rearm_with_ai" : "manual",
+                closed_at: new Date().toISOString(),
+                exchange_order_id: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", setup.id);
+            await log("error", "watchdog: re-place failed; setup marked for rearm on next tick", {
+              setup_id: setup.id,
+              error: wdAttempt.error,
+            });
+            actions.push(`watchdog_replace_failed ${setup.side} err=${wdAttempt.error ?? "unknown"}`);
+          }
           continue;
         }
+
         const fillPrice = fill.price;
         // Record an orders row for accounting + update position
         const webhookEventId = await ensureStrategyEvent(setup, "entry");

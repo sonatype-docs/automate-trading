@@ -367,8 +367,36 @@ async function placeOrderWithMarginRetry(
       break;
     }
   }
+
+  // Final safety net: leverage escalation was exhausted but user requires an
+  // order on the book. Try progressively smaller qty so a pending order lands.
+  // This intentionally deviates from the AI-planned SL risk — logged as capped.
+  if (isRecoverableCapacityError(lastError)) {
+    const cappedSteps = [0.75, 0.5, 0.33, 0.2];
+    for (const frac of cappedSteps) {
+      const cappedQty = roundExchangeQty(qty * frac);
+      if (cappedQty < minQty) continue;
+      attempts += 1;
+      try {
+        const res = await client.placeOrder({ ...params, qty: cappedQty });
+        if (res.status === "rejected") {
+          lastError = "exchange rejected";
+          continue;
+        }
+        await log("warn", "place: capped-qty fallback placed after leverage escalation exhausted", {
+          symbol: params.symbol, side: params.side, planned_qty: qty, capped_qty: cappedQty, fraction: frac,
+        });
+        return { res, finalQty: cappedQty, error: null, attempts, capped: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        lastError = msg;
+        if (!isRecoverableCapacityError(msg)) break;
+      }
+    }
+  }
   return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false };
 }
+
 
 
 export async function runStrategyTick(): Promise<StrategyTickResult> {

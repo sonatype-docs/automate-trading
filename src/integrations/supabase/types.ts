@@ -363,8 +363,15 @@ export type Database = {
           ist_date: string
           order_id: string | null
           peak_r: number
+          placement_at: string | null
+          placement_attempts: number | null
+          placement_capped: boolean | null
+          placement_error: string | null
+          placement_leverage: number | null
+          placement_status: string | null
           pnl_usd: number | null
           qty: number
+          requested_qty: number | null
           side: string
           sl_child_order_id: string | null
           sl_price: number
@@ -390,8 +397,15 @@ export type Database = {
           ist_date: string
           order_id?: string | null
           peak_r?: number
+          placement_at?: string | null
+          placement_attempts?: number | null
+          placement_capped?: boolean | null
+          placement_error?: string | null
+          placement_leverage?: number | null
+          placement_status?: string | null
           pnl_usd?: number | null
           qty: number
+          requested_qty?: number | null
           side: string
           sl_child_order_id?: string | null
           sl_price: number
@@ -417,8 +431,15 @@ export type Database = {
           ist_date?: string
           order_id?: string | null
           peak_r?: number
+          placement_at?: string | null
+          placement_attempts?: number | null
+          placement_capped?: boolean | null
+          placement_error?: string | null
+          placement_leverage?: number | null
+          placement_status?: string | null
           pnl_usd?: number | null
           qty?: number
+          requested_qty?: number | null
           side?: string
           sl_child_order_id?: string | null
           sl_price?: number

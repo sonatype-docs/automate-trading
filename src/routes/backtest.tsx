@@ -802,7 +802,14 @@ function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: numbe
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-sm font-mono tracking-widest">RESULTS</CardTitle>
+            <CardTitle className="text-sm font-mono tracking-widest">
+              RESULTS
+              {hourFilter != null && (
+                <span className="ml-2 rounded border border-primary/60 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
+                  Hour {String(hourFilter).padStart(2, "0")}:00
+                </span>
+              )}
+            </CardTitle>
             <p className="text-xs text-muted-foreground">
               {data.symbol} · IST {data.session_start_ist} · SL ${data.sl_risk_usd} · RR 1:{data.rr}
               {" · "}

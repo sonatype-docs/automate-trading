@@ -1579,6 +1579,7 @@ export async function repriceArmedSetupsNow(): Promise<{
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
+          ...placementFields(attempt, requestedQty),
         })
         .eq("id", setup.id);
       await log("error", "reprice_now: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
@@ -1607,8 +1608,10 @@ export async function repriceArmedSetupsNow(): Promise<{
         ai_score: aiDecision.score,
         ai_risk_mult: aiDecision.riskMult,
         updated_at: new Date().toISOString(),
+        ...placementFields(attempt, requestedQty),
       })
       .eq("id", setup.id);
+
 
     await log("info", "reprice_now: replaced live order", {
       setup_id: setup.id,

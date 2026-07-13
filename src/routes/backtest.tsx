@@ -65,6 +65,7 @@ interface FormState {
   retestSlR: number;
   zoneSource: "range" | "breakout";
   feeUsdPerOrder: number;
+  dataSource: "shark" | "yahoo";
 }
 
 function BacktestLab() {
@@ -112,6 +113,7 @@ function BacktestLab() {
       retestSlR: Number(s.retest_sl_r ?? 0.5),
       zoneSource: "range",
       feeUsdPerOrder: 0,
+      dataSource: "shark",
     });
   }
 
@@ -139,6 +141,7 @@ function BacktestLab() {
           },
           zone_source: f.zoneSource,
           fee_usd_per_order: f.feeUsdPerOrder,
+          data_source: f.dataSource,
         },
       }),
     onSuccess: (r) => {

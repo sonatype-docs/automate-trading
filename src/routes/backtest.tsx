@@ -81,6 +81,10 @@ function BacktestLab() {
   const [result, setResult] = useState<RangeData | null>(null);
   const [filters, setFilters] = useState<NonNullable<FilterConfig>>(DEFAULT_FILTERS);
   const [hourFilter, setHourFilter] = useState<number | null>(null);
+  // Cache per-hour re-runs so switching between hours is instant after
+  // the first request. Key: hour number (0-23). "All" = the base `result`.
+  const [hourCache, setHourCache] = useState<Record<number, RangeData>>({});
+  const [hourLoading, setHourLoading] = useState<number | null>(null);
 
   // Seed the form once settings load.
   const s = settingsQ.data?.settings as

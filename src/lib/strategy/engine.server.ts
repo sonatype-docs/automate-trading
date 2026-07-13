@@ -54,11 +54,16 @@ interface StrategySettingsRow {
   trail_activate_r?: number;
   trail_step_r?: number;
   skip_weekends?: boolean;
+  skip_weekdays?: number[] | null;
+  fee_usd_per_order?: number;
+  zone_source?: "range" | "breakout" | null;
+  data_source?: "shark" | "yahoo" | null;
   ai_grading_enabled?: boolean;
   ai_grading_model?: unknown;
   ai_risk_multipliers?: Record<string, number> | null;
   ai_min_grade?: string;
 }
+
 
 
 interface SessionRow {

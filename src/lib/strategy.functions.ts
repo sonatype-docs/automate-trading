@@ -463,6 +463,26 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
   return { session: sessionRow, setups: setups ?? [], orders };
 });
 
+/**
+ * Timeline of lifecycle events for a single strategy setup — placement
+ * attempts, exchange order IDs, cancels, watchdog rearms, fills, and closes.
+ * Returns the newest 50 events, most recent first.
+ */
+export const getSetupTimeline = createServerFn({ method: "GET" })
+  .validator((input: unknown) =>
+    z.object({ setupId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: events } = await supabase
+      .from("strategy_setup_events")
+      .select("id, event_type, exchange_order_id, leverage, qty, price, reason, payload, created_at")
+      .eq("setup_id", data.setupId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { events: events ?? [] };
+  });
+
 function entryFromSettings(settings: Record<string, unknown>) {
   return {
     mode: (settings.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "fib",

@@ -303,8 +303,8 @@ async function placeOrderWithMarginRetry(
   const qty = roundExchangeQty(params.qty);
   let attempts = 0;
   let lastError: string | null = null;
-  // Higher leverage reduces initial margin -> use on "insufficient margin".
-  const marginLevSteps = [75, 100, 125];
+  // Exchange caps leverage at 75x — use it as the standard/max for margin relief.
+  const marginLevSteps = [75];
   // Lower leverage reduces effective notional cap -> use on "max position size".
   const capLevSteps = [50, 25, 10];
   let marginStepIdx = 0;

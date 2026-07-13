@@ -1131,19 +1131,38 @@ export async function repriceArmedSetupsNow(): Promise<{
   const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
   const client = createSharkClient();
 
+  // Preload klines if breakout zone source is on so we can locate the break bar.
+  let repriceKlines: Kline[] | null = null;
+  if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+    try {
+      const src = (s.data_source ?? "shark") === "yahoo" ? await getKlineSource("yahoo") : null;
+      repriceKlines = src ? await src.getKlines(s.symbol, "1h", 96) : await client.getKlines(s.symbol, "1h", 96);
+    } catch {
+      repriceKlines = null;
+    }
+  }
+
   for (const setup of armed) {
     const side = setup.side;
     const oldOid = setup.exchange_order_id!;
     const breakClose = Number(
       session.break_close_price ?? (side === "long" ? session.zone_high : session.zone_low),
     );
+    let rzh = session.zone_high;
+    let rzl = session.zone_low;
+    if (repriceKlines && session.break_detected_at) {
+      const bt = new Date(session.break_detected_at).getTime();
+      const bb = repriceKlines.find((k) => k.closeTime === bt) ?? repriceKlines.find((k) => k.openTime === bt - 3_600_000);
+      if (bb) { rzh = bb.high; rzl = bb.low; }
+    }
     const { entry, sl, market } = computeEntry(
       side,
-      session.zone_high,
-      session.zone_low,
+      rzh,
+      rzl,
       breakClose,
       cfg,
     );
+
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
     const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;

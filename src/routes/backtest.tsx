@@ -155,6 +155,8 @@ function BacktestLab() {
       }),
     onSuccess: (r) => {
       setResult(r);
+      setHourCache({});
+      setHourFilter(null);
       toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),

@@ -145,7 +145,12 @@ export const ORB_WINNING_PRESET = {
   sl_risk_usd: 25,
   trail_enabled: false,
   skip_weekends: false,
+  skip_weekdays: [6],
+  fee_usd_per_order: 0,
+  zone_source: "range" as const,
+  data_source: "shark" as const,
 };
+
 
 export const applyOrbWinningPreset = createServerFn({ method: "POST" }).handler(async () => {
   const supabase = await admin();

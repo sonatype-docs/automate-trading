@@ -173,11 +173,43 @@ function BacktestLab() {
             <Beaker className="w-5 h-5 text-primary shrink-0" />
             <span className="font-mono text-xs sm:text-sm tracking-widest truncate">BACKTEST LAB</span>
           </div>
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="shrink-0">
-              <ArrowLeft className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">Back to dashboard</span>
-            </Button>
-          </Link>
+  return (
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-14 z-20 border-b border-border/70 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/50">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-[0_6px_18px_-8px_var(--color-primary)]">
+              <Beaker className="w-4 h-4" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <div className="font-display text-sm font-semibold tracking-tight">Backtest Lab</div>
+              <div className="text-[11px] text-muted-foreground truncate">Isolated replays · live settings untouched</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {result && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (resultsRef.current) {
+                    const y = resultsRef.current.getBoundingClientRect().top + window.scrollY - 72;
+                    window.scrollTo({ top: y, behavior: "smooth" });
+                  }
+                }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 h-8 text-xs font-mono tracking-wide text-primary hover:bg-primary/20"
+              >
+                Jump to results
+                <span className={result.summary.net_pnl_usd >= 0 ? "text-long" : "text-short"}>
+                  {result.summary.net_pnl_usd >= 0 ? "+" : ""}${result.summary.net_pnl_usd.toFixed(2)}
+                </span>
+              </button>
+            )}
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="shrink-0">
+                <ArrowLeft className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">Dashboard</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 

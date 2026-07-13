@@ -63,6 +63,7 @@ interface FormState {
   entryDepthPct: number;
   slDepthPct: number;
   retestSlR: number;
+  zoneSource: "range" | "breakout";
 }
 
 function BacktestLab() {

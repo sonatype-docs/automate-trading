@@ -33,7 +33,7 @@ import { BacktestAnalytics } from "@/components/backtest-analytics";
 import { exportBacktest } from "@/lib/backtest-export";
 import { ResearchPanel } from "@/components/research/research-panel";
 import { HourFilterBar } from "@/components/research/hour-filter-bar";
-import { recomputeRangeDataForHour } from "@/lib/research/hour-filter";
+
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,

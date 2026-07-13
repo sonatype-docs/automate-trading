@@ -390,6 +390,22 @@ export function simulateFromKlines(
       body_bucket: null,
       or_bucket: null,
       break_distance_bucket: null,
+      daily_atr: null,
+      ema20: null,
+      ema50: null,
+      ema100: null,
+      ema200: null,
+      adx14: null,
+      prev_open: null,
+      prev_close: null,
+      prev_high: null,
+      prev_low: null,
+      prev2_high: null,
+      prev2_low: null,
+      upper_wick_pct: null,
+      lower_wick_pct: null,
+      close_position_pct: null,
+      candle_range_usd: null,
     };
 
 

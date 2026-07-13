@@ -634,3 +634,165 @@ function NumField({
     </Field>
   );
 }
+
+const GRADE_ORDER = ["A+++", "A++", "A+", "A", "B", "C"] as const;
+type GradeLabel = (typeof GRADE_ORDER)[number];
+const DEFAULT_MULTS: Record<GradeLabel, number> = {
+  "A+++": 2,
+  "A++": 1.5,
+  "A+": 1.25,
+  A: 1,
+  B: 0.5,
+  C: 0,
+};
+const GRADE_COLORS: Record<GradeLabel, string> = {
+  "A+++": "#10b981",
+  "A++": "#22c55e",
+  "A+": "#84cc16",
+  A: "#eab308",
+  B: "#f97316",
+  C: "#ef4444",
+};
+
+function AiGradingCard({
+  settings,
+  onSave,
+  saving,
+}: {
+  settings: Record<string, unknown> | undefined;
+  onSave: (patch: Record<string, unknown>) => void;
+  saving: boolean;
+}) {
+  const model = settings?.ai_grading_model as
+    | { trained_at: number; sample_size: number; symbol: string | null }
+    | null
+    | undefined;
+  const initialMults = (settings?.ai_risk_multipliers as Record<string, number> | null | undefined) ?? DEFAULT_MULTS;
+  const initialEnabled = !!settings?.ai_grading_enabled;
+  const initialMin = (settings?.ai_min_grade as GradeLabel | undefined) ?? "C";
+
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [minGrade, setMinGrade] = useState<GradeLabel>(initialMin);
+  const [mults, setMults] = useState<Record<GradeLabel, number>>(() => ({ ...DEFAULT_MULTS, ...initialMults }));
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (hydrated || !settings) return;
+    setEnabled(initialEnabled);
+    setMinGrade(initialMin);
+    setMults({ ...DEFAULT_MULTS, ...initialMults });
+    setHydrated(true);
+  }, [settings, hydrated, initialEnabled, initialMin, initialMults]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="h-4 w-4" /> AI Grade Sizing (Live)
+        </CardTitle>
+        <CardDescription>
+          Uses the model trained in Research → Grading. Each armed setup is scored A+++ → C and its risk is
+          multiplied by the grade multiplier below. Grades worse than "Min grade" are skipped entirely.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {model ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="default">Model loaded</Badge>
+            <Badge variant="outline">Sample: {model.sample_size} trades</Badge>
+            <Badge variant="outline">Symbol: {model.symbol ?? "any"}</Badge>
+            <Badge variant="outline">Trained: {new Date(model.trained_at).toLocaleString()}</Badge>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No model saved yet. Go to <strong>Backtest → Grading tab</strong>, train on your candidates, then click
+            <em> "Save to live"</em>. The toggle below only takes effect after a model is saved.
+          </p>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Enable AI grading">
+            <Switch checked={enabled} onCheckedChange={setEnabled} disabled={!model} />
+          </Field>
+          <Field label="Min grade to trade">
+            <Select value={minGrade} onValueChange={(v) => setMinGrade(v as GradeLabel)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {GRADE_ORDER.map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Base risk (from SL risk $ above)">
+            <div className="text-sm text-muted-foreground pt-2">
+              Effective risk = base × grade multiplier
+            </div>
+          </Field>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className="text-left p-2">Grade</th>
+                <th className="text-left p-2">Risk multiplier</th>
+                <th className="text-left p-2">Behaviour</th>
+              </tr>
+            </thead>
+            <tbody>
+              {GRADE_ORDER.map((g) => (
+                <tr key={g} className="border-t border-border">
+                  <td className="p-2 font-mono font-semibold" style={{ color: GRADE_COLORS[g] }}>{g}</td>
+                  <td className="p-2">
+                    <Input
+                      type="number"
+                      step={0.05}
+                      min={0}
+                      max={10}
+                      value={mults[g]}
+                      onChange={(e) =>
+                        setMults((prev) => ({ ...prev, [g]: Number(e.target.value) || 0 }))
+                      }
+                      className="h-8 w-24"
+                    />
+                  </td>
+                  <td className="p-2 text-muted-foreground">
+                    {mults[g] <= 0 ? "Skip" : `${mults[g]}x base risk`}
+                    {GRADE_ORDER.indexOf(g) > GRADE_ORDER.indexOf(minGrade) ? " · below min grade → skip" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            onClick={() =>
+              onSave({
+                ai_grading_enabled: enabled,
+                ai_min_grade: minGrade,
+                ai_risk_multipliers: mults,
+              })
+            }
+            disabled={saving}
+          >
+            Save AI grading settings
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setMults({ ...DEFAULT_MULTS });
+              setMinGrade("C");
+            }}
+            disabled={saving}
+          >
+            Reset defaults
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+

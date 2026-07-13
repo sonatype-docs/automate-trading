@@ -1494,12 +1494,12 @@ function StrategyCard() {
 }
 
 const GRADE_BADGE_STYLES: Record<string, string> = {
-  "A+++": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-  "A++": "bg-green-500/20 text-green-300 border-green-500/40",
-  "A+": "bg-lime-500/20 text-lime-300 border-lime-500/40",
-  A: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40",
-  B: "bg-orange-500/20 text-orange-300 border-orange-500/40",
-  C: "bg-red-500/20 text-red-300 border-red-500/40",
+  "A+++": "bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-100 dark:border-emerald-400/50",
+  "A++": "bg-green-500 text-white border-green-600 dark:bg-green-500/25 dark:text-green-100 dark:border-green-400/50",
+  "A+": "bg-lime-500 text-neutral-900 border-lime-600 dark:bg-lime-500/25 dark:text-lime-100 dark:border-lime-400/50",
+  A: "bg-yellow-400 text-neutral-900 border-yellow-500 dark:bg-yellow-500/25 dark:text-yellow-100 dark:border-yellow-400/50",
+  B: "bg-orange-500 text-white border-orange-600 dark:bg-orange-500/25 dark:text-orange-100 dark:border-orange-400/50",
+  C: "bg-red-500 text-white border-red-600 dark:bg-red-500/25 dark:text-red-100 dark:border-red-400/50",
 };
 
 function AiDecisionTile({

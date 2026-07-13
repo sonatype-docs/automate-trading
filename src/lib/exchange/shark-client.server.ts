@@ -69,13 +69,29 @@ export interface OpenOrderRow {
   filledAmount: number | null;
   stopLossPrice: number | null;
   takeProfitPrice: number | null;
+  /** For child SL/TP orders attached to a position: "STOP_LOSS" | "TAKE_PROFIT" | undefined. */
+  subType: string | null;
+  /** e.g. "ORDER_SL" / "ORDER_TP" / "ORDER". Helps identify SL/TP children. */
+  linkType: string | null;
+  /** True when the order is a reduce-only exit (SL/TP child). */
+  reduceOnly: boolean | null;
+  /** Stop trigger price for STOP_MARKET / STOP_LIMIT child orders. */
+  stopPrice: number | null;
   createdAt: string | null;
   raw: unknown;
+}
+
+export interface EditOrderParams {
+  clientOrderId: string;
+  stopPrice?: number;
+  price?: number;
+  quantity?: number;
 }
 
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
+  editOrder(p: EditOrderParams): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
@@ -95,6 +111,7 @@ export interface ExchangeClient {
   ): Promise<Kline[]>;
   getLastPrice(symbol: string): Promise<number>;
 }
+
 
 
 const BASE_URL = "https://api.sharkexchange.in";

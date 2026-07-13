@@ -1213,6 +1213,9 @@ function StrategyCard() {
     status: string;
     pnl_usd: number | null;
     close_reason: string | null;
+    ai_grade?: string | null;
+    ai_score?: number | null;
+    ai_risk_mult?: number | null;
   }>;
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
@@ -1352,7 +1355,7 @@ function StrategyCard() {
             <div className="text-xs font-mono text-muted-foreground mb-2">ACTIVE SETUPS</div>
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => (
-                <div key={a.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                <div key={a.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
                   <span className={a.side === "long" ? "text-long" : "text-short"}>
                     {a.side.toUpperCase()}
                   </span>
@@ -1361,6 +1364,7 @@ function StrategyCard() {
                   <span>tp {a.tp_price.toFixed(2)}</span>
                   <span>qty {a.qty.toFixed(4)}</span>
                   <span className="uppercase text-muted-foreground">{a.status}</span>
+                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} />
                 </div>
               ))}
             </div>
@@ -1386,7 +1390,7 @@ function StrategyCard() {
             <div className="text-xs font-mono text-muted-foreground mb-2">RECENT SETUPS</div>
             <div className="border border-border rounded divide-y divide-border">
               {closed.slice(0, 8).map((c) => (
-                <div key={c.id} className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-mono">
+                <div key={c.id} className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-mono items-center">
                   <span>{c.ist_date}</span>
                   <span className={c.side === "long" ? "text-long" : "text-short"}>
                     {c.side.toUpperCase()}
@@ -1397,6 +1401,7 @@ function StrategyCard() {
                   <span className={((c.pnl_usd ?? 0) >= 0) ? "text-long" : "text-short"}>
                     {c.pnl_usd == null ? "—" : `${c.pnl_usd >= 0 ? "+" : ""}${c.pnl_usd.toFixed(2)}`}
                   </span>
+                  <GradeBadge grade={c.ai_grade} score={c.ai_score} mult={c.ai_risk_mult} qty={c.qty} />
                 </div>
               ))}
             </div>
@@ -1404,6 +1409,45 @@ function StrategyCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const GRADE_BADGE_STYLES: Record<string, string> = {
+  "A+++": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+  "A++": "bg-green-500/20 text-green-300 border-green-500/40",
+  "A+": "bg-lime-500/20 text-lime-300 border-lime-500/40",
+  A: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40",
+  B: "bg-orange-500/20 text-orange-300 border-orange-500/40",
+  C: "bg-red-500/20 text-red-300 border-red-500/40",
+};
+
+function GradeBadge({
+  grade,
+  score,
+  mult,
+  qty,
+}: {
+  grade?: string | null;
+  score?: number | null;
+  mult?: number | null;
+  qty?: number | null;
+}) {
+  if (!grade) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
+        AI: off
+        {qty != null ? <span className="text-foreground">· qty {qty.toFixed(4)}</span> : null}
+      </span>
+    );
+  }
+  const cls = GRADE_BADGE_STYLES[grade] ?? "bg-muted text-foreground border-border";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-mono ${cls}`}>
+      <span className="font-bold">{grade}</span>
+      {score != null ? <span className="opacity-80">· {Math.round(score)}</span> : null}
+      {mult != null ? <span className="opacity-80">· {mult}x</span> : null}
+      {qty != null ? <span className="opacity-80">· qty {qty.toFixed(4)}</span> : null}
+    </span>
   );
 }
 
@@ -1418,6 +1462,9 @@ function LiveTradePanel({
     sl_price: number;
     tp_price: number;
     qty: number;
+    ai_grade?: string | null;
+    ai_score?: number | null;
+    ai_risk_mult?: number | null;
   };
   onChanged: () => void;
 }) {
@@ -1473,9 +1520,12 @@ function LiveTradePanel({
 
   return (
     <div className="border border-border rounded p-3 space-y-3 bg-muted/20">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-mono text-muted-foreground tracking-widest">
-          LIVE TRADE · <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span> · entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-xs font-mono text-muted-foreground tracking-widest flex items-center gap-2 flex-wrap">
+          <span>LIVE TRADE ·</span>
+          <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span>
+          <span>· entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}</span>
+          <GradeBadge grade={setup.ai_grade} score={setup.ai_score} mult={setup.ai_risk_mult} />
         </div>
         <div className="text-xs font-mono text-muted-foreground">
           risk {risk.toFixed(2)} · reward {reward.toFixed(2)} · RR 1:{rr.toFixed(2)}

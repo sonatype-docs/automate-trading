@@ -476,11 +476,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
       // ---- AI Grading gate + risk scaling (post-hoc model) ----
       let effectiveSlRiskUsd = s.sl_risk_usd;
-      // aiGradeInfo captured in action log for observability
+      let aiGrade: string | null = null;
+      let aiScore: number | null = null;
+      let aiRiskMult: number | null = null;
       if (s.ai_grading_enabled && s.ai_grading_model) {
         try {
           const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
-          // Build a partial live TradeFeatures from what we know now.
           const breakCandle = klines.find(
             (k) => k.openTime === new Date(session.break_detected_at ?? "").getTime() - 3_600_000 + 3_600_000,
           ) ?? klines.filter((k) => k.openTime > sessionCandle.openTime && k.close === breakClose)[0];
@@ -515,11 +516,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           const minGrade = (s.ai_min_grade ?? "C") as (typeof GRADE_ORDER)[number];
           const gradeRank = GRADE_ORDER.indexOf(graded.grade);
           const minRank = GRADE_ORDER.indexOf(minGrade);
-          void graded;
+          aiGrade = graded.grade;
+          aiScore = graded.score;
+          aiRiskMult = mult;
           if (gradeRank > minRank || mult <= 0) {
             await log("info", "ai_grade skip", { side, grade: graded.grade, score: graded.score, minGrade, mult });
             actions.push(`ai_skip ${side} grade=${graded.grade} score=${graded.score} < min=${minGrade}`);
-            // mark existing (cancelled row) untouched and exit arm branch
             return { ok: true, ist_date: todayIst, actions, session };
           }
           effectiveSlRiskUsd = s.sl_risk_usd * mult;
@@ -528,6 +530,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
         }
       }
+
 
       const requestedQty = risk > 0 ? effectiveSlRiskUsd / risk : 0;
       if (requestedQty > 0) {
@@ -570,6 +573,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           qty: finalQty,
           status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
+          ai_grade: aiGrade,
+          ai_score: aiScore,
+          ai_risk_mult: aiRiskMult,
           updated_at: new Date().toISOString(),
         };
         if (existingSetup) {

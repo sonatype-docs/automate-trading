@@ -1492,6 +1492,7 @@ function StrategyCard() {
                       <span>margin@10x <span className="text-foreground">${marginAt10x.toFixed(2)}</span></span>
                       <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
                     </div>
+                    <PlacementStatusRow setup={a} />
                   </div>
                 );
               })}
@@ -1514,10 +1515,12 @@ function StrategyCard() {
                       <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
                       <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
                     </div>
+                    <PlacementStatusRow setup={a} />
                   </div>
                 );
               })}
             </div>
+
             <RejectionReasonBanner setupIds={active.map((a) => a.id)} logs={(q.data?.logs ?? []) as LogRow[]} />
             <GradeRiskTable
               currentEntry={active[0]?.entry_price ?? null}

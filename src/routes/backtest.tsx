@@ -30,6 +30,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { BacktestAnalytics } from "@/components/backtest-analytics";
+import { exportBacktest } from "@/lib/backtest-export";
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,

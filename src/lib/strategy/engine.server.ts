@@ -772,6 +772,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     if (lastPrice == null) break;
     const initialSl = Number(setup.initial_sl_price ?? setup.sl_price);
     const risk = Math.abs(setup.entry_price - initialSl);
+    const isLive = !!setup.exchange_order_id && !globalSettings?.paper_mode;
 
     // Update peak-R using both the current bar's favorable extreme AND lastPrice.
     const favBar =
@@ -791,8 +792,51 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       if (setup.side === "long" ? newSl > dynSl : newSl < dynSl) dynSl = newSl;
     }
 
+    // Discover the exchange-side child SL order id if we don't have it yet (live only).
+    // Once known, trailing can PATCH stopPrice so the exchange enforces the new SL even
+    // if our tick loop stops running.
+    let slChildId = setup.sl_child_order_id ?? null;
+    if (isLive && !slChildId) {
+      try {
+        const openRows = await client.getOpenOrders(setup.symbol);
+        const exitSide = setup.side === "long" ? "SELL" : "BUY";
+        const candidates = openRows.filter((o) => {
+          const type = (o.type || "").toUpperCase();
+          const side = (o.side || "").toUpperCase();
+          const sub = (o.subType || "").toUpperCase();
+          const link = (o.linkType || "").toUpperCase();
+          const looksStop = type.startsWith("STOP") || sub.includes("STOP_LOSS") || link.includes("SL");
+          const looksTp = sub.includes("TAKE_PROFIT") || link.includes("TP");
+          return looksStop && !looksTp && side === exitSide;
+        });
+        // Prefer the one whose stopPrice/price is closest to our current sl_price.
+        const target = Number(setup.sl_price);
+        candidates.sort((a, b) => {
+          const ap = Math.abs((a.stopPrice ?? a.price ?? 0) - target);
+          const bp = Math.abs((b.stopPrice ?? b.price ?? 0) - target);
+          return ap - bp;
+        });
+        const match = candidates[0];
+        if (match) {
+          slChildId = match.clientOrderId;
+          await supabaseAdmin
+            .from("strategy_setups")
+            .update({ sl_child_order_id: slChildId, updated_at: new Date().toISOString() })
+            .eq("id", setup.id);
+          await log("info", "trail: discovered exchange SL child order", {
+            setup_id: setup.id, sl_child_order_id: slChildId, sl_price: setup.sl_price,
+          });
+        }
+      } catch (e) {
+        await log("warn", "trail: sl child discovery failed", {
+          setup_id: setup.id, error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
     // Persist trailing progress if it advanced or peak changed.
-    if (peakR > Number(setup.peak_r ?? 0) || dynSl !== Number(setup.sl_price)) {
+    const slChanged = dynSl !== Number(setup.sl_price);
+    if (peakR > Number(setup.peak_r ?? 0) || slChanged) {
       await supabaseAdmin
         .from("strategy_setups")
         .update({
@@ -801,10 +845,42 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           updated_at: new Date().toISOString(),
         })
         .eq("id", setup.id);
-      if (dynSl !== Number(setup.sl_price)) {
+      if (slChanged) {
         actions.push(`trail ${setup.side} peak=${peakR.toFixed(2)}R sl→${dynSl.toFixed(2)}`);
+
+        // Push the trailed SL to the exchange so it is enforced there.
+        if (isLive && slChildId) {
+          try {
+            const editRes = await client.editOrder({ clientOrderId: slChildId, stopPrice: dynSl });
+            if (editRes.ok) {
+              await log("info", "trail: exchange SL updated", {
+                setup_id: setup.id, sl_child_order_id: slChildId, new_stop: dynSl,
+              });
+              actions.push(`trail_exchange_sl ok ${slChildId}→${dynSl.toFixed(2)}`);
+            } else {
+              await log("warn", "trail: exchange SL edit rejected", {
+                setup_id: setup.id, sl_child_order_id: slChildId, new_stop: dynSl,
+                status: editRes.status, body: editRes.body.slice(0, 300),
+              });
+              actions.push(`trail_exchange_sl fail [${editRes.status}]`);
+              // If the exchange says the order is gone (e.g. cancelled/replaced), clear id so we re-discover next tick.
+              if (editRes.status === 404 || /not.?found|does not exist/i.test(editRes.body)) {
+                await supabaseAdmin
+                  .from("strategy_setups")
+                  .update({ sl_child_order_id: null, updated_at: new Date().toISOString() })
+                  .eq("id", setup.id);
+              }
+            }
+          } catch (e) {
+            await log("warn", "trail: exchange SL edit threw", {
+              setup_id: setup.id, sl_child_order_id: slChildId, new_stop: dynSl,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
       }
     }
+
 
     const hitTp =
       setup.side === "long" ? lastPrice >= setup.tp_price : lastPrice <= setup.tp_price;

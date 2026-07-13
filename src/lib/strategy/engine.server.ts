@@ -666,7 +666,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           tp_price: tp,
           qty: finalQty,
           status: placeError ? ("cancelled" as const) : ("armed" as const),
-          close_reason: placeError ? "manual" : null,
+          close_reason: placeError ? (isRecoverableCapacityError(placeError) ? "rearm_with_ai" : "manual") : null,
           closed_at: placeError ? new Date().toISOString() : null,
           exchange_order_id: placeError ? null : exchangeOrderId,
           ai_grade: aiDecision.grade,

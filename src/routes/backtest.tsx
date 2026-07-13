@@ -63,6 +63,7 @@ interface FormState {
   entryDepthPct: number;
   slDepthPct: number;
   retestSlR: number;
+  zoneSource: "range" | "breakout";
 }
 
 function BacktestLab() {
@@ -108,6 +109,7 @@ function BacktestLab() {
       entryDepthPct: Number(s.entry_depth_pct ?? 0.15),
       slDepthPct: Number(s.sl_depth_pct ?? 0.60),
       retestSlR: Number(s.retest_sl_r ?? 0.5),
+      zoneSource: "range",
     });
   }
 
@@ -133,6 +135,7 @@ function BacktestLab() {
             sl_depth_pct: f.slDepthPct,
             retest_sl_r: f.retestSlR,
           },
+          zone_source: f.zoneSource,
         },
       }),
     onSuccess: (r) => {
@@ -319,6 +322,37 @@ function BacktestLab() {
                       disabled={!form.trailEnabled}
                     />
                   </Field>
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-3">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Fib zone source
+                  </Label>
+                  <div className="flex flex-wrap gap-1">
+                    {([
+                      { v: "range", label: "Range candle", hint: "Fib zone drawn from opening range" },
+                      { v: "breakout", label: "Breakout candle", hint: "Fib zone drawn from the candle that breaks out" },
+                    ] as const).map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => set("zoneSource", o.v)}
+                        title={o.hint}
+                        className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                          form.zoneSource === o.v
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {form.zoneSource === "breakout"
+                      ? "Adaptive/fib entries pull back into the breakout candle's high/low."
+                      : "Adaptive/fib entries pull back into the opening range candle (default)."}
+                  </p>
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-3">

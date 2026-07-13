@@ -299,6 +299,7 @@ const RangeSchema = z.object({
   filters: FiltersZod,
   entry: EntryOverrideSchema,
   fee_rate: z.number().min(0).max(0.01).optional(),
+  zone_source: z.enum(["range", "breakout"]).optional(),
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
@@ -338,6 +339,7 @@ export const backtestRange = createServerFn({ method: "POST" })
       filters: data.filters,
       entry,
       feeRate: data.fee_rate,
+      zoneSource: data.zone_source,
     });
   });
 

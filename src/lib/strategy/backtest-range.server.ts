@@ -211,6 +211,8 @@ export async function runBacktestRange(opts: {
   entry?: EntryConfig;
   /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
   feeRate?: number;
+  /** "range" = fib zone from opening range candle (default). "breakout" = fib zone from the breakout candle itself. */
+  zoneSource?: "range" | "breakout";
 }): Promise<RangeBacktestResult> {
 
   const client = createSharkClient();
@@ -259,6 +261,7 @@ export function simulateFromKlines(
     dailyBias?: Map<string, DailyBiasEntry>;
     entry?: EntryConfig;
     feeRate?: number;
+    zoneSource?: "range" | "breakout";
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;
@@ -561,7 +564,20 @@ export function simulateFromKlines(
     }
 
 
-    const { entry, sl, market } = computeEntry(breakSide, zone_high, zone_low, breakBar.close, entryCfg);
+    // Zone source: default uses the opening-range candle; "breakout" swaps to
+    // the breakout candle's high/low as the fib zone marker.
+    let entryZoneHigh = zone_high;
+    let entryZoneLow = zone_low;
+    if ((opts.zoneSource ?? "range") === "breakout") {
+      entryZoneHigh = breakBar.high;
+      entryZoneLow = breakBar.low;
+      const rng = entryZoneHigh - entryZoneLow;
+      dr.zone_high = entryZoneHigh;
+      dr.zone_low = entryZoneLow;
+      dr.fib_25 = entryZoneHigh - rng * 0.25;
+      dr.fib_75 = entryZoneHigh - rng * 0.75;
+    }
+    const { entry, sl, market } = computeEntry(breakSide, entryZoneHigh, entryZoneLow, breakBar.close, entryCfg);
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
     const qty   = risk > 0 ? opts.slRiskUsd / risk : 0;

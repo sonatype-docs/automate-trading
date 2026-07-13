@@ -135,6 +135,12 @@ function isRecoverableCapacityError(msg: string | null | undefined): boolean {
   return isInsufficientMarginError(msg) || s.includes('"3070"') || s.includes("maximum position size");
 }
 
+function isMaximumPositionSizeError(msg: string | null | undefined): boolean {
+  if (!msg) return false;
+  const s = msg.toLowerCase();
+  return s.includes('"3070"') || s.includes("maximum position size");
+}
+
 function roundExchangeQty(qty: number): number {
   return Math.round(qty * 1000) / 1000;
 }
@@ -258,56 +264,14 @@ interface MarginRetryResult {
   finalQty: number;
   error: string | null;
   attempts: number;
-  shrunk: boolean;
-}
-
-function extractNumericField(source: unknown, keys: string[]): number | null {
-  if (!source || typeof source !== "object") return null;
-  const obj = source as Record<string, unknown>;
-  for (const key of keys) {
-    const n = Number(obj[key]);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  return null;
-}
-
-async function estimateMaxCapacityQty(
-  client: ReturnType<typeof createSharkClient>,
-  symbol: string,
-  price: number,
-): Promise<number | null> {
-  try {
-    const snap = await client.getAccountSnapshot();
-    const wallet = snap.futuresWallet;
-    const marginBalance = extractNumericField(wallet, [
-      "marginBalance",
-      "withdrawableBalance",
-      "maxWithdrawableBalance",
-      "walletBalance",
-      "inrBalance",
-    ]);
-    if (!marginBalance || !Number.isFinite(price) || price <= 0) return null;
-
-    const marginAsset =
-      wallet && typeof wallet === "object"
-        ? String((wallet as Record<string, unknown>).marginAsset ?? "").toUpperCase()
-        : "";
-    // Shark reports the XAUUSDT futures wallet in INR on this account while
-    // order prices are USDT. Successful exchange responses show ~102 INR/USDT.
-    // Keep a safety buffer so the exchange does not auto-reject after rounding.
-    const quoteToMarginRate = marginAsset === "INR" && symbol.toUpperCase().endsWith("USDT") ? 102 : 1;
-    const leverage = 75;
-    return Math.floor(((marginBalance / quoteToMarginRate) * leverage * 0.94 / price) * 1000) / 1000;
-  } catch {
-    return null;
-  }
+  capped: boolean;
 }
 
 // Place a Shark order at the exact exchange-supported planned size. We do NOT
-// shrink qty here: the strategy's qty is derived from the configured SL risk,
-// so reducing it silently changes planned risk. On insufficient-margin errors
-// we retry the same full exchange-rounded qty, which handles the exchange's
-// brief margin-release delay after cancel/replace.
+// shrink/cap qty here: the strategy's qty is derived from the configured SL
+// risk and current AI multiplier, so reducing it silently changes planned risk.
+// On margin/capacity errors we only retry the same full exchange-rounded qty to
+// handle brief margin-release delays after cancel/replace.
 async function placeOrderWithMarginRetry(
   client: ReturnType<typeof createSharkClient>,
   params: {
@@ -319,17 +283,17 @@ async function placeOrderWithMarginRetry(
     stopLossPrice: number;
     takeProfitPrice: number;
   },
-  opts: { minQty?: number; shrinkFactor?: number; maxAttempts?: number; fullQtyAttempts?: number; retryDelayMs?: number } = {},
+  opts: { minQty?: number; maxAttempts?: number; fullQtyAttempts?: number; retryDelayMs?: number } = {},
 ): Promise<MarginRetryResult> {
   const minQty = opts.minQty ?? 0.001;
   const retryDelayMs = opts.retryDelayMs ?? 1500;
-  const maxAttempts = opts.maxAttempts ?? 10;
-  const shrinkFactor = opts.shrinkFactor ?? 0.9;
-  const fullQtyAttempts = opts.fullQtyAttempts ?? 1;
-  let qty = roundExchangeQty(params.qty);
+  const fullQtyAttempts = opts.fullQtyAttempts ?? 4;
+  const maxAttempts = opts.maxAttempts ?? fullQtyAttempts;
+  const qty = roundExchangeQty(params.qty);
   let attempts = 0;
   let lastError: string | null = null;
-  let shrunk = false;
+  const leverageSteps = [50, 25, 10];
+  let leverageStepIndex = 0;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -338,43 +302,50 @@ async function placeOrderWithMarginRetry(
         lastError = "exchange rejected";
         break;
       }
-      return { res, finalQty: qty, error: null, attempts, shrunk };
+      return { res, finalQty: qty, error: null, attempts, capped: false };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
       if (!isRecoverableCapacityError(msg)) break;
-      if (attempts < fullQtyAttempts) {
-        await log("warn", "place: retrying full qty after exchange capacity rejection", {
+      if (isMaximumPositionSizeError(msg) && leverageStepIndex < leverageSteps.length) {
+        const leverage = leverageSteps[leverageStepIndex++];
+        try {
+          const levRes = await client.updateLeverage(params.symbol, leverage);
+          await log(levRes.ok ? "info" : "warn", "place: adjusted leverage before retrying full AI-sized qty", {
+            symbol: params.symbol,
+            leverage,
+            status: levRes.status,
+            body: levRes.body.slice(0, 300),
+          });
+        } catch (levError) {
+          await log("warn", "place: leverage adjustment failed before full-qty retry", {
+            symbol: params.symbol,
+            leverage,
+            error: levError instanceof Error ? levError.message : String(levError),
+          });
+        }
+      }
+      if (attempts < maxAttempts) {
+        await log("warn", "place: retrying full AI-sized qty after exchange capacity/margin rejection", {
           symbol: params.symbol,
           side: params.side,
           qty,
           attempt: attempts,
+          error: msg,
         });
         await wait(retryDelayMs);
         continue;
       }
-
-      const estimatedMax = await estimateMaxCapacityQty(client, params.symbol, params.price);
-      const nextQty = roundExchangeQty(
-        estimatedMax && estimatedMax > 0 && estimatedMax < qty
-          ? estimatedMax
-          : qty * shrinkFactor,
-      );
-      if (nextQty >= qty || nextQty < minQty) break;
-      await log("warn", "place: full planned qty exceeds exchange capacity; retrying capped qty", {
+      await log("warn", "place: full AI-sized qty rejected; not placing a smaller wrong-risk order", {
         symbol: params.symbol,
         side: params.side,
-        planned_qty: roundExchangeQty(params.qty),
-        retry_qty: nextQty,
-        attempt: attempts,
+        planned_qty: qty,
         error: msg,
       });
-      qty = nextQty;
-      shrunk = true;
-      if (attempts < maxAttempts) await wait(retryDelayMs);
+      break;
     }
   }
-  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, shrunk };
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false };
 }
 
 
@@ -536,9 +507,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     }
   }
 
-  // Arm setup if break happened and no ACTIVE setup yet for that side today.
-  // A previously "cancelled" setup (e.g. insufficient margin on first attempt)
-  // is eligible for re-arm — we UPDATE that row instead of inserting a new one.
+  // Arm setup if break happened and no ACTIVE setup exists for that side today.
+  // Only an explicit "rearm_with_ai" cancellation is eligible for immediate
+  // reuse. Capacity/margin failures and manual cancels must not re-arm on every
+  // tick, otherwise the bot can keep churning exchange orders.
   if (session.break_side) {
     const { data: existingSetupRows } = await supabaseAdmin
       .from("strategy_setups")
@@ -550,12 +522,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       .limit(20);
 
     const existingSetups = (existingSetupRows ?? []) as SetupRow[];
-    const existingSetup =
-      existingSetups.find((row) => row.status === "armed" || row.status === "triggered") ??
-      existingSetups.find((row) => row.status === "cancelled") ??
-      null;
+    const activeSetup = existingSetups.find((row) => row.status === "armed" || row.status === "triggered") ?? null;
+    const rearmSetup = existingSetups.find((row) => row.status === "cancelled" && row.close_reason === "rearm_with_ai") ?? null;
+    const blockingCancelledSetup = existingSetups.find((row) => row.status === "cancelled" && row.close_reason !== "rearm_with_ai") ?? null;
+    const existingSetup = activeSetup ?? rearmSetup ?? blockingCancelledSetup;
 
-    const eligibleForArm = !existingSetup || existingSetup.status === "cancelled";
+    const eligibleForArm = !existingSetup || existingSetup.status === "cancelled" && existingSetup.close_reason === "rearm_with_ai";
 
     if (eligibleForArm) {
       const side = session.break_side;
@@ -625,7 +597,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             exchangeOrderId = attempt.res.exchangeOrderId || null;
             finalQty = attempt.finalQty;
             await log("info", "arm: shark placeOrder response", {
-              side, entry, qty: finalQty, requestedQty, shrunk: attempt.shrunk,
+              side, entry, qty: finalQty, requestedQty, capped: attempt.capped,
               attempts: attempt.attempts, mode: cfg.mode, market,
               parsed: { exchangeOrderId: attempt.res.exchangeOrderId, status: attempt.res.status, filledPrice: attempt.res.filledPrice },
               raw: attempt.res.raw,
@@ -643,8 +615,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           initial_sl_price: sl,
           tp_price: tp,
           qty: finalQty,
-          status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
-          exchange_order_id: exchangeOrderId,
+          status: placeError ? ("cancelled" as const) : ("armed" as const),
+          close_reason: placeError ? "manual" : null,
+          closed_at: placeError ? new Date().toISOString() : null,
+          exchange_order_id: placeError ? null : exchangeOrderId,
           ai_grade: aiDecision.grade,
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
@@ -659,8 +633,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await supabaseAdmin.from("strategy_setups").insert(setupPayload);
         }
         if (placeError) {
-          await log(isRecoverableCapacityError(placeError) ? "warn" : "error", "arm: exchange order place failed", { side, entry, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
-          actions.push(`arm_blocked ${side} qty=${finalQty.toFixed(4)} err=${placeError}`);
+          await log(isRecoverableCapacityError(placeError) ? "warn" : "error", "arm: full AI-sized exchange order failed; no smaller wrong-risk order placed", { side, entry, sl, tp, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
+          actions.push(`arm_blocked ${side} full_qty=${finalQty.toFixed(4)} err=${placeError}`);
         } else {
           actions.push(
             `${existingSetup ? "re-armed" : "armed"} ${side} mode=${cfg.mode} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${finalQty.toFixed(4)}` +
@@ -778,11 +752,27 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               if (!attempt.res) {
                 await supabaseAdmin
                   .from("strategy_setups")
-                  .update({ status: "cancelled", updated_at: new Date().toISOString() })
+                  .update({
+                    status: "cancelled",
+                    close_reason: "manual",
+                    closed_at: new Date().toISOString(),
+                    exchange_order_id: null,
+                    entry_price: entry,
+                    sl_price: sl,
+                    initial_sl_price: sl,
+                    tp_price: tp,
+                    qty: exchangeQty,
+                    ai_grade: aiDecision.grade,
+                    ai_score: aiDecision.score,
+                    ai_risk_mult: aiDecision.riskMult,
+                    updated_at: new Date().toISOString(),
+                  })
                   .eq("id", existingSetup.id);
-                await log("error", "auto-reprice: replace placeOrder failed", {
+                await log("error", "auto-reprice: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
                   setup_id: existingSetup.id,
                   error: attempt.error,
+                  planned_qty: exchangeQty,
+                  planned_risk_usd: risk * exchangeQty,
                 });
                 actions.push(`auto_reprice_replace_failed ${side}`);
               } else {
@@ -796,6 +786,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     qty: attempt.finalQty,
                     status: "armed",
                     exchange_order_id: attempt.res.exchangeOrderId || null,
+                    close_reason: null,
+                    closed_at: null,
                     ai_grade: aiDecision.grade,
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
@@ -1404,12 +1396,25 @@ export async function repriceArmedSetupsNow(): Promise<{
         .from("strategy_setups")
         .update({
           status: "cancelled",
+          close_reason: "manual",
+          closed_at: new Date().toISOString(),
+          exchange_order_id: null,
+          entry_price: entry,
+          sl_price: sl,
+          initial_sl_price: sl,
+          tp_price: tp,
+          qty: roundExchangeQty(requestedQty),
+          ai_grade: aiDecision.grade,
+          ai_score: aiDecision.score,
+          ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
         })
         .eq("id", setup.id);
-      await log("error", "reprice_now: replace placeOrder failed", {
+      await log("error", "reprice_now: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
         setup_id: setup.id,
         error: attempt.error,
+        planned_qty: roundExchangeQty(requestedQty),
+        planned_risk_usd: risk * roundExchangeQty(requestedQty),
       });
       actions.push(`reprice_now_replace_failed ${side}`);
       continue;
@@ -1425,6 +1430,8 @@ export async function repriceArmedSetupsNow(): Promise<{
         qty: attempt.finalQty,
         status: "armed",
         exchange_order_id: attempt.res.exchangeOrderId || null,
+        close_reason: null,
+        closed_at: null,
         ai_grade: aiDecision.grade,
         ai_score: aiDecision.score,
         ai_risk_mult: aiDecision.riskMult,

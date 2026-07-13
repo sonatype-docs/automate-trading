@@ -64,6 +64,7 @@ interface FormState {
   slDepthPct: number;
   retestSlR: number;
   zoneSource: "range" | "breakout";
+  feeUsdPerOrder: number;
 }
 
 function BacktestLab() {

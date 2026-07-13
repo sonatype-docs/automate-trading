@@ -856,7 +856,7 @@ function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: numbe
               RESULTS
               {hourFilter != null && (
                 <span className="ml-2 rounded border border-primary/60 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary">
-                  Hour {String(hourFilter).padStart(2, "0")}:00
+                  Session {String(hourFilter).padStart(2, "0")}:00 IST
                 </span>
               )}
             </CardTitle>

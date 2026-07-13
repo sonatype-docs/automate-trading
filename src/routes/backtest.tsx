@@ -259,7 +259,7 @@ function BacktestLab() {
                         min={1}
                         max={730}
                         value={form.days}
-                        onChange={(e) => set("days", Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
+                        onChange={(e) => set("days", Math.min(730, Math.max(1, Number(e.target.value) || 1)))}
                         className="h-8 font-mono text-xs"
                       />
                       <select
@@ -267,7 +267,7 @@ function BacktestLab() {
                         value={form.days}
                         onChange={(e) => set("days", Number(e.target.value))}
                       >
-                        {[7, 30, 60, 90, 180, 270, 365].map((d) => (
+                        {[7, 30, 60, 90, 180, 270, 365, 540, 720].map((d) => (
                           <option key={d} value={d}>
                             {d}d
                           </option>

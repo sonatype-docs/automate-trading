@@ -1410,7 +1410,46 @@ function StrategyCard() {
   );
 }
 
-function LiveTradePanel({
+const GRADE_BADGE_STYLES: Record<string, string> = {
+  "A+++": "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+  "A++": "bg-green-500/20 text-green-300 border-green-500/40",
+  "A+": "bg-lime-500/20 text-lime-300 border-lime-500/40",
+  A: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40",
+  B: "bg-orange-500/20 text-orange-300 border-orange-500/40",
+  C: "bg-red-500/20 text-red-300 border-red-500/40",
+};
+
+function GradeBadge({
+  grade,
+  score,
+  mult,
+  qty,
+}: {
+  grade?: string | null;
+  score?: number | null;
+  mult?: number | null;
+  qty?: number | null;
+}) {
+  if (!grade) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
+        AI: off
+        {qty != null ? <span className="text-foreground">· qty {qty.toFixed(4)}</span> : null}
+      </span>
+    );
+  }
+  const cls = GRADE_BADGE_STYLES[grade] ?? "bg-muted text-foreground border-border";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-mono ${cls}`}>
+      <span className="font-bold">{grade}</span>
+      {score != null ? <span className="opacity-80">· {Math.round(score)}</span> : null}
+      {mult != null ? <span className="opacity-80">· {mult}x</span> : null}
+      {qty != null ? <span className="opacity-80">· qty {qty.toFixed(4)}</span> : null}
+    </span>
+  );
+}
+
+
   setup,
   onChanged,
 }: {

@@ -747,8 +747,14 @@ export function simulateFromKlines(
       // Market entries: also let the break candle itself resolve TP/SL below.
     }
     const bars = market ? [breakBar, ...post] : post;
+    // Phase 2 trade-quality tracking.
+    let barsUntilFill = 0;
+    let barsInTrade = 0;
+    let retestCount = 0;
+    let prevSide: 1 | -1 | 0 = 0; // side of entry line
     for (const k of bars) {
       if (!triggered) {
+        barsUntilFill += 1;
         const dist = breakSide === "long" ? Math.max(0, k.low - entry) : Math.max(0, entry - k.high);
         if (dist < closestDist) closestDist = dist;
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
@@ -759,6 +765,12 @@ export function simulateFromKlines(
           continue;
         }
       }
+      barsInTrade += 1;
+
+      // Retest tracking: count sign flips of (close - entry).
+      const side: 1 | -1 = k.close >= entry ? 1 : -1;
+      if (prevSide !== 0 && side !== prevSide) retestCount += 1;
+      prevSide = side;
 
       // Update peak-R using bar extremes in the favorable direction.
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
@@ -818,6 +830,16 @@ export function simulateFromKlines(
     if (triggered && adverseExtreme !== null && risk > 0) {
       const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
       dr.mae_r = Math.max(0, adverseR);
+      dr.mae_usd = dr.mae_r * opts.slRiskUsd;
+    }
+    // Phase 2: populate MFE + duration + time-to-fill + retest count.
+    if (triggered) {
+      dr.mfe_r = peakR;
+      dr.mfe_usd = peakR * opts.slRiskUsd;
+      dr.time_to_fill_bars = market ? 0 : Math.max(0, barsUntilFill);
+      dr.time_to_fill_hours = (dr.time_to_fill_bars ?? 0) * 1;
+      if (resolved) dr.duration_bars = barsInTrade;
+      dr.retest_count = retestCount;
     }
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";

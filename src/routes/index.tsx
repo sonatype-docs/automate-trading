@@ -1449,7 +1449,7 @@ function GradeBadge({
   );
 }
 
-
+function LiveTradePanel({
   setup,
   onChanged,
 }: {
@@ -1460,6 +1460,9 @@ function GradeBadge({
     sl_price: number;
     tp_price: number;
     qty: number;
+    ai_grade?: string | null;
+    ai_score?: number | null;
+    ai_risk_mult?: number | null;
   };
   onChanged: () => void;
 }) {

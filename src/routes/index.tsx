@@ -19,6 +19,7 @@ import {
   applyStrategyPreset,
   editLiveTradeLevels,
   closeLiveTradeNow,
+  cancelAndReArmWithAi,
 } from "@/lib/strategy.functions";
 
 

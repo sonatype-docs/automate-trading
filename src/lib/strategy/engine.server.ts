@@ -930,26 +930,36 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               !sameNullableNumber(existingSetup.ai_risk_mult, aiDecision.riskMult, 4)
             )));
 
-        if (changed) {
-          // Hard cap on cancel+replace cycles per setup — belt-and-suspenders
-          // in case a future "changed" condition regresses into a loop.
-          const maxRepriceAttempts = Number(
-            (s as unknown as { max_reprice_attempts?: number }).max_reprice_attempts ?? 5,
-          );
-          const priorReprices = Number(
-            (existingSetup as unknown as { reprice_count?: number | null }).reprice_count ?? 0,
-          );
-          if (priorReprices >= maxRepriceAttempts) {
-            await log("warn", "auto-reprice: attempt limit reached — leaving live order in place", {
-              setup_id: existingSetup.id,
-              exchange_order_id: existingSetup.exchange_order_id,
-              reprice_count: priorReprices,
-              max_reprice_attempts: maxRepriceAttempts,
-            });
-            actions.push(`auto_reprice_limit_reached ${side} count=${priorReprices}/${maxRepriceAttempts}`);
-            continue;
-          }
+        // Hard cap on cancel+replace cycles per setup — belt-and-suspenders
+        // in case a future "changed" condition regresses into a loop.
+        const maxRepriceAttempts = Number(
+          (s as unknown as { max_reprice_attempts?: number }).max_reprice_attempts ?? 5,
+        );
+        const priorReprices = Number(
+          (existingSetup as unknown as { reprice_count?: number | null }).reprice_count ?? 0,
+        );
+        const overLimit = changed && priorReprices >= maxRepriceAttempts;
+        if (overLimit) {
+          await log("warn", "auto-reprice: attempt limit reached — leaving live order in place", {
+            setup_id: existingSetup.id,
+            exchange_order_id: existingSetup.exchange_order_id,
+            reprice_count: priorReprices,
+            max_reprice_attempts: maxRepriceAttempts,
+          });
+          actions.push(`auto_reprice_limit_reached ${side} count=${priorReprices}/${maxRepriceAttempts}`);
+        }
+
+        if (changed && !overLimit) {
           // Auto cancel + replace so the live order always reflects the
+          // current AI grade / multiplier / risk-based qty. Previously we
+          // logged "manual reprice required" which left stale qty on the
+          // exchange (e.g. base-risk qty after AI upgraded the grade to A++).
+          const oldOid = existingSetup.exchange_order_id;
+          try {
+            const cancel = await client.cancelOrder(oldOid, s.symbol);
+            if (!cancel.ok) {
+              await log("warn", "auto-reprice: cancel rejected, keeping live order", {
+                setup_id: existingSetup.id,
           // current AI grade / multiplier / risk-based qty. Previously we
           // logged "manual reprice required" which left stale qty on the
           // exchange (e.g. base-risk qty after AI upgraded the grade to A++).

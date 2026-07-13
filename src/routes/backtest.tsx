@@ -784,15 +784,41 @@ function ResultsView({ data }: { data: RangeData }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-mono tracking-widest">RESULTS</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          {data.symbol} · IST {data.session_start_ist} · SL ${data.sl_risk_usd} · RR 1:{data.rr}
-          {" · "}
-          {new Date(data.from_ms).toISOString().slice(0, 10)} → {new Date(data.to_ms).toISOString().slice(0, 10)}
-          {data.trail.enabled
-            ? ` · trail on (act ${data.trail.activate_r}R / step ${data.trail.step_r}R)`
-            : " · trail off"}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-sm font-mono tracking-widest">RESULTS</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {data.symbol} · IST {data.session_start_ist} · SL ${data.sl_risk_usd} · RR 1:{data.rr}
+              {" · "}
+              {new Date(data.from_ms).toISOString().slice(0, 10)} → {new Date(data.to_ms).toISOString().slice(0, 10)}
+              {data.trail.enabled
+                ? ` · trail on (act ${data.trail.activate_r}R / step ${data.trail.step_r}R)`
+                : " · trail off"}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 font-mono text-[11px] uppercase tracking-wider"
+              onClick={() => { exportBacktest(data, "csv"); }}
+              title="Download all tables (summary, weekdays, monthly, cohorts, MAE, equity, trades) as one CSV"
+            >
+              Export CSV
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 font-mono text-[11px] uppercase tracking-wider"
+              onClick={() => { exportBacktest(data, "json"); }}
+              title="Download the complete raw result as JSON"
+            >
+              JSON
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 font-mono text-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">

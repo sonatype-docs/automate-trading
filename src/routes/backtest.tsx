@@ -764,7 +764,7 @@ function dayMatchesCohort(d: RangeData["days"][number], f: NonNullable<CohortFil
   }
 }
 
-function ResultsView({ data }: { data: RangeData }) {
+function ResultsView({ data, hourFilter }: { data: RangeData; hourFilter?: number | null }) {
   const s = data.summary;
   const [cohort, setCohort] = useState<CohortFilter>(null);
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));

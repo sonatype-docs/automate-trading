@@ -1830,6 +1830,8 @@ function StrategyCard() {
                       <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
                     </div>
                     <PlacementStatusRow setup={a} />
+                    <FillRiskMeter setup={a} symbol={s?.symbol ?? "XAUUSDT"} />
+                    <SetupTimeline setupId={a.id} />
                   </div>
                 );
               })}

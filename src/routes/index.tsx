@@ -1242,6 +1242,7 @@ function StrategyCard() {
   const aiEnabled = !!s?.ai_grading_enabled;
   const hasAiModel = !!s?.ai_grading_model;
   const currentSetup = active[0] ?? setups[0] ?? null;
+  const currentNeedsAiRearm = aiEnabled && hasAiModel && active.some((a) => a.status === "armed" && !a.ai_grade);
 
   const status = !s?.enabled
     ? { label: "DISABLED", cls: "bg-muted" }
@@ -1350,6 +1351,8 @@ function StrategyCard() {
             grade={currentSetup?.ai_grade}
             score={currentSetup?.ai_score}
             mult={currentSetup?.ai_risk_mult}
+            value={currentNeedsAiRearm ? "RE-ARM" : undefined}
+            sub={currentNeedsAiRearm ? "Current armed order was placed before AI grading" : undefined}
             enabled={aiEnabled}
             hasModel={hasAiModel}
           />
@@ -1442,7 +1445,7 @@ function StrategyCard() {
                   <span>tp {a.tp_price.toFixed(2)}</span>
                   <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
                   <span className="uppercase text-muted-foreground">{a.status}</span>
-                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} />
+                  <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
                 </div>
               ))}
             </div>
@@ -1479,7 +1482,7 @@ function StrategyCard() {
                   <span className={((c.pnl_usd ?? 0) >= 0) ? "text-long" : "text-short"}>
                     {c.pnl_usd == null ? "—" : `${c.pnl_usd >= 0 ? "+" : ""}${c.pnl_usd.toFixed(2)}`}
                   </span>
-                  <GradeBadge grade={c.ai_grade} score={c.ai_score} mult={c.ai_risk_mult} qty={c.qty} />
+                  <GradeBadge grade={c.ai_grade} score={c.ai_score} mult={c.ai_risk_mult} qty={c.qty} enabled={aiEnabled} />
                 </div>
               ))}
             </div>
@@ -1537,16 +1540,18 @@ function GradeBadge({
   score,
   mult,
   qty,
+  enabled,
 }: {
   grade?: string | null;
   score?: number | null;
   mult?: number | null;
   qty?: number | null;
+  enabled?: boolean;
 }) {
   if (!grade) {
     return (
       <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
-        AI: off
+        {enabled ? "AI: re-arm" : "AI: off"}
         {qty != null ? <span className="text-foreground">· qty {qty.toFixed(4)}</span> : null}
       </span>
     );
@@ -1636,7 +1641,7 @@ function LiveTradePanel({
           <span>LIVE TRADE ·</span>
           <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span>
           <span>· entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}</span>
-          <GradeBadge grade={setup.ai_grade} score={setup.ai_score} mult={setup.ai_risk_mult} />
+          <GradeBadge grade={setup.ai_grade} score={setup.ai_score} mult={setup.ai_risk_mult} enabled />
         </div>
         <div className="text-xs font-mono text-muted-foreground">
           risk {risk.toFixed(2)} · reward {reward.toFixed(2)} · RR 1:{rr.toFixed(2)}

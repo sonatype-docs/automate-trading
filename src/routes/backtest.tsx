@@ -78,6 +78,7 @@ function BacktestLab() {
   const [form, setForm] = useState<FormState | null>(null);
   const [result, setResult] = useState<RangeData | null>(null);
   const [filters, setFilters] = useState<NonNullable<FilterConfig>>(DEFAULT_FILTERS);
+  const [hourFilter, setHourFilter] = useState<number | null>(null);
 
   // Seed the form once settings load.
   const s = settingsQ.data?.settings as

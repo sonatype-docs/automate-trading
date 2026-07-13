@@ -740,9 +740,10 @@ export function simulateFromKlines(
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
 
-    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd; when an AI
-    // grading model is supplied, we grade the candidate and use the absolute
-    // per-grade risk from opts.gradeRiskMap (falls back to GRADE_RISK_USD).
+    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd. When an AI
+    // grading model is supplied, we grade the candidate and scale the base
+    // SL$ by opts.gradeRiskMap[grade] (interpreted as a MULTIPLIER of
+    // opts.slRiskUsd, not an absolute dollar amount).
     let daySlRisk = opts.slRiskUsd;
     if (opts.gradingModel) {
       const orRangeUsd = zone_high - zone_low;
@@ -766,8 +767,12 @@ export function simulateFromKlines(
       };
       try {
         const graded = scoreCandidate(candidate as never, opts.gradingModel as Parameters<typeof scoreCandidate>[1]);
-        const map = opts.gradeRiskMap ?? (GRADE_RISK_USD as unknown as Record<string, number>);
-        const gradeRisk = Number(map[graded.grade] ?? GRADE_RISK_USD[graded.grade as GradeLabel] ?? 0);
+        const map = opts.gradeRiskMap;
+        // Values are multipliers of opts.slRiskUsd. Missing grade → 1x.
+        const mult = map && Number.isFinite(Number(map[graded.grade]))
+          ? Number(map[graded.grade])
+          : 1;
+        const gradeRisk = opts.slRiskUsd * mult;
         const minGrade = opts.minGrade ?? "B";
         const gradeRank = (GRADE_ORDER as readonly string[]).indexOf(graded.grade);
         const minRank = (GRADE_ORDER as readonly string[]).indexOf(minGrade);

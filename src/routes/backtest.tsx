@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getStrategyState, backtestRange, sweepHoursBacktest, runEntryZoneSweep, backtestSessionsCompare, backtestLiquiditySweep, backtestSilverBullet } from "@/lib/strategy.functions";
 import { DEFAULT_FILTERS, type FilterConfig } from "@/lib/strategy/filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +111,8 @@ function BacktestLab() {
     });
   }
 
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+
   const runMut = useMutation({
     mutationFn: (f: FormState) =>
       runRange({
@@ -139,6 +142,14 @@ function BacktestLab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Auto-scroll to results whenever a new result lands.
+  useEffect(() => {
+    if (result && resultsRef.current) {
+      const y = resultsRef.current.getBoundingClientRect().top + window.scrollY - 72;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }
+  }, [result]);
+
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     if (!form) return;
@@ -155,18 +166,42 @@ function BacktestLab() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-14 z-20 border-b border-border/70 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/50">
         <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Beaker className="w-5 h-5 text-primary shrink-0" />
-            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">BACKTEST LAB</span>
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-[0_6px_18px_-8px_var(--color-primary)]">
+              <Beaker className="w-4 h-4" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <div className="font-display text-sm font-semibold tracking-tight">Backtest Lab</div>
+              <div className="text-[11px] text-muted-foreground truncate">Isolated replays · live settings untouched</div>
+            </div>
           </div>
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="shrink-0">
-              <ArrowLeft className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">Back to dashboard</span>
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {result && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (resultsRef.current) {
+                    const y = resultsRef.current.getBoundingClientRect().top + window.scrollY - 72;
+                    window.scrollTo({ top: y, behavior: "smooth" });
+                  }
+                }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 h-8 text-xs font-mono tracking-wide text-primary hover:bg-primary/20"
+              >
+                Jump to results
+                <span className={result.summary.net_pnl_usd >= 0 ? "text-long" : "text-short"}>
+                  {result.summary.net_pnl_usd >= 0 ? "+" : ""}${result.summary.net_pnl_usd.toFixed(2)}
+                </span>
+              </button>
+            )}
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="shrink-0">
+                <ArrowLeft className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">Dashboard</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -391,107 +426,158 @@ function BacktestLab() {
 
             <FiltersCard value={filters} onChange={setFilters} />
 
-            <StrategiesRoadmapCard />
+            {/* Results anchor — appears immediately below Parameters/Filters after a run */}
+            <div ref={resultsRef} className="scroll-mt-32">
+              {result ? (
+                <ResultsView data={result} />
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="py-10 text-center">
+                    <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                      Run a backtest to see results here
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Adjust parameters above, hit <span className="text-foreground">Run backtest</span>, and results will land right in this spot.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-            <MultiSessionComparePanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-                entryMode: form.entryMode,
-                entryDepthPct: form.entryDepthPct,
-                slDepthPct: form.slDepthPct,
-                retestSlR: form.retestSlR,
-              }}
-              filters={filters}
-            />
+            {/* Secondary exploration — grouped into tabs so users don't scroll a mile */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-mono tracking-widest">EXPLORE</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="sessions" className="w-full">
+                  <div className="-mx-1 overflow-x-auto pb-1">
+                    <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
+                      <TabsTrigger value="sessions" className="text-xs">Sessions</TabsTrigger>
+                      <TabsTrigger value="hours" className="text-xs">Hour sweep</TabsTrigger>
+                      <TabsTrigger value="zones" className="text-xs">Entry zones</TabsTrigger>
+                      <TabsTrigger value="sweep" className="text-xs">Liquidity sweep</TabsTrigger>
+                      <TabsTrigger value="silver" className="text-xs">Silver bullet</TabsTrigger>
+                      <TabsTrigger value="optimize" className="text-xs">Optimize</TabsTrigger>
+                      <TabsTrigger value="roadmap" className="text-xs">Roadmap</TabsTrigger>
+                    </TabsList>
+                  </div>
 
-            <OptimizerPanel
-              strategy="orb_sessions"
-              title="Multi-Session ORB"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="sessions" className="mt-4">
+                    <MultiSessionComparePanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                        entryMode: form.entryMode,
+                        entryDepthPct: form.entryDepthPct,
+                        slDepthPct: form.slDepthPct,
+                        retestSlR: form.retestSlR,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <LiquiditySweepPanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="hours" className="mt-4">
+                    <HourSweepPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <OptimizerPanel
-              strategy="asian_sweep"
-              title="Asian Liquidity Sweep"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="zones" className="mt-4">
+                    <EntryZoneGridPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        sessionStartIst: form.sessionStartIst,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <SilverBulletPanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="sweep" className="mt-4">
+                    <LiquiditySweepPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
-            <OptimizerPanel
-              strategy="silver_bullet"
-              title="ICT Silver Bullet"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="silver" className="mt-4">
+                    <SilverBulletPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
+                  <TabsContent value="optimize" className="mt-4 space-y-4">
+                    <OptimizerPanel
+                      strategy="orb_sessions"
+                      title="Multi-Session ORB"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                    <OptimizerPanel
+                      strategy="asian_sweep"
+                      title="Asian Liquidity Sweep"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                    <OptimizerPanel
+                      strategy="silver_bullet"
+                      title="ICT Silver Bullet"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
+                  <TabsContent value="roadmap" className="mt-4">
+                    <StrategiesRoadmapCard />
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
 
-
-            {result && <ResultsView data={result} />}
-
-            <HourSweepPanel
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-              }}
-              filters={filters}
-            />
-
-            <EntryZoneGridPanel
-              defaults={{
-                symbol: form.symbol,
-                sessionStartIst: form.sessionStartIst,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-              }}
-              filters={filters}
-            />
           </>
         )}
 

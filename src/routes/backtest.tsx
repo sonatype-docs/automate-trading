@@ -212,14 +212,17 @@ function BacktestLab() {
         ) : (
           <>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-mono tracking-widest">PARAMETERS</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Live strategy settings are not modified — every run is isolated.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <Section
+              title="Parameters"
+              subtitle="Live strategy settings are not modified — every run is isolated."
+              badge={
+                <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary">
+                  {form.symbol} · {form.days}d · RR 1:{form.rr}
+                </span>
+              }
+            >
+              <div className="space-y-4">
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Field label="Symbol">
                     <select

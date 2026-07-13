@@ -211,6 +211,8 @@ export async function runBacktestRange(opts: {
   entry?: EntryConfig;
   /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
   feeRate?: number;
+  /** Flat USD fee per order (applied to entry and exit separately — total = 2× this per triggered trade). */
+  feeUsdPerOrder?: number;
   /** "range" = fib zone from opening range candle (default). "breakout" = fib zone from the breakout candle itself. */
   zoneSource?: "range" | "breakout";
 }): Promise<RangeBacktestResult> {

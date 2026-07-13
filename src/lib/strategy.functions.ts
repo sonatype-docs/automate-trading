@@ -54,8 +54,9 @@ const StrategySettingsSchema = z.object({
   skip_weekends: z.boolean().optional(),
   skip_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   entry_mode: EntryModeEnum.optional(),
-  entry_depth_pct: z.number().min(0).max(0.5).optional(),
-  sl_depth_pct: z.number().min(0.1).max(1).optional(),
+  entry_depth_pct: z.number().min(0).max(3).optional(),
+  sl_depth_pct: z.number().min(0.1).max(3).optional(),
+
   adaptive_strong_break_pct: z.number().min(1).max(100).optional(),
   adaptive_shallow_depth: z.number().min(0).max(0.5).optional(),
   adaptive_deep_depth: z.number().min(0).max(0.5).optional(),
@@ -516,8 +517,9 @@ export const backtestToday = createServerFn({ method: "POST" }).handler(async ()
 const EntryOverrideSchema = z
   .object({
     mode: EntryModeEnum,
-    entry_depth_pct: z.number().min(0).max(0.5),
-    sl_depth_pct: z.number().min(0.1).max(1),
+    entry_depth_pct: z.number().min(0).max(3),
+    sl_depth_pct: z.number().min(0.1).max(3),
+
     adaptive_strong_break_pct: z.number().min(1).max(100),
     adaptive_shallow_depth: z.number().min(0).max(0.5),
     adaptive_deep_depth: z.number().min(0).max(0.5),
@@ -1189,8 +1191,9 @@ const GridSweepSchema = z.object({
   sl_risk_usd: z.array(z.number().positive()).min(1).max(10),
   rr: z.array(z.number().positive()).min(1).max(10),
   entry_mode: z.array(EntryModeEnum).min(1).max(4),
-  entry_depth_pct: z.array(z.number().min(0).max(0.5)).min(1).max(10),
-  sl_depth_pct: z.array(z.number().min(0.1).max(1)).min(1).max(10),
+  entry_depth_pct: z.array(z.number().min(0).max(3)).min(1).max(10),
+  sl_depth_pct: z.array(z.number().min(0.1).max(3)).min(1).max(10),
+
   retest_sl_r: z.array(z.number().positive().max(5)).min(1).max(10),
   trail_enabled: z.array(z.boolean()).min(1).max(2),
   trail_activate_r: z.array(z.number().positive()).min(1).max(10),

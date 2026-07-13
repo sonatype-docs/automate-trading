@@ -52,7 +52,12 @@ interface StrategySettingsRow {
   trail_activate_r?: number;
   trail_step_r?: number;
   skip_weekends?: boolean;
+  ai_grading_enabled?: boolean;
+  ai_grading_model?: unknown;
+  ai_risk_multipliers?: Record<string, number> | null;
+  ai_min_grade?: string;
 }
+
 
 interface SessionRow {
   ist_date: string;
@@ -438,8 +443,65 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
-      const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;
+
+      // ---- AI Grading gate + risk scaling (post-hoc model) ----
+      let effectiveSlRiskUsd = s.sl_risk_usd;
+      // aiGradeInfo captured in action log for observability
+      if (s.ai_grading_enabled && s.ai_grading_model) {
+        try {
+          const { scoreCandidate, DEFAULT_RISK_MULTIPLIERS, GRADE_ORDER } = await import("@/lib/research/grading");
+          // Build a partial live TradeFeatures from what we know now.
+          const breakCandle = klines.find(
+            (k) => k.openTime === new Date(session.break_detected_at ?? "").getTime() - 3_600_000 + 3_600_000,
+          ) ?? klines.filter((k) => k.openTime > sessionCandle.openTime && k.close === breakClose)[0];
+          const bc = breakCandle;
+          const bcRange = bc ? bc.high - bc.low : 0;
+          const bcBody = bc ? Math.abs(bc.close - bc.open) : 0;
+          const orRange = zone_high - zone_low;
+          const breakDistanceUsd = side === "long" ? breakClose - zone_high : zone_low - breakClose;
+          const breakHourIst = session.break_detected_at
+            ? new Date(new Date(session.break_detected_at).getTime() + IST_OFFSET_MIN * 60_000).getUTCHours()
+            : null;
+          const istDate = new Date(todayIst + "T00:00:00Z");
+          const candidate = {
+            side,
+            or_size_usd: orRange,
+            break_distance_usd: breakDistanceUsd,
+            break_distance_pct_or: orRange > 0 ? (breakDistanceUsd / orRange) * 100 : null,
+            body_pct: bcRange > 0 ? (bcBody / bcRange) * 100 : null,
+            upper_wick_pct: bc && bcRange > 0 ? ((bc.high - Math.max(bc.open, bc.close)) / bcRange) * 100 : null,
+            lower_wick_pct: bc && bcRange > 0 ? ((Math.min(bc.open, bc.close) - bc.low) / bcRange) * 100 : null,
+            break_hour_ist: breakHourIst,
+            weekday: istDate.getUTCDay(),
+            month: istDate.getUTCMonth() + 1,
+            quarter: Math.floor(istDate.getUTCMonth() / 3) + 1,
+          };
+          const model = s.ai_grading_model as Parameters<typeof scoreCandidate>[1];
+          const graded = scoreCandidate(candidate as never, model);
+          const multMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+            ? (s.ai_risk_multipliers as Record<string, number>)
+            : (DEFAULT_RISK_MULTIPLIERS as unknown as Record<string, number>));
+          const mult = multMap[graded.grade] ?? DEFAULT_RISK_MULTIPLIERS[graded.grade] ?? 0;
+          const minGrade = (s.ai_min_grade ?? "C") as (typeof GRADE_ORDER)[number];
+          const gradeRank = GRADE_ORDER.indexOf(graded.grade);
+          const minRank = GRADE_ORDER.indexOf(minGrade);
+          void graded;
+          if (gradeRank > minRank || mult <= 0) {
+            await log("info", "ai_grade skip", { side, grade: graded.grade, score: graded.score, minGrade, mult });
+            actions.push(`ai_skip ${side} grade=${graded.grade} score=${graded.score} < min=${minGrade}`);
+            // mark existing (cancelled row) untouched and exit arm branch
+            return { ok: true, ist_date: todayIst, actions, session };
+          }
+          effectiveSlRiskUsd = s.sl_risk_usd * mult;
+          actions.push(`ai_grade ${side} grade=${graded.grade} score=${graded.score} mult=${mult}x risk=$${effectiveSlRiskUsd.toFixed(2)}`);
+        } catch (e) {
+          await log("warn", "ai_grade failed — proceeding with base risk", { error: (e as Error).message });
+        }
+      }
+
+      const requestedQty = risk > 0 ? effectiveSlRiskUsd / risk : 0;
       if (requestedQty > 0) {
+
         // Place a pending LIMIT (or MARKET when entry_mode='market') on the exchange.
         let exchangeOrderId: string | null = null;
         let placeError: string | null = null;

@@ -31,6 +31,8 @@ import {
   type SimConfig,
 } from "@/lib/research/advanced";
 import { computeStats } from "@/lib/research/aggregate";
+import { GradingTab } from "./grading-tab";
+
 
 function fmtUsd(n: number, d = 0) {
   if (!Number.isFinite(n)) return "—";
@@ -345,16 +347,17 @@ function AITab({ features }: { features: TradeFeatures[] }) {
   );
 }
 
-export function AdvancedResearch({ features, slRiskUsd }: { features: TradeFeatures[]; slRiskUsd: number }) {
+export function AdvancedResearch({ features, slRiskUsd, symbol }: { features: TradeFeatures[]; slRiskUsd: number; symbol?: string }) {
   const [enabled, setEnabled] = useState(false);
   return (
     <Card className="border-primary/20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <CardTitle className="font-display text-base">Advanced Research — Phases 4/6/7</CardTitle>
+            <CardTitle className="font-display text-base">Advanced Research — Phases 4/6/7 + AI Grading</CardTitle>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Exit-plan simulator, Monte Carlo, walk-forward, feature importance, and a per-trade quality score.
+              Exit-plan simulator, Monte Carlo, walk-forward, feature importance, per-trade quality score, and an AI
+              grading engine (A+++ → C) with per-grade risk sizing.
             </p>
           </div>
           <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -365,12 +368,14 @@ export function AdvancedResearch({ features, slRiskUsd }: { features: TradeFeatu
       </CardHeader>
       {enabled && (
         <CardContent>
-          <Tabs defaultValue="sim" className="w-full">
+          <Tabs defaultValue="grading" className="w-full">
             <TabsList className="bg-muted/60">
+              <TabsTrigger value="grading" className="text-xs">AI Grading (A+++ → C)</TabsTrigger>
               <TabsTrigger value="sim" className="text-xs">Exit simulator</TabsTrigger>
               <TabsTrigger value="rob" className="text-xs">Robustness (MC + WF)</TabsTrigger>
               <TabsTrigger value="ai" className="text-xs">AI — importance + quality</TabsTrigger>
             </TabsList>
+            <TabsContent value="grading" className="mt-4"><GradingTab features={features} slRiskUsd={slRiskUsd} symbol={symbol} /></TabsContent>
             <TabsContent value="sim" className="mt-4"><SimulatorTab features={features} slRiskUsd={slRiskUsd} /></TabsContent>
             <TabsContent value="rob" className="mt-4"><RobustnessTab features={features} /></TabsContent>
             <TabsContent value="ai" className="mt-4"><AITab features={features} /></TabsContent>
@@ -380,6 +385,7 @@ export function AdvancedResearch({ features, slRiskUsd }: { features: TradeFeatu
     </Card>
   );
 }
+
 
 // Prevent unused-warning helper.
 export { Button as _Btn };

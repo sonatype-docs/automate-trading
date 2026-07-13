@@ -1674,6 +1674,8 @@ function MonthGrid({
             bg = "hsl(var(--warning, var(--primary)) / 0.15)";
             textCls = "text-warning";
           }
+          const outcomeLabel = (c.outcome === "sl" && pnl > 0) ? "trail win" : c.outcome.replace(/_/g, " ");
+          const title = `${c.ist_date} · ${outcomeLabel}${pnl !== 0 ? ` · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}` : ""}`;
           const clickable = !!onDayClick;
           return (
             <button

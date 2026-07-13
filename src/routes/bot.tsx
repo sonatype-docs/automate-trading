@@ -537,6 +537,14 @@ function BotPage() {
         </Card>
       ) : null}
 
+      {/* AI Grade Sizing */}
+      <AiGradingCard
+        settings={settings as Record<string, unknown> | undefined}
+        onSave={(patch) => saveMut.mutate(patch)}
+        saving={saveMut.isPending}
+      />
+
+
       {/* Activity log */}
       <Card>
         <CardHeader>

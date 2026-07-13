@@ -57,12 +57,11 @@ export function BacktestAnalytics({
       }
       const pnl = Number(d.pnl_usd ?? 0);
       bucket.pnl += pnl;
-      if (d.outcome === "tp" || (!d.outcome && pnl > 0)) {
+      const decided = d.outcome === "tp" || d.outcome === "sl" || (!d.outcome && pnl !== 0);
+      if (decided) {
         bucket.trades++;
-        bucket.wins++;
-      } else if (d.outcome === "sl" || (!d.outcome && pnl < 0)) {
-        bucket.trades++;
-        bucket.losses++;
+        if (pnl > 0) bucket.wins++;
+        else if (pnl < 0) bucket.losses++;
       } else if (d.outcome && d.outcome !== "skipped" && d.outcome !== "no_sweep" && d.outcome !== "no_asia_range" && d.outcome !== "armed_no_trigger") {
         bucket.trades++;
       }

@@ -579,8 +579,8 @@ function BacktestLab() {
                     <StrategiesRoadmapCard />
                   </TabsContent>
                 </Tabs>
-              </CardContent>
-            </Card>
+            </Section>
+
 
           </>
         )}

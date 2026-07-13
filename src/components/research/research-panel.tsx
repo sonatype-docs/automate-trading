@@ -517,6 +517,8 @@ export function ResearchPanel({ data }: { data: RangeData }) {
             </TabsContent>
           ))}
         </Tabs>
+
+        <AdvancedResearch features={features} slRiskUsd={Number((data as unknown as { sl_risk_usd?: number }).sl_risk_usd ?? 100)} />
       </CardContent>
     </Card>
   );

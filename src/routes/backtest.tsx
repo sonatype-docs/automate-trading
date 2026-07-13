@@ -19,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ArrowLeft, Beaker } from "lucide-react";
+import { ArrowLeft, Beaker, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,

@@ -230,6 +230,10 @@ export function createSharkClient(): ExchangeClient {
         filledAmount: num(o.filledAmount),
         stopLossPrice: num(o.stopLossPrice ?? o.slPrice),
         takeProfitPrice: num(o.takeProfitPrice ?? o.tpPrice),
+        subType: (o.subType as string | undefined) ?? null,
+        linkType: (o.linkType as string | undefined) ?? null,
+        reduceOnly: typeof o.reduceOnly === "boolean" ? (o.reduceOnly as boolean) : null,
+        stopPrice: num(o.stopPrice ?? o.triggerPrice),
         createdAt: (o.time as string | undefined) ?? (o.createdAt as string | undefined) ?? null,
         raw: o,
       });

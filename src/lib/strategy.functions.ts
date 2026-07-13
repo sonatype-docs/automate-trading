@@ -508,6 +508,11 @@ export const backtestRange = createServerFn({ method: "POST" })
       adaptiveDeepDepth: data.entry?.adaptive_deep_depth ?? savedEntry.adaptiveDeepDepth,
       retestSlR: data.entry?.retest_sl_r ?? savedEntry.retestSlR,
     };
+    const s = settings as unknown as Record<string, unknown>;
+    const aiEnabled = Boolean(s.ai_grading_enabled) && !!s.ai_grading_model;
+    const overrideMap = (s.ai_risk_multipliers && typeof s.ai_risk_multipliers === "object"
+      ? (s.ai_risk_multipliers as Record<string, number>)
+      : undefined);
     return runBacktestRange({
       symbol: data.symbol ?? settings.symbol,
       sessionStartIst: (data.session_start_ist ?? String(settings.session_start_ist)).slice(0, 5),
@@ -524,6 +529,9 @@ export const backtestRange = createServerFn({ method: "POST" })
       feeUsdPerOrder: data.fee_usd_per_order,
       zoneSource: data.zone_source,
       dataSource: data.data_source,
+      gradingModel: aiEnabled ? s.ai_grading_model : undefined,
+      gradeRiskMap: overrideMap,
+      minGrade: aiEnabled ? String(s.ai_min_grade ?? "B") : undefined,
     });
   });
 

@@ -10,6 +10,7 @@ import {
 import {
   getStrategyState,
   getStrategyTimeline,
+  getSetupTimeline,
   runStrategyTickNow,
   repriceArmedNow,
   updateStrategySettings,

@@ -1279,8 +1279,12 @@ export const backtestGridSweep = createServerFn({ method: "POST" })
               mode: c.entry_mode,
               entryDepthPct: c.entry_depth_pct,
               slDepthPct: c.sl_depth_pct,
+              adaptiveStrongBreakPct: 30,
+              adaptiveShallowDepth: 0.10,
+              adaptiveDeepDepth: 0.35,
               retestSlR: c.retest_sl_r,
             },
+
             feeUsdPerOrder: c.fee_usd_per_order,
             zoneSource: c.zone_source,
             dataSource: c.data_source,

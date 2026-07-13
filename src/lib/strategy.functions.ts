@@ -395,7 +395,7 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
   const { data: setups } = await supabase
     .from("strategy_setups")
     .select(
-      "id, ist_date, side, entry_price, sl_price, tp_price, qty, status, order_id, close_order_id, close_reason, pnl_usd, exchange_order_id, created_at, filled_at, closed_at, updated_at",
+      "id, ist_date, side, entry_price, sl_price, tp_price, qty, status, order_id, close_order_id, close_reason, pnl_usd, exchange_order_id, ai_grade, ai_score, ai_risk_mult, created_at, filled_at, closed_at, updated_at",
     )
     .eq("ist_date", sessionRow.ist_date)
     .order("created_at", { ascending: true });

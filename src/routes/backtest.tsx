@@ -64,6 +64,7 @@ interface FormState {
   slDepthPct: number;
   retestSlR: number;
   zoneSource: "range" | "breakout";
+  feeUsdPerOrder: number;
 }
 
 function BacktestLab() {
@@ -110,6 +111,7 @@ function BacktestLab() {
       slDepthPct: Number(s.sl_depth_pct ?? 0.60),
       retestSlR: Number(s.retest_sl_r ?? 0.5),
       zoneSource: "range",
+      feeUsdPerOrder: 0,
     });
   }
 
@@ -136,6 +138,7 @@ function BacktestLab() {
             retest_sl_r: f.retestSlR,
           },
           zone_source: f.zoneSource,
+          fee_usd_per_order: f.feeUsdPerOrder,
         },
       }),
     onSuccess: (r) => {
@@ -322,7 +325,19 @@ function BacktestLab() {
                       disabled={!form.trailEnabled}
                     />
                   </Field>
+                  <Field label="Fee $ per order (entry & exit)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.feeUsdPerOrder}
+                      onChange={(e) => set("feeUsdPerOrder", Math.max(0, Number(e.target.value) || 0))}
+                      className="h-8 font-mono text-xs"
+                      placeholder="0.00"
+                    />
+                  </Field>
                 </div>
+
 
                 <div className="border-t border-border pt-3 space-y-3">
                   <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">

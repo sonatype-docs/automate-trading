@@ -211,6 +211,8 @@ export async function runBacktestRange(opts: {
   entry?: EntryConfig;
   /** Per-side taker fee rate as a fraction of notional (e.g. 0.0004 = 0.04%). Default 0.0004. */
   feeRate?: number;
+  /** Flat USD fee per order (applied to entry and exit separately — total = 2× this per triggered trade). */
+  feeUsdPerOrder?: number;
   /** "range" = fib zone from opening range candle (default). "breakout" = fib zone from the breakout candle itself. */
   zoneSource?: "range" | "breakout";
 }): Promise<RangeBacktestResult> {
@@ -261,6 +263,7 @@ export function simulateFromKlines(
     dailyBias?: Map<string, DailyBiasEntry>;
     entry?: EntryConfig;
     feeRate?: number;
+    feeUsdPerOrder?: number;
     zoneSource?: "range" | "breakout";
   },
 ): RangeBacktestResult {
@@ -275,6 +278,7 @@ export function simulateFromKlines(
   const quality = filters?.quality;
   const entryCfg = opts.entry ?? DEFAULT_ENTRY_CONFIG;
   const feeRate = opts.feeRate ?? 0; // fees disabled — exchange rebates cover them once profitable
+  const feeUsdPerOrder = Math.max(0, opts.feeUsdPerOrder ?? 0);
 
 
 
@@ -722,6 +726,17 @@ export function simulateFromKlines(
   }
 
 
+  // Apply per-trade fees to pnl_usd so ALL downstream stats (win rate is decided by pnl sign,
+  // weekday/monthly/cohort totals, streaks, equity, drawdown) reflect fees consistently.
+  let estFees = 0;
+  for (const d of days) {
+    if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
+    const notionalEntry = d.qty * d.entry;
+    const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
+    const tradeFee = (notionalEntry + notionalExit) * feeRate + 2 * feeUsdPerOrder;
+    d.pnl_usd -= tradeFee;
+    estFees += tradeFee;
+  }
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;
   const breaks = days.filter((d) => d.break_side !== null).length;
@@ -788,16 +803,9 @@ export function simulateFromKlines(
   const medianMissR = missRs.length ? missRs[Math.floor(missRs.length / 2)] : 0;
   const nearMissCount = missRs.filter((r) => r <= 0.1).length;
 
-  // Fee model — approximate 2-sided taker fees on the notional of each triggered trade.
-  // Notional = qty * entry_price. Applied per side (entry + exit).
-  let estFees = 0;
-  for (const d of days) {
-    if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
-    const notionalEntry = d.qty * d.entry;
-    const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
-    estFees += (notionalEntry + notionalExit) * feeRate;
-  }
-  const netPnl = totalPnl - estFees;
+  // Fees already applied per-trade above; totalPnl is already net of fees.
+  const netPnl = totalPnl;
+
 
 
   // Streaks + equity curve + drawdown, walk chronologically.

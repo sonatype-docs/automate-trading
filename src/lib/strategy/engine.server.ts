@@ -665,6 +665,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         let exchangeOrderId: string | null = null;
         let placeError: string | null = null;
         let finalQty = requestedQty;
+        let liveAttempt: MarginRetryResult | null = null;
         if (!globalSettings?.paper_mode) {
           const attempt = await placeOrderWithMarginRetry(client, {
             symbol: s.symbol,
@@ -675,6 +676,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             stopLossPrice: sl,
             takeProfitPrice: tp,
           });
+          liveAttempt = attempt;
           if (attempt.res) {
             exchangeOrderId = attempt.res.exchangeOrderId || null;
             finalQty = attempt.finalQty;
@@ -705,6 +707,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
+          ...(liveAttempt ? placementFields(liveAttempt, requestedQty) : {}),
         };
         if (existingSetup) {
           await supabaseAdmin
@@ -714,6 +717,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         } else {
           await supabaseAdmin.from("strategy_setups").insert(setupPayload);
         }
+
         if (placeError) {
           await log(isRecoverableCapacityError(placeError) ? "warn" : "error", "arm: full AI-sized exchange order failed; no smaller wrong-risk order placed", { side, entry, sl, tp, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
           actions.push(`arm_blocked ${side} full_qty=${finalQty.toFixed(4)} err=${placeError}`);

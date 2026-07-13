@@ -446,7 +446,7 @@ function BotPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
-              <Field label="Trailing">
+              <Field label="Trailing SL">
                 <Switch
                   checked={form.trail_enabled}
                   onCheckedChange={(v) => setForm({ ...form, trail_enabled: v })}
@@ -456,13 +456,71 @@ function BotPage() {
                 onChange={(v) => setForm({ ...form, trail_activate_r: v })} />
               <NumField label="Trail step (R)" value={form.trail_step_r} step={0.1}
                 onChange={(v) => setForm({ ...form, trail_step_r: v })} />
-              <Field label="Skip weekends">
-                <Switch
-                  checked={form.skip_weekends}
-                  onCheckedChange={(v) => setForm({ ...form, skip_weekends: v })}
-                />
+              <NumField label="Fee $ per order (entry & exit)" value={form.fee_usd_per_order} step={0.5}
+                onChange={(v) => setForm({ ...form, fee_usd_per_order: v })} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Candle data source">
+                <div className="flex gap-2">
+                  {(["shark", "yahoo"] as const).map((v) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      size="sm"
+                      variant={form.data_source === v ? "default" : "outline"}
+                      onClick={() => setForm({ ...form, data_source: v })}
+                    >
+                      {v === "shark" ? "SHARK (XAUUSDT)" : "YAHOO (GC=F)"}
+                    </Button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Fib zone source">
+                <div className="flex gap-2">
+                  {(["range", "breakout"] as const).map((v) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      size="sm"
+                      variant={form.zone_source === v ? "default" : "outline"}
+                      onClick={() => setForm({ ...form, zone_source: v })}
+                    >
+                      {v === "range" ? "RANGE CANDLE" : "BREAKOUT CANDLE"}
+                    </Button>
+                  ))}
+                </div>
               </Field>
             </div>
+
+            <Field label="Skip weekdays (highlighted = excluded)">
+              <div className="flex flex-wrap gap-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, idx) => {
+                  const active = form.skip_weekdays.includes(idx);
+                  return (
+                    <Button
+                      key={label}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const next = active
+                          ? form.skip_weekdays.filter((d) => d !== idx)
+                          : [...form.skip_weekdays, idx].sort((a, b) => a - b);
+                        setForm({ ...form, skip_weekdays: next });
+                      }}
+                      className={active ? "bg-rose-500/15 border-rose-500 text-rose-500 hover:bg-rose-500/25" : ""}
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Session skipped when its IST date falls on a highlighted weekday. Default: Sat excluded, Sun tradeable.
+              </p>
+            </Field>
+
 
             <div className="flex gap-2 pt-2">
               <Button

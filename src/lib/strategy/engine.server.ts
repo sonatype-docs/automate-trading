@@ -1055,6 +1055,31 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       })
       .eq("id", setup.id);
     actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)} (fee=$${(2 * feePerOrder).toFixed(2)})`);
+
+    // Auto-retrain the AI grading model so this new trade is folded into the
+    // learned expectancy on the next armed setup. Debounced: skip if we
+    // retrained within the last 5 minutes. Fire-and-forget (never blocks the
+    // tick or fails the close).
+    const sx = s as unknown as { ai_auto_retrain?: boolean; ai_last_retrain_at?: string | null };
+    if (sx.ai_auto_retrain !== false) {
+      const lastMs = sx.ai_last_retrain_at ? new Date(sx.ai_last_retrain_at).getTime() : 0;
+      if (Date.now() - lastMs > 5 * 60_000) {
+        // mark first so concurrent ticks don't stampede
+        await supabaseAdmin
+          .from("strategy_settings")
+          .update({ ai_last_retrain_at: new Date().toISOString() } as never)
+          .eq("id", true);
+        void (async () => {
+          try {
+            const { retrainGradingModelNow } = await import("@/lib/strategy.functions");
+            const r = await retrainGradingModelNow({ data: {} as never });
+            await log("info", "AI grading model retrained", { sample_size: r.sample_size, days: r.days });
+          } catch (e) {
+            await log("warn", "AI grading auto-retrain failed", { error: (e as Error).message });
+          }
+        })();
+      }
+    }
   }
 
 

@@ -939,10 +939,15 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
               });
               actions.push(`auto_reprice_cancel_failed ${side} [${cancel.status}]`);
             } else {
+              await logSetupEvent(existingSetup.id, "reprice_cancel", {
+                exchange_order_id: oldOid,
+                reason: "auto_reprice_settings_changed",
+              });
               await supabaseAdmin
                 .from("strategy_setups")
                 .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
                 .eq("id", existingSetup.id);
+
 
               const attempt = await placeOrderWithMarginRetry(client, {
                 symbol: s.symbol,

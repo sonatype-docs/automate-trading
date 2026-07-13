@@ -1659,6 +1659,10 @@ export async function repriceArmedSetupsNow(): Promise<{
     }
 
     // Detach the stale id right away so a concurrent tick doesn't reuse it.
+    await logSetupEvent(setup.id, "reprice_cancel", {
+      exchange_order_id: oldOid,
+      reason: "reprice_now",
+    });
     await supabaseAdmin
       .from("strategy_setups")
       .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
@@ -1674,6 +1678,8 @@ export async function repriceArmedSetupsNow(): Promise<{
       stopLossPrice: sl,
       takeProfitPrice: tp,
     });
+    await emitPlacementOutcome(setup.id, attempt, requestedQty, entry);
+
 
     if (!attempt.res) {
       await supabaseAdmin

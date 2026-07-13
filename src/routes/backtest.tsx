@@ -452,14 +452,11 @@ function BacktestLab() {
             </div>
 
             {/* Secondary exploration — grouped into tabs so users don't scroll a mile */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-mono tracking-widest">EXPLORE</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies.
-                </p>
-              </CardHeader>
-              <CardContent>
+            <Section
+              title="Explore"
+              subtitle="Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies."
+            >
+
                 <Tabs defaultValue="sessions" className="w-full">
                   <div className="-mx-1 overflow-x-auto pb-1">
                     <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">

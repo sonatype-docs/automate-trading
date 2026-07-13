@@ -1155,8 +1155,13 @@ function StrategyCard() {
         trail_activate_r?: number;
         trail_step_r?: number;
         skip_weekends?: boolean;
+        entry_mode?: "fib" | "retest" | "market" | "adaptive";
         entry_depth_pct?: number;
         sl_depth_pct?: number;
+        adaptive_strong_break_pct?: number;
+        adaptive_shallow_depth?: number;
+        adaptive_deep_depth?: number;
+        retest_sl_r?: number;
       }
     | null
     | undefined;

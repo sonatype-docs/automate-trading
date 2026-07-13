@@ -647,9 +647,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const side = existingSetup.side as "long" | "short";
       const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
       const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
-      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
+      let zh = zone_high;
+      let zl = zone_low;
+      if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+        const bt = new Date(session.break_detected_at).getTime();
+        const bb = klines.find((k) => k.closeTime === bt) ?? klines.find((k) => k.openTime === bt - 3_600_000);
+        if (bb) { zh = bb.high; zl = bb.low; }
+      }
+      const { entry, sl, market } = computeEntry(side, zh, zl, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
       const exchangeEntry = roundExchangePrice(entry);
       const exchangeSl = roundExchangePrice(sl);

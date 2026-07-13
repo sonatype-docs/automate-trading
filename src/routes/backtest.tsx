@@ -107,7 +107,8 @@ function BacktestLab() {
     | null
     | undefined;
 
-  if (s && !form) {
+  useEffect(() => {
+    if (!s || form) return;
     setForm({
       days: 90,
       symbol: s.symbol,
@@ -126,7 +127,7 @@ function BacktestLab() {
       feeUsdPerOrder: 0,
       dataSource: "shark",
     });
-  }
+  }, [form, s]);
 
   const resultsRef = useRef<HTMLDivElement | null>(null);
 

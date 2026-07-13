@@ -263,6 +263,7 @@ export function simulateFromKlines(
     dailyBias?: Map<string, DailyBiasEntry>;
     entry?: EntryConfig;
     feeRate?: number;
+    feeUsdPerOrder?: number;
     zoneSource?: "range" | "breakout";
   },
 ): RangeBacktestResult {

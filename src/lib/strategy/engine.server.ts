@@ -1428,6 +1428,13 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
+    await logSetupEvent(setup.id, reason === "tp" ? "tp_hit" : "sl_hit", {
+      qty: setup.qty,
+      price: lastPrice,
+      reason: `pnl=${pnl.toFixed(2)}`,
+      payload: { gross_pnl: grossPnl, fee: 2 * feePerOrder },
+    });
+    await logSetupEvent(setup.id, "closed", { price: lastPrice, reason });
     actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)} (fee=$${(2 * feePerOrder).toFixed(2)})`);
 
     // Auto-retrain the AI grading model so this new trade is folded into the

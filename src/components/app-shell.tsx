@@ -30,26 +30,37 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           Skip to main content
         </a>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/50 bg-background/60 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/40">
-          <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation" />
-          <Separator orientation="vertical" className="h-5 opacity-60" />
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/40 bg-background/50 px-4 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/30 sm:px-6">
+          <SidebarTrigger className="h-9 w-9 rounded-lg" aria-label="Toggle navigation" />
+          <Separator orientation="vertical" className="h-6 opacity-40" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
-              <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
-                <span className="absolute inset-0 rounded-full bg-primary/50 animate-ping" />
-                <span className="relative inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
+              <span className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70 sm:inline">
+                Shark
               </span>
-              <h1 className="truncate font-display text-sm font-semibold tracking-tight">{title}</h1>
+              <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>/</span>
+              <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-foreground">
+                {title}
+              </h1>
             </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-border/50 bg-card/50 px-2.5 py-1 backdrop-blur-md">
+            <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
+              <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
+              <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_theme(colors.emerald.400)]" />
+            </span>
+            <span className="text-[11px] font-medium tracking-wide text-muted-foreground">Live</span>
           </div>
           <ThemeToggle />
         </header>
         <main
           id="main-content"
           key={pathname}
-          className="min-h-[calc(100dvh-3.5rem)] animate-fade-in"
+          className="min-h-[calc(100dvh-4rem)] animate-fade-in"
         >
-          {children}
+          <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">
+            {children}
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

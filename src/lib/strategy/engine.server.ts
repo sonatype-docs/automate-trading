@@ -1446,7 +1446,7 @@ export async function repriceArmedSetupsNow(): Promise<{
         .from("strategy_setups")
         .update({
           status: "cancelled",
-          close_reason: "manual",
+          close_reason: isRecoverableCapacityError(attempt.error) ? "rearm_with_ai" : "manual",
           closed_at: new Date().toISOString(),
           exchange_order_id: null,
           entry_price: entry,

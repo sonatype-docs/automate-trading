@@ -348,6 +348,9 @@ export type Database = {
       }
       strategy_setups: {
         Row: {
+          ai_grade: string | null
+          ai_risk_mult: number | null
+          ai_score: number | null
           close_order_id: string | null
           close_reason: string | null
           closed_at: string | null
@@ -372,6 +375,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_grade?: string | null
+          ai_risk_mult?: number | null
+          ai_score?: number | null
           close_order_id?: string | null
           close_reason?: string | null
           closed_at?: string | null
@@ -396,6 +402,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_grade?: string | null
+          ai_risk_mult?: number | null
+          ai_score?: number | null
           close_order_id?: string | null
           close_reason?: string | null
           closed_at?: string | null

@@ -1194,10 +1194,16 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             updated_at: new Date().toISOString(),
           })
           .eq("id", setup.id);
+        await logSetupEvent(setup.id, "filled", {
+          exchange_order_id: oid,
+          qty: setup.qty,
+          price: fillPrice,
+        });
         actions.push(`fill ${setup.side} @${fillPrice.toFixed(2)}`);
       }
     }
   }
+
 
   for (const setup of paperArmed) {
     const barLow = currentBar?.low ?? lastPrice ?? setup.entry_price;

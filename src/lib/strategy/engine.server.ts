@@ -1071,8 +1071,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           .eq("id", true);
         void (async () => {
           try {
-            const { retrainGradingModelNow } = await import("@/lib/strategy.functions");
-            const r = await retrainGradingModelNow({ data: {} as never });
+            const { retrainGradingCore } = await import("@/lib/strategy.functions");
+            const r = await retrainGradingCore({});
             await log("info", "AI grading model retrained", { sample_size: r.sample_size, days: r.days });
           } catch (e) {
             await log("warn", "AI grading auto-retrain failed", { error: (e as Error).message });

@@ -1213,6 +1213,9 @@ function StrategyCard() {
     status: string;
     pnl_usd: number | null;
     close_reason: string | null;
+    ai_grade?: string | null;
+    ai_score?: number | null;
+    ai_risk_mult?: number | null;
   }>;
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");

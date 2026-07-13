@@ -394,6 +394,7 @@ export const backtestSessionsCompare = createServerFn({ method: "POST" })
           filters: data.filters,
           entry,
           feeRate: data.fee_rate,
+          feeUsdPerOrder: data.fee_usd_per_order,
         });
         return {
           session: sess.slice(0, 5),

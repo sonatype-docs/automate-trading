@@ -1614,8 +1614,11 @@ function MonthGrid({
   const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=Sun
   const rows = [...days.values()];
   const total = rows.reduce((s, r) => s + r.pnl_usd, 0);
-  const wins = rows.filter((r) => r.outcome === "tp").length;
-  const losses = rows.filter((r) => r.outcome === "sl").length;
+  // Classify by realized P&L sign so trailed-stop exits above entry count as wins
+  // (engine still tags those "sl" because the stop-loss order fired).
+  const closedRows = rows.filter((r) => r.outcome === "tp" || r.outcome === "sl");
+  const wins = closedRows.filter((r) => r.pnl_usd > 0).length;
+  const losses = closedRows.filter((r) => r.pnl_usd < 0).length;
   const totalTone = total > 0 ? "text-long" : total < 0 ? "text-short" : "text-muted-foreground";
 
   // Extremes for color intensity scaling.

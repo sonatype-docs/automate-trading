@@ -986,6 +986,7 @@ export async function repriceArmedSetupsNow(): Promise<{
   if (armed.length === 0) return { ok: true, reason: "no_pending_armed", actions };
 
   const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
+  const client = createSharkClient();
 
   for (const setup of armed) {
     const side = setup.side;
@@ -993,28 +994,105 @@ export async function repriceArmedSetupsNow(): Promise<{
     const breakClose = Number(
       session.break_close_price ?? (side === "long" ? session.zone_high : session.zone_low),
     );
-    const { entry, sl } = computeEntry(side, session.zone_high, session.zone_low, breakClose, cfg);
+    const { entry, sl, market } = computeEntry(
+      side,
+      session.zone_high,
+      session.zone_low,
+      breakClose,
+      cfg,
+    );
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
-    const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
-    if (qty <= 0) {
+    const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;
+    if (requestedQty <= 0) {
       actions.push(`reprice_now_skip ${side} qty=0`);
       continue;
     }
 
-    await log("warn", "reprice_now: live order kept", {
-      setup_id: setup.id,
-      exchange_order_id: oldOid,
-      current: {
-        entry: setup.entry_price,
-        sl: setup.sl_price,
-        tp: setup.tp_price,
-        qty: setup.qty,
-      },
-      planned: { entry, sl, tp, qty },
-    });
-    actions.push(`reprice_now_hold ${side} live order kept; cancel manually before replacing`);
+    // Skip when nothing meaningful changed (avoids churning the exchange).
+    const priceEps = Math.max(0.01, Math.abs(entry) * 0.0001);
+    const qtyEps = Math.max(1e-6, requestedQty * 0.001);
+    const unchanged =
+      Math.abs(Number(setup.entry_price) - entry) < priceEps &&
+      Math.abs(Number(setup.sl_price) - sl) < priceEps &&
+      Math.abs(Number(setup.tp_price) - tp) < priceEps &&
+      Math.abs(Number(setup.qty) - requestedQty) < qtyEps;
+    if (unchanged) {
+      actions.push(`reprice_now_noop ${side}`);
+      continue;
+    }
 
+    // 1) Cancel the still-pending exchange order.
+    try {
+      await client.cancelOrder(oldOid, s.symbol);
+    } catch (e) {
+      // If cancel fails the order may have already filled — bail on this setup.
+      await log("warn", "reprice_now: cancel failed, skipping replace", {
+        setup_id: setup.id,
+        exchange_order_id: oldOid,
+        error: (e as Error).message,
+      });
+      actions.push(`reprice_now_cancel_failed ${side}`);
+      continue;
+    }
+
+    // Detach the stale id right away so a concurrent tick doesn't reuse it.
+    await supabaseAdmin
+      .from("strategy_setups")
+      .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
+      .eq("id", setup.id);
+
+    // 2) Place a new order with the current entry / SL / TP / qty.
+    const attempt = await placeOrderWithMarginRetry(client, {
+      symbol: s.symbol,
+      side: side === "long" ? "buy" : "sell",
+      qty: requestedQty,
+      type: market ? "market" : "limit",
+      price: entry,
+      stopLossPrice: sl,
+      takeProfitPrice: tp,
+    });
+
+    if (!attempt.res) {
+      await supabaseAdmin
+        .from("strategy_setups")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+      await log("error", "reprice_now: replace placeOrder failed", {
+        setup_id: setup.id,
+        error: attempt.error,
+      });
+      actions.push(`reprice_now_replace_failed ${side}`);
+      continue;
+    }
+
+    await supabaseAdmin
+      .from("strategy_setups")
+      .update({
+        entry_price: entry,
+        sl_price: sl,
+        initial_sl_price: sl,
+        tp_price: tp,
+        qty: attempt.finalQty,
+        status: "armed",
+        exchange_order_id: attempt.res.exchangeOrderId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", setup.id);
+
+    await log("info", "reprice_now: replaced live order", {
+      setup_id: setup.id,
+      old_exchange_order_id: oldOid,
+      new_exchange_order_id: attempt.res.exchangeOrderId,
+      entry, sl, tp, qty: attempt.finalQty,
+      mode: cfg.mode, market,
+    });
+    actions.push(
+      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
+    );
   }
 
   return { ok: true, actions };

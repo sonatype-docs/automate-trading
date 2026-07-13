@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { OptimizerPanel } from "@/components/optimizer-panel";
+import { GridSweepPanel } from "@/components/grid-sweep-panel";
+
 import {
   Sheet,
   SheetContent,
@@ -614,10 +616,35 @@ function BacktestLab() {
                       <TabsTrigger value="zones" className="text-xs">Entry zones</TabsTrigger>
                       <TabsTrigger value="sweep" className="text-xs">Liquidity sweep</TabsTrigger>
                       <TabsTrigger value="silver" className="text-xs">Silver bullet</TabsTrigger>
+                      <TabsTrigger value="grid" className="text-xs">Grid sweep</TabsTrigger>
                       <TabsTrigger value="optimize" className="text-xs">Optimize</TabsTrigger>
                       <TabsTrigger value="roadmap" className="text-xs">Roadmap</TabsTrigger>
                     </TabsList>
                   </div>
+
+                  <TabsContent value="grid" className="mt-4">
+                    <GridSweepPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        sessionStartIst: form.sessionStartIst,
+                        entryMode: form.entryMode,
+                        entryDepthPct: form.entryDepthPct,
+                        slDepthPct: form.slDepthPct,
+                        retestSlR: form.retestSlR,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        feeUsdPerOrder: form.feeUsdPerOrder,
+                        zoneSource: form.zoneSource,
+                        dataSource: form.dataSource,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
+
 
                   <TabsContent value="sessions" className="mt-4">
                     <MultiSessionComparePanel

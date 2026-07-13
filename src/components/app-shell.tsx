@@ -58,9 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           key={pathname}
           className="min-h-[calc(100dvh-4rem)] animate-fade-in"
         >
-          <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">
-            {children}
-          </div>
+          {children}
         </main>
       </SidebarInset>
     </SidebarProvider>

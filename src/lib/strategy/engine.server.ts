@@ -311,6 +311,7 @@ async function placeOrderWithMarginRetry(
   const capLevSteps = [50, 25, 10];
   let marginStepIdx = 0;
   let capStepIdx = 0;
+  let currentLeverage: number | null = null;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -319,7 +320,7 @@ async function placeOrderWithMarginRetry(
         lastError = "exchange rejected";
         break;
       }
-      return { res, finalQty: qty, error: null, attempts, capped: false };
+      return { res, finalQty: qty, error: null, attempts, capped: false, leverage: currentLeverage };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
@@ -333,6 +334,7 @@ async function placeOrderWithMarginRetry(
           await log(levRes.ok ? "info" : "warn", "place: lowered leverage after max-position-size rejection", {
             symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
           });
+          if (levRes.ok) currentLeverage = leverage;
           adjusted = true;
         } catch (levError) {
           await log("warn", "place: leverage adjustment failed", {
@@ -347,6 +349,7 @@ async function placeOrderWithMarginRetry(
           await log(levRes.ok ? "info" : "warn", "place: raised leverage after insufficient-margin rejection", {
             symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
           });
+          if (levRes.ok) currentLeverage = leverage;
           adjusted = true;
         } catch (levError) {
           await log("warn", "place: leverage adjustment failed", {
@@ -388,7 +391,7 @@ async function placeOrderWithMarginRetry(
         await log("warn", "place: capped-qty fallback placed after leverage escalation exhausted", {
           symbol: params.symbol, side: params.side, planned_qty: qty, capped_qty: cappedQty, fraction: frac,
         });
-        return { res, finalQty: cappedQty, error: null, attempts, capped: true };
+        return { res, finalQty: cappedQty, error: null, attempts, capped: true, leverage: currentLeverage };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         lastError = msg;
@@ -396,8 +399,9 @@ async function placeOrderWithMarginRetry(
       }
     }
   }
-  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false };
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false, leverage: currentLeverage };
 }
+
 
 
 

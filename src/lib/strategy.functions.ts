@@ -165,52 +165,6 @@ export const retrainGradingModelNow = createServerFn({ method: "POST" })
   .handler(async ({ data }) =>
     retrainGradingCore({ days: data?.days, minSamplesPerBucket: data?.min_samples_per_bucket }),
   );
-    const supabase = await admin();
-    const { data: settings } = await supabase
-      .from("strategy_settings")
-      .select("*")
-      .eq("id", true)
-      .single();
-    if (!settings) throw new Error("Strategy settings not found");
-
-    const s = settings as unknown as Record<string, unknown>;
-    const days = data?.days ?? Number(s.ai_retrain_days ?? 365);
-    const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
-    const { extractFeatures } = await import("@/lib/research/features");
-    const { trainGradingModel } = await import("@/lib/research/grading");
-
-    const savedEntry = entryFromSettings(s);
-    const result = await runBacktestRange({
-      symbol: String(s.symbol),
-      sessionStartIst: String(s.session_start_ist).slice(0, 5),
-      slRiskUsd: Number(s.sl_risk_usd),
-      rr: Number(s.rr),
-      days,
-      trailEnabled: Boolean(s.trail_enabled),
-      trailActivateR: Number(s.trail_activate_r ?? 2),
-      trailStepR: Number(s.trail_step_r ?? 1),
-      skipWeekdays: ((s.skip_weekdays as number[] | null) ?? []) as (0|1|2|3|4|5|6)[],
-      entry: savedEntry,
-      feeUsdPerOrder: Number(s.fee_usd_per_order ?? 0),
-      zoneSource: (s.zone_source as "range" | "breakout" | undefined) ?? undefined,
-      dataSource: (s.data_source as "shark" | "yahoo" | undefined) ?? undefined,
-    });
-    const features = extractFeatures(result.days);
-    const model = trainGradingModel(features, {
-      symbol: String(s.symbol),
-      minSamplesPerBucket: data?.min_samples_per_bucket ?? 3,
-    });
-    const { error } = await supabase
-      .from("strategy_settings")
-      .update({
-        ai_grading_model: model as never,
-        ai_last_retrain_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as never)
-      .eq("id", true);
-    if (error) throw new Error(error.message);
-    return { ok: true, sample_size: model.sample_size, days, trained_at: model.trained_at };
-  });
 
 
 

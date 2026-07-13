@@ -322,6 +322,12 @@ export function simulateFromKlines(
     feeRate?: number;
     feeUsdPerOrder?: number;
     zoneSource?: "range" | "breakout";
+    /** Optional AI grading model — when provided together with gradeRiskMap,
+     *  each day's SL$ risk is set to gradeRiskMap[grade] (absolute USD).
+     *  Rows graded below minGrade are marked filtered. */
+    gradingModel?: unknown;
+    gradeRiskMap?: Record<string, number>;
+    minGrade?: string;
   },
 ): RangeBacktestResult {
   const trailEnabled = !!opts.trailEnabled;

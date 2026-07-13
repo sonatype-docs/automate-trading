@@ -840,7 +840,13 @@ export function simulateFromKlines(
       if (prevSide !== 0 && side !== prevSide) retestCount += 1;
       prevSide = side;
 
-      // Update peak-R using bar extremes in the favorable direction.
+      // Snapshot peak-R from PRIOR bars — the trailing SL for this bar's
+      // SL/TP check must not use this bar's own favorable extreme, otherwise
+      // a bar that both spikes up and dips through the initial SL is
+      // incorrectly resolved as a trailed-out profit (same-bar look-ahead).
+      const peakRBefore = peakR;
+
+      // Update peak-R using bar extremes in the favorable direction (for reporting).
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
       const barR = ((favorableExtreme - entry) * (breakSide === "long" ? 1 : -1)) / risk;
       if (barR > peakR) peakR = barR;
@@ -859,9 +865,9 @@ export function simulateFromKlines(
       }
 
 
-      // Advance trailing SL if enabled.
-      if (trailEnabled && peakR >= trailActivateR) {
-        const steps = Math.floor((peakR - trailActivateR) / trailStepR);
+      // Advance trailing SL for THIS bar's resolution using only prior-bar peak.
+      if (trailEnabled && peakRBefore >= trailActivateR) {
+        const steps = Math.floor((peakRBefore - trailActivateR) / trailStepR);
         const slR = steps * trailStepR; // 0, step, 2*step, ...
         const newSl = breakSide === "long" ? entry + slR * risk : entry - slR * risk;
         if (breakSide === "long" ? newSl > dynSl : newSl < dynSl) dynSl = newSl;

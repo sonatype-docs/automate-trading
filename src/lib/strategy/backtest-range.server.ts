@@ -128,6 +128,10 @@ export interface DayResult {
   fvg_present: boolean | null;
   /** True when the break candle swept a recent swing (broke prior high/low, then closed back). */
   sweep_present: boolean | null;
+  // ---- AI grading (populated when a grading model is supplied) ----
+  ai_grade?: string | null;
+  ai_score?: number | null;
+  ai_risk_usd?: number | null;
 }
 
 

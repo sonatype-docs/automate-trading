@@ -53,7 +53,48 @@ const StrategySettingsSchema = z.object({
   adaptive_shallow_depth: z.number().min(0).max(0.5).optional(),
   adaptive_deep_depth: z.number().min(0).max(0.5).optional(),
   retest_sl_r: z.number().positive().max(5).optional(),
+  ai_grading_enabled: z.boolean().optional(),
+  ai_min_grade: z.enum(["A+++", "A++", "A+", "A", "B", "C"]).optional(),
+  ai_risk_multipliers: z.record(z.string(), z.number().min(0).max(10)).optional(),
 });
+
+const GradeKey = z.enum(["A+++", "A++", "A+", "A", "B", "C"]);
+const GradingModelSchema = z.object({
+  version: z.literal(1),
+  trained_at: z.number(),
+  symbol: z.string().nullable(),
+  sample_size: z.number(),
+  bucketExpectancy: z.record(z.string(), z.number()),
+  bucketWinRate: z.record(z.string(), z.number()),
+  bucketCount: z.record(z.string(), z.number()),
+  edges: z.record(z.string(), z.array(z.number())),
+  thresholds: z.record(GradeKey, z.number()),
+  scoreMin: z.number(),
+  scoreMax: z.number(),
+});
+
+export const saveGradingModel = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => GradingModelSchema.parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { error } = await supabase
+      .from("strategy_settings")
+      .update({ ai_grading_model: data as never, updated_at: new Date().toISOString() })
+      .eq("id", true);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const clearGradingModel = createServerFn({ method: "POST" }).handler(async () => {
+  const supabase = await admin();
+  const { error } = await supabase
+    .from("strategy_settings")
+    .update({ ai_grading_model: null, ai_grading_enabled: false, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+});
+
 
 
 export const updateStrategySettings = createServerFn({ method: "POST" })

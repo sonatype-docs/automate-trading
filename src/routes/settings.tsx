@@ -430,6 +430,62 @@ function StrategySettingsCard() {
           )}
         </div>
 
+        {/* AI Grading toggle — model is trained in Backtest → Advanced Research → AI Grading. */}
+        <div className="md:col-span-2 border-t border-border pt-4 space-y-3">
+          <Label className="text-xs font-mono tracking-wide">AI GRADING ENGINE</Label>
+          <p className="text-[11px] text-muted-foreground">
+            When enabled, the live engine scores each setup 0–100 using the trained model (A+++ → C) and scales risk
+            per grade. Setups below the minimum grade are skipped. Train and push the model from the Backtest → Advanced
+            Research → AI Grading tab.
+          </p>
+          {(() => {
+            const s = (q.data?.settings ?? {}) as Record<string, unknown>;
+            const aiEnabled = !!s.ai_grading_enabled;
+            const hasModel = !!s.ai_grading_model;
+            const modelTs = hasModel ? new Date(Number((s.ai_grading_model as { trained_at?: number })?.trained_at ?? 0)) : null;
+            const minGrade = (s.ai_min_grade as string) ?? "B";
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between rounded border border-border p-3">
+                  <div>
+                    <Label className="text-xs">Enable AI grading</Label>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {hasModel
+                        ? `Model trained ${modelTs?.toLocaleString() ?? "—"}`
+                        : "No model saved yet — train one from Backtest."}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={aiEnabled}
+                    disabled={!hasModel}
+                    onCheckedChange={(v) => mut.mutate({ ai_grading_enabled: v } as never)}
+                  />
+                </div>
+                <div className="space-y-2 rounded border border-border p-3">
+                  <Label className="text-xs">Minimum grade to trade</Label>
+                  <div className="grid grid-cols-6 gap-1">
+                    {(["A+++", "A++", "A+", "A", "B", "C"] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => mut.mutate({ ai_min_grade: g } as never)}
+                        className={`px-2 py-1 rounded border text-[11px] font-mono ${
+                          minGrade === g
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+
         <div className="md:col-span-2">
           <Button
             onClick={() =>

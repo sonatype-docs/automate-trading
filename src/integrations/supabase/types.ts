@@ -255,6 +255,10 @@ export type Database = {
           adaptive_deep_depth: number
           adaptive_shallow_depth: number
           adaptive_strong_break_pct: number
+          ai_grading_enabled: boolean
+          ai_grading_model: Json | null
+          ai_min_grade: string
+          ai_risk_multipliers: Json
           enabled: boolean
           entry_depth_pct: number
           entry_mode: string
@@ -275,6 +279,10 @@ export type Database = {
           adaptive_deep_depth?: number
           adaptive_shallow_depth?: number
           adaptive_strong_break_pct?: number
+          ai_grading_enabled?: boolean
+          ai_grading_model?: Json | null
+          ai_min_grade?: string
+          ai_risk_multipliers?: Json
           enabled?: boolean
           entry_depth_pct?: number
           entry_mode?: string
@@ -295,6 +303,10 @@ export type Database = {
           adaptive_deep_depth?: number
           adaptive_shallow_depth?: number
           adaptive_strong_break_pct?: number
+          ai_grading_enabled?: boolean
+          ai_grading_model?: Json | null
+          ai_min_grade?: string
+          ai_risk_multipliers?: Json
           enabled?: boolean
           entry_depth_pct?: number
           entry_mode?: string

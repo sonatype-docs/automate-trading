@@ -43,6 +43,13 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   LineChart,
   Line,
   ResponsiveContainer,
@@ -1093,7 +1100,9 @@ function StrategyCard() {
   });
 
   const trailSaveMut = useMutation({
-    mutationFn: (patch: {
+    mutationFn: async (patch: {
+      enabled?: boolean;
+      symbol?: string;
       trail_enabled?: boolean;
       trail_activate_r?: number;
       trail_step_r?: number;
@@ -1101,10 +1110,33 @@ function StrategyCard() {
       session_start_ist?: string;
       sl_risk_usd?: number;
       rr?: number;
-    }) => updateStrat({ data: patch }),
-    onSuccess: () => {
-      toast.success("Strategy settings saved");
+      entry_mode?: "fib" | "retest" | "market" | "adaptive";
+      entry_depth_pct?: number;
+      sl_depth_pct?: number;
+      adaptive_strong_break_pct?: number;
+      adaptive_shallow_depth?: number;
+      adaptive_deep_depth?: number;
+      retest_sl_r?: number;
+    }) => {
+      const saved = await updateStrat({ data: patch });
+      // Any change re-prices today's still-armed exchange order so live orders
+      // reflect the new entry / SL / TP / risk immediately.
+      const reprice = await repriceNow().catch((e: Error) => ({
+        actions: [] as string[],
+        reason: e.message,
+      }));
+      return { saved, reprice };
+    },
+    onSuccess: (r) => {
+      const acts = r.reprice?.actions ?? [];
+      const replaced = acts.filter((a) => a.startsWith("reprice_now ")).length;
+      toast.success(
+        replaced > 0
+          ? `Saved · re-priced ${replaced} armed order${replaced === 1 ? "" : "s"}`
+          : "Saved · no armed orders to re-price"
+      );
       qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1123,8 +1155,13 @@ function StrategyCard() {
         trail_activate_r?: number;
         trail_step_r?: number;
         skip_weekends?: boolean;
+        entry_mode?: "fib" | "retest" | "market" | "adaptive";
         entry_depth_pct?: number;
         sl_depth_pct?: number;
+        adaptive_strong_break_pct?: number;
+        adaptive_shallow_depth?: number;
+        adaptive_deep_depth?: number;
+        retest_sl_r?: number;
       }
     | null
     | undefined;
@@ -1196,6 +1233,30 @@ function StrategyCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <CollapsibleSection title="Full Strategy Configuration" defaultOpen>
+          <FullStrategyEditor
+            settings={{
+              enabled: !!s?.enabled,
+              symbol: s?.symbol ?? "XAUUSDT",
+              session_start_ist: s?.session_start_ist?.slice(0, 5) ?? "05:30",
+              entry_mode: (s?.entry_mode as "fib" | "retest" | "market" | "adaptive") ?? "adaptive",
+              entry_depth_pct: Number(s?.entry_depth_pct ?? 0.15),
+              sl_depth_pct: Number(s?.sl_depth_pct ?? 0.6),
+              adaptive_strong_break_pct: Number(s?.adaptive_strong_break_pct ?? 30),
+              adaptive_shallow_depth: Number(s?.adaptive_shallow_depth ?? 0.1),
+              adaptive_deep_depth: Number(s?.adaptive_deep_depth ?? 0.35),
+              retest_sl_r: Number(s?.retest_sl_r ?? 0.5),
+              rr: Number(s?.rr ?? 2),
+              sl_risk_usd: Number(s?.sl_risk_usd ?? 25),
+              trail_enabled: !!s?.trail_enabled,
+              trail_activate_r: Number(s?.trail_activate_r ?? 2),
+              trail_step_r: Number(s?.trail_step_r ?? 1),
+              skip_weekends: !!s?.skip_weekends,
+            }}
+            onSave={(patch) => trailSaveMut.mutate(patch)}
+            saving={trailSaveMut.isPending}
+          />
+        </CollapsibleSection>
         <CollapsibleSection title="Trailing SL" defaultOpen={false}>
           <TrailingSlControls
             saved={{
@@ -1876,5 +1937,205 @@ function StrategyPresetsCard({
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Full strategy configuration editor — mirrors backtest parameters
+// and, on save, re-prices today's armed exchange orders so live &
+// non-triggered limit orders reflect the new rules immediately.
+// ---------------------------------------------------------------
+
+type FullStrategySettings = {
+  enabled: boolean;
+  symbol: string;
+  session_start_ist: string;
+  entry_mode: "fib" | "retest" | "market" | "adaptive";
+  entry_depth_pct: number;
+  sl_depth_pct: number;
+  adaptive_strong_break_pct: number;
+  adaptive_shallow_depth: number;
+  adaptive_deep_depth: number;
+  retest_sl_r: number;
+  rr: number;
+  sl_risk_usd: number;
+  trail_enabled: boolean;
+  trail_activate_r: number;
+  trail_step_r: number;
+  skip_weekends: boolean;
+};
+
+function FullStrategyEditor({
+  settings,
+  onSave,
+  saving,
+}: {
+  settings: FullStrategySettings;
+  onSave: (patch: Partial<FullStrategySettings>) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<FullStrategySettings>(settings);
+  const [baseline, setBaseline] = useState<FullStrategySettings>(settings);
+
+  // Refresh form when server sends new values (e.g. after a save or preset apply)
+  useEffect(() => {
+    setForm(settings);
+    setBaseline(settings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    settings.enabled,
+    settings.symbol,
+    settings.session_start_ist,
+    settings.entry_mode,
+    settings.entry_depth_pct,
+    settings.sl_depth_pct,
+    settings.adaptive_strong_break_pct,
+    settings.adaptive_shallow_depth,
+    settings.adaptive_deep_depth,
+    settings.retest_sl_r,
+    settings.rr,
+    settings.sl_risk_usd,
+    settings.trail_enabled,
+    settings.trail_activate_r,
+    settings.trail_step_r,
+    settings.skip_weekends,
+  ]);
+
+  const dirty = (Object.keys(form) as Array<keyof FullStrategySettings>).some(
+    (k) => form[k] !== baseline[k],
+  );
+
+  const set = <K extends keyof FullStrategySettings>(k: K, v: FullStrategySettings[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[11px] text-muted-foreground font-mono">
+        Changes take effect on the next tick. Any still-armed exchange order for today is
+        cancelled and re-placed with the new entry / SL / TP immediately after save.
+      </p>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <MiniField label="Enabled">
+          <Switch checked={form.enabled} onCheckedChange={(v) => set("enabled", v)} />
+        </MiniField>
+        <MiniField label="Symbol">
+          <Input
+            value={form.symbol}
+            onChange={(e) => set("symbol", e.target.value.toUpperCase())}
+          />
+        </MiniField>
+        <MiniField label="Session start (IST)">
+          <Input
+            type="time"
+            value={form.session_start_ist}
+            onChange={(e) => set("session_start_ist", e.target.value)}
+          />
+        </MiniField>
+        <MiniField label="Entry mode">
+          <Select
+            value={form.entry_mode}
+            onValueChange={(v) => set("entry_mode", v as FullStrategySettings["entry_mode"])}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="adaptive">Adaptive</SelectItem>
+              <SelectItem value="fib">Fib</SelectItem>
+              <SelectItem value="retest">Retest</SelectItem>
+              <SelectItem value="market">Market</SelectItem>
+            </SelectContent>
+          </Select>
+        </MiniField>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <MiniNum label="Entry depth (0–0.5)" value={form.entry_depth_pct} step={0.01}
+          onChange={(v) => set("entry_depth_pct", v)} />
+        <MiniNum label="SL depth (0.1–1)" value={form.sl_depth_pct} step={0.05}
+          onChange={(v) => set("sl_depth_pct", v)} />
+        <MiniNum label="RR (1:R)" value={form.rr} step={0.1}
+          onChange={(v) => set("rr", v)} />
+        <MiniNum label="SL risk ($)" value={form.sl_risk_usd} step={1}
+          onChange={(v) => set("sl_risk_usd", v)} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <MiniNum label="Adaptive strong break %" value={form.adaptive_strong_break_pct} step={1}
+          onChange={(v) => set("adaptive_strong_break_pct", v)} />
+        <MiniNum label="Adaptive shallow depth" value={form.adaptive_shallow_depth} step={0.01}
+          onChange={(v) => set("adaptive_shallow_depth", v)} />
+        <MiniNum label="Adaptive deep depth" value={form.adaptive_deep_depth} step={0.01}
+          onChange={(v) => set("adaptive_deep_depth", v)} />
+        <MiniNum label="Retest SL (R)" value={form.retest_sl_r} step={0.1}
+          onChange={(v) => set("retest_sl_r", v)} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <MiniField label="Trailing SL">
+          <Switch checked={form.trail_enabled} onCheckedChange={(v) => set("trail_enabled", v)} />
+        </MiniField>
+        <MiniNum label="Trail activate (R)" value={form.trail_activate_r} step={0.1}
+          onChange={(v) => set("trail_activate_r", v)} />
+        <MiniNum label="Trail step (R)" value={form.trail_step_r} step={0.1}
+          onChange={(v) => set("trail_step_r", v)} />
+        <MiniField label="Skip weekends">
+          <Switch checked={form.skip_weekends} onCheckedChange={(v) => set("skip_weekends", v)} />
+        </MiniField>
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <Button
+          size="sm"
+          disabled={saving || !dirty}
+          onClick={() => onSave(form)}
+        >
+          {saving ? "Saving & repricing…" : dirty ? "Save & apply to live" : "No changes"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={saving || !dirty}
+          onClick={() => setForm(baseline)}
+        >
+          Discard
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MiniField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </Label>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function MiniNum({
+  label,
+  value,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <MiniField label={label}>
+      <Input
+        type="number"
+        step={step}
+        value={Number.isFinite(value) ? value : 0}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </MiniField>
   );
 }

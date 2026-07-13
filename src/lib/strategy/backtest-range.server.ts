@@ -602,6 +602,36 @@ export function simulateFromKlines(
     dr.break_side = breakSide;
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
+    // Phase 3 timing tags
+    {
+      const istMs = breakBar.openTime + IST_OFFSET_MIN * 60_000;
+      const d = new Date(istMs);
+      dr.break_hour_ist = d.getUTCHours();
+      const [yy, mm] = dateStr.split("-").map((n) => parseInt(n, 10));
+      dr.month = mm;
+      dr.quarter = Math.floor((mm - 1) / 3) + 1;
+      void yy;
+    }
+    // Phase 5 structure flags — computed from local kline neighbourhood.
+    const oneHourMs = 3_600_000;
+    const preBar = byOpen.get(breakBar.openTime - oneHourMs) ?? null;
+    const pre2Bar = byOpen.get(breakBar.openTime - 2 * oneHourMs) ?? null;
+    if (pre2Bar && preBar) {
+      // 3-candle FVG: gap between candle[-2] and breakBar in the trend direction.
+      const gapUp = breakBar.low > pre2Bar.high;
+      const gapDn = breakBar.high < pre2Bar.low;
+      dr.fvg_present = breakSide === "long" ? gapUp : gapDn;
+    } else {
+      dr.fvg_present = false;
+    }
+    if (preBar) {
+      // Liquidity sweep: break candle wick pierces prior swing then closes back inside.
+      const sweptLong = breakSide === "long" && breakBar.high > preBar.high && breakBar.close < preBar.high * 1.001;
+      const sweptShort = breakSide === "short" && breakBar.low < preBar.low && breakBar.close > preBar.low * 0.999;
+      dr.sweep_present = sweptLong || sweptShort;
+    } else {
+      dr.sweep_present = false;
+    }
 
     // Cohort inputs (always recorded when a break is found).
     const barRange0 = breakBar.high - breakBar.low;

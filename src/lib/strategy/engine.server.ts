@@ -697,12 +697,43 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       !existingSetup.exchange_order_id &&
       !globalSettings?.paper_mode
     ) {
-      await log("warn", "arm: missing exchange order id; not auto-restoring to avoid duplicate live orders", {
+      await log("warn", "watchdog: armed setup missing exchange order id; auto-replacing", {
         setup_id: existingSetup.id,
         side: existingSetup.side,
         qty: existingSetup.qty,
       });
-      actions.push(`missing_pending_manual_rearm_required ${existingSetup.side}`);
+      const wdSide: "buy" | "sell" = existingSetup.side === "long" ? "buy" : "sell";
+      const wdAttempt = await placeOrderWithMarginRetry(client, {
+        symbol: existingSetup.symbol,
+        side: wdSide,
+        qty: existingSetup.qty,
+        type: "limit",
+        price: existingSetup.entry_price,
+        stopLossPrice: existingSetup.sl_price,
+        takeProfitPrice: existingSetup.tp_price,
+      });
+      if (wdAttempt.res) {
+        await supabaseAdmin
+          .from("strategy_setups")
+          .update({
+            exchange_order_id: wdAttempt.res.exchangeOrderId || null,
+            qty: wdAttempt.finalQty,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingSetup.id);
+        actions.push(`watchdog_replaced ${existingSetup.side} qty=${wdAttempt.finalQty.toFixed(4)} pending=${wdAttempt.res.exchangeOrderId ?? "?"}`);
+      } else {
+        await supabaseAdmin
+          .from("strategy_setups")
+          .update({
+            status: "cancelled",
+            close_reason: isRecoverableCapacityError(wdAttempt.error) ? "rearm_with_ai" : "manual",
+            closed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingSetup.id);
+        actions.push(`watchdog_replace_failed ${existingSetup.side} err=${wdAttempt.error ?? "unknown"}`);
+      }
 
     } else if (
 

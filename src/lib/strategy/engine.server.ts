@@ -573,6 +573,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           qty: finalQty,
           status: placeError && !isRecoverableCapacityError(placeError) ? ("cancelled" as const) : ("armed" as const),
           exchange_order_id: exchangeOrderId,
+          ai_grade: aiGrade,
+          ai_score: aiScore,
+          ai_risk_mult: aiRiskMult,
           updated_at: new Date().toISOString(),
         };
         if (existingSetup) {

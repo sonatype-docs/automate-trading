@@ -440,31 +440,50 @@ function BacktestLab() {
                   {(form.entryMode === "fib" || form.entryMode === "market") && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {form.entryMode === "fib" && (
-                        <Field label={`Entry depth (${(form.entryDepthPct * 100).toFixed(0)}%)`}>
-                          <input
-                            type="range"
-                            min={0}
-                            max={0.5}
-                            step={0.05}
-                            value={form.entryDepthPct}
-                            onChange={(e) => set("entryDepthPct", Number(e.target.value))}
-                            className="w-full"
-                          />
+                        <Field label="Entry depth (% of range, 0–300, step 10)">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              max={300}
+                              step={10}
+                              value={Math.round(form.entryDepthPct * 100)}
+                              onChange={(e) => {
+                                const n = Number(e.target.value);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(300, n));
+                                set("entryDepthPct", clamped / 100);
+                              }}
+                              className="h-9 w-28 font-mono"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
                         </Field>
                       )}
-                      <Field label={`SL depth (${(form.slDepthPct * 100).toFixed(0)}%)`}>
-                        <input
-                          type="range"
-                          min={Math.max(0.15, form.entryDepthPct + 0.05)}
-                          max={1}
-                          step={0.05}
-                          value={form.slDepthPct}
-                          onChange={(e) => set("slDepthPct", Number(e.target.value))}
-                          className="w-full"
-                        />
+                      <Field label="SL depth (% of range, 10–300, step 10)">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={10}
+                            max={300}
+                            step={10}
+                            value={Math.round(form.slDepthPct * 100)}
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              if (!Number.isFinite(n)) return;
+                              const clamped = Math.max(10, Math.min(300, n));
+                              set("slDepthPct", clamped / 100);
+                            }}
+                            className="h-9 w-28 font-mono"
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
                       </Field>
                     </div>
                   )}
+
                   {form.entryMode === "retest" && (
                     <Field label={`Retest SL distance (R × range) — ${form.retestSlR.toFixed(2)}`}>
                       <input

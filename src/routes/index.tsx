@@ -1808,6 +1808,7 @@ function StrategyCard() {
                       rearmMut.mutate();
                     }
                   }}
+                  aria-label="Cancel and re-arm the current setup with latest AI grading"
                   title="Cancels the currently pending exchange order and immediately re-arms so the AI grading model + risk multiplier are applied."
                 >
                   {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}

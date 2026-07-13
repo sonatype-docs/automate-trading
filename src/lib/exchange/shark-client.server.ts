@@ -92,6 +92,7 @@ export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
   editOrder(p: EditOrderParams): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
+  updateLeverage(symbol: string, leverage: number): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
@@ -311,6 +312,17 @@ export function createSharkClient(): ExchangeClient {
         body.quantity = Math.round(quantity * 1000) / 1000;
       }
       const res = await signedJson(apiKey, apiSecret, "PATCH", "/v1/order/edit-order", body);
+      return { ok: res.ok, status: res.status, body: res.body, json: res.json };
+    },
+
+    async updateLeverage(symbol, leverage) {
+      const { apiKey, apiSecret } = requireCreds();
+      const lev = Math.max(1, Math.min(125, Math.floor(leverage)));
+      const body = {
+        contractName: symbol.toUpperCase(),
+        leverage: lev,
+      };
+      const res = await signedJson(apiKey, apiSecret, "POST", "/v1/exchange/update/leverage", body);
       return { ok: res.ok, status: res.status, body: res.body, json: res.json };
     },
 

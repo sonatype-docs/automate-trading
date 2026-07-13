@@ -778,13 +778,23 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           updated_at: new Date().toISOString(),
           ...(liveAttempt ? placementFields(liveAttempt, requestedQty) : {}),
         };
+        let armedSetupId: string | null = existingSetup?.id ?? null;
         if (existingSetup) {
           await supabaseAdmin
             .from("strategy_setups")
             .update(setupPayload)
             .eq("id", existingSetup.id);
         } else {
-          await supabaseAdmin.from("strategy_setups").insert(setupPayload);
+          const { data: inserted } = await supabaseAdmin
+            .from("strategy_setups")
+            .insert(setupPayload)
+            .select("id")
+            .single();
+          armedSetupId = (inserted?.id as string | undefined) ?? null;
+        }
+
+        if (liveAttempt) {
+          await emitPlacementOutcome(armedSetupId, liveAttempt, requestedQty, entry);
         }
 
         if (placeError) {

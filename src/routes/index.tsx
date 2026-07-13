@@ -1419,17 +1419,34 @@ function StrategyCard() {
           </p>
         )}
 
-        {active.length > 0 && (
+        {(active.length > 0 || pendingRearm.length > 0) && (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-mono text-muted-foreground">ACTIVE SETUPS</div>
-              {active.some((a) => a.status === "armed" && !a.ai_grade) ? (
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-xs font-mono text-muted-foreground">
+                ACTIVE SETUPS
+                {pendingRearm.length > 0 && (
+                  <span className="ml-2 text-warning">· {pendingRearm.length} pending re-arm</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={rearmMut.isPending}
+                  disabled={watchdogMut.isPending}
+                  onClick={() => watchdogMut.mutate()}
+                  title="Verify every active setup has a live pending order on the exchange and place one if missing (leverage escalation + capped fallback)."
+                >
+                  {watchdogMut.isPending ? "Checking…" : "Verify & re-arm"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={active.some((a) => a.status === "armed" && !a.ai_grade) ? "outline" : "ghost"}
+                  disabled={
+                    rearmMut.isPending ||
+                    (!active.some((a) => a.status === "armed") && pendingRearm.length === 0)
+                  }
                   onClick={() => {
-                    if (confirm("Cancel the current armed order and re-arm using the AI grading model?")) {
+                    if (confirm("Cancel current armed order (if any) and re-arm with the latest AI grading + risk settings?")) {
                       rearmMut.mutate();
                     }
                   }}
@@ -1437,22 +1454,9 @@ function StrategyCard() {
                 >
                   {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={rearmMut.isPending || !active.some((a) => a.status === "armed")}
-                  onClick={() => {
-                    if (confirm("Cancel current armed order and re-arm with the latest AI grading + risk settings?")) {
-                      rearmMut.mutate();
-                    }
-                  }}
-                  title="Force a re-arm using the current AI grading settings."
-                >
-                  {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
-                </Button>
-              )}
+              </div>
             </div>
+
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => {
                 const notional = a.entry_price * a.qty;

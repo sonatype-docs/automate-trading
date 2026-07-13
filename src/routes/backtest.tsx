@@ -257,9 +257,9 @@ function BacktestLab() {
                       <Input
                         type="number"
                         min={1}
-                        max={365}
+                        max={730}
                         value={form.days}
-                        onChange={(e) => set("days", Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
+                        onChange={(e) => set("days", Math.min(730, Math.max(1, Number(e.target.value) || 1)))}
                         className="h-8 font-mono text-xs"
                       />
                       <select
@@ -267,7 +267,7 @@ function BacktestLab() {
                         value={form.days}
                         onChange={(e) => set("days", Number(e.target.value))}
                       >
-                        {[7, 30, 60, 90, 180, 270, 365].map((d) => (
+                        {[7, 30, 60, 90, 180, 270, 365, 540, 720].map((d) => (
                           <option key={d} value={d}>
                             {d}d
                           </option>
@@ -2420,7 +2420,7 @@ function EntryZoneGridPanel(props: {
       <CardContent className="space-y-4 font-mono text-xs">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Field label={`Days — ${days}`}>
-            <input type="range" min={14} max={365} step={7} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full" />
+            <input type="range" min={14} max={730} step={7} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full" />
           </Field>
           <div className="md:col-span-3 space-y-1">
             <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Modes</Label>
@@ -2840,7 +2840,7 @@ function MultiSessionComparePanel(props: {
                   <Input
                     type="number"
                     min={1}
-                    max={365}
+                    max={730}
                     value={ovDays}
                     onChange={(e) => setOvDays(Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
                     className="h-8 font-mono text-xs"
@@ -3408,7 +3408,7 @@ function LiquiditySweepPanel(props: {
               <input
                 type="range"
                 min={7}
-                max={365}
+                max={730}
                 step={1}
                 value={days}
                 onChange={(e) => setDays(Number(e.target.value))}
@@ -3417,7 +3417,7 @@ function LiquiditySweepPanel(props: {
               <Input
                 type="number"
                 min={1}
-                max={365}
+                max={730}
                 value={days}
                 onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
                 className="h-8 w-20 font-mono text-xs"
@@ -3779,7 +3779,7 @@ function SilverBulletPanel(props: {
               <input
                 type="range"
                 min={7}
-                max={365}
+                max={730}
                 step={1}
                 value={days}
                 onChange={(e) => setDays(Number(e.target.value))}
@@ -3788,7 +3788,7 @@ function SilverBulletPanel(props: {
               <Input
                 type="number"
                 min={1}
-                max={365}
+                max={730}
                 value={days}
                 onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
                 className="h-8 w-20 font-mono text-xs"

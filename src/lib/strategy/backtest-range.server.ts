@@ -752,13 +752,18 @@ export function simulateFromKlines(
   // Any closed trade with positive realized P&L counts as a win (includes trailed exits).
   const winCount = days.filter((d) => (d.outcome === "tp" || d.outcome === "sl") && d.pnl_usd > 0).length;
   const winRate = decided > 0 ? (winCount / decided) * 100 : 0;
-  const totalPnl = days.reduce((s, d) => s + d.pnl_usd, 0);
+  // Guard against NaN pnl on individual days (e.g. a null Yahoo bar producing NaN entry/sl).
+  // Without this, one poisoned trade turns the totals into NaN even though wins/losses
+  // (filtered by > 0 / < 0) still aggregate cleanly.
+  const finitePnl = (d: DayResult) => Number.isFinite(d.pnl_usd) ? d.pnl_usd : 0;
+  const totalPnl = days.reduce((s, d) => s + finitePnl(d), 0);
   const rMultiples = days
     .filter((d) => d.outcome === "tp" || d.outcome === "sl")
-    .map((d) => (d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1)));
+    .map((d) => (d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1)))
+    .filter((r) => Number.isFinite(r));
   const avgR = rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0;
-  const bestPnl = days.reduce((m, d) => Math.max(m, d.pnl_usd), 0);
-  const worstPnl = days.reduce((m, d) => Math.min(m, d.pnl_usd), 0);
+  const bestPnl = days.reduce((m, d) => Math.max(m, finitePnl(d)), 0);
+  const worstPnl = days.reduce((m, d) => Math.min(m, finitePnl(d)), 0);
   const skippedDays = days.filter((d) => d.skipped).length;
   const filteredDays = days.filter((d) => d.outcome === "filtered").length;
 
@@ -767,7 +772,7 @@ export function simulateFromKlines(
     const rows = days.filter((d) => d.weekday === wd && (d.outcome === "tp" || d.outcome === "sl"));
     const wins = rows.filter((d) => d.pnl_usd > 0).length;
     const losses = rows.filter((d) => d.pnl_usd <= 0).length;
-    const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
+    const total = rows.reduce((s, d) => s + finitePnl(d), 0);
     const trades = rows.length;
     return {
       weekday: wd,

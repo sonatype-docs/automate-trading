@@ -276,7 +276,9 @@ interface MarginRetryResult {
   error: string | null;
   attempts: number;
   capped: boolean;
+  leverage: number | null;
 }
+
 
 // Place a Shark order at the exact exchange-supported planned size. We do NOT
 // shrink/cap qty here: the strategy's qty is derived from the configured SL
@@ -309,6 +311,7 @@ async function placeOrderWithMarginRetry(
   const capLevSteps = [50, 25, 10];
   let marginStepIdx = 0;
   let capStepIdx = 0;
+  let currentLeverage: number | null = null;
   while (attempts < maxAttempts && qty >= minQty) {
     attempts += 1;
     try {
@@ -317,7 +320,7 @@ async function placeOrderWithMarginRetry(
         lastError = "exchange rejected";
         break;
       }
-      return { res, finalQty: qty, error: null, attempts, capped: false };
+      return { res, finalQty: qty, error: null, attempts, capped: false, leverage: currentLeverage };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       lastError = msg;
@@ -331,6 +334,7 @@ async function placeOrderWithMarginRetry(
           await log(levRes.ok ? "info" : "warn", "place: lowered leverage after max-position-size rejection", {
             symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
           });
+          if (levRes.ok) currentLeverage = leverage;
           adjusted = true;
         } catch (levError) {
           await log("warn", "place: leverage adjustment failed", {
@@ -345,6 +349,7 @@ async function placeOrderWithMarginRetry(
           await log(levRes.ok ? "info" : "warn", "place: raised leverage after insufficient-margin rejection", {
             symbol: params.symbol, leverage, status: levRes.status, body: levRes.body.slice(0, 300),
           });
+          if (levRes.ok) currentLeverage = leverage;
           adjusted = true;
         } catch (levError) {
           await log("warn", "place: leverage adjustment failed", {
@@ -386,7 +391,7 @@ async function placeOrderWithMarginRetry(
         await log("warn", "place: capped-qty fallback placed after leverage escalation exhausted", {
           symbol: params.symbol, side: params.side, planned_qty: qty, capped_qty: cappedQty, fraction: frac,
         });
-        return { res, finalQty: cappedQty, error: null, attempts, capped: true };
+        return { res, finalQty: cappedQty, error: null, attempts, capped: true, leverage: currentLeverage };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         lastError = msg;
@@ -394,8 +399,35 @@ async function placeOrderWithMarginRetry(
       }
     }
   }
-  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false };
+  return { res: null, finalQty: qty, error: lastError ?? "place_failed", attempts, capped: false, leverage: currentLeverage };
 }
+
+function placementFields(
+  attempt: MarginRetryResult,
+  requestedQty: number,
+): {
+  placement_status: string;
+  placement_leverage: number | null;
+  placement_error: string | null;
+  placement_capped: boolean;
+  requested_qty: number;
+  placement_attempts: number;
+  placement_at: string;
+} {
+  return {
+    placement_status: attempt.res ? (attempt.capped ? "placed_capped" : "placed") : "failed",
+    placement_leverage: attempt.leverage,
+    placement_error: attempt.error,
+    placement_capped: attempt.capped,
+    requested_qty: requestedQty,
+    placement_attempts: attempt.attempts,
+    placement_at: new Date().toISOString(),
+  };
+}
+
+
+
+
 
 
 
@@ -633,6 +665,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         let exchangeOrderId: string | null = null;
         let placeError: string | null = null;
         let finalQty = requestedQty;
+        let liveAttempt: MarginRetryResult | null = null;
         if (!globalSettings?.paper_mode) {
           const attempt = await placeOrderWithMarginRetry(client, {
             symbol: s.symbol,
@@ -643,6 +676,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             stopLossPrice: sl,
             takeProfitPrice: tp,
           });
+          liveAttempt = attempt;
           if (attempt.res) {
             exchangeOrderId = attempt.res.exchangeOrderId || null;
             finalQty = attempt.finalQty;
@@ -673,6 +707,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
+          ...(liveAttempt ? placementFields(liveAttempt, requestedQty) : {}),
         };
         if (existingSetup) {
           await supabaseAdmin
@@ -682,6 +717,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         } else {
           await supabaseAdmin.from("strategy_setups").insert(setupPayload);
         }
+
         if (placeError) {
           await log(isRecoverableCapacityError(placeError) ? "warn" : "error", "arm: full AI-sized exchange order failed; no smaller wrong-risk order placed", { side, entry, sl, tp, qty: finalQty, requestedQty, mode: cfg.mode, error: placeError });
           actions.push(`arm_blocked ${side} full_qty=${finalQty.toFixed(4)} err=${placeError}`);
@@ -719,6 +755,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             exchange_order_id: wdAttempt.res.exchangeOrderId || null,
             qty: wdAttempt.finalQty,
             updated_at: new Date().toISOString(),
+            ...placementFields(wdAttempt, existingSetup.qty),
           })
           .eq("id", existingSetup.id);
         actions.push(`watchdog_replaced ${existingSetup.side} qty=${wdAttempt.finalQty.toFixed(4)} pending=${wdAttempt.res.exchangeOrderId ?? "?"}`);
@@ -730,10 +767,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             close_reason: isRecoverableCapacityError(wdAttempt.error) ? "rearm_with_ai" : "manual",
             closed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            ...placementFields(wdAttempt, existingSetup.qty),
           })
           .eq("id", existingSetup.id);
         actions.push(`watchdog_replace_failed ${existingSetup.side} err=${wdAttempt.error ?? "unknown"}`);
       }
+
 
     } else if (
 
@@ -847,6 +886,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
                     updated_at: new Date().toISOString(),
+                    ...placementFields(attempt, qty),
                   })
                   .eq("id", existingSetup.id);
                 await log("error", "auto-reprice: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
@@ -873,8 +913,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
                     updated_at: new Date().toISOString(),
+                    ...placementFields(attempt, qty),
                   })
                   .eq("id", existingSetup.id);
+
                 await log("info", "auto-reprice: replaced live order", {
                   setup_id: existingSetup.id,
                   old_exchange_order_id: oldOid,
@@ -988,6 +1030,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 exchange_order_id: wdAttempt.res.exchangeOrderId || null,
                 qty: wdAttempt.finalQty,
                 updated_at: new Date().toISOString(),
+                ...placementFields(wdAttempt, setup.qty),
               })
               .eq("id", setup.id);
             await log("info", "watchdog: re-placed missing pending order", {
@@ -1009,8 +1052,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 closed_at: new Date().toISOString(),
                 exchange_order_id: null,
                 updated_at: new Date().toISOString(),
+                ...placementFields(wdAttempt, setup.qty),
               })
               .eq("id", setup.id);
+
             await log("error", "watchdog: re-place failed; setup marked for rearm on next tick", {
               setup_id: setup.id,
               error: wdAttempt.error,
@@ -1534,6 +1579,7 @@ export async function repriceArmedSetupsNow(): Promise<{
           ai_score: aiDecision.score,
           ai_risk_mult: aiDecision.riskMult,
           updated_at: new Date().toISOString(),
+          ...placementFields(attempt, requestedQty),
         })
         .eq("id", setup.id);
       await log("error", "reprice_now: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
@@ -1562,8 +1608,10 @@ export async function repriceArmedSetupsNow(): Promise<{
         ai_score: aiDecision.score,
         ai_risk_mult: aiDecision.riskMult,
         updated_at: new Date().toISOString(),
+        ...placementFields(attempt, requestedQty),
       })
       .eq("id", setup.id);
+
 
     await log("info", "reprice_now: replaced live order", {
       setup_id: setup.id,

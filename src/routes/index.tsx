@@ -1090,6 +1090,91 @@ function WalletCard({
 }
 
 
+type PlacementSetup = {
+  status: string;
+  qty: number;
+  exchange_order_id?: string | null;
+  placement_status?: string | null;
+  placement_leverage?: number | null;
+  placement_error?: string | null;
+  placement_capped?: boolean | null;
+  requested_qty?: number | null;
+  placement_attempts?: number | null;
+  placement_at?: string | null;
+};
+
+function PlacementStatusRow({ setup }: { setup: PlacementSetup }) {
+  const ps = setup.placement_status;
+  if (!ps) {
+    // No placement metadata yet (e.g., paper mode, or armed before this feature shipped)
+    return null;
+  }
+  const ok = ps === "placed" || ps === "placed_capped";
+  const capped = !!setup.placement_capped;
+  const lev = setup.placement_leverage;
+  const req = setup.requested_qty;
+  const eff = setup.qty;
+  const attempts = setup.placement_attempts ?? undefined;
+  const at = setup.placement_at ? new Date(setup.placement_at) : null;
+
+  const tone = ok
+    ? capped
+      ? "text-warning border-warning/50 bg-warning-soft/40"
+      : "text-long border-long/50 bg-long/10"
+    : "text-short border-short/50 bg-short/10";
+  const label = ok
+    ? capped
+      ? "PLACED (CAPPED)"
+      : "PLACED"
+    : "PLACE FAILED";
+
+  return (
+    <div className={`mt-1 rounded border px-2 py-1 text-[11px] ${tone}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-semibold tracking-wide">{label}</span>
+        {ok && setup.exchange_order_id && (
+          <span className="text-muted-foreground">
+            order <span className="text-foreground">{setup.exchange_order_id}</span>
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          leverage <span className="text-foreground">{lev ? `${lev}x` : "exchange default"}</span>
+        </span>
+        <span className="text-muted-foreground">
+          effective qty <span className="text-foreground">{eff.toFixed(4)}</span>
+          {req && Math.abs(req - eff) / Math.max(req, 1e-9) > 0.001 && (
+            <> / requested <span className="text-foreground">{req.toFixed(4)}</span></>
+          )}
+        </span>
+        {attempts !== undefined && (
+          <span className="text-muted-foreground">
+            attempts <span className="text-foreground">{attempts}</span>
+          </span>
+        )}
+        {at && (
+          <span className="text-muted-foreground">
+            at <span className="text-foreground">{at.toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" })} IST</span>
+          </span>
+        )}
+      </div>
+      {!ok && setup.placement_error && (
+        <div className="mt-0.5 break-all text-short/90">
+          reason: {setup.placement_error}
+        </div>
+      )}
+      {ok && capped && req && (
+        <div className="mt-0.5 text-warning/90">
+          exchange couldn't fit the full AI-sized qty — placed a reduced qty so an order is live. Planned risk differs from configured.
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
 function StrategyCard() {
   const qc = useQueryClient();
   const getState = useServerFn(getStrategyState);
@@ -1252,7 +1337,16 @@ function StrategyCard() {
     ai_grade?: string | null;
     ai_score?: number | null;
     ai_risk_mult?: number | null;
+    placement_status?: string | null;
+    placement_leverage?: number | null;
+    placement_error?: string | null;
+    placement_capped?: boolean | null;
+    requested_qty?: number | null;
+    placement_attempts?: number | null;
+    placement_at?: string | null;
+    exchange_order_id?: string | null;
   }>;
+
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
   // Setups pending re-arm — cancelled but flagged for the watchdog/tick to retry.
@@ -1483,6 +1577,7 @@ function StrategyCard() {
                       <span>margin@10x <span className="text-foreground">${marginAt10x.toFixed(2)}</span></span>
                       <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
                     </div>
+                    <PlacementStatusRow setup={a} />
                   </div>
                 );
               })}
@@ -1505,10 +1600,12 @@ function StrategyCard() {
                       <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
                       <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
                     </div>
+                    <PlacementStatusRow setup={a} />
                   </div>
                 );
               })}
             </div>
+
             <RejectionReasonBanner setupIds={active.map((a) => a.id)} logs={(q.data?.logs ?? []) as LogRow[]} />
             <GradeRiskTable
               currentEntry={active[0]?.entry_price ?? null}

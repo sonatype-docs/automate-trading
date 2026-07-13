@@ -81,12 +81,11 @@ export function BacktestAnalytics({
       const b = wdArr[wd];
       const pnl = Number(d.pnl_usd ?? 0);
       b.pnl += pnl;
-      if (d.outcome === "tp" || (!d.outcome && pnl > 0)) {
+      const decided = d.outcome === "tp" || d.outcome === "sl" || (!d.outcome && pnl !== 0);
+      if (decided) {
         b.trades++;
-        b.wins++;
-      } else if (d.outcome === "sl" || (!d.outcome && pnl < 0)) {
-        b.trades++;
-        b.losses++;
+        if (pnl > 0) b.wins++;
+        else if (pnl < 0) b.losses++;
       }
     }
 

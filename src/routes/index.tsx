@@ -1519,9 +1519,12 @@ function LiveTradePanel({
 
   return (
     <div className="border border-border rounded p-3 space-y-3 bg-muted/20">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-mono text-muted-foreground tracking-widest">
-          LIVE TRADE · <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span> · entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-xs font-mono text-muted-foreground tracking-widest flex items-center gap-2 flex-wrap">
+          <span>LIVE TRADE ·</span>
+          <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span>
+          <span>· entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}</span>
+          <GradeBadge grade={setup.ai_grade} score={setup.ai_score} mult={setup.ai_risk_mult} />
         </div>
         <div className="text-xs font-mono text-muted-foreground">
           risk {risk.toFixed(2)} · reward {reward.toFixed(2)} · RR 1:{rr.toFixed(2)}

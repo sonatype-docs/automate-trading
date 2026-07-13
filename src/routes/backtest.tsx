@@ -341,6 +341,37 @@ function BacktestLab() {
                   </Field>
                 </div>
 
+                <div className="border-t border-border pt-3 space-y-3">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Candle data source
+                  </Label>
+                  <div className="flex flex-wrap gap-1">
+                    {([
+                      { v: "shark", label: "Shark (XAUUSDT)", hint: "Live perp — ~180 days of 1h data" },
+                      { v: "yahoo", label: "Yahoo (GC=F)", hint: "Gold futures — ~730 days, no API key" },
+                    ] as const).map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => set("dataSource", o.v)}
+                        title={o.hint}
+                        className={`px-3 h-7 rounded font-mono text-[11px] border uppercase tracking-wider ${
+                          form.dataSource === o.v
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {form.dataSource === "yahoo"
+                      ? "Yahoo Finance COMEX gold futures (GC=F). Deeper history (~2 years of 1h). Session gaps present — some hours missing vs. a 24×7 perp. Prices ≈ spot ± small futures basis."
+                      : "SharkExchange XAUUSDT perp — live market data, up to ~180 days of 1h bars."}
+                  </p>
+                </div>
+
 
                 <div className="border-t border-border pt-3 space-y-3">
                   <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">

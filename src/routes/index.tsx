@@ -1621,7 +1621,7 @@ function StrategyCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-3">
         <div>
           <CardTitle className="text-sm font-mono tracking-widest">
             STRATEGY — {s?.symbol ?? "XAUUSDT"} · 1H
@@ -1630,12 +1630,22 @@ function StrategyCard() {
             IST {s?.session_start_ist?.slice(0, 5) ?? "05:30"} session · SL ${s?.sl_risk_usd ?? 25} · RR 1:{s?.rr ?? 2}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${status.cls}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded font-mono text-xs tracking-widest ${status.cls}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" aria-hidden />
             {status.label}
           </span>
-          <Button size="sm" variant="outline" disabled={mut.isPending} onClick={() => mut.mutate()}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={mut.isPending}
+            onClick={() => mut.mutate()}
+            aria-label="Run a strategy tick now"
+          >
             {mut.isPending ? "Running…" : "Run tick"}
           </Button>
           <Button
@@ -1643,6 +1653,7 @@ function StrategyCard() {
             variant="outline"
             disabled={repriceMut.isPending}
             onClick={() => repriceMut.mutate()}
+            aria-label="Reprice pending order with current settings"
             title="Cancel any still-pending exchange order for today's armed setup and re-place it with current entry/SL/TP depths."
           >
             {repriceMut.isPending ? "Repricing…" : "Reprice now"}

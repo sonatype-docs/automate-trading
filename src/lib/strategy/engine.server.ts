@@ -355,13 +355,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     actions.push(`expired_prev_day=${staleSetups.length}`);
   }
 
-  // Optional: skip Sunday (low volume). Sat/Fri etc. remain tradeable.
-  if (s.skip_weekends) {
-    const wd = istWeekday(todayIst);
-    if (wd === 0) {
-      return { ok: true, reason: "sunday_skip", ist_date: todayIst, actions };
-    }
+  // Per-weekday skip list (0=Sun..6=Sat). Falls back to legacy skip_weekends
+  // (Sunday only) when the array is empty and the legacy flag is on.
+  const skipWeekdays = Array.isArray(s.skip_weekdays) ? s.skip_weekdays.map((n) => Number(n)) : [];
+  const wdToday = istWeekday(todayIst);
+  if (skipWeekdays.includes(wdToday)) {
+    return { ok: true, reason: `weekday_skip_${wdToday}`, ist_date: todayIst, actions };
   }
+  if (skipWeekdays.length === 0 && s.skip_weekends && wdToday === 0) {
+    return { ok: true, reason: "sunday_skip", ist_date: todayIst, actions };
+  }
+
 
   const sessionOpen = sessionOpenUtcMs(todayIst, s.session_start_ist);
   const sessionCandle = klines.find((k) => k.openTime === sessionOpen);

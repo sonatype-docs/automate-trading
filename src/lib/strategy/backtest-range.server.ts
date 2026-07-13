@@ -735,10 +735,10 @@ export function simulateFromKlines(
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
 
-    // Effective per-day SL$ risk. Defaults to daySlRisk; when an AI
+    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd; when an AI
     // grading model is supplied, we grade the candidate and use the absolute
     // per-grade risk from opts.gradeRiskMap (falls back to GRADE_RISK_USD).
-    let daySlRisk = daySlRisk;
+    let daySlRisk = opts.slRiskUsd;
     if (opts.gradingModel) {
       const orRangeUsd = zone_high - zone_low;
       const bcRange = breakBar.high - breakBar.low;

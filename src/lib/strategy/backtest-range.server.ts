@@ -1,7 +1,7 @@
 import { type Kline } from "@/lib/exchange/shark-client.server";
 import { getKlineSource, type KlineSourceId } from "@/lib/exchange/kline-source.server";
 import type { FilterConfig } from "@/lib/strategy/filters";
-import { needsDailyBias } from "@/lib/strategy/filters";
+
 import { computeDailyBias, type DailyBiasEntry } from "@/lib/strategy/filter-bias.server";
 import {
   computeEntry,
@@ -83,6 +83,28 @@ export interface DayResult {
   body_bucket: Tercile | null;
   or_bucket: OrBucket | null;
   break_distance_bucket: DistBucket | null;
+  // ---- Phase 1 research features (always populated when data is available) ----
+  /** Daily ATR(14) known at start of this IST day. */
+  daily_atr: number | null;
+  /** EMA20 of daily closes known at start of day. */
+  ema20: number | null;
+  ema50: number | null;
+  ema100: number | null;
+  ema200: number | null;
+  /** Wilder ADX(14). */
+  adx14: number | null;
+  /** Prior IST-day OHLC. */
+  prev_open: number | null;
+  prev_close: number | null;
+  prev_high: number | null;
+  prev_low: number | null;
+  prev2_high: number | null;
+  prev2_low: number | null;
+  /** Breakout-candle geometry. */
+  upper_wick_pct: number | null;
+  lower_wick_pct: number | null;
+  close_position_pct: number | null;
+  candle_range_usd: number | null;
 }
 
 
@@ -225,23 +247,33 @@ export async function runBacktestRange(opts: {
   const fromMs = now - opts.days * 86_400_000;
   const klines: Kline[] = await source.getKlinesRange(opts.symbol, "1h", fromMs, now);
 
+  // Always fetch daily bias — Phase 1 research features (ATR, EMA20/50/100/200,
+  // ADX14, prev-day OHL) live on every DayResult so the research panel works
+  // regardless of whether pre-trade filters are enabled.
   let dailyBias: Map<string, DailyBiasEntry> | undefined;
-  if (needsDailyBias(opts.filters)) {
+  {
     const emaLen = opts.filters?.htf?.daily_ema_len ?? 20;
     const atrLen = opts.filters?.quality?.atr_len ?? 14;
     const emaFastLen = opts.filters?.htf?.ema_bias_fast ?? 21;
     const emaSlowLen = opts.filters?.htf?.ema_bias_slow ?? 50;
     const atrSqueezeLookback = opts.filters?.quality?.atr_squeeze_lookback ?? 20;
-    const warmupDays = Math.max(emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 10;
+    // Warm-up needs enough history for EMA200 + ADX(14) to stabilise too.
+    const warmupDays = Math.max(200, emaLen, atrLen, emaFastLen, emaSlowLen, atrSqueezeLookback) + 20;
     const dailyFromMs = fromMs - warmupDays * 86_400_000;
-    const daily = await source.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
-    dailyBias = computeDailyBias(daily, {
-      emaLen,
-      atrLen,
-      emaFastLen,
-      emaSlowLen,
-      atrSqueezeLookback,
-    });
+    try {
+      const daily = await source.getKlinesRange(opts.symbol, "1d", dailyFromMs, now);
+      dailyBias = computeDailyBias(daily, {
+        emaLen,
+        atrLen,
+        emaFastLen,
+        emaSlowLen,
+        atrSqueezeLookback,
+      });
+    } catch {
+      // Some sources may not have daily bars for the full warm-up window — fall
+      // back to no bias rather than failing the whole backtest.
+      dailyBias = undefined;
+    }
   }
 
   return simulateFromKlines(klines, { ...opts, fromMs, nowMs: now, dailyBias });
@@ -358,6 +390,22 @@ export function simulateFromKlines(
       body_bucket: null,
       or_bucket: null,
       break_distance_bucket: null,
+      daily_atr: null,
+      ema20: null,
+      ema50: null,
+      ema100: null,
+      ema200: null,
+      adx14: null,
+      prev_open: null,
+      prev_close: null,
+      prev_high: null,
+      prev_low: null,
+      prev2_high: null,
+      prev2_low: null,
+      upper_wick_pct: null,
+      lower_wick_pct: null,
+      close_position_pct: null,
+      candle_range_usd: null,
     };
 
 
@@ -402,6 +450,21 @@ export function simulateFromKlines(
     }
 
     const biasEntry = opts.dailyBias?.get(dateStr);
+    // Research features — always attach whatever daily bias is available.
+    if (biasEntry) {
+      dr.daily_atr = biasEntry.atr;
+      dr.ema20 = biasEntry.ema20;
+      dr.ema50 = biasEntry.ema50;
+      dr.ema100 = biasEntry.ema100;
+      dr.ema200 = biasEntry.ema200;
+      dr.adx14 = biasEntry.adx14;
+      dr.prev_open = biasEntry.prev_open;
+      dr.prev_close = biasEntry.prev_close;
+      dr.prev_high = biasEntry.prev_high;
+      dr.prev_low = biasEntry.prev_low;
+      dr.prev2_high = biasEntry.prev2_high;
+      dr.prev2_low = biasEntry.prev2_low;
+    }
     if (quality?.atr_enabled) {
       const atr = biasEntry?.atr ?? null;
       const min = quality.atr_min ?? 0;
@@ -510,6 +573,15 @@ export function simulateFromKlines(
     const barRange0 = breakBar.high - breakBar.low;
     const body0 = Math.abs(breakBar.close - breakBar.open);
     dr.body_pct = barRange0 > 0 ? (body0 / barRange0) * 100 : 0;
+    // Phase 1 candle-quality features.
+    dr.candle_range_usd = barRange0;
+    if (barRange0 > 0) {
+      const upperWick = breakBar.high - Math.max(breakBar.open, breakBar.close);
+      const lowerWick = Math.min(breakBar.open, breakBar.close) - breakBar.low;
+      dr.upper_wick_pct = (upperWick / barRange0) * 100;
+      dr.lower_wick_pct = (lowerWick / barRange0) * 100;
+      dr.close_position_pct = ((breakBar.close - breakBar.low) / barRange0) * 100;
+    }
     dr.or_size_usd = range;
     dr.break_distance_usd =
       breakSide === "long" ? breakBar.close - zone_high : zone_low - breakBar.close;

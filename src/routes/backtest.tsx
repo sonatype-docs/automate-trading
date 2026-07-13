@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { BacktestAnalytics } from "@/components/backtest-analytics";
 import { exportBacktest } from "@/lib/backtest-export";
+import { ResearchPanel } from "@/components/research/research-panel";
 
 export const Route = createFileRoute("/backtest")({
   component: BacktestLab,
@@ -518,9 +519,12 @@ function BacktestLab() {
 
 
             {/* Results anchor — appears immediately below Parameters/Filters after a run */}
-            <div ref={resultsRef} className="scroll-mt-32">
+            <div ref={resultsRef} className="scroll-mt-32 space-y-4 md:space-y-6">
               {result ? (
-                <ResultsView data={result} />
+                <>
+                  <ResultsView data={result} />
+                  <ResearchPanel data={result} />
+                </>
               ) : (
                 <Card className="border-dashed">
                   <CardContent className="py-10 text-center">

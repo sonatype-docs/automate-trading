@@ -805,8 +805,10 @@ export function simulateFromKlines(
   let cum = 0, peak = 0, maxDd = 0;
   const equity: { ist_date: string; cum_pnl_usd: number }[] = [];
   for (const d of days) {
-    if (d.outcome === "tp") { curWin += 1; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
-    else if (d.outcome === "sl") { curLoss += 1; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    if (d.outcome === "tp" || d.outcome === "sl") {
+      if (d.pnl_usd > 0) { curWin += 1; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
+      else { curLoss += 1; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    }
     cum += d.pnl_usd;
     if (cum > peak) peak = cum;
     const dd = peak - cum;

@@ -596,6 +596,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function Section({
+  title,
+  subtitle,
+  badge,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden py-0 gap-0">
+      <details open={defaultOpen} className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-6 py-4 hover:bg-muted/40 transition-colors [&::-webkit-details-marker]:hidden">
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
+              {badge}
+            </div>
+            {subtitle && (
+              <p className="mt-0.5 text-[11px] text-muted-foreground truncate group-open:whitespace-normal">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </summary>
+        <div className="border-t border-border px-6 py-4">{children}</div>
+      </details>
+    </Card>
+  );
+}
+
+
 type CohortDimKey = "body" | "or_size" | "break_distance" | "weekday" | "tp_target";
 type CohortFilter = { dim: CohortDimKey; bucket: string } | null;
 

@@ -1,7 +1,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
+import { getKlineSource } from "@/lib/exchange/kline-source.server";
 import { processSignal } from "@/lib/trading/engine.server";
 import { computeEntry, entryConfigFromSettings } from "@/lib/strategy/entry-modes.server";
+
 
 
 const IST_OFFSET_MIN = 330; // UTC+5:30
@@ -52,11 +54,16 @@ interface StrategySettingsRow {
   trail_activate_r?: number;
   trail_step_r?: number;
   skip_weekends?: boolean;
+  skip_weekdays?: number[] | null;
+  fee_usd_per_order?: number;
+  zone_source?: "range" | "breakout" | null;
+  data_source?: "shark" | "yahoo" | null;
   ai_grading_enabled?: boolean;
   ai_grading_model?: unknown;
   ai_risk_multipliers?: Record<string, number> | null;
   ai_min_grade?: string;
 }
+
 
 
 interface SessionRow {
@@ -297,15 +304,22 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
 
   const client = createSharkClient();
 
-  // Fetch enough 1h klines to cover today's session + subsequent bars
+  // Historical candles for zone/break detection. Order routing still uses Shark.
+  const dataSourceId = (s.data_source ?? "shark") === "yahoo" ? "yahoo" : "shark";
   let klines: Kline[];
   try {
-    klines = await client.getKlines(s.symbol, "1h", 96);
+    if (dataSourceId === "yahoo") {
+      const source = await getKlineSource("yahoo");
+      klines = await source.getKlines(s.symbol, "1h", 96);
+    } else {
+      klines = await client.getKlines(s.symbol, "1h", 96);
+    }
   } catch (e) {
-    await log("error", "klines fetch failed", { error: (e as Error).message });
+    await log("error", "klines fetch failed", { error: (e as Error).message, source: dataSourceId });
     return { ok: false, reason: "klines_failed", actions };
   }
   if (klines.length === 0) return { ok: false, reason: "no_klines", actions };
+
 
   const now = Date.now();
   const todayIst = sessionDate(now, s.session_start_ist);
@@ -341,13 +355,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
     actions.push(`expired_prev_day=${staleSetups.length}`);
   }
 
-  // Optional: skip Sunday (low volume). Sat/Fri etc. remain tradeable.
-  if (s.skip_weekends) {
-    const wd = istWeekday(todayIst);
-    if (wd === 0) {
-      return { ok: true, reason: "sunday_skip", ist_date: todayIst, actions };
-    }
+  // Per-weekday skip list (0=Sun..6=Sat). Falls back to legacy skip_weekends
+  // (Sunday only) when the array is empty and the legacy flag is on.
+  const skipWeekdays = Array.isArray(s.skip_weekdays) ? s.skip_weekdays.map((n) => Number(n)) : [];
+  const wdToday = istWeekday(todayIst);
+  if (skipWeekdays.includes(wdToday)) {
+    return { ok: true, reason: `weekday_skip_${wdToday}`, ist_date: todayIst, actions };
   }
+  if (skipWeekdays.length === 0 && s.skip_weekends && wdToday === 0) {
+    return { ok: true, reason: "sunday_skip", ist_date: todayIst, actions };
+  }
+
 
   const sessionOpen = sessionOpenUtcMs(todayIst, s.session_start_ist);
   const sessionCandle = klines.find((k) => k.openTime === sessionOpen);
@@ -440,9 +458,21 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const side = session.break_side;
       const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
       const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
-      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
+      // Fib zone source: "breakout" swaps the OR high/low for the breakout candle's high/low.
+      let entryZoneHigh = zone_high;
+      let entryZoneLow = zone_low;
+      if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+        const breakCloseMs = new Date(session.break_detected_at).getTime();
+        const breakBar = klines.find((k) => k.closeTime === breakCloseMs) ?? klines.find((k) => k.openTime === breakCloseMs - 3_600_000);
+        if (breakBar) {
+          entryZoneHigh = breakBar.high;
+          entryZoneLow = breakBar.low;
+        }
+      }
+      const { entry, sl, market } = computeEntry(side, entryZoneHigh, entryZoneLow, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+
 
       // ---- AI Grading gate + risk scaling (post-hoc model) ----
       let effectiveSlRiskUsd = s.sl_risk_usd;
@@ -617,9 +647,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const side = existingSetup.side as "long" | "short";
       const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
       const breakClose = Number(session.break_close_price ?? (side === "long" ? zone_high : zone_low));
-      const { entry, sl, market } = computeEntry(side, zone_high, zone_low, breakClose, cfg);
+      let zh = zone_high;
+      let zl = zone_low;
+      if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+        const bt = new Date(session.break_detected_at).getTime();
+        const bb = klines.find((k) => k.closeTime === bt) ?? klines.find((k) => k.openTime === bt - 3_600_000);
+        if (bb) { zh = bb.high; zl = bb.low; }
+      }
+      const { entry, sl, market } = computeEntry(side, zh, zl, breakClose, cfg);
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
+
       const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
       const exchangeEntry = roundExchangePrice(entry);
       const exchangeSl = roundExchangePrice(sl);
@@ -999,10 +1037,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       },
       await ensureStrategyEvent(setup, `close_${reason}`),
     );
-    const pnl =
+    const grossPnl =
       setup.side === "long"
         ? (lastPrice - setup.entry_price) * setup.qty
         : (setup.entry_price - lastPrice) * setup.qty;
+    const feePerOrder = Math.max(0, Number(s.fee_usd_per_order ?? 0));
+    const pnl = grossPnl - 2 * feePerOrder;
     await supabaseAdmin
       .from("strategy_setups")
       .update({
@@ -1014,8 +1054,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
-    actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)}`);
+    actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)} (fee=$${(2 * feePerOrder).toFixed(2)})`);
   }
+
 
   // (Prior-day armed setups are expired at the top of the tick.)
 
@@ -1090,19 +1131,38 @@ export async function repriceArmedSetupsNow(): Promise<{
   const cfg = entryConfigFromSettings(s as unknown as Record<string, unknown>);
   const client = createSharkClient();
 
+  // Preload klines if breakout zone source is on so we can locate the break bar.
+  let repriceKlines: Kline[] | null = null;
+  if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+    try {
+      const src = (s.data_source ?? "shark") === "yahoo" ? await getKlineSource("yahoo") : null;
+      repriceKlines = src ? await src.getKlines(s.symbol, "1h", 96) : await client.getKlines(s.symbol, "1h", 96);
+    } catch {
+      repriceKlines = null;
+    }
+  }
+
   for (const setup of armed) {
     const side = setup.side;
     const oldOid = setup.exchange_order_id!;
     const breakClose = Number(
       session.break_close_price ?? (side === "long" ? session.zone_high : session.zone_low),
     );
+    let rzh = session.zone_high;
+    let rzl = session.zone_low;
+    if (repriceKlines && session.break_detected_at) {
+      const bt = new Date(session.break_detected_at).getTime();
+      const bb = repriceKlines.find((k) => k.closeTime === bt) ?? repriceKlines.find((k) => k.openTime === bt - 3_600_000);
+      if (bb) { rzh = bb.high; rzl = bb.low; }
+    }
     const { entry, sl, market } = computeEntry(
       side,
-      session.zone_high,
-      session.zone_low,
+      rzh,
+      rzl,
       breakClose,
       cfg,
     );
+
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
     const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;

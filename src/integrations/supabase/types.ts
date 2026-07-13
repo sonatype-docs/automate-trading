@@ -259,13 +259,16 @@ export type Database = {
           ai_grading_model: Json | null
           ai_min_grade: string
           ai_risk_multipliers: Json
+          data_source: string
           enabled: boolean
           entry_depth_pct: number
           entry_mode: string
+          fee_usd_per_order: number
           id: boolean
           retest_sl_r: number
           rr: number
           session_start_ist: string
+          skip_weekdays: number[]
           skip_weekends: boolean
           sl_depth_pct: number
           sl_risk_usd: number
@@ -274,6 +277,7 @@ export type Database = {
           trail_enabled: boolean
           trail_step_r: number
           updated_at: string
+          zone_source: string
         }
         Insert: {
           adaptive_deep_depth?: number
@@ -283,13 +287,16 @@ export type Database = {
           ai_grading_model?: Json | null
           ai_min_grade?: string
           ai_risk_multipliers?: Json
+          data_source?: string
           enabled?: boolean
           entry_depth_pct?: number
           entry_mode?: string
+          fee_usd_per_order?: number
           id?: boolean
           retest_sl_r?: number
           rr?: number
           session_start_ist?: string
+          skip_weekdays?: number[]
           skip_weekends?: boolean
           sl_depth_pct?: number
           sl_risk_usd?: number
@@ -298,6 +305,7 @@ export type Database = {
           trail_enabled?: boolean
           trail_step_r?: number
           updated_at?: string
+          zone_source?: string
         }
         Update: {
           adaptive_deep_depth?: number
@@ -307,13 +315,16 @@ export type Database = {
           ai_grading_model?: Json | null
           ai_min_grade?: string
           ai_risk_multipliers?: Json
+          data_source?: string
           enabled?: boolean
           entry_depth_pct?: number
           entry_mode?: string
+          fee_usd_per_order?: number
           id?: boolean
           retest_sl_r?: number
           rr?: number
           session_start_ist?: string
+          skip_weekdays?: number[]
           skip_weekends?: boolean
           sl_depth_pct?: number
           sl_risk_usd?: number
@@ -322,6 +333,7 @@ export type Database = {
           trail_enabled?: boolean
           trail_step_r?: number
           updated_at?: string
+          zone_source?: string
         }
         Relationships: []
       }

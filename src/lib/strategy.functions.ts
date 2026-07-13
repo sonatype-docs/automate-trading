@@ -46,6 +46,7 @@ const StrategySettingsSchema = z.object({
   trail_activate_r: z.number().positive().optional(),
   trail_step_r: z.number().positive().optional(),
   skip_weekends: z.boolean().optional(),
+  skip_weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   entry_mode: EntryModeEnum.optional(),
   entry_depth_pct: z.number().min(0).max(0.5).optional(),
   sl_depth_pct: z.number().min(0.1).max(1).optional(),
@@ -53,10 +54,14 @@ const StrategySettingsSchema = z.object({
   adaptive_shallow_depth: z.number().min(0).max(0.5).optional(),
   adaptive_deep_depth: z.number().min(0).max(0.5).optional(),
   retest_sl_r: z.number().positive().max(5).optional(),
+  fee_usd_per_order: z.number().min(0).max(1000).optional(),
+  zone_source: z.enum(["range", "breakout"]).optional(),
+  data_source: z.enum(["shark", "yahoo"]).optional(),
   ai_grading_enabled: z.boolean().optional(),
   ai_min_grade: z.enum(["A+++", "A++", "A+", "A", "B", "C"]).optional(),
   ai_risk_multipliers: z.record(z.string(), z.number().min(0).max(10)).optional(),
 });
+
 
 const GradeKey = z.enum(["A+++", "A++", "A+", "A", "B", "C"]);
 const GradingModelSchema = z.object({
@@ -140,7 +145,12 @@ export const ORB_WINNING_PRESET = {
   sl_risk_usd: 25,
   trail_enabled: false,
   skip_weekends: false,
+  skip_weekdays: [6],
+  fee_usd_per_order: 0,
+  zone_source: "range" as const,
+  data_source: "shark" as const,
 };
+
 
 export const applyOrbWinningPreset = createServerFn({ method: "POST" }).handler(async () => {
   const supabase = await admin();

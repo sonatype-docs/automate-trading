@@ -192,6 +192,49 @@ export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async 
   return repriceArmedSetupsNow();
 });
 
+/**
+ * Cancel today's armed setup (including the pending exchange order) and
+ * immediately run a strategy tick so the engine re-arms with the current
+ * settings — most importantly the current AI grading model + risk multiplier.
+ * Used when a setup was armed before AI grading was enabled or when the
+ * user changed grading settings mid-session and wants them applied now.
+ */
+export const cancelAndReArmWithAi = createServerFn({ method: "POST" }).handler(async () => {
+  const { runStrategyTick } = await import("@/lib/strategy/engine.server");
+  // Reuse the existing cancel-today logic to cancel the exchange order and
+  // mark the setup row as "cancelled" (which makes it eligible for re-arm).
+  const supabase = await admin();
+  const { data: settings } = await supabase
+    .from("strategy_settings")
+    .select("session_start_ist")
+    .eq("id", true)
+    .single();
+  const sessionStart = String(settings?.session_start_ist ?? "05:30").slice(0, 5);
+  const istDateStr = todayIstSessionDate(sessionStart);
+  const { data: setups } = await supabase
+    .from("strategy_setups")
+    .select("id, exchange_order_id, symbol, side")
+    .eq("ist_date", istDateStr)
+    .in("status", ["armed"]);
+  let cancelled = 0;
+  if (setups && setups.length > 0) {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    for (const s of setups) {
+      if (s.exchange_order_id) {
+        try { await client.cancelOrder(s.exchange_order_id, s.symbol); } catch { /* best effort */ }
+      }
+      await supabase
+        .from("strategy_setups")
+        .update({ status: "cancelled", closed_at: new Date().toISOString(), close_reason: "rearm_with_ai" })
+        .eq("id", s.id);
+      cancelled += 1;
+    }
+  }
+  const tick = await runStrategyTick();
+  return { cancelled, tick };
+});
+
 // ------------------------------------------------------------------
 // Bot cockpit helpers — winning-preset apply, cancel today, flatten position.
 // ------------------------------------------------------------------

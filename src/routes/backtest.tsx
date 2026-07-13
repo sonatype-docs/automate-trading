@@ -309,6 +309,7 @@ function BacktestLab() {
             <Section
               title="Parameters"
               subtitle="Live strategy settings are not modified — every run is isolated."
+              defaultOpen
               badge={
                 <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary">
                   {form.symbol} · {form.days}d · RR 1:{form.rr}
@@ -615,7 +616,7 @@ function BacktestLab() {
               </div>
             </Section>
 
-            <Section title="Filters" subtitle="Session bias, volatility, and ATR gates for this run.">
+            <Section title="Filters" subtitle="Session bias, volatility, and ATR gates for this run." defaultOpen>
               <FiltersCard value={filters} onChange={setFilters} />
             </Section>
 

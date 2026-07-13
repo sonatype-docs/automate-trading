@@ -886,6 +886,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
                     updated_at: new Date().toISOString(),
+                    ...placementFields(attempt, qty),
                   })
                   .eq("id", existingSetup.id);
                 await log("error", "auto-reprice: full AI-sized replace failed; old order cancelled and no smaller wrong-risk order placed", {
@@ -912,8 +913,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,
                     updated_at: new Date().toISOString(),
+                    ...placementFields(attempt, qty),
                   })
                   .eq("id", existingSetup.id);
+
                 await log("info", "auto-reprice: replaced live order", {
                   setup_id: existingSetup.id,
                   old_exchange_order_id: oldOid,

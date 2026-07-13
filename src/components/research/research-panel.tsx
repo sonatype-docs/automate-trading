@@ -43,6 +43,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { exportResearchCsv } from "@/lib/research/export";
+import { AdvancedResearch } from "@/components/research/advanced-research";
 
 type RangeData = Awaited<ReturnType<typeof backtestRange>>;
 

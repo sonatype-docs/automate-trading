@@ -1192,7 +1192,7 @@ export async function repriceArmedSetupsNow(): Promise<{
 
   // Preload klines if breakout zone source is on so we can locate the break bar.
   let repriceKlines: Kline[] | null = null;
-  if ((s.zone_source ?? "range") === "breakout" && session.break_detected_at) {
+  if (session.break_detected_at) {
     try {
       const src = (s.data_source ?? "shark") === "yahoo" ? await getKlineSource("yahoo") : null;
       repriceKlines = src ? await src.getKlines(s.symbol, "1h", 96) : await client.getKlines(s.symbol, "1h", 96);
@@ -1224,7 +1224,46 @@ export async function repriceArmedSetupsNow(): Promise<{
 
     const risk = Math.abs(entry - sl);
     const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
-    const requestedQty = risk > 0 ? s.sl_risk_usd / risk : 0;
+    const todayIst = sessionDate(Date.now(), s.session_start_ist);
+    const aiDecision = await scoreLiveAiSetup({
+      settings: s,
+      session,
+      klines: repriceKlines ?? [],
+      todayIst,
+      side,
+      zoneHigh: session.zone_high,
+      zoneLow: session.zone_low,
+      breakClose,
+    });
+    if (aiDecision.skipped) {
+      try {
+        await client.cancelOrder(oldOid, s.symbol);
+      } catch (e) {
+        await log("warn", "reprice_now: AI skip cancel failed", {
+          setup_id: setup.id,
+          exchange_order_id: oldOid,
+          error: (e as Error).message,
+        });
+        actions.push(`reprice_now_ai_skip_cancel_failed ${side}`);
+        continue;
+      }
+      await supabaseAdmin
+        .from("strategy_setups")
+        .update({
+          status: "cancelled",
+          close_reason: "rearm_with_ai",
+          closed_at: new Date().toISOString(),
+          exchange_order_id: null,
+          ai_grade: aiDecision.grade,
+          ai_score: aiDecision.score,
+          ai_risk_mult: aiDecision.riskMult,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+      actions.push(`reprice_now_ai_skip_cancelled ${side} grade=${aiDecision.grade}`);
+      continue;
+    }
+    const requestedQty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
     if (requestedQty <= 0) {
       actions.push(`reprice_now_skip ${side} qty=0`);
       continue;
@@ -1237,7 +1276,12 @@ export async function repriceArmedSetupsNow(): Promise<{
       Math.abs(Number(setup.entry_price) - entry) < priceEps &&
       Math.abs(Number(setup.sl_price) - sl) < priceEps &&
       Math.abs(Number(setup.tp_price) - tp) < priceEps &&
-      Math.abs(Number(setup.qty) - requestedQty) < qtyEps;
+      Math.abs(Number(setup.qty) - requestedQty) < qtyEps &&
+      (!s.ai_grading_enabled || (
+        setup.ai_grade === aiDecision.grade &&
+        sameNullableNumber(setup.ai_score, aiDecision.score, 0) &&
+        sameNullableNumber(setup.ai_risk_mult, aiDecision.riskMult, 4)
+      ));
     if (unchanged) {
       actions.push(`reprice_now_noop ${side}`);
       continue;
@@ -1300,6 +1344,9 @@ export async function repriceArmedSetupsNow(): Promise<{
         qty: attempt.finalQty,
         status: "armed",
         exchange_order_id: attempt.res.exchangeOrderId || null,
+        ai_grade: aiDecision.grade,
+        ai_score: aiDecision.score,
+        ai_risk_mult: aiDecision.riskMult,
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
@@ -1309,10 +1356,13 @@ export async function repriceArmedSetupsNow(): Promise<{
       old_exchange_order_id: oldOid,
       new_exchange_order_id: attempt.res.exchangeOrderId,
       entry, sl, tp, qty: attempt.finalQty,
+      ai_grade: aiDecision.grade,
+      ai_score: aiDecision.score,
+      ai_risk_mult: aiDecision.riskMult,
       mode: cfg.mode, market,
     });
     actions.push(
-      `reprice_now ${side} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
+      `reprice_now ${side} grade=${aiDecision.grade ?? "AI_OFF"} entry=${entry.toFixed(2)} sl=${sl.toFixed(2)} tp=${tp.toFixed(2)} qty=${attempt.finalQty}`,
     );
   }
 

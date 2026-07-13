@@ -529,9 +529,53 @@ function BacktestLab() {
             <div ref={resultsRef} className="scroll-mt-32 space-y-4 md:space-y-6">
               {result ? (
                 <>
-                  <HourFilterBar data={result} value={hourFilter} onChange={setHourFilter} />
+                  <HourFilterBar
+                    value={hourFilter}
+                    loadingHour={hourLoading}
+                    cachedHours={new Set<number | "all">(Object.keys(hourCache).map((k) => Number(k)))}
+                    configuredSessionLabel={form ? `${form.sessionStartIst} IST` : undefined}
+                    onChange={async (h) => {
+                      if (h == null) {
+                        setHourFilter(null);
+                        return;
+                      }
+                      setHourFilter(h);
+                      if (hourCache[h] || !form) return;
+                      setHourLoading(h);
+                      try {
+                        const r = await runRange({
+                          data: {
+                            days: form.days,
+                            symbol: form.symbol,
+                            session_start_ist: `${String(h).padStart(2, "0")}:00`,
+                            sl_risk_usd: form.slRiskUsd,
+                            rr: form.rr,
+                            trail_enabled: form.trailEnabled,
+                            trail_activate_r: form.trailActivateR,
+                            trail_step_r: form.trailStepR,
+                            skip_weekdays: form.skipWeekdays,
+                            filters,
+                            entry: {
+                              mode: form.entryMode,
+                              entry_depth_pct: form.entryDepthPct,
+                              sl_depth_pct: form.slDepthPct,
+                              retest_sl_r: form.retestSlR,
+                            },
+                            zone_source: form.zoneSource,
+                            fee_usd_per_order: form.feeUsdPerOrder,
+                            data_source: form.dataSource,
+                          },
+                        });
+                        setHourCache((prev) => ({ ...prev, [h]: r }));
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      } finally {
+                        setHourLoading(null);
+                      }
+                    }}
+                  />
                   {(() => {
-                    const view = hourFilter == null ? result : recomputeRangeDataForHour(result, hourFilter);
+                    const view = hourFilter == null ? result : hourCache[hourFilter] ?? result;
                     return (
                       <>
                         <ResultsView data={view} hourFilter={hourFilter} />

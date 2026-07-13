@@ -731,7 +731,9 @@ export function simulateFromKlines(
   const openCount = days.filter((d) => d.outcome === "open").length;
   const armedNoTrigger = days.filter((d) => d.outcome === "armed_no_trigger").length;
   const decided = tp + sl;
-  const winRate = decided > 0 ? (tp / decided) * 100 : 0;
+  // Any closed trade with positive realized P&L counts as a win (includes trailed exits).
+  const winCount = days.filter((d) => (d.outcome === "tp" || d.outcome === "sl") && d.pnl_usd > 0).length;
+  const winRate = decided > 0 ? (winCount / decided) * 100 : 0;
   const totalPnl = days.reduce((s, d) => s + d.pnl_usd, 0);
   const rMultiples = days
     .filter((d) => d.outcome === "tp" || d.outcome === "sl")
@@ -745,8 +747,8 @@ export function simulateFromKlines(
   // Per-weekday stats — count only decided trades (tp/sl).
   const weekdays: WeekdayStat[] = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).map((wd) => {
     const rows = days.filter((d) => d.weekday === wd && (d.outcome === "tp" || d.outcome === "sl"));
-    const wins = rows.filter((d) => d.outcome === "tp").length;
-    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const wins = rows.filter((d) => d.pnl_usd > 0).length;
+    const losses = rows.filter((d) => d.pnl_usd <= 0).length;
     const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
     const trades = rows.length;
     return {
@@ -803,8 +805,10 @@ export function simulateFromKlines(
   let cum = 0, peak = 0, maxDd = 0;
   const equity: { ist_date: string; cum_pnl_usd: number }[] = [];
   for (const d of days) {
-    if (d.outcome === "tp") { curWin += 1; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
-    else if (d.outcome === "sl") { curLoss += 1; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    if (d.outcome === "tp" || d.outcome === "sl") {
+      if (d.pnl_usd > 0) { curWin += 1; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
+      else { curLoss += 1; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    }
     cum += d.pnl_usd;
     if (cum > peak) peak = cum;
     const dd = peak - cum;
@@ -815,8 +819,8 @@ export function simulateFromKlines(
   // ---- Cohort aggregation over decided trades ----
   const decidedAll = days.filter((d) => d.outcome === "tp" || d.outcome === "sl");
   function statFor(rows: DayResult[], bucket: string): CohortStat {
-    const wins = rows.filter((d) => d.outcome === "tp").length;
-    const losses = rows.filter((d) => d.outcome === "sl").length;
+    const wins = rows.filter((d) => d.pnl_usd > 0).length;
+    const losses = rows.filter((d) => d.pnl_usd <= 0).length;
     const trades = rows.length;
     const total = rows.reduce((s, d) => s + d.pnl_usd, 0);
     const rs = rows.map((d) => d.exit_r ?? (d.outcome === "tp" ? opts.rr : -1));

@@ -726,6 +726,17 @@ export function simulateFromKlines(
   }
 
 
+  // Apply per-trade fees to pnl_usd so ALL downstream stats (win rate is decided by pnl sign,
+  // weekday/monthly/cohort totals, streaks, equity, drawdown) reflect fees consistently.
+  let estFees = 0;
+  for (const d of days) {
+    if (d.trigger_at === null || d.entry === null || d.qty === null) continue;
+    const notionalEntry = d.qty * d.entry;
+    const notionalExit = d.qty * (d.outcome === "tp" && d.tp ? d.tp : d.outcome === "sl" && d.final_sl ? d.final_sl : d.entry);
+    const tradeFee = (notionalEntry + notionalExit) * feeRate + 2 * feeUsdPerOrder;
+    d.pnl_usd -= tradeFee;
+    estFees += tradeFee;
+  }
 
   const daysWithSession = days.filter((d) => d.zone_high !== null).length;
   const breaks = days.filter((d) => d.break_side !== null).length;

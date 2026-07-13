@@ -19,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ArrowLeft, Beaker } from "lucide-react";
+import { ArrowLeft, Beaker, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -211,14 +211,18 @@ function BacktestLab() {
           <p className="font-mono text-xs text-muted-foreground">Loading strategy defaults…</p>
         ) : (
           <>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-mono tracking-widest">PARAMETERS</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Live strategy settings are not modified — every run is isolated.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
+
+            <Section
+              title="Parameters"
+              subtitle="Live strategy settings are not modified — every run is isolated."
+              badge={
+                <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-primary">
+                  {form.symbol} · {form.days}d · RR 1:{form.rr}
+                </span>
+              }
+            >
+              <div className="space-y-4">
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Field label="Symbol">
                     <select
@@ -421,10 +425,13 @@ function BacktestLab() {
                     Fetches 1H candles from SharkExchange and replays every session with the rules above.
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </Section>
 
-            <FiltersCard value={filters} onChange={setFilters} />
+            <Section title="Filters" subtitle="Session bias, volatility, and ATR gates for this run.">
+              <FiltersCard value={filters} onChange={setFilters} />
+            </Section>
+
 
             {/* Results anchor — appears immediately below Parameters/Filters after a run */}
             <div ref={resultsRef} className="scroll-mt-32">
@@ -445,14 +452,11 @@ function BacktestLab() {
             </div>
 
             {/* Secondary exploration — grouped into tabs so users don't scroll a mile */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-mono tracking-widest">EXPLORE</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies.
-                </p>
-              </CardHeader>
-              <CardContent>
+            <Section
+              title="Explore"
+              subtitle="Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies."
+            >
+
                 <Tabs defaultValue="sessions" className="w-full">
                   <div className="-mx-1 overflow-x-auto pb-1">
                     <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
@@ -575,8 +579,8 @@ function BacktestLab() {
                     <StrategiesRoadmapCard />
                   </TabsContent>
                 </Tabs>
-              </CardContent>
-            </Card>
+            </Section>
+
 
           </>
         )}
@@ -594,6 +598,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function Section({
+  title,
+  subtitle,
+  badge,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden py-0 gap-0">
+      <details open={defaultOpen} className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-6 py-4 hover:bg-muted/40 transition-colors [&::-webkit-details-marker]:hidden">
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
+              {badge}
+            </div>
+            {subtitle && (
+              <p className="mt-0.5 text-[11px] text-muted-foreground truncate group-open:whitespace-normal">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </summary>
+        <div className="border-t border-border px-6 py-4">{children}</div>
+      </details>
+    </Card>
+  );
+}
+
 
 type CohortDimKey = "body" | "or_size" | "break_distance" | "weekday" | "tp_target";
 type CohortFilter = { dim: CohortDimKey; bucket: string } | null;

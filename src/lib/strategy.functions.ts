@@ -340,6 +340,7 @@ export const backtestRange = createServerFn({ method: "POST" })
       filters: data.filters,
       entry,
       feeRate: data.fee_rate,
+      feeUsdPerOrder: data.fee_usd_per_order,
       zoneSource: data.zone_source,
     });
   });

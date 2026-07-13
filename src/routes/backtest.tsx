@@ -135,6 +135,7 @@ function BacktestLab() {
             sl_depth_pct: f.slDepthPct,
             retest_sl_r: f.retestSlR,
           },
+          zone_source: f.zoneSource,
         },
       }),
     onSuccess: (r) => {

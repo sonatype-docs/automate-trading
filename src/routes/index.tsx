@@ -1255,6 +1255,8 @@ function StrategyCard() {
   }>;
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
+  // Setups pending re-arm — cancelled but flagged for the watchdog/tick to retry.
+  const pendingRearm = setups.filter((x) => x.status === "cancelled" && x.close_reason === "rearm_with_ai");
   const closed = setups.filter((x) => x.status === "closed" || x.status === "expired");
   const aiEnabled = !!s?.ai_grading_enabled;
   const hasAiModel = !!s?.ai_grading_model;

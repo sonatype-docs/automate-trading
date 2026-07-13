@@ -1252,7 +1252,16 @@ function StrategyCard() {
     ai_grade?: string | null;
     ai_score?: number | null;
     ai_risk_mult?: number | null;
+    placement_status?: string | null;
+    placement_leverage?: number | null;
+    placement_error?: string | null;
+    placement_capped?: boolean | null;
+    requested_qty?: number | null;
+    placement_attempts?: number | null;
+    placement_at?: string | null;
+    exchange_order_id?: string | null;
   }>;
+
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
   // Setups pending re-arm — cancelled but flagged for the watchdog/tick to retry.

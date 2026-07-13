@@ -1001,6 +1001,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                     initial_sl_price: sl,
                     tp_price: tp,
                     qty: exchangeQty,
+                    reprice_count: priorReprices + 1,
                     ai_grade: aiDecision.grade,
                     ai_score: aiDecision.score,
                     ai_risk_mult: aiDecision.riskMult,

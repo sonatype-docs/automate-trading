@@ -910,12 +910,20 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         const exchangeQty = roundExchangeQty(qty);
 
         const tol = 1e-6;
+        // Compare planned qty against the previously-REQUESTED qty (not the
+        // filled qty). When placement got capped by leverage/margin the stored
+        // qty is smaller than the plan; using it here caused an infinite
+        // cancel+replace loop every tick because "changed" always fired.
+        const prevRequestedQty = Number(
+          (existingSetup as unknown as { requested_qty?: number | null }).requested_qty ??
+            existingSetup.qty,
+        );
         const changed =
           qty > 0 &&
           (Math.abs(exchangeEntry - roundExchangePrice(Number(existingSetup.entry_price))) > tol ||
             Math.abs(exchangeSl - roundExchangePrice(Number(existingSetup.sl_price))) > tol ||
             Math.abs(exchangeTp - roundExchangePrice(Number(existingSetup.tp_price))) > tol ||
-            Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol ||
+            Math.abs(exchangeQty - roundExchangeQty(prevRequestedQty)) > tol ||
             (s.ai_grading_enabled && (
               existingSetup.ai_grade !== aiDecision.grade ||
               !sameNullableNumber(existingSetup.ai_score, aiDecision.score, 0) ||

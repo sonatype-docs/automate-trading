@@ -728,7 +728,30 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       const risk = Math.abs(entry - sl);
       const tp = side === "long" ? entry + risk * s.rr : entry - risk * s.rr;
 
-      const qty = risk > 0 ? s.sl_risk_usd / risk : 0;
+      const aiDecision = await scoreLiveAiSetup({
+        settings: s,
+        session,
+        klines,
+        todayIst,
+        side,
+        zoneHigh: zone_high,
+        zoneLow: zone_low,
+        breakClose,
+      });
+      if (aiDecision.skipped) {
+        await log("warn", "reprice: current AI grade is below minimum; live order kept for manual action", {
+          setup_id: existingSetup.id,
+          exchange_order_id: existingSetup.exchange_order_id,
+          grade: aiDecision.grade,
+          score: aiDecision.score,
+          minGrade: aiDecision.minGrade,
+          mult: aiDecision.riskMult,
+        });
+        actions.push(`reprice_ai_skip ${side} grade=${aiDecision.grade}; manual cancel required`);
+        return { ok: true, ist_date: todayIst, actions, session };
+      }
+
+      const qty = risk > 0 ? aiDecision.effectiveSlRiskUsd / risk : 0;
       const exchangeEntry = roundExchangePrice(entry);
       const exchangeSl = roundExchangePrice(sl);
       const exchangeTp = roundExchangePrice(tp);
@@ -740,7 +763,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         (Math.abs(exchangeEntry - roundExchangePrice(Number(existingSetup.entry_price))) > tol ||
           Math.abs(exchangeSl - roundExchangePrice(Number(existingSetup.sl_price))) > tol ||
           Math.abs(exchangeTp - roundExchangePrice(Number(existingSetup.tp_price))) > tol ||
-          Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol);
+          Math.abs(exchangeQty - roundExchangeQty(Number(existingSetup.qty))) > tol ||
+          (s.ai_grading_enabled && (
+            existingSetup.ai_grade !== aiDecision.grade ||
+            !sameNullableNumber(existingSetup.ai_score, aiDecision.score, 0) ||
+            !sameNullableNumber(existingSetup.ai_risk_mult, aiDecision.riskMult, 4)
+          )));
 
       if (changed) {
         await log("warn", "reprice: settings changed but live order kept", {
@@ -751,8 +779,11 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
             sl: existingSetup.sl_price,
             tp: existingSetup.tp_price,
             qty: existingSetup.qty,
+            ai_grade: existingSetup.ai_grade,
+            ai_score: existingSetup.ai_score,
+            ai_risk_mult: existingSetup.ai_risk_mult,
           },
-          planned: { entry, sl, tp, qty },
+          planned: { entry, sl, tp, qty, ai_grade: aiDecision.grade, ai_score: aiDecision.score, ai_risk_mult: aiDecision.riskMult },
         });
         actions.push(`reprice_hold ${side} live order kept; manual reprice required`);
 

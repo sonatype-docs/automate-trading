@@ -540,12 +540,20 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
   // A previously "cancelled" setup (e.g. insufficient margin on first attempt)
   // is eligible for re-arm — we UPDATE that row instead of inserting a new one.
   if (session.break_side) {
-    const { data: existingSetup } = await supabaseAdmin
+    const { data: existingSetupRows } = await supabaseAdmin
       .from("strategy_setups")
       .select("*")
       .eq("ist_date", todayIst)
       .eq("side", session.break_side)
-      .maybeSingle();
+      .in("status", ["armed", "triggered", "cancelled"])
+      .order("updated_at", { ascending: false })
+      .limit(20);
+
+    const existingSetups = (existingSetupRows ?? []) as SetupRow[];
+    const existingSetup =
+      existingSetups.find((row) => row.status === "armed" || row.status === "triggered") ??
+      existingSetups.find((row) => row.status === "cancelled") ??
+      null;
 
     const eligibleForArm = !existingSetup || existingSetup.status === "cancelled";
 

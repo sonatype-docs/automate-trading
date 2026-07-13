@@ -298,6 +298,22 @@ export function createSharkClient(): ExchangeClient {
       return { ok: res.ok, status: res.status, body: res.body };
     },
 
+    async editOrder({ clientOrderId, stopPrice, price, quantity }) {
+      const { apiKey, apiSecret } = requireCreds();
+      const body: Record<string, unknown> = { clientOrderId };
+      if (stopPrice !== undefined && stopPrice > 0) {
+        body.stopPrice = Math.round(stopPrice * 100) / 100;
+      }
+      if (price !== undefined && price > 0) {
+        body.price = Math.round(price * 100) / 100;
+      }
+      if (quantity !== undefined && quantity > 0) {
+        body.quantity = Math.round(quantity * 1000) / 1000;
+      }
+      const res = await signedJson(apiKey, apiSecret, "PATCH", "/v1/order/edit-order", body);
+      return { ok: res.ok, status: res.status, body: res.body, json: res.json };
+    },
+
 
     async getOpenOrderIds(symbol) {
       const rows = await fetchOpenOrders(symbol);

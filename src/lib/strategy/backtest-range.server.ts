@@ -428,6 +428,18 @@ export function simulateFromKlines(
       lower_wick_pct: null,
       close_position_pct: null,
       candle_range_usd: null,
+      time_to_fill_bars: null,
+      time_to_fill_hours: null,
+      duration_bars: null,
+      mfe_r: null,
+      mfe_usd: null,
+      mae_usd: null,
+      retest_count: null,
+      break_hour_ist: null,
+      month: null,
+      quarter: null,
+      fvg_present: null,
+      sweep_present: null,
     };
 
 

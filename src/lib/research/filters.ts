@@ -31,14 +31,25 @@ import {
   PREV_DAY_LABEL_MAP,
 } from "./features";
 
-export type FilterKind = "quintile" | "quartile" | "trend" | "prev_day";
+export type FilterKind = "quintile" | "quartile" | "trend" | "prev_day" | "side" | "weekday" | "hour" | "month" | "boolean";
 export type FilterId =
   | "or_size"
   | "break_strength"
   | "candle_body"
   | "atr_regime"
   | "trend"
-  | "prev_day";
+  | "prev_day"
+  | "side"
+  | "weekday"
+  | "hour"
+  | "month"
+  | "mae"
+  | "mfe"
+  | "duration"
+  | "time_to_fill"
+  | "retests"
+  | "fvg"
+  | "sweep";
 export type FilterPhase = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface FilterDef {

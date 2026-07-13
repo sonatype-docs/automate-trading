@@ -276,7 +276,9 @@ interface MarginRetryResult {
   error: string | null;
   attempts: number;
   capped: boolean;
+  leverage: number | null;
 }
+
 
 // Place a Shark order at the exact exchange-supported planned size. We do NOT
 // shrink/cap qty here: the strategy's qty is derived from the configured SL

@@ -523,8 +523,16 @@ function BacktestLab() {
             <div ref={resultsRef} className="scroll-mt-32 space-y-4 md:space-y-6">
               {result ? (
                 <>
-                  <ResultsView data={result} />
-                  <ResearchPanel data={result} />
+                  <HourFilterBar data={result} value={hourFilter} onChange={setHourFilter} />
+                  {(() => {
+                    const view = hourFilter == null ? result : recomputeRangeDataForHour(result, hourFilter);
+                    return (
+                      <>
+                        <ResultsView data={view} hourFilter={hourFilter} />
+                        <ResearchPanel data={view} />
+                      </>
+                    );
+                  })()}
                 </>
               ) : (
                 <Card className="border-dashed">

@@ -60,6 +60,8 @@ const StrategySettingsSchema = z.object({
   ai_grading_enabled: z.boolean().optional(),
   ai_min_grade: z.enum(["A+++", "A++", "A+", "A", "B", "C"]).optional(),
   ai_risk_multipliers: z.record(z.string(), z.number().min(0).max(10)).optional(),
+  ai_auto_retrain: z.boolean().optional(),
+  ai_retrain_days: z.number().int().min(30).max(730).optional(),
 });
 
 
@@ -98,7 +100,71 @@ export const clearGradingModel = createServerFn({ method: "POST" }).handler(asyn
     .eq("id", true);
   if (error) throw new Error(error.message);
   return { ok: true };
-});
+  });
+
+/**
+ * Retrain the AI grading model from a fresh backtest over the last N days.
+ * This is how "new trades" get incorporated: every closed live trade pushes
+ * the historical day forward, and the next retrain re-scores over that same
+ * range using the current strategy settings. Safe to call any time; called
+ * automatically by the engine after each live close when ai_auto_retrain=true.
+ */
+const RetrainSchema = z.object({
+  days: z.number().int().min(30).max(730).optional(),
+  min_samples_per_bucket: z.number().int().min(1).max(50).optional(),
+}).optional();
+
+export async function retrainGradingCore(opts: { days?: number; minSamplesPerBucket?: number } = {}) {
+  const supabase = await admin();
+  const { data: settings } = await supabase
+    .from("strategy_settings")
+    .select("*")
+    .eq("id", true)
+    .single();
+  if (!settings) throw new Error("Strategy settings not found");
+  const s = settings as unknown as Record<string, unknown>;
+  const days = opts.days ?? Number(s.ai_retrain_days ?? 365);
+  const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
+  const { extractFeatures } = await import("@/lib/research/features");
+  const { trainGradingModel } = await import("@/lib/research/grading");
+  const savedEntry = entryFromSettings(s);
+  const result = await runBacktestRange({
+    symbol: String(s.symbol),
+    sessionStartIst: String(s.session_start_ist).slice(0, 5),
+    slRiskUsd: Number(s.sl_risk_usd),
+    rr: Number(s.rr),
+    days,
+    trailEnabled: Boolean(s.trail_enabled),
+    trailActivateR: Number(s.trail_activate_r ?? 2),
+    trailStepR: Number(s.trail_step_r ?? 1),
+    skipWeekdays: ((s.skip_weekdays as number[] | null) ?? []) as (0|1|2|3|4|5|6)[],
+    entry: savedEntry,
+    feeUsdPerOrder: Number(s.fee_usd_per_order ?? 0),
+    zoneSource: (s.zone_source as "range" | "breakout" | undefined) ?? undefined,
+    dataSource: (s.data_source as "shark" | "yahoo" | undefined) ?? undefined,
+  });
+  const features = extractFeatures(result.days);
+  const model = trainGradingModel(features, {
+    symbol: String(s.symbol),
+    minSamplesPerBucket: opts.minSamplesPerBucket ?? 3,
+  });
+  const { error } = await supabase
+    .from("strategy_settings")
+    .update({
+      ai_grading_model: model as never,
+      ai_last_retrain_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", true);
+  if (error) throw new Error(error.message);
+  return { ok: true, sample_size: model.sample_size, days, trained_at: model.trained_at };
+}
+
+export const retrainGradingModelNow = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => RetrainSchema.parse(input))
+  .handler(async ({ data }) =>
+    retrainGradingCore({ days: data?.days, minSamplesPerBucket: data?.min_samples_per_bucket }),
+  );
 
 
 

@@ -255,9 +255,12 @@ export type Database = {
           adaptive_deep_depth: number
           adaptive_shallow_depth: number
           adaptive_strong_break_pct: number
+          ai_auto_retrain: boolean
           ai_grading_enabled: boolean
           ai_grading_model: Json | null
+          ai_last_retrain_at: string | null
           ai_min_grade: string
+          ai_retrain_days: number
           ai_risk_multipliers: Json
           data_source: string
           enabled: boolean
@@ -283,9 +286,12 @@ export type Database = {
           adaptive_deep_depth?: number
           adaptive_shallow_depth?: number
           adaptive_strong_break_pct?: number
+          ai_auto_retrain?: boolean
           ai_grading_enabled?: boolean
           ai_grading_model?: Json | null
+          ai_last_retrain_at?: string | null
           ai_min_grade?: string
+          ai_retrain_days?: number
           ai_risk_multipliers?: Json
           data_source?: string
           enabled?: boolean
@@ -311,9 +317,12 @@ export type Database = {
           adaptive_deep_depth?: number
           adaptive_shallow_depth?: number
           adaptive_strong_break_pct?: number
+          ai_auto_retrain?: boolean
           ai_grading_enabled?: boolean
           ai_grading_model?: Json | null
+          ai_last_retrain_at?: string | null
           ai_min_grade?: string
+          ai_retrain_days?: number
           ai_risk_multipliers?: Json
           data_source?: string
           enabled?: boolean

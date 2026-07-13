@@ -1855,6 +1855,7 @@ function StrategyCard() {
                       <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
                     </div>
                     <PlacementStatusRow setup={a} />
+                    <SetupTimeline setupId={a.id} />
                   </div>
                 );
               })}

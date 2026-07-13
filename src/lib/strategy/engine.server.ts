@@ -1030,6 +1030,7 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 exchange_order_id: wdAttempt.res.exchangeOrderId || null,
                 qty: wdAttempt.finalQty,
                 updated_at: new Date().toISOString(),
+                ...placementFields(wdAttempt, setup.qty),
               })
               .eq("id", setup.id);
             await log("info", "watchdog: re-placed missing pending order", {
@@ -1051,8 +1052,10 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 closed_at: new Date().toISOString(),
                 exchange_order_id: null,
                 updated_at: new Date().toISOString(),
+                ...placementFields(wdAttempt, setup.qty),
               })
               .eq("id", setup.id);
+
             await log("error", "watchdog: re-place failed; setup marked for rearm on next tick", {
               setup_id: setup.id,
               error: wdAttempt.error,

@@ -30,7 +30,18 @@ export const Route = createFileRoute("/journal")({
   component: JournalPage,
 });
 
-const INITIAL_CAPITAL_INR = 51770;
+const MANUAL_DEPOSITS_INR = [51770, 25000, 25000] as const;
+const MANUAL_NET_DEPOSITS_INR = MANUAL_DEPOSITS_INR.reduce((sum, amount) => sum + amount, 0);
+const FEE_TYPES = new Set([
+  "COMMISSION",
+  "GST_ON_COMMISSION",
+  "FUNDING_FEE",
+  "GST_ON_FUNDING_FEE",
+  "FUNDING",
+  "INSURANCE_CLEAR",
+  "LIQUIDATION",
+  "LIQUIDATION_FEE",
+]);
 
 type Snap = {
   futuresWallet?: unknown;
@@ -70,6 +81,27 @@ const fmtUSD = (n: number, digits = 2) =>
   `$${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const fmtNum = (n: number | null | undefined, dp = 2) =>
   n == null || !Number.isFinite(n) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
+
+function finiteNumber(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function marginRate(row: Record<string, unknown>): number {
+  return finiteNumber(row.marginSettlementRate ?? row.marginConversionRate, 1);
+}
+
+function tradeFeeInr(row: Record<string, unknown>): number {
+  const direct = finiteNumber(row.feeInMarginAsset, NaN);
+  if (Number.isFinite(direct)) return Math.abs(direct);
+  return Math.abs(finiteNumber(row.fee) * marginRate(row));
+}
+
+function tradePnlInr(row: Record<string, unknown>): number {
+  const direct = finiteNumber(row.realizedProfitInMarginAsset, NaN);
+  if (Number.isFinite(direct)) return direct;
+  return finiteNumber(row.realizedProfit) * marginRate(row);
+}
 
 type PendingRow = {
   clientOrderId: string;
@@ -125,7 +157,7 @@ function JournalPage() {
     const walletFree = Number(fw?.withdrawableBalance ?? fw?.availableBalance ?? fw?.balance ?? 0);
     const walletTotal = walletLocked + walletFree;
     const hasWallet = Boolean(fw);
-    const walletAsset = String(fw?.asset ?? "INR");
+    const walletAsset = String(fw?.asset ?? fw?.marginAsset ?? "INR");
 
     const tradeFills = exTrades
       .map((t) => ({
@@ -135,8 +167,8 @@ function JournalPage() {
         side: String(t.side ?? "").toUpperCase(),
         qty: Number(t.quantity ?? t.qty ?? 0),
         price: Number(t.price ?? 0),
-        fee: Math.abs(Number(t.fee ?? 0)),
-        pnl: Number(t.realizedProfit ?? 0),
+        fee: tradeFeeInr(t),
+        pnl: tradePnlInr(t),
       }))
       .filter((t) => t.time > 0)
       .sort((a, b) => a.time - b.time);
@@ -145,9 +177,9 @@ function JournalPage() {
       .filter((t) => Number.isFinite(t.pnl))
       .map((t) => ({ ...t, net: t.pnl - t.fee }));
 
-    const tradeFeesSum = exTrades.reduce((s, t) => s + Math.abs(Number(t.fee ?? 0)), 0);
+    const tradeFeesSum = exTrades.reduce((s, t) => s + tradeFeeInr(t), 0);
     const commissionTxSum = exTxns
-      .filter((x) => String(x.type ?? "").toUpperCase() === "COMMISSION")
+      .filter((x) => FEE_TYPES.has(String(x.type ?? "").toUpperCase()))
       .reduce((s, x) => s + Math.abs(Number(x.amount ?? 0)), 0);
     const feesTotal = Math.max(tradeFeesSum, commissionTxSum);
 
@@ -155,7 +187,6 @@ function JournalPage() {
     const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT", "WALLET_DEPOSIT", "USER_DEPOSIT"]);
     const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT", "WALLET_WITHDRAWAL", "USER_WITHDRAWAL"]);
     const REALIZED_TYPES = new Set(["REALIZED_PNL", "REALIZED_PROFIT", "PNL", "PROFIT_AND_LOSS", "TRADE"]);
-    const FEE_TYPES = new Set(["COMMISSION", "FUNDING_FEE", "FUNDING", "INSURANCE_CLEAR", "LIQUIDATION", "LIQUIDATION_FEE"]);
     let dIn = 0, dOut = 0, realizedGross = 0, feeChargesSigned = 0;
     for (const x of exTxns) {
       const type = String(x.type ?? "").toUpperCase();
@@ -174,9 +205,7 @@ function JournalPage() {
       : tradeHistoryRealized;
     const netDeposits = explicitNetDeposits > 0
       ? explicitNetDeposits
-      : hasWallet
-        ? Math.max(0, walletTotal - realizedAllTime)
-        : INITIAL_CAPITAL_INR;
+      : MANUAL_NET_DEPOSITS_INR;
     const realizedPnl = hasWallet ? walletTotal - netDeposits : realizedAllTime;
     const equity = hasWallet ? walletTotal : netDeposits + realizedPnl;
 
@@ -190,7 +219,6 @@ function JournalPage() {
     const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
     const todaysPnl = pnlTrades.filter((t) => t.time >= dayStart.getTime()).reduce((s, t) => s + t.net, 0);
 
-    const USD_INR = 102;
     let eqRun = netDeposits;
     const curve: Array<{ t: number; eq: number; i: number }> = [];
     const all: Array<{
@@ -204,7 +232,7 @@ function JournalPage() {
     }
     let idx = 1;
     for (const t of pnlTrades) {
-      eqRun += t.net * USD_INR;
+      eqRun += t.net;
       curve.push({ t: t.time, eq: eqRun, i: idx });
       all.push({ ...t, equity: eqRun });
       idx += 1;

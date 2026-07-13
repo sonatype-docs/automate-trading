@@ -1037,10 +1037,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       },
       await ensureStrategyEvent(setup, `close_${reason}`),
     );
-    const pnl =
+    const grossPnl =
       setup.side === "long"
         ? (lastPrice - setup.entry_price) * setup.qty
         : (setup.entry_price - lastPrice) * setup.qty;
+    const feePerOrder = Math.max(0, Number(s.fee_usd_per_order ?? 0));
+    const pnl = grossPnl - 2 * feePerOrder;
     await supabaseAdmin
       .from("strategy_setups")
       .update({
@@ -1052,8 +1054,9 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", setup.id);
-    actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)}`);
+    actions.push(`close ${setup.side} @${lastPrice} reason=${reason} pnl=${pnl.toFixed(2)} (fee=$${(2 * feePerOrder).toFixed(2)})`);
   }
+
 
   // (Prior-day armed setups are expired at the top of the tick.)
 

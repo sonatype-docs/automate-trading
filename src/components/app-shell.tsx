@@ -24,15 +24,28 @@ export function AppShell({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur">
-          <SidebarTrigger className="h-8 w-8" />
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+        >
+          Skip to main content
+        </a>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl supports-[backdrop-filter]:bg-background/50">
+          <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation" />
           <Separator orientation="vertical" className="h-5" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{title}</div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_10px_var(--color-primary)]" aria-hidden />
+              <h1 className="truncate font-display text-sm font-semibold tracking-tight">{title}</h1>
+            </div>
           </div>
           <ThemeToggle />
         </header>
-        <main key={pathname} className="min-h-[calc(100vh-3.5rem)] animate-fade-in">
+        <main
+          id="main-content"
+          key={pathname}
+          className="min-h-[calc(100dvh-3.5rem)] animate-fade-in"
+        >
           {children}
         </main>
       </SidebarInset>

@@ -671,19 +671,28 @@ function AiGradingCard({
   const initialMults = (settings?.ai_risk_multipliers as Record<string, number> | null | undefined) ?? DEFAULT_MULTS;
   const initialEnabled = !!settings?.ai_grading_enabled;
   const initialMin = (settings?.ai_min_grade as GradeLabel | undefined) ?? "C";
+  const initialAuto = settings?.ai_auto_retrain !== false;
+  const initialDays = Number(settings?.ai_retrain_days ?? 365);
+  const lastRetrain = settings?.ai_last_retrain_at as string | null | undefined;
 
   const [enabled, setEnabled] = useState(initialEnabled);
   const [minGrade, setMinGrade] = useState<GradeLabel>(initialMin);
   const [mults, setMults] = useState<Record<GradeLabel, number>>(() => ({ ...DEFAULT_MULTS, ...initialMults }));
+  const [autoRetrain, setAutoRetrain] = useState(initialAuto);
+  const [retrainDays, setRetrainDays] = useState(initialDays);
+  const [retraining, setRetraining] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const retrainNow = useServerFn(retrainGradingModelNow);
 
   useEffect(() => {
     if (hydrated || !settings) return;
     setEnabled(initialEnabled);
     setMinGrade(initialMin);
     setMults({ ...DEFAULT_MULTS, ...initialMults });
+    setAutoRetrain(initialAuto);
+    setRetrainDays(initialDays);
     setHydrated(true);
-  }, [settings, hydrated, initialEnabled, initialMin, initialMults]);
+  }, [settings, hydrated, initialEnabled, initialMin, initialMults, initialAuto, initialDays]);
 
   return (
     <Card>

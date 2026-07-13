@@ -20,6 +20,7 @@ import {
   editLiveTradeLevels,
   closeLiveTradeNow,
   cancelAndReArmWithAi,
+  runOrderWatchdog,
 } from "@/lib/strategy.functions";
 
 
@@ -1095,7 +1096,22 @@ function StrategyCard() {
   const runNow = useServerFn(runStrategyTickNow);
   const repriceNow = useServerFn(repriceArmedNow);
   const rearmAi = useServerFn(cancelAndReArmWithAi);
+  const runWatchdog = useServerFn(runOrderWatchdog);
   const updateStrat = useServerFn(updateStrategySettings);
+  const watchdogMut = useMutation({
+    mutationFn: () => runWatchdog(),
+    onSuccess: (r: { ok: boolean; tick: { actions?: string[] } }) => {
+      const actions = r.tick?.actions ?? [];
+      const replaced = actions.filter((a) => a.startsWith("watchdog_replaced") || a.startsWith("re-armed") || a.startsWith("armed")).length;
+      const failed = actions.filter((a) => a.startsWith("watchdog_replace_failed") || a.startsWith("arm_blocked")).length;
+      if (replaced > 0) toast.success(`Watchdog placed/verified ${replaced} order(s)`);
+      else if (failed > 0) toast.error(`Watchdog: ${failed} placement(s) failed — see activity log`);
+      else toast.info(`Watchdog: nothing to fix (${actions.length} action(s))`);
+      qc.invalidateQueries({ queryKey: ["strategy-state"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const rearmMut = useMutation({
     mutationFn: () => rearmAi(),
     onSuccess: (r) => {
@@ -1239,6 +1255,8 @@ function StrategyCard() {
   }>;
 
   const active = setups.filter((x) => x.status === "armed" || x.status === "triggered");
+  // Setups pending re-arm — cancelled but flagged for the watchdog/tick to retry.
+  const pendingRearm = setups.filter((x) => x.status === "cancelled" && x.close_reason === "rearm_with_ai");
   const closed = setups.filter((x) => x.status === "closed" || x.status === "expired");
   const aiEnabled = !!s?.ai_grading_enabled;
   const hasAiModel = !!s?.ai_grading_model;
@@ -1401,17 +1419,34 @@ function StrategyCard() {
           </p>
         )}
 
-        {active.length > 0 && (
+        {(active.length > 0 || pendingRearm.length > 0) && (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-mono text-muted-foreground">ACTIVE SETUPS</div>
-              {active.some((a) => a.status === "armed" && !a.ai_grade) ? (
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-xs font-mono text-muted-foreground">
+                ACTIVE SETUPS
+                {pendingRearm.length > 0 && (
+                  <span className="ml-2 text-warning">· {pendingRearm.length} pending re-arm</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={rearmMut.isPending}
+                  disabled={watchdogMut.isPending}
+                  onClick={() => watchdogMut.mutate()}
+                  title="Verify every active setup has a live pending order on the exchange and place one if missing (leverage escalation + capped fallback)."
+                >
+                  {watchdogMut.isPending ? "Checking…" : "Verify & re-arm"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={active.some((a) => a.status === "armed" && !a.ai_grade) ? "outline" : "ghost"}
+                  disabled={
+                    rearmMut.isPending ||
+                    (!active.some((a) => a.status === "armed") && pendingRearm.length === 0)
+                  }
                   onClick={() => {
-                    if (confirm("Cancel the current armed order and re-arm using the AI grading model?")) {
+                    if (confirm("Cancel current armed order (if any) and re-arm with the latest AI grading + risk settings?")) {
                       rearmMut.mutate();
                     }
                   }}
@@ -1419,22 +1454,9 @@ function StrategyCard() {
                 >
                   {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={rearmMut.isPending || !active.some((a) => a.status === "armed")}
-                  onClick={() => {
-                    if (confirm("Cancel current armed order and re-arm with the latest AI grading + risk settings?")) {
-                      rearmMut.mutate();
-                    }
-                  }}
-                  title="Force a re-arm using the current AI grading settings."
-                >
-                  {rearmMut.isPending ? "Re-arming…" : "Re-arm with AI"}
-                </Button>
-              )}
+              </div>
             </div>
+
             <div className="border border-border rounded divide-y divide-border">
               {active.map((a) => {
                 const notional = a.entry_price * a.qty;
@@ -1460,6 +1482,28 @@ function StrategyCard() {
                       <span>margin@25x <span className="text-foreground">${marginAt25x.toFixed(2)}</span></span>
                       <span>margin@10x <span className="text-foreground">${marginAt10x.toFixed(2)}</span></span>
                       <span>planned risk <span className="text-foreground">${(Math.abs(a.entry_price - a.sl_price) * a.qty).toFixed(2)}</span></span>
+                    </div>
+                  </div>
+                );
+              })}
+              {pendingRearm.map((a) => {
+                const notional = a.entry_price * a.qty;
+                return (
+                  <div key={a.id} className="px-3 py-2 text-xs font-mono bg-warning-soft/30">
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 items-center">
+                      <span className={a.side === "long" ? "text-long" : "text-short"}>
+                        {a.side.toUpperCase()}
+                      </span>
+                      <span>entry {a.entry_price.toFixed(2)}</span>
+                      <span>sl {a.sl_price.toFixed(2)}</span>
+                      <span>tp {a.tp_price.toFixed(2)}</span>
+                      <span className="font-semibold">qty {a.qty.toFixed(4)}</span>
+                      <span className="uppercase text-warning">pending re-arm</span>
+                      <GradeBadge grade={a.ai_grade} score={a.ai_score} mult={a.ai_risk_mult} enabled={aiEnabled} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>notional <span className="text-foreground">${notional.toFixed(2)}</span></span>
+                      <span>watchdog will retry on next tick — click <span className="text-foreground">Verify &amp; re-arm</span> to run now.</span>
                     </div>
                   </div>
                 );

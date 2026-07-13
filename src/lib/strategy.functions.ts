@@ -193,6 +193,36 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
   return runStrategyTick();
 });
 
+/**
+ * Order watchdog — verifies every active setup has a live pending order on the
+ * exchange and re-places one immediately if missing. Also re-arms today's
+ * setups that were cancelled with reason "rearm_with_ai". Reuses runStrategyTick
+ * since watchdog logic runs inline in the tick.
+ */
+export const runOrderWatchdog = createServerFn({ method: "POST" }).handler(async () => {
+  const supabase = await admin();
+  // Flip today's cancelled-with-recoverable-reason setups back to rearm-eligible
+  // so the tick's arm branch immediately tries again (also covers old rows
+  // stuck with close_reason='manual' after a capacity failure).
+  const { data: strat } = await supabase
+    .from("strategy_settings")
+    .select("session_start_ist")
+    .eq("id", true)
+    .single();
+  const sessionStart = String(strat?.session_start_ist ?? "05:30").slice(0, 5);
+  const istDateStr = todayIstSessionDate(sessionStart);
+  await supabase
+    .from("strategy_setups")
+    .update({ close_reason: "rearm_with_ai", updated_at: new Date().toISOString() })
+    .eq("ist_date", istDateStr)
+    .eq("status", "cancelled")
+    .is("exchange_order_id", null);
+  const { runStrategyTick } = await import("@/lib/strategy/engine.server");
+  const tick = await runStrategyTick();
+  return { ok: true, tick };
+});
+
+
 export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async () => {
   const { repriceArmedSetupsNow } = await import("@/lib/strategy/engine.server");
   return repriceArmedSetupsNow();

@@ -267,6 +267,11 @@ export async function runBacktestRange(opts: {
   zoneSource?: "range" | "breakout";
   /** Historical candle source. "shark" (default, ~180d) or "yahoo" (GC=F, ~730d, no key). */
   dataSource?: KlineSourceId;
+  /** Optional AI grading model — when provided, each candidate is graded and
+   *  the day's SL$ is set from gradeRiskMap[grade] (default GRADE_RISK_USD). */
+  gradingModel?: unknown;
+  gradeRiskMap?: Record<string, number>;
+  minGrade?: string;
 }): Promise<RangeBacktestResult> {
 
   const source = await getKlineSource(opts.dataSource ?? "shark");

@@ -958,6 +958,8 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
                 stopLossPrice: sl,
                 takeProfitPrice: tp,
               });
+              await emitPlacementOutcome(existingSetup.id, attempt, qty, entry);
+
 
               if (!attempt.res) {
                 await supabaseAdmin

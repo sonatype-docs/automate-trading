@@ -11,7 +11,7 @@ async function admin() {
 
 export const getStrategyState = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await admin();
-  const [settingsRes, sessionsRes, setupsRes] = await Promise.all([
+  const [settingsRes, sessionsRes, setupsRes, logsRes] = await Promise.all([
     supabase.from("strategy_settings").select("*").eq("id", true).maybeSingle(),
     supabase
       .from("strategy_sessions")
@@ -23,11 +23,17 @@ export const getStrategyState = createServerFn({ method: "GET" }).handler(async 
       .select("*")
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("activity_log")
+      .select("severity, message, context, created_at")
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
   return {
     settings: settingsRes.data,
     session: sessionsRes.data?.[0] ?? null,
     setups: setupsRes.data ?? [],
+    logs: logsRes.data ?? [],
   };
 });
 

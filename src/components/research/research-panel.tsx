@@ -43,6 +43,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { exportResearchCsv } from "@/lib/research/export";
+import { AdvancedResearch } from "@/components/research/advanced-research";
 
 type RangeData = Awaited<ReturnType<typeof backtestRange>>;
 
@@ -516,6 +517,8 @@ export function ResearchPanel({ data }: { data: RangeData }) {
             </TabsContent>
           ))}
         </Tabs>
+
+        <AdvancedResearch features={features} slRiskUsd={Number((data as unknown as { sl_risk_usd?: number }).sl_risk_usd ?? 100)} />
       </CardContent>
     </Card>
   );

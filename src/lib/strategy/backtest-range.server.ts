@@ -105,6 +105,28 @@ export interface DayResult {
   lower_wick_pct: number | null;
   close_position_pct: number | null;
   candle_range_usd: number | null;
+  // ---- Phase 2 trade-quality features ----
+  /** Bars from break close to trigger (0 for market). Null when never triggered. */
+  time_to_fill_bars: number | null;
+  time_to_fill_hours: number | null;
+  /** Bars from trigger to resolution (tp/sl); null if still open or missed. */
+  duration_bars: number | null;
+  /** Maximum favourable excursion in R (same as peak_r; kept as an explicit feature). */
+  mfe_r: number | null;
+  mfe_usd: number | null;
+  mae_usd: number | null;
+  /** Number of times price re-touched the entry line after trigger. */
+  retest_count: number | null;
+  // ---- Phase 3 timing features ----
+  /** Hour of break in IST (0-23). */
+  break_hour_ist: number | null;
+  month: number | null;
+  quarter: number | null;
+  // ---- Phase 5 structure flags ----
+  /** True when a 3-candle FVG exists on the break candle (candle[-2] vs breakBar). */
+  fvg_present: boolean | null;
+  /** True when the break candle swept a recent swing (broke prior high/low, then closed back). */
+  sweep_present: boolean | null;
 }
 
 
@@ -406,6 +428,18 @@ export function simulateFromKlines(
       lower_wick_pct: null,
       close_position_pct: null,
       candle_range_usd: null,
+      time_to_fill_bars: null,
+      time_to_fill_hours: null,
+      duration_bars: null,
+      mfe_r: null,
+      mfe_usd: null,
+      mae_usd: null,
+      retest_count: null,
+      break_hour_ist: null,
+      month: null,
+      quarter: null,
+      fvg_present: null,
+      sweep_present: null,
     };
 
 
@@ -568,6 +602,36 @@ export function simulateFromKlines(
     dr.break_side = breakSide;
     dr.break_at = breakBar.closeTime;
     dr.break_close = breakBar.close;
+    // Phase 3 timing tags
+    {
+      const istMs = breakBar.openTime + IST_OFFSET_MIN * 60_000;
+      const d = new Date(istMs);
+      dr.break_hour_ist = d.getUTCHours();
+      const [yy, mm] = dateStr.split("-").map((n) => parseInt(n, 10));
+      dr.month = mm;
+      dr.quarter = Math.floor((mm - 1) / 3) + 1;
+      void yy;
+    }
+    // Phase 5 structure flags — computed from local kline neighbourhood.
+    const oneHourMs = 3_600_000;
+    const preBar = byOpen.get(breakBar.openTime - oneHourMs) ?? null;
+    const pre2Bar = byOpen.get(breakBar.openTime - 2 * oneHourMs) ?? null;
+    if (pre2Bar && preBar) {
+      // 3-candle FVG: gap between candle[-2] and breakBar in the trend direction.
+      const gapUp = breakBar.low > pre2Bar.high;
+      const gapDn = breakBar.high < pre2Bar.low;
+      dr.fvg_present = breakSide === "long" ? gapUp : gapDn;
+    } else {
+      dr.fvg_present = false;
+    }
+    if (preBar) {
+      // Liquidity sweep: break candle wick pierces prior swing then closes back inside.
+      const sweptLong = breakSide === "long" && breakBar.high > preBar.high && breakBar.close < preBar.high * 1.001;
+      const sweptShort = breakSide === "short" && breakBar.low < preBar.low && breakBar.close > preBar.low * 0.999;
+      dr.sweep_present = sweptLong || sweptShort;
+    } else {
+      dr.sweep_present = false;
+    }
 
     // Cohort inputs (always recorded when a break is found).
     const barRange0 = breakBar.high - breakBar.low;
@@ -683,8 +747,14 @@ export function simulateFromKlines(
       // Market entries: also let the break candle itself resolve TP/SL below.
     }
     const bars = market ? [breakBar, ...post] : post;
+    // Phase 2 trade-quality tracking.
+    let barsUntilFill = 0;
+    let barsInTrade = 0;
+    let retestCount = 0;
+    let prevSide: 1 | -1 | 0 = 0; // side of entry line
     for (const k of bars) {
       if (!triggered) {
+        barsUntilFill += 1;
         const dist = breakSide === "long" ? Math.max(0, k.low - entry) : Math.max(0, entry - k.high);
         if (dist < closestDist) closestDist = dist;
         const hit = breakSide === "long" ? k.low <= entry : k.high >= entry;
@@ -695,6 +765,12 @@ export function simulateFromKlines(
           continue;
         }
       }
+      barsInTrade += 1;
+
+      // Retest tracking: count sign flips of (close - entry).
+      const side: 1 | -1 = k.close >= entry ? 1 : -1;
+      if (prevSide !== 0 && side !== prevSide) retestCount += 1;
+      prevSide = side;
 
       // Update peak-R using bar extremes in the favorable direction.
       const favorableExtreme = breakSide === "long" ? k.high : k.low;
@@ -754,6 +830,16 @@ export function simulateFromKlines(
     if (triggered && adverseExtreme !== null && risk > 0) {
       const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
       dr.mae_r = Math.max(0, adverseR);
+      dr.mae_usd = dr.mae_r * opts.slRiskUsd;
+    }
+    // Phase 2: populate MFE + duration + time-to-fill + retest count.
+    if (triggered) {
+      dr.mfe_r = peakR;
+      dr.mfe_usd = peakR * opts.slRiskUsd;
+      dr.time_to_fill_bars = market ? 0 : Math.max(0, barsUntilFill);
+      dr.time_to_fill_hours = (dr.time_to_fill_bars ?? 0) * 1;
+      if (resolved) dr.duration_bars = barsInTrade;
+      dr.retest_count = retestCount;
     }
     if (!resolved) {
       dr.outcome = triggered ? "open" : "armed_no_trigger";

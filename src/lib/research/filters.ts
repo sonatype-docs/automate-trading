@@ -31,14 +31,25 @@ import {
   PREV_DAY_LABEL_MAP,
 } from "./features";
 
-export type FilterKind = "quintile" | "quartile" | "trend" | "prev_day";
+export type FilterKind = "quintile" | "quartile" | "trend" | "prev_day" | "side" | "weekday" | "hour" | "month" | "boolean";
 export type FilterId =
   | "or_size"
   | "break_strength"
   | "candle_body"
   | "atr_regime"
   | "trend"
-  | "prev_day";
+  | "prev_day"
+  | "side"
+  | "weekday"
+  | "hour"
+  | "month"
+  | "mae"
+  | "mfe"
+  | "duration"
+  | "time_to_fill"
+  | "retests"
+  | "fvg"
+  | "sweep";
 export type FilterPhase = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface FilterDef {
@@ -136,6 +147,146 @@ export const FILTERS: FilterDef[] = [
     buckets: ["bullish", "bearish", "inside", "outside", "doji"],
     bucketLabel: (k) => PREV_DAY_LABEL_MAP[k as PrevDayBucket] ?? k,
     tag: (f) => f.prev_day_bucket,
+  },
+  // ---- Phase 3: Timing / Side splits ----
+  {
+    id: "side",
+    phase: 3,
+    label: "Trade Side",
+    short: "Side",
+    description: "Long vs short breakouts.",
+    kind: "side",
+    buckets: ["long", "short"],
+    bucketLabel: (k) => (k === "long" ? "Long" : "Short"),
+    tag: (f) => f.side,
+  },
+  {
+    id: "weekday",
+    phase: 3,
+    label: "Weekday",
+    short: "Day",
+    description: "Which weekday the break occurred (0=Sun … 6=Sat).",
+    kind: "weekday",
+    buckets: ["0", "1", "2", "3", "4", "5", "6"],
+    bucketLabel: (k) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][parseInt(k, 10)] ?? k,
+    tag: (f) => (f.weekday !== null ? String(f.weekday) : null),
+  },
+  {
+    id: "hour",
+    phase: 3,
+    label: "Break Hour (IST)",
+    short: "Hour",
+    description: "Hour of the day (IST) the breakout candle opened.",
+    kind: "hour",
+    buckets: Array.from({ length: 24 }, (_, i) => String(i)),
+    bucketLabel: (k) => `${k.padStart(2, "0")}:00`,
+    tag: (f) => (f.break_hour_ist !== null ? String(f.break_hour_ist) : null),
+    numericAccessor: (f) => f.break_hour_ist,
+    numericUnit: "h",
+  },
+  {
+    id: "month",
+    phase: 3,
+    label: "Month",
+    short: "Month",
+    description: "Calendar month of the trade.",
+    kind: "month",
+    buckets: Array.from({ length: 12 }, (_, i) => String(i + 1)),
+    bucketLabel: (k) => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(k, 10) - 1] ?? k,
+    tag: (f) => (f.month !== null ? String(f.month) : null),
+  },
+  // ---- Phase 2: Trade Quality ----
+  {
+    id: "mae",
+    phase: 2,
+    label: "Max Adverse Excursion (R)",
+    short: "MAE",
+    description: "How deep price ran against a triggered trade, in R.",
+    kind: "quintile",
+    buckets: ["very_small", "small", "medium", "large", "very_large"],
+    bucketLabel: (k) => QUINTILE_LABEL_MAP[k as QuintileBucket] ?? k,
+    tag: (f) => f.mae_bucket5,
+    numericAccessor: (f) => f.mae_r,
+    numericUnit: "R",
+  },
+  {
+    id: "mfe",
+    phase: 2,
+    label: "Max Favourable Excursion (R)",
+    short: "MFE",
+    description: "Peak favourable move in R units after trigger.",
+    kind: "quintile",
+    buckets: ["very_small", "small", "medium", "large", "very_large"],
+    bucketLabel: (k) => QUINTILE_LABEL_MAP[k as QuintileBucket] ?? k,
+    tag: (f) => f.mfe_bucket5,
+    numericAccessor: (f) => f.mfe_r,
+    numericUnit: "R",
+  },
+  {
+    id: "duration",
+    phase: 2,
+    label: "Trade Duration (bars)",
+    short: "Duration",
+    description: "How many bars a decided trade lasted.",
+    kind: "quintile",
+    buckets: ["very_small", "small", "medium", "large", "very_large"],
+    bucketLabel: (k) => QUINTILE_LABEL_MAP[k as QuintileBucket] ?? k,
+    tag: (f) => f.duration_bucket5,
+    numericAccessor: (f) => f.duration_bars,
+    numericUnit: "bars",
+  },
+  {
+    id: "time_to_fill",
+    phase: 2,
+    label: "Time to Fill (bars)",
+    short: "TTF",
+    description: "Bars from break close until entry was hit.",
+    kind: "quintile",
+    buckets: ["very_small", "small", "medium", "large", "very_large"],
+    bucketLabel: (k) => QUINTILE_LABEL_MAP[k as QuintileBucket] ?? k,
+    tag: (f) => f.ttl_bucket5,
+    numericAccessor: (f) => f.time_to_fill_bars,
+    numericUnit: "bars",
+  },
+  {
+    id: "retests",
+    phase: 4,
+    label: "Retest Count",
+    short: "Retests",
+    description: "How many times price flipped through entry after fill.",
+    kind: "quintile",
+    buckets: ["0", "1", "2", "3+"],
+    bucketLabel: (k) => k,
+    tag: (f) => {
+      if (f.retest_count === null) return null;
+      const n = f.retest_count;
+      if (n >= 3) return "3+";
+      return String(n);
+    },
+    numericAccessor: (f) => f.retest_count,
+  },
+  // ---- Phase 5: Smart-money structure flags ----
+  {
+    id: "fvg",
+    phase: 5,
+    label: "Fair Value Gap on Break",
+    short: "FVG",
+    description: "3-candle FVG present on the breakout in the trade direction.",
+    kind: "boolean",
+    buckets: ["yes", "no"],
+    bucketLabel: (k) => (k === "yes" ? "FVG present" : "No FVG"),
+    tag: (f) => (f.fvg_present === null ? null : f.fvg_present ? "yes" : "no"),
+  },
+  {
+    id: "sweep",
+    phase: 5,
+    label: "Liquidity Sweep on Break",
+    short: "Sweep",
+    description: "Break candle swept a prior swing then closed back through it.",
+    kind: "boolean",
+    buckets: ["yes", "no"],
+    bucketLabel: (k) => (k === "yes" ? "Sweep present" : "No sweep"),
+    tag: (f) => (f.sweep_present === null ? null : f.sweep_present ? "yes" : "no"),
   },
 ];
 

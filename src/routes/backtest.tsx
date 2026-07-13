@@ -54,6 +54,7 @@ export const Route = createFileRoute("/backtest")({
 type RangeData = Awaited<ReturnType<typeof backtestRange>>;
 
 const WD_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const BACKTEST_SNAPSHOT_KEY = "shark:auto-trader:backtest-snapshot:v1";
 
 interface FormState {
   days: number;
@@ -74,6 +75,53 @@ interface FormState {
   dataSource: "shark" | "yahoo";
 }
 
+type BacktestSnapshot = {
+  savedAt: number;
+  form: FormState;
+  filters: NonNullable<FilterConfig>;
+  result: RangeData | null;
+};
+
+function readBacktestSnapshot(): BacktestSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(BACKTEST_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BacktestSnapshot>;
+    if (!parsed.form || !parsed.savedAt) return null;
+    // Backtest results are session-scoped and expire after 12 hours so stale
+    // market-analysis output does not reappear on a later work session.
+    if (Date.now() - parsed.savedAt > 12 * 60 * 60 * 1000) {
+      window.sessionStorage.removeItem(BACKTEST_SNAPSHOT_KEY);
+      return null;
+    }
+    return {
+      savedAt: parsed.savedAt,
+      form: parsed.form,
+      filters: parsed.filters ?? DEFAULT_FILTERS,
+      result: parsed.result ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeBacktestSnapshot(snapshot: BacktestSnapshot) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(BACKTEST_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    try {
+      window.sessionStorage.setItem(
+        BACKTEST_SNAPSHOT_KEY,
+        JSON.stringify({ ...snapshot, result: null }),
+      );
+    } catch {
+      // Ignore storage quota/private-mode failures; the live in-memory state still works.
+    }
+  }
+}
+
 function BacktestLab() {
   const getState = useServerFn(getStrategyState);
   const runRange = useServerFn(backtestRange);
@@ -87,6 +135,7 @@ function BacktestLab() {
   // the first request. Key: hour number (0-23). "All" = the base `result`.
   const [hourCache, setHourCache] = useState<Record<number, RangeData>>({});
   const [hourLoading, setHourLoading] = useState<number | null>(null);
+  const [hasRestoredSnapshot, setHasRestoredSnapshot] = useState(false);
 
   // Seed the form once settings load.
   const s = settingsQ.data?.settings as
@@ -108,7 +157,19 @@ function BacktestLab() {
     | undefined;
 
   useEffect(() => {
-    if (!s || form) return;
+    const snapshot = readBacktestSnapshot();
+    if (snapshot) {
+      setForm(snapshot.form);
+      setFilters(snapshot.filters);
+      setResult(snapshot.result);
+      setHourCache({});
+      setHourFilter(null);
+    }
+    setHasRestoredSnapshot(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredSnapshot || !s || form) return;
     setForm({
       days: 90,
       symbol: s.symbol,
@@ -127,7 +188,17 @@ function BacktestLab() {
       feeUsdPerOrder: 0,
       dataSource: "shark",
     });
-  }, [form, s]);
+  }, [form, hasRestoredSnapshot, s]);
+
+  useEffect(() => {
+    if (!hasRestoredSnapshot || !form) return;
+    writeBacktestSnapshot({
+      savedAt: Date.now(),
+      form,
+      filters,
+      result,
+    });
+  }, [filters, form, hasRestoredSnapshot, result]);
 
   const resultsRef = useRef<HTMLDivElement | null>(null);
 

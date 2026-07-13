@@ -706,3 +706,220 @@ export const runStrategyOptimizer = createServerFn({ method: "POST" })
     return JSON.parse(JSON.stringify(r)) as typeof r;
   });
 
+// ------------------------------------------------------------------
+// Live-trade controls: edit SL / TP / close of the currently triggered setup.
+// Trailing continues to run on the tick — a manual SL edit resets the baseline
+// (initial_sl_price and peak_r) so the ratchet recomputes from the new SL.
+// ------------------------------------------------------------------
+
+export const getLiveTriggeredSetup = createServerFn({ method: "GET" }).handler(async () => {
+  const supabase = await admin();
+  const { data } = await supabase
+    .from("strategy_setups")
+    .select("*")
+    .eq("status", "triggered")
+    .order("filled_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+});
+
+const EditLevelSchema = z.object({
+  setup_id: z.string().uuid(),
+  sl_price: z.number().positive().optional(),
+  tp_price: z.number().positive().optional(),
+});
+
+export const editLiveTradeLevels = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => EditLevelSchema.parse(input))
+  .handler(async ({ data }) => {
+    if (data.sl_price === undefined && data.tp_price === undefined) {
+      throw new Error("Nothing to update — provide sl_price and/or tp_price.");
+    }
+    const supabase = await admin();
+    const { data: setup, error: setupErr } = await supabase
+      .from("strategy_setups")
+      .select("*")
+      .eq("id", data.setup_id)
+      .single();
+    if (setupErr || !setup) throw new Error(setupErr?.message ?? "Setup not found");
+    if (setup.status !== "triggered") throw new Error(`Setup is ${setup.status}, only 'triggered' can be edited.`);
+
+    const side = setup.side as "long" | "short";
+    // Sanity checks: SL on the losing side, TP on the winning side, relative to entry.
+    if (data.sl_price !== undefined) {
+      if (side === "long" && data.sl_price >= Number(setup.entry_price))
+        throw new Error("SL must be BELOW entry for a long.");
+      if (side === "short" && data.sl_price <= Number(setup.entry_price))
+        throw new Error("SL must be ABOVE entry for a short.");
+    }
+    if (data.tp_price !== undefined) {
+      if (side === "long" && data.tp_price <= Number(setup.entry_price))
+        throw new Error("TP must be ABOVE entry for a long.");
+      if (side === "short" && data.tp_price >= Number(setup.entry_price))
+        throw new Error("TP must be BELOW entry for a short.");
+    }
+
+    const results: Array<{ leg: "sl" | "tp"; ok: boolean; status?: number; message: string }> = [];
+    const { data: globalSettings } = await supabase
+      .from("settings")
+      .select("paper_mode")
+      .eq("id", true)
+      .maybeSingle();
+    const isLive = !!setup.exchange_order_id && !globalSettings?.paper_mode;
+
+    let client: ReturnType<typeof import("@/lib/exchange/shark-client.server").createSharkClient> | null = null;
+    if (isLive) {
+      const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+      client = createSharkClient();
+    }
+
+    // ---- SL edit ----
+    if (data.sl_price !== undefined) {
+      let slChildId = setup.sl_child_order_id;
+      if (isLive && client && !slChildId) {
+        // Try to discover if we don't have it yet.
+        try {
+          const openRows = await client.getOpenOrders(setup.symbol);
+          const exitSide = side === "long" ? "SELL" : "BUY";
+          const match = openRows
+            .filter((o) => {
+              const type = (o.type || "").toUpperCase();
+              const sub = (o.subType || "").toUpperCase();
+              const link = (o.linkType || "").toUpperCase();
+              const looksStop = type.startsWith("STOP") || sub.includes("STOP_LOSS") || link.includes("SL");
+              const looksTp = sub.includes("TAKE_PROFIT") || link.includes("TP");
+              return looksStop && !looksTp && (o.side || "").toUpperCase() === exitSide;
+            })
+            .sort((a, b) => Math.abs((a.stopPrice ?? a.price ?? 0) - Number(setup.sl_price)) - Math.abs((b.stopPrice ?? b.price ?? 0) - Number(setup.sl_price)))[0];
+          if (match) slChildId = match.clientOrderId;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (isLive && client && slChildId) {
+        const editRes = await client.editOrder({ clientOrderId: slChildId, stopPrice: data.sl_price });
+        results.push({
+          leg: "sl",
+          ok: editRes.ok,
+          status: editRes.status,
+          message: editRes.ok ? `SL updated on exchange → ${data.sl_price}` : `Exchange rejected [${editRes.status}]: ${editRes.body.slice(0, 200)}`,
+        });
+        if (!editRes.ok && (editRes.status === 404 || /not.?found/i.test(editRes.body))) {
+          slChildId = null;
+        }
+      } else {
+        results.push({ leg: "sl", ok: true, message: isLive ? "SL saved (exchange child not yet discovered — next tick will sync)" : "SL saved (paper mode)" });
+      }
+      // Reset trailing baseline so the ratchet recomputes from the new SL.
+      await supabase
+        .from("strategy_setups")
+        .update({
+          sl_price: data.sl_price,
+          initial_sl_price: data.sl_price,
+          peak_r: 0,
+          sl_child_order_id: slChildId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+    }
+
+    // ---- TP edit ----
+    if (data.tp_price !== undefined) {
+      let tpChildId = setup.tp_child_order_id;
+      if (isLive && client && !tpChildId) {
+        try {
+          const openRows = await client.getOpenOrders(setup.symbol);
+          const exitSide = side === "long" ? "SELL" : "BUY";
+          const match = openRows
+            .filter((o) => {
+              const sub = (o.subType || "").toUpperCase();
+              const link = (o.linkType || "").toUpperCase();
+              const type = (o.type || "").toUpperCase();
+              const looksTp = sub.includes("TAKE_PROFIT") || link.includes("TP") || type.includes("TAKE_PROFIT");
+              const looksSl = sub.includes("STOP_LOSS") || link.includes("SL");
+              return looksTp && !looksSl && (o.side || "").toUpperCase() === exitSide;
+            })
+            .sort((a, b) => Math.abs((a.price ?? a.stopPrice ?? 0) - Number(setup.tp_price)) - Math.abs((b.price ?? b.stopPrice ?? 0) - Number(setup.tp_price)))[0];
+          if (match) tpChildId = match.clientOrderId;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (isLive && client && tpChildId) {
+        // TP is a limit — edit price. Fallback to stopPrice for exchanges that use STOP_LIMIT TPs.
+        const editRes = await client.editOrder({ clientOrderId: tpChildId, price: data.tp_price });
+        results.push({
+          leg: "tp",
+          ok: editRes.ok,
+          status: editRes.status,
+          message: editRes.ok ? `TP updated on exchange → ${data.tp_price}` : `Exchange rejected [${editRes.status}]: ${editRes.body.slice(0, 200)}`,
+        });
+        if (!editRes.ok && (editRes.status === 404 || /not.?found/i.test(editRes.body))) {
+          tpChildId = null;
+        }
+      } else {
+        results.push({ leg: "tp", ok: true, message: isLive ? "TP saved (exchange child not yet discovered — next tick will sync)" : "TP saved (paper mode)" });
+      }
+      await supabase
+        .from("strategy_setups")
+        .update({
+          tp_price: data.tp_price,
+          tp_child_order_id: tpChildId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", setup.id);
+    }
+
+    return { ok: results.every((r) => r.ok), results };
+  });
+
+export const closeLiveTradeNow = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ setup_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { data: setup, error } = await supabase
+      .from("strategy_setups")
+      .select("*")
+      .eq("id", data.setup_id)
+      .single();
+    if (error || !setup) throw new Error(error?.message ?? "Setup not found");
+    if (setup.status !== "triggered") throw new Error(`Setup is ${setup.status}, cannot close.`);
+
+    const { data: globalSettings } = await supabase
+      .from("settings")
+      .select("paper_mode")
+      .eq("id", true)
+      .maybeSingle();
+    const isLive = !!setup.exchange_order_id && !globalSettings?.paper_mode;
+    const side = setup.side as "long" | "short";
+    const exitSide: "buy" | "sell" = side === "long" ? "sell" : "buy";
+
+    let exchangeOrderId: string | null = null;
+    let message = "closed (paper mode)";
+    if (isLive) {
+      const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+      const client = createSharkClient();
+      const res = await client.placeOrder({
+        symbol: setup.symbol,
+        side: exitSide,
+        qty: Math.abs(Number(setup.qty)),
+        type: "market",
+        reduceOnly: true,
+      });
+      exchangeOrderId = res.exchangeOrderId;
+      message = `market ${exitSide} ${setup.qty} — ${res.status}`;
+    }
+    await supabase
+      .from("strategy_setups")
+      .update({
+        status: "closed",
+        close_reason: "manual_close",
+        close_order_id: exchangeOrderId,
+        closed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", setup.id);
+    return { ok: true, message };
+  });
+

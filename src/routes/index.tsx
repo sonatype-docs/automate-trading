@@ -17,6 +17,8 @@ import {
   createStrategyPreset,
   deleteStrategyPreset,
   applyStrategyPreset,
+  editLiveTradeLevels,
+  closeLiveTradeNow,
 } from "@/lib/strategy.functions";
 
 
@@ -1341,6 +1343,20 @@ function StrategyCard() {
           </div>
         )}
 
+        {(() => {
+          const live = active.find((a) => a.status === "triggered");
+          return live ? (
+            <LiveTradePanel
+              setup={live}
+              onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["strategy-state"] });
+                qc.invalidateQueries({ queryKey: ["dashboard"] });
+              }}
+            />
+          ) : null;
+        })()}
+
+
         {closed.length > 0 && (
           <div>
             <div className="text-xs font-mono text-muted-foreground mb-2">RECENT SETUPS</div>
@@ -1364,6 +1380,139 @@ function StrategyCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function LiveTradePanel({
+  setup,
+  onChanged,
+}: {
+  setup: {
+    id: string;
+    side: "long" | "short";
+    entry_price: number;
+    sl_price: number;
+    tp_price: number;
+    qty: number;
+  };
+  onChanged: () => void;
+}) {
+  const editFn = useServerFn(editLiveTradeLevels);
+  const closeFn = useServerFn(closeLiveTradeNow);
+  const [sl, setSl] = useState(setup.sl_price.toFixed(2));
+  const [tp, setTp] = useState(setup.tp_price.toFixed(2));
+
+  // Keep local inputs synced when the trailing engine advances SL.
+  useEffect(() => {
+    setSl(setup.sl_price.toFixed(2));
+  }, [setup.sl_price]);
+  useEffect(() => {
+    setTp(setup.tp_price.toFixed(2));
+  }, [setup.tp_price]);
+
+  const risk = Math.abs(setup.entry_price - setup.sl_price);
+  const reward = Math.abs(setup.tp_price - setup.entry_price);
+  const rr = risk > 0 ? reward / risk : 0;
+
+  const saveSl = useMutation({
+    mutationFn: async () => {
+      const n = Number(sl);
+      if (!Number.isFinite(n) || n <= 0) throw new Error("Invalid SL price");
+      return editFn({ data: { setup_id: setup.id, sl_price: n } });
+    },
+    onSuccess: (r) => {
+      r.results.forEach((x) => (x.ok ? toast.success(x.message) : toast.error(x.message)));
+      onChanged();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const saveTp = useMutation({
+    mutationFn: async () => {
+      const n = Number(tp);
+      if (!Number.isFinite(n) || n <= 0) throw new Error("Invalid TP price");
+      return editFn({ data: { setup_id: setup.id, tp_price: n } });
+    },
+    onSuccess: (r) => {
+      r.results.forEach((x) => (x.ok ? toast.success(x.message) : toast.error(x.message)));
+      onChanged();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const closeMut = useMutation({
+    mutationFn: () => closeFn({ data: { setup_id: setup.id } }),
+    onSuccess: (r) => {
+      toast.success(r.message);
+      onChanged();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="border border-border rounded p-3 space-y-3 bg-muted/20">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-mono text-muted-foreground tracking-widest">
+          LIVE TRADE · <span className={setup.side === "long" ? "text-long" : "text-short"}>{setup.side.toUpperCase()}</span> · entry {setup.entry_price.toFixed(2)} · qty {setup.qty.toFixed(4)}
+        </div>
+        <div className="text-xs font-mono text-muted-foreground">
+          risk {risk.toFixed(2)} · reward {reward.toFixed(2)} · RR 1:{rr.toFixed(2)}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs font-mono">Stop Loss</Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              value={sl}
+              onChange={(e) => setSl(e.target.value)}
+              className="font-mono"
+            />
+            <Button size="sm" disabled={saveSl.isPending} onClick={() => saveSl.mutate()}>
+              {saveSl.isPending ? "…" : "Save SL"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">
+            Manual SL edits reset the trail baseline. Trailing keeps running from the new SL.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs font-mono">Take Profit</Label>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              value={tp}
+              onChange={(e) => setTp(e.target.value)}
+              className="font-mono"
+            />
+            <Button size="sm" disabled={saveTp.isPending} onClick={() => saveTp.mutate()}>
+              {saveTp.isPending ? "…" : "Save TP"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">
+            Pushes new TP price to the bracket child on the exchange.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs font-mono">Close Position</Label>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="w-full"
+            disabled={closeMut.isPending}
+            onClick={() => {
+              if (confirm(`Close ${setup.side} ${setup.qty.toFixed(4)} at market?`)) closeMut.mutate();
+            }}
+          >
+            {closeMut.isPending ? "Closing…" : "Market Close"}
+          </Button>
+          <p className="text-[10px] text-muted-foreground font-mono">
+            Reduce-only market order for full qty.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 

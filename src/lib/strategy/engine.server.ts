@@ -86,6 +86,7 @@ interface SetupRow {
   initial_sl_price?: number | null;
   exchange_order_id?: string | null;
   sl_child_order_id?: string | null;
+  tp_child_order_id?: string | null;
 }
 
 export interface StrategyTickResult {
@@ -829,6 +830,45 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
         }
       } catch (e) {
         await log("warn", "trail: sl child discovery failed", {
+          setup_id: setup.id, error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    // Discover the exchange-side child TP order id (live only) so the UI can edit TP via API.
+    let tpChildId = setup.tp_child_order_id ?? null;
+    if (isLive && !tpChildId) {
+      try {
+        const openRows = await client.getOpenOrders(setup.symbol);
+        const exitSide = setup.side === "long" ? "SELL" : "BUY";
+        const candidates = openRows.filter((o) => {
+          const type = (o.type || "").toUpperCase();
+          const side = (o.side || "").toUpperCase();
+          const sub = (o.subType || "").toUpperCase();
+          const link = (o.linkType || "").toUpperCase();
+          const looksTp = sub.includes("TAKE_PROFIT") || link.includes("TP") || type.includes("TAKE_PROFIT");
+          const looksSl = sub.includes("STOP_LOSS") || link.includes("SL");
+          return looksTp && !looksSl && side === exitSide;
+        });
+        const target = Number(setup.tp_price);
+        candidates.sort((a, b) => {
+          const ap = Math.abs((a.price ?? a.stopPrice ?? 0) - target);
+          const bp = Math.abs((b.price ?? b.stopPrice ?? 0) - target);
+          return ap - bp;
+        });
+        const match = candidates[0];
+        if (match) {
+          tpChildId = match.clientOrderId;
+          await supabaseAdmin
+            .from("strategy_setups")
+            .update({ tp_child_order_id: tpChildId, updated_at: new Date().toISOString() })
+            .eq("id", setup.id);
+          await log("info", "trail: discovered exchange TP child order", {
+            setup_id: setup.id, tp_child_order_id: tpChildId, tp_price: setup.tp_price,
+          });
+        }
+      } catch (e) {
+        await log("warn", "trail: tp child discovery failed", {
           setup_id: setup.id, error: e instanceof Error ? e.message : String(e),
         });
       }

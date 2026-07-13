@@ -373,6 +373,12 @@ export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).handler(
       .from("strategy_setups")
       .update({ status: "cancelled", closed_at: new Date().toISOString(), close_reason: "manual_cancel" })
       .eq("id", s.id);
+    await supabase.from("strategy_setup_events").insert({
+      setup_id: s.id,
+      event_type: "manual_cancel",
+      exchange_order_id: s.exchange_order_id ?? null,
+      reason: "user_requested_cancel",
+    });
     cancelled += 1;
   }
   return { cancelled, results };

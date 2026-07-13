@@ -665,45 +665,12 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
       !existingSetup.exchange_order_id &&
       !globalSettings?.paper_mode
     ) {
-      const lastAttemptAt = existingSetup.updated_at ? new Date(existingSetup.updated_at).getTime() : 0;
-      if (Number.isFinite(lastAttemptAt) && Date.now() - lastAttemptAt < 120_000) {
-        actions.push(`restore_pending_wait ${existingSetup.side}`);
-      } else {
-      const side = existingSetup.side as "long" | "short";
-      const attempt = await placeOrderWithMarginRetry(client, {
-        symbol: existingSetup.symbol,
-        side: side === "long" ? "buy" : "sell",
-        qty: Number(existingSetup.qty),
-        type: "limit",
-        price: Number(existingSetup.entry_price),
-        stopLossPrice: Number(existingSetup.sl_price),
-        takeProfitPrice: Number(existingSetup.tp_price),
-      }, { maxAttempts: 3 });
-      if (attempt.res?.exchangeOrderId) {
-        await supabaseAdmin
-          .from("strategy_setups")
-          .update({
-            exchange_order_id: attempt.res.exchangeOrderId,
-            qty: attempt.finalQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingSetup.id);
-        await log("info", "arm: restored missing live pending order", {
-          setup_id: existingSetup.id,
-          exchange_order_id: attempt.res.exchangeOrderId,
-          qty: attempt.finalQty,
-          attempts: attempt.attempts,
-        });
-        actions.push(`restored_pending ${side} qty=${attempt.finalQty.toFixed(4)} pending=${attempt.res.exchangeOrderId}`);
-      } else {
-        await log("warn", "arm: restore missing pending order failed", {
-          setup_id: existingSetup.id,
-          qty: existingSetup.qty,
-          error: attempt.error,
-        });
-        actions.push(`restore_pending_failed ${side} err=${attempt.error}`);
-      }
-      }
+      await log("warn", "arm: missing exchange order id; not auto-restoring to avoid duplicate live orders", {
+        setup_id: existingSetup.id,
+        side: existingSetup.side,
+        qty: existingSetup.qty,
+      });
+      actions.push(`missing_pending_manual_rearm_required ${existingSetup.side}`);
 
     } else if (
 
@@ -851,51 +818,17 @@ export async function runStrategyTick(): Promise<StrategyTickResult> {
           await log("warn", "trade-history lookup failed", { setup_id: setup.id, error: (e as Error).message });
         }
         if (!fill?.price) {
-          await log("warn", "armed order disappeared without fill; replacing immediately", {
+          await log("warn", "armed order disappeared without fill; not auto-replacing to avoid duplicate live orders", {
             setup_id: setup.id,
             missing_exchange_order_id: oid,
             qty: setup.qty,
             entry: setup.entry_price,
           });
-          const attempt = await placeOrderWithMarginRetry(client, {
-            symbol: setup.symbol,
-            side: setup.side === "long" ? "buy" : "sell",
-            qty: Number(setup.qty),
-            type: "limit",
-            price: Number(setup.entry_price),
-            stopLossPrice: Number(setup.sl_price),
-            takeProfitPrice: Number(setup.tp_price),
-          }, { maxAttempts: 3 });
-          if (attempt.res?.exchangeOrderId) {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({
-                exchange_order_id: attempt.res.exchangeOrderId,
-                qty: attempt.finalQty,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", setup.id);
-            await log("info", "armed order replaced after disappearing without fill", {
-              setup_id: setup.id,
-              old_exchange_order_id: oid,
-              new_exchange_order_id: attempt.res.exchangeOrderId,
-              qty: attempt.finalQty,
-              attempts: attempt.attempts,
-            });
-            actions.push(`replace_missing_pending ${setup.side} qty=${attempt.finalQty.toFixed(4)} pending=${attempt.res.exchangeOrderId}`);
-          } else {
-            await supabaseAdmin
-              .from("strategy_setups")
-              .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
-              .eq("id", setup.id);
-            await log("error", "armed order disappeared and replacement failed", {
-              setup_id: setup.id,
-              old_exchange_order_id: oid,
-              qty: setup.qty,
-              error: attempt.error,
-            });
-            actions.push(`replace_missing_pending_failed ${setup.side} err=${attempt.error}`);
-          }
+          await supabaseAdmin
+            .from("strategy_setups")
+            .update({ exchange_order_id: null, updated_at: new Date().toISOString() })
+            .eq("id", setup.id);
+          actions.push(`missing_pending_manual_rearm_required ${setup.side}`);
           continue;
         }
         const fillPrice = fill.price;

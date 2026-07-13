@@ -1,12 +1,14 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import "@fontsource/space-grotesk/500.css";
-@import "@fontsource/space-grotesk/600.css";
-@import "@fontsource/space-grotesk/700.css";
-@import "@fontsource/dm-sans/400.css";
-@import "@fontsource/dm-sans/500.css";
-@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/sora/500.css";
+@import "@fontsource/sora/600.css";
+@import "@fontsource/sora/700.css";
+@import "@fontsource/sora/800.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
 
@@ -55,86 +57,100 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "DM Sans", ui-sans-serif, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "Manrope", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-violet: var(--brand-violet);
 }
 
-/* Light theme — quiet indigo-tinted paper */
+/* Light theme — Sunset Blaze on warm paper */
 :root {
   --radius: 0.9rem;
-  --background: oklch(0.988 0.005 265);
-  --foreground: oklch(0.20 0.03 270);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.20 0.03 270);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.03 270);
-  --primary: oklch(0.56 0.22 275);
-  --primary-foreground: oklch(0.985 0.005 260);
-  --secondary: oklch(0.965 0.010 265);
-  --secondary-foreground: oklch(0.24 0.03 270);
-  --muted: oklch(0.965 0.010 265);
-  --muted-foreground: oklch(0.50 0.02 265);
-  --accent: oklch(0.945 0.028 275);
-  --accent-foreground: oklch(0.30 0.18 275);
-  --destructive: oklch(0.60 0.22 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.66 0.17 150);
-  --success-foreground: oklch(0.14 0.02 150);
-  --warning: oklch(0.78 0.16 75);
-  --warning-foreground: oklch(0.18 0.02 60);
-  --long: oklch(0.60 0.17 150);
-  --short: oklch(0.60 0.22 25);
-  --border: oklch(0.925 0.010 265);
-  --input: oklch(0.945 0.010 265);
-  --ring: oklch(0.56 0.22 275);
+  --brand-orange: oklch(0.72 0.19 45);
+  --brand-amber:  oklch(0.78 0.16 65);
+  --brand-pink:   oklch(0.65 0.22 355);
+  --brand-violet: oklch(0.58 0.20 285);
 
-  --sidebar: oklch(0.982 0.008 265);
-  --sidebar-foreground: oklch(0.24 0.03 270);
-  --sidebar-primary: oklch(0.56 0.22 275);
-  --sidebar-primary-foreground: oklch(0.985 0.005 260);
-  --sidebar-accent: oklch(0.945 0.028 275);
-  --sidebar-accent-foreground: oklch(0.30 0.18 275);
-  --sidebar-border: oklch(0.925 0.010 265);
-  --sidebar-ring: oklch(0.56 0.22 275);
+  --background: oklch(0.995 0.008 60);
+  --foreground: oklch(0.18 0.03 300);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.03 300);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.03 300);
+  --primary: var(--brand-orange);
+  --primary-foreground: oklch(0.16 0.02 40);
+  --secondary: oklch(0.965 0.020 40);
+  --secondary-foreground: oklch(0.24 0.05 40);
+  --muted: oklch(0.965 0.015 40);
+  --muted-foreground: oklch(0.48 0.03 300);
+  --accent: oklch(0.94 0.05 355);
+  --accent-foreground: oklch(0.35 0.20 355);
+  --destructive: oklch(0.62 0.24 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.68 0.18 150);
+  --success-foreground: oklch(0.14 0.02 150);
+  --warning: var(--brand-amber);
+  --warning-foreground: oklch(0.18 0.02 60);
+  --long: oklch(0.62 0.18 150);
+  --short: oklch(0.62 0.24 25);
+  --border: oklch(0.920 0.020 40);
+  --input: oklch(0.955 0.015 40);
+  --ring: var(--brand-orange);
+
+  --sidebar: oklch(0.985 0.015 40);
+  --sidebar-foreground: oklch(0.22 0.04 300);
+  --sidebar-primary: var(--brand-orange);
+  --sidebar-primary-foreground: oklch(0.16 0.02 40);
+  --sidebar-accent: oklch(0.945 0.035 355);
+  --sidebar-accent-foreground: oklch(0.32 0.18 355);
+  --sidebar-border: oklch(0.920 0.020 40);
+  --sidebar-ring: var(--brand-orange);
 }
 
-/* Dark theme — Midnight Indigo, deeper and quieter */
+/* Dark theme — Sunset Blaze on midnight violet */
 .dark {
-  --background: oklch(0.115 0.028 275);
-  --foreground: oklch(0.965 0.008 270);
-  --card: oklch(0.175 0.045 275);
-  --card-foreground: oklch(0.965 0.008 270);
-  --popover: oklch(0.185 0.050 275);
-  --popover-foreground: oklch(0.965 0.008 270);
-  --primary: oklch(0.66 0.22 275);
-  --primary-foreground: oklch(0.985 0.008 270);
-  --secondary: oklch(0.225 0.055 275);
-  --secondary-foreground: oklch(0.96 0.008 270);
-  --muted: oklch(0.205 0.038 275);
-  --muted-foreground: oklch(0.74 0.020 270);
-  --accent: oklch(0.30 0.11 275);
-  --accent-foreground: oklch(0.94 0.04 275);
-  --destructive: oklch(0.66 0.22 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.72 0.18 150);
-  --success-foreground: oklch(0.14 0.02 150);
-  --warning: oklch(0.80 0.17 75);
-  --warning-foreground: oklch(0.18 0.02 60);
-  --long: oklch(0.74 0.18 150);
-  --short: oklch(0.70 0.22 20);
-  --border: oklch(0.255 0.045 275);
-  --input: oklch(0.225 0.050 275);
-  --ring: oklch(0.66 0.22 275);
+  --brand-orange: oklch(0.76 0.20 45);
+  --brand-amber:  oklch(0.82 0.17 65);
+  --brand-pink:   oklch(0.70 0.24 355);
+  --brand-violet: oklch(0.68 0.22 285);
 
-  --sidebar: oklch(0.098 0.026 275);
-  --sidebar-foreground: oklch(0.92 0.008 270);
-  --sidebar-primary: oklch(0.66 0.22 275);
-  --sidebar-primary-foreground: oklch(0.985 0.008 270);
-  --sidebar-accent: oklch(0.24 0.08 275);
-  --sidebar-accent-foreground: oklch(0.95 0.04 275);
-  --sidebar-border: oklch(0.215 0.048 275);
-  --sidebar-ring: oklch(0.66 0.22 275);
+  --background: oklch(0.135 0.045 295);
+  --foreground: oklch(0.975 0.010 60);
+  --card: oklch(0.195 0.055 295);
+  --card-foreground: oklch(0.975 0.010 60);
+  --popover: oklch(0.200 0.060 295);
+  --popover-foreground: oklch(0.975 0.010 60);
+  --primary: var(--brand-orange);
+  --primary-foreground: oklch(0.15 0.03 40);
+  --secondary: oklch(0.245 0.075 295);
+  --secondary-foreground: oklch(0.97 0.010 60);
+  --muted: oklch(0.215 0.050 295);
+  --muted-foreground: oklch(0.78 0.025 60);
+  --accent: oklch(0.34 0.14 355);
+  --accent-foreground: oklch(0.96 0.06 355);
+  --destructive: oklch(0.68 0.24 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.74 0.18 150);
+  --success-foreground: oklch(0.14 0.02 150);
+  --warning: var(--brand-amber);
+  --warning-foreground: oklch(0.18 0.02 60);
+  --long: oklch(0.76 0.19 150);
+  --short: oklch(0.72 0.24 20);
+  --border: oklch(0.285 0.060 295);
+  --input: oklch(0.245 0.065 295);
+  --ring: var(--brand-orange);
+
+  --sidebar: oklch(0.115 0.040 295);
+  --sidebar-foreground: oklch(0.94 0.012 60);
+  --sidebar-primary: var(--brand-orange);
+  --sidebar-primary-foreground: oklch(0.15 0.03 40);
+  --sidebar-accent: oklch(0.28 0.11 355);
+  --sidebar-accent-foreground: oklch(0.97 0.06 355);
+  --sidebar-border: oklch(0.245 0.060 295);
+  --sidebar-ring: var(--brand-orange);
 }
 
 @layer base {
@@ -176,35 +192,43 @@
     color: var(--color-foreground);
   }
 
-  /* Ambient light — soft primary aurora painted onto the page */
+  /* Ambient light — Sunset Blaze aurora */
   body {
     background-image:
-      radial-gradient(1100px 620px at 6% -12%, color-mix(in oklch, var(--color-primary) 10%, transparent), transparent 60%),
-      radial-gradient(900px 560px at 100% 8%, color-mix(in oklch, var(--color-primary) 7%, transparent), transparent 55%);
+      radial-gradient(1100px 620px at 4% -14%, color-mix(in oklch, var(--brand-orange) 18%, transparent), transparent 60%),
+      radial-gradient(900px 560px at 100% 4%, color-mix(in oklch, var(--brand-pink) 14%, transparent), transparent 55%),
+      radial-gradient(800px 520px at 50% 120%, color-mix(in oklch, var(--brand-violet) 12%, transparent), transparent 60%);
     background-attachment: fixed;
   }
   .dark body {
     background-image:
-      radial-gradient(1200px 720px at 8% -10%, color-mix(in oklch, var(--color-primary) 24%, transparent), transparent 60%),
-      radial-gradient(1000px 640px at 100% 0%, color-mix(in oklch, var(--color-primary) 16%, transparent), transparent 55%),
-      radial-gradient(700px 500px at 50% 120%, color-mix(in oklch, var(--color-primary) 10%, transparent), transparent 65%);
+      radial-gradient(1200px 720px at 6% -12%, color-mix(in oklch, var(--brand-orange) 32%, transparent), transparent 60%),
+      radial-gradient(1000px 640px at 100% 0%, color-mix(in oklch, var(--brand-pink) 26%, transparent), transparent 55%),
+      radial-gradient(900px 620px at 50% 118%, color-mix(in oklch, var(--brand-violet) 24%, transparent), transparent 65%);
     background-attachment: fixed;
   }
 
-  /* Softer default card/panel shadow via shadcn primitives */
+  /* Vibrant card — gradient rim + warm glow */
   [data-slot="card"] {
+    position: relative;
+    background: linear-gradient(180deg,
+      color-mix(in oklch, var(--color-card) 96%, transparent),
+      color-mix(in oklch, var(--color-card) 82%, transparent));
     box-shadow:
-      0 1px 0 0 color-mix(in oklch, var(--color-foreground) 4%, transparent) inset,
-      0 12px 40px -24px color-mix(in oklch, var(--color-primary) 45%, transparent);
-    border-color: color-mix(in oklch, var(--color-border) 88%, transparent);
+      0 1px 0 0 color-mix(in oklch, var(--brand-amber) 18%, transparent) inset,
+      0 14px 44px -22px color-mix(in oklch, var(--brand-orange) 55%, transparent),
+      0 24px 64px -32px color-mix(in oklch, var(--brand-pink) 35%, transparent);
+    border-color: color-mix(in oklch, var(--brand-orange) 22%, var(--color-border));
   }
   .dark [data-slot="card"] {
     background: linear-gradient(180deg,
-      color-mix(in oklch, var(--color-card) 96%, transparent),
-      color-mix(in oklch, var(--color-card) 88%, transparent));
+      color-mix(in oklch, var(--color-card) 94%, transparent),
+      color-mix(in oklch, var(--color-card) 78%, transparent));
     box-shadow:
-      0 1px 0 0 color-mix(in oklch, white 5%, transparent) inset,
-      0 20px 60px -28px color-mix(in oklch, var(--color-primary) 65%, transparent);
+      0 1px 0 0 color-mix(in oklch, var(--brand-amber) 22%, transparent) inset,
+      0 22px 60px -26px color-mix(in oklch, var(--brand-orange) 65%, transparent),
+      0 32px 80px -36px color-mix(in oklch, var(--brand-violet) 55%, transparent);
+    border-color: color-mix(in oklch, var(--brand-pink) 22%, var(--color-border));
   }
 
   /* Inputs — subtle depth */
@@ -301,10 +325,30 @@
     0 24px 60px -32px color-mix(in oklch, var(--color-primary) 55%, transparent);
 }
 @utility text-gradient-primary {
-  background: linear-gradient(135deg, var(--color-primary), color-mix(in oklch, var(--color-primary) 40%, white));
+  background: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+@utility text-gradient-sunset {
+  background: linear-gradient(120deg, var(--brand-amber), var(--brand-orange) 40%, var(--brand-pink) 75%, var(--brand-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility bg-gradient-sunset {
+  background-image: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
+}
+@utility bg-gradient-sunset-soft {
+  background-image: linear-gradient(120deg,
+    color-mix(in oklch, var(--brand-orange) 18%, transparent),
+    color-mix(in oklch, var(--brand-pink) 16%, transparent) 55%,
+    color-mix(in oklch, var(--brand-violet) 18%, transparent));
+}
+@utility ring-sunset {
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--brand-orange) 45%, transparent),
+    0 12px 34px -18px color-mix(in oklch, var(--brand-pink) 55%, transparent);
 }
 @utility hairline {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
@@ -316,7 +360,8 @@
 @utility shimmer {
   background: linear-gradient(90deg,
     transparent 0%,
-    color-mix(in oklch, var(--color-primary) 14%, transparent) 50%,
+    color-mix(in oklch, var(--brand-orange) 22%, transparent) 40%,
+    color-mix(in oklch, var(--brand-pink) 22%, transparent) 60%,
     transparent 100%);
   background-size: 200% 100%;
   animation: shark-shimmer 2.4s linear infinite;

@@ -17,6 +17,8 @@ import {
   createStrategyPreset,
   deleteStrategyPreset,
   applyStrategyPreset,
+  editLiveTradeLevels,
+  closeLiveTradeNow,
 } from "@/lib/strategy.functions";
 
 
@@ -1340,6 +1342,20 @@ function StrategyCard() {
             </div>
           </div>
         )}
+
+        {(() => {
+          const live = active.find((a) => a.status === "triggered");
+          return live ? (
+            <LiveTradePanel
+              setup={live}
+              onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["strategy-state"] });
+                qc.invalidateQueries({ queryKey: ["dashboard"] });
+              }}
+            />
+          ) : null;
+        })()}
+
 
         {closed.length > 0 && (
           <div>

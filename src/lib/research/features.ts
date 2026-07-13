@@ -185,6 +185,10 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
   const breakDistPctOr: number[] = [];
   const bodyPct: number[] = [];
   const atrVals: number[] = [];
+  const maeVals: number[] = [];
+  const mfeVals: number[] = [];
+  const durVals: number[] = [];
+  const ttlVals: number[] = [];
   for (const d of days) {
     const or = d.or_size_usd;
     const atr = (d as unknown as { daily_atr?: number | null }).daily_atr ?? null;
@@ -199,6 +203,16 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
     ) {
       breakDistPctOr.push((d.break_distance_usd / d.or_size_usd) * 100);
     }
+    const dr = d as unknown as {
+      mae_r?: number | null;
+      mfe_r?: number | null;
+      duration_bars?: number | null;
+      time_to_fill_bars?: number | null;
+    };
+    if (dr.mae_r !== null && dr.mae_r !== undefined && Number.isFinite(dr.mae_r)) maeVals.push(dr.mae_r);
+    if (dr.mfe_r !== null && dr.mfe_r !== undefined && Number.isFinite(dr.mfe_r)) mfeVals.push(dr.mfe_r);
+    if (dr.duration_bars !== null && dr.duration_bars !== undefined && Number.isFinite(dr.duration_bars)) durVals.push(dr.duration_bars);
+    if (dr.time_to_fill_bars !== null && dr.time_to_fill_bars !== undefined && Number.isFinite(dr.time_to_fill_bars)) ttlVals.push(dr.time_to_fill_bars);
   }
   const sortedOr = [...orSizes].sort((a, b) => a - b);
   const sortedAtr = [...atrVals].sort((a, b) => a - b);
@@ -206,6 +220,10 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
   const distEdges = quintileEdges(breakDistPctOr);
   const bodyEdges = quintileEdges(bodyPct);
   const atrEdges = quartileEdges(atrVals);
+  const maeEdges = quintileEdges(maeVals);
+  const mfeEdges = quintileEdges(mfeVals);
+  const durEdges = quintileEdges(durVals);
+  const ttlEdges = quintileEdges(ttlVals);
 
   const out: TradeFeatures[] = [];
   for (const d of days) {
@@ -227,6 +245,19 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
     const prev_low = (d as unknown as { prev_low?: number | null }).prev_low ?? null;
     const prev2_high = (d as unknown as { prev2_high?: number | null }).prev2_high ?? null;
     const prev2_low = (d as unknown as { prev2_low?: number | null }).prev2_low ?? null;
+    const ex = d as unknown as {
+      mae_r?: number | null;
+      mfe_r?: number | null;
+      duration_bars?: number | null;
+      time_to_fill_bars?: number | null;
+      retest_count?: number | null;
+      break_hour_ist?: number | null;
+      weekday?: number | null;
+      month?: number | null;
+      quarter?: number | null;
+      fvg_present?: boolean | null;
+      sweep_present?: boolean | null;
+    };
 
     const or = d.or_size_usd;
     const break_dist_pct_or =
@@ -255,6 +286,11 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
       prev2_high,
       prev2_low,
     );
+
+    const mae_r = ex.mae_r ?? null;
+    const mfe_r = ex.mfe_r ?? null;
+    const duration_bars = ex.duration_bars ?? null;
+    const time_to_fill_bars = ex.time_to_fill_bars ?? null;
 
     out.push({
       ist_date: d.ist_date,
@@ -290,6 +326,21 @@ export function extractFeatures(days: DayResult[]): TradeFeatures[] {
       atr_bucket4,
       trend_bucket,
       prev_day_bucket,
+      mae_r,
+      mfe_r,
+      duration_bars,
+      time_to_fill_bars,
+      retest_count: ex.retest_count ?? null,
+      break_hour_ist: ex.break_hour_ist ?? null,
+      weekday: (d as unknown as { weekday?: number | null }).weekday ?? null,
+      month: ex.month ?? null,
+      quarter: ex.quarter ?? null,
+      fvg_present: ex.fvg_present ?? null,
+      sweep_present: ex.sweep_present ?? null,
+      mae_bucket5: bucketOf(mae_r, maeEdges, QUINTILE_LABELS),
+      mfe_bucket5: bucketOf(mfe_r, mfeEdges, QUINTILE_LABELS),
+      duration_bucket5: bucketOf(duration_bars, durEdges, QUINTILE_LABELS),
+      ttl_bucket5: bucketOf(time_to_fill_bars, ttlEdges, QUINTILE_LABELS),
     });
   }
   return out;

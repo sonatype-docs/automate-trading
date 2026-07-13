@@ -735,10 +735,10 @@ export function simulateFromKlines(
     const risk  = Math.abs(entry - sl);
     const tp    = breakSide === "long" ? entry + risk * opts.rr : entry - risk * opts.rr;
 
-    // Effective per-day SL$ risk. Defaults to opts.slRiskUsd; when an AI
+    // Effective per-day SL$ risk. Defaults to daySlRisk; when an AI
     // grading model is supplied, we grade the candidate and use the absolute
     // per-grade risk from opts.gradeRiskMap (falls back to GRADE_RISK_USD).
-    let daySlRisk = opts.slRiskUsd;
+    let daySlRisk = daySlRisk;
     if (opts.gradingModel) {
       const orRangeUsd = zone_high - zone_low;
       const bcRange = breakBar.high - breakBar.low;
@@ -863,21 +863,21 @@ export function simulateFromKlines(
       if (hitTp && hitSl) {
         // Conservative same-bar assumption: SL first.
         dr.outcome = "sl";
-        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.pnl_usd = slR * daySlRisk;
         dr.exit_r = slR;
         resolved = true;
         break;
       }
       if (hitTp) {
         dr.outcome = "tp";
-        dr.pnl_usd = opts.slRiskUsd * opts.rr;
+        dr.pnl_usd = daySlRisk * opts.rr;
         dr.exit_r = opts.rr;
         resolved = true;
         break;
       }
       if (hitSl) {
         dr.outcome = "sl";
-        dr.pnl_usd = slR * opts.slRiskUsd;
+        dr.pnl_usd = slR * daySlRisk;
         dr.exit_r = slR;
         resolved = true;
         break;
@@ -888,12 +888,12 @@ export function simulateFromKlines(
     if (triggered && adverseExtreme !== null && risk > 0) {
       const adverseR = ((entry - adverseExtreme) * (breakSide === "long" ? 1 : -1)) / risk;
       dr.mae_r = Math.max(0, adverseR);
-      dr.mae_usd = dr.mae_r * opts.slRiskUsd;
+      dr.mae_usd = dr.mae_r * daySlRisk;
     }
     // Phase 2: populate MFE + duration + time-to-fill + retest count.
     if (triggered) {
       dr.mfe_r = peakR;
-      dr.mfe_usd = peakR * opts.slRiskUsd;
+      dr.mfe_usd = peakR * daySlRisk;
       dr.time_to_fill_bars = market ? 0 : Math.max(0, barsUntilFill);
       dr.time_to_fill_hours = (dr.time_to_fill_bars ?? 0) * 1;
       if (resolved) dr.duration_bars = barsInTrade;
@@ -1114,7 +1114,7 @@ export function simulateFromKlines(
   return {
     symbol: opts.symbol,
     session_start_ist: opts.sessionStartIst,
-    sl_risk_usd: opts.slRiskUsd,
+    sl_risk_usd: daySlRisk,
     rr: opts.rr,
     days_requested: opts.days,
     from_ms: fromMs,

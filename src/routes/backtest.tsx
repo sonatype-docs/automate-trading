@@ -426,107 +426,158 @@ function BacktestLab() {
 
             <FiltersCard value={filters} onChange={setFilters} />
 
-            <StrategiesRoadmapCard />
+            {/* Results anchor — appears immediately below Parameters/Filters after a run */}
+            <div ref={resultsRef} className="scroll-mt-32">
+              {result ? (
+                <ResultsView data={result} />
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="py-10 text-center">
+                    <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                      Run a backtest to see results here
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Adjust parameters above, hit <span className="text-foreground">Run backtest</span>, and results will land right in this spot.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-            <MultiSessionComparePanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-                entryMode: form.entryMode,
-                entryDepthPct: form.entryDepthPct,
-                slDepthPct: form.slDepthPct,
-                retestSlR: form.retestSlR,
-              }}
-              filters={filters}
-            />
+            {/* Secondary exploration — grouped into tabs so users don't scroll a mile */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-mono tracking-widest">EXPLORE</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Compare sessions, sweep hours, optimize parameters, and inspect alternative strategies.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="sessions" className="w-full">
+                  <div className="-mx-1 overflow-x-auto pb-1">
+                    <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
+                      <TabsTrigger value="sessions" className="text-xs">Sessions</TabsTrigger>
+                      <TabsTrigger value="hours" className="text-xs">Hour sweep</TabsTrigger>
+                      <TabsTrigger value="zones" className="text-xs">Entry zones</TabsTrigger>
+                      <TabsTrigger value="sweep" className="text-xs">Liquidity sweep</TabsTrigger>
+                      <TabsTrigger value="silver" className="text-xs">Silver bullet</TabsTrigger>
+                      <TabsTrigger value="optimize" className="text-xs">Optimize</TabsTrigger>
+                      <TabsTrigger value="roadmap" className="text-xs">Roadmap</TabsTrigger>
+                    </TabsList>
+                  </div>
 
-            <OptimizerPanel
-              strategy="orb_sessions"
-              title="Multi-Session ORB"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="sessions" className="mt-4">
+                    <MultiSessionComparePanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                        entryMode: form.entryMode,
+                        entryDepthPct: form.entryDepthPct,
+                        slDepthPct: form.slDepthPct,
+                        retestSlR: form.retestSlR,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <LiquiditySweepPanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="hours" className="mt-4">
+                    <HourSweepPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <OptimizerPanel
-              strategy="asian_sweep"
-              title="Asian Liquidity Sweep"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="zones" className="mt-4">
+                    <EntryZoneGridPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        sessionStartIst: form.sessionStartIst,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        trailEnabled: form.trailEnabled,
+                        trailActivateR: form.trailActivateR,
+                        trailStepR: form.trailStepR,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                      filters={filters}
+                    />
+                  </TabsContent>
 
-            <SilverBulletPanel
-              defaults={{
-                symbol: form.symbol,
-                days: form.days,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="sweep" className="mt-4">
+                    <LiquiditySweepPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
-            <OptimizerPanel
-              strategy="silver_bullet"
-              title="ICT Silver Bullet"
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                skipWeekdays: form.skipWeekdays,
-              }}
-            />
+                  <TabsContent value="silver" className="mt-4">
+                    <SilverBulletPanel
+                      defaults={{
+                        symbol: form.symbol,
+                        days: form.days,
+                        slRiskUsd: form.slRiskUsd,
+                        rr: form.rr,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
+                  <TabsContent value="optimize" className="mt-4 space-y-4">
+                    <OptimizerPanel
+                      strategy="orb_sessions"
+                      title="Multi-Session ORB"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                    <OptimizerPanel
+                      strategy="asian_sweep"
+                      title="Asian Liquidity Sweep"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                    <OptimizerPanel
+                      strategy="silver_bullet"
+                      title="ICT Silver Bullet"
+                      defaults={{
+                        symbol: form.symbol,
+                        slRiskUsd: form.slRiskUsd,
+                        skipWeekdays: form.skipWeekdays,
+                      }}
+                    />
+                  </TabsContent>
 
+                  <TabsContent value="roadmap" className="mt-4">
+                    <StrategiesRoadmapCard />
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
 
-
-            {result && <ResultsView data={result} />}
-
-            <HourSweepPanel
-              defaults={{
-                symbol: form.symbol,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-              }}
-              filters={filters}
-            />
-
-            <EntryZoneGridPanel
-              defaults={{
-                symbol: form.symbol,
-                sessionStartIst: form.sessionStartIst,
-                slRiskUsd: form.slRiskUsd,
-                rr: form.rr,
-                trailEnabled: form.trailEnabled,
-                trailActivateR: form.trailActivateR,
-                trailStepR: form.trailStepR,
-                skipWeekdays: form.skipWeekdays,
-              }}
-              filters={filters}
-            />
           </>
         )}
 

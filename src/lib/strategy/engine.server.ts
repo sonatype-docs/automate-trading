@@ -1663,6 +1663,26 @@ export async function repriceArmedSetupsNow(): Promise<{
       continue;
     }
 
+    // Hard cap on cancel+replace cycles per setup — prevents infinite
+    // reprice loops even if a change condition keeps flipping tick to tick.
+    const maxRepriceAttempts = Number(
+      (s as unknown as { max_reprice_attempts?: number }).max_reprice_attempts ?? 5,
+    );
+    const priorReprices = Number(
+      (setup as unknown as { reprice_count?: number | null }).reprice_count ?? 0,
+    );
+    if (priorReprices >= maxRepriceAttempts) {
+      await log("warn", "reprice_now: attempt limit reached — leaving live order in place", {
+        setup_id: setup.id,
+        exchange_order_id: oldOid,
+        reprice_count: priorReprices,
+        max_reprice_attempts: maxRepriceAttempts,
+      });
+      actions.push(`reprice_now_limit_reached ${side} count=${priorReprices}/${maxRepriceAttempts}`);
+      continue;
+    }
+
+
     // 1) Cancel the still-pending exchange order.
     try {
       const cancel = await client.cancelOrder(oldOid, s.symbol);

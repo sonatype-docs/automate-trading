@@ -360,24 +360,27 @@ function DiffTab() {
           <GitCompare className="h-3 w-3 mr-1" /> Compare
         </Button>
       </CardContent></Card>
-      {m.data && (
+      {m.data && (() => {
+        const d = m.data as { a: { title: string }; b: { title: string }; diff: Array<{ key: string; a: string; b: string; changed: boolean }> };
+        return (
         <Card><CardContent className="p-3">
           <div className="grid grid-cols-4 gap-2 text-xs font-mono">
             <div className="font-semibold">Metric</div>
-            <div className="font-semibold">{m.data.a.title}</div>
-            <div className="font-semibold">{m.data.b.title}</div>
+            <div className="font-semibold">{d.a.title}</div>
+            <div className="font-semibold">{d.b.title}</div>
             <div className="font-semibold">Δ</div>
-            {m.data.diff.map((d) => (
-              <>
-                <div key={d.key + "k"}>{d.key}</div>
-                <div key={d.key + "a"} className={d.changed ? "text-amber-400" : ""}>{JSON.stringify(d.a)}</div>
-                <div key={d.key + "b"} className={d.changed ? "text-amber-400" : ""}>{JSON.stringify(d.b)}</div>
-                <div key={d.key + "c"}>{d.changed ? "changed" : "="}</div>
-              </>
+            {d.diff.map((row) => (
+              <div key={row.key} className="contents">
+                <div>{row.key}</div>
+                <div className={row.changed ? "text-amber-400" : ""}>{row.a}</div>
+                <div className={row.changed ? "text-amber-400" : ""}>{row.b}</div>
+                <div>{row.changed ? "changed" : "="}</div>
+              </div>
             ))}
           </div>
         </CardContent></Card>
-      )}
+        );
+      })()}
     </div>
   );
 }

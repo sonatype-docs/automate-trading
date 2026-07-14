@@ -18,7 +18,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Download, Database } from "lucide-react";
+import { Trash2, Download, Database, Layers } from "lucide-react";
+
+const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
+type BatchRow = {
+  presetId: string;
+  execId: string;
+  tf: string;
+  inserted?: number;
+  tradesInRun?: number;
+  error?: string;
+};
 
 export const Route = createFileRoute("/trade-intelligence")({
   component: TradeIntelligencePage,
@@ -57,9 +67,13 @@ function TradeIntelligencePage() {
     execPresetId: execIds[0] ?? "",
     symbol: "XAUUSDT",
     timeframe: "15m",
-    days: 30,
+    days: 200,
+    source: "shark" as "yahoo" | "shark",
     tags: "",
   });
+
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
 
   const [filter, setFilter] = useState({
     strategyId: "",

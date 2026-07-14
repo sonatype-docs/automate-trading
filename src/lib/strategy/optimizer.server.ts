@@ -627,7 +627,15 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
     return best;
   };
 
+  // Soft time budget — bail out of the GA loop before the Worker CPU limit
+  // trips so the caller always gets JSON instead of a 502.
+  const timeBudgetMs = isSb ? 22_000 : 26_000;
+  let bailed = false;
   for (let gen = 0; gen < generations; gen++) {
+    if (Date.now() - startedAt > timeBudgetMs) {
+      bailed = true;
+      break;
+    }
     pop.sort((a, b) => b.scored.score - a.scored.score);
     const elite = pop.slice(0, eliteCount);
     const nextGen: Individual[] = [...elite];
@@ -637,8 +645,10 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
       const b = tournament();
       const child = mutate(crossover(a.genome, b.genome), space, decayedRate);
       nextGen.push({ genome: child, scored: evaluate(child) });
+      if (Date.now() - startedAt > timeBudgetMs) { bailed = true; break; }
     }
     pop = nextGen;
+    if (bailed) break;
   }
 
   // Collect unique top presets.

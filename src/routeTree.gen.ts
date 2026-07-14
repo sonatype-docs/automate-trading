@@ -71,24 +71,24 @@ const BacktestIndexRoute = BacktestIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
-  id: '/silver-bullet',
-  path: '/silver-bullet',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/silver-bullet',
+  path: '/backtest/silver-bullet',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestOrbRoute = BacktestOrbRouteImport.update({
-  id: '/orb',
-  path: '/orb',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/orb',
+  path: '/backtest/orb',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestCompareRoute = BacktestCompareRouteImport.update({
-  id: '/compare',
-  path: '/compare',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/compare',
+  path: '/backtest/compare',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
-  id: '/asian-sweep',
-  path: '/asian-sweep',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/asian-sweep',
+  path: '/backtest/asian-sweep',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
@@ -218,6 +218,10 @@ export interface RootRouteChildren {
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
+  BacktestCompareRoute: typeof BacktestCompareRoute
+  BacktestOrbRoute: typeof BacktestOrbRoute
+  BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
@@ -290,31 +294,31 @@ declare module '@tanstack/react-router' {
     }
     '/backtest/silver-bullet': {
       id: '/backtest/silver-bullet'
-      path: '/silver-bullet'
+      path: '/backtest/silver-bullet'
       fullPath: '/backtest/silver-bullet'
       preLoaderRoute: typeof BacktestSilverBulletRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/orb': {
       id: '/backtest/orb'
-      path: '/orb'
+      path: '/backtest/orb'
       fullPath: '/backtest/orb'
       preLoaderRoute: typeof BacktestOrbRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/compare': {
       id: '/backtest/compare'
-      path: '/compare'
+      path: '/backtest/compare'
       fullPath: '/backtest/compare'
       preLoaderRoute: typeof BacktestCompareRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/asian-sweep': {
       id: '/backtest/asian-sweep'
-      path: '/asian-sweep'
+      path: '/backtest/asian-sweep'
       fullPath: '/backtest/asian-sweep'
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
@@ -342,6 +346,10 @@ const rootRouteChildren: RootRouteChildren = {
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
+  BacktestCompareRoute: BacktestCompareRoute,
+  BacktestOrbRoute: BacktestOrbRoute,
+  BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,

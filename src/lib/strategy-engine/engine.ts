@@ -70,7 +70,7 @@ export function runStrategy(
       if (reasons.length) {
         const inv: StrategySignal = { ...p.signal, invalidationReason: reasons.join(",") };
         invalidated.push(inv);
-        emit("OnSignalInvalidated", bar.ts, { signalId: inv.signalId, reasons });
+        emit("OnSignalInvalidated", bar.ts, { signalId: inv.signalId, reasons: reasons.join(",") });
         pendingByDir[dir] = null;
       }
     }

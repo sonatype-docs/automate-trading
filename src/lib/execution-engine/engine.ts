@@ -218,7 +218,7 @@ export function runExecution(
       const cmm = commissionFor(cfg.commission, fillPrice, ord.units);
       const spreadCost = half * ord.units;
       const slipCost = slip * ord.units;
-      openPositions.push({
+      const newPos: OpenPosition = {
         order: ord, entryBarIndex: i, mae: 0, mfe: 0, partials: [],
         fees: cmm + spreadCost + slipCost,
         commission: cmm, slippage: slipCost, spreadCost,
@@ -232,10 +232,55 @@ export function runExecution(
           runnerLow: bar.low,
           breakEvenApplied: false,
         },
-      });
+      };
+      openPositions.push(newPos);
       risk.openPositions++;
       openOrders.splice(o, 1);
+
+      // === FIX: same-bar entry SL / TP resolution ===
+      // The trigger bar can itself take out SL or TP after the fill. We can't
+      // know intrabar sequence, so on ambiguity (both hit) we conservatively
+      // assume SL first. Update MAE/MFE and emit a same_bar_* exit reason.
+      const sameHitSl = dir === "long" ? bar.low <= newPos.ctx.currentStop : bar.high >= newPos.ctx.currentStop;
+      const sameLegHits = newPos.legs.map((l) =>
+        dir === "long" ? bar.high >= l.price : bar.low <= l.price,
+      );
+      const sameHitTp = sameLegHits.some(Boolean);
+      if (sameHitSl || sameHitTp) {
+        newPos.mae = dir === "long"
+          ? Math.min(newPos.mae, bar.low - fillPrice)
+          : Math.min(newPos.mae, fillPrice - bar.high);
+        newPos.mfe = dir === "long"
+          ? Math.max(newPos.mfe, bar.high - fillPrice)
+          : Math.max(newPos.mfe, fillPrice - bar.low);
+        const slFirst = sameHitSl && (!sameHitTp || cfg.intrabar === "conservative");
+        if (slFirst) {
+          closePosition(newPos, bar, i, newPos.ctx.currentStop, "same_bar_stop", cfg, risk, trades, emit);
+          openPositions.pop();
+          continue;
+        }
+        // Target first (optimistic) — fill legs and close if fully out.
+        let remainingLegs = newPos.legs.filter((l) => !l.filled).length;
+        for (let li = 0; li < newPos.legs.length; li++) {
+          if (!sameLegHits[li] || newPos.legs[li].filled) continue;
+          const leg = newPos.legs[li];
+          const legUnits = newPos.order.units * (leg.sizePct / 100);
+          const legPnl = pnl(dir, fillPrice, leg.price, legUnits, cfg.contractMultiplier);
+          const legCmm = commissionFor(cfg.commission, leg.price, legUnits);
+          newPos.commission += legCmm; newPos.fees += legCmm;
+          newPos.partials.push({ ts: bar.ts, price: leg.price, units: legUnits, pnl: legPnl - legCmm, reason: `same_bar_tp_${li + 1}` });
+          leg.filled = true;
+          remainingLegs--;
+          emit("OnPartialTP", bar.ts, { orderId: newPos.order.orderId, leg: li + 1, price: leg.price, units: legUnits, pnl: legPnl });
+          if (remainingLegs === 0) {
+            closePosition(newPos, bar, i, leg.price, "same_bar_target", cfg, risk, trades, emit, true);
+            openPositions.pop();
+            break;
+          }
+        }
+      }
     }
+
 
     // 4) Mark-to-market equity checkpoint (using last close + running open PnL).
     let openPnl = 0;

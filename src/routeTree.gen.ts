@@ -71,24 +71,24 @@ const BacktestIndexRoute = BacktestIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
-  id: '/backtest/silver-bullet',
-  path: '/backtest/silver-bullet',
-  getParentRoute: () => rootRouteImport,
+  id: '/silver-bullet',
+  path: '/silver-bullet',
+  getParentRoute: () => BacktestRoute,
 } as any)
 const BacktestOrbRoute = BacktestOrbRouteImport.update({
-  id: '/backtest/orb',
-  path: '/backtest/orb',
-  getParentRoute: () => rootRouteImport,
+  id: '/orb',
+  path: '/orb',
+  getParentRoute: () => BacktestRoute,
 } as any)
 const BacktestCompareRoute = BacktestCompareRouteImport.update({
-  id: '/backtest/compare',
-  path: '/backtest/compare',
-  getParentRoute: () => rootRouteImport,
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => BacktestRoute,
 } as any)
 const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
-  id: '/backtest/asian-sweep',
-  path: '/backtest/asian-sweep',
-  getParentRoute: () => rootRouteImport,
+  id: '/asian-sweep',
+  path: '/asian-sweep',
+  getParentRoute: () => BacktestRoute,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
@@ -218,10 +218,6 @@ export interface RootRouteChildren {
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
-  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
-  BacktestCompareRoute: typeof BacktestCompareRoute
-  BacktestOrbRoute: typeof BacktestOrbRoute
-  BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
@@ -294,31 +290,31 @@ declare module '@tanstack/react-router' {
     }
     '/backtest/silver-bullet': {
       id: '/backtest/silver-bullet'
-      path: '/backtest/silver-bullet'
+      path: '/silver-bullet'
       fullPath: '/backtest/silver-bullet'
       preLoaderRoute: typeof BacktestSilverBulletRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof BacktestRoute
     }
     '/backtest/orb': {
       id: '/backtest/orb'
-      path: '/backtest/orb'
+      path: '/orb'
       fullPath: '/backtest/orb'
       preLoaderRoute: typeof BacktestOrbRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof BacktestRoute
     }
     '/backtest/compare': {
       id: '/backtest/compare'
-      path: '/backtest/compare'
+      path: '/compare'
       fullPath: '/backtest/compare'
       preLoaderRoute: typeof BacktestCompareRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof BacktestRoute
     }
     '/backtest/asian-sweep': {
       id: '/backtest/asian-sweep'
-      path: '/backtest/asian-sweep'
+      path: '/asian-sweep'
       fullPath: '/backtest/asian-sweep'
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof BacktestRoute
     }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
@@ -346,10 +342,6 @@ const rootRouteChildren: RootRouteChildren = {
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
-  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
-  BacktestCompareRoute: BacktestCompareRoute,
-  BacktestOrbRoute: BacktestOrbRoute,
-  BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,
@@ -357,3 +349,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

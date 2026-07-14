@@ -947,6 +947,19 @@ export const runStrategyOptimizer = createServerFn({ method: "POST" })
   .validator((input: unknown) => OptimizerSchema.parse(input))
   .handler(async ({ data }) => {
     const { runOptimizer } = await import("@/lib/strategy/optimizer.server");
+    const base = {
+      strategy: data.strategy,
+      symbol: data.symbol,
+      windows: data.windows,
+      population: data.population ?? 0,
+      generations: data.generations ?? 0,
+      evaluated: 0,
+      cache_hits: 0,
+      bars_fetched: 0,
+      elapsed_ms: 0,
+      top: [] as unknown[],
+      error: "" as string,
+    };
     try {
       const r = await runOptimizer({
         strategy: data.strategy,
@@ -958,28 +971,16 @@ export const runStrategyOptimizer = createServerFn({ method: "POST" })
         generations: data.generations,
         topN: data.top_n,
       });
-      // JSON.parse(JSON.stringify) strips Infinity/NaN so seroval can serialize.
-      return { ok: true as const, ...(JSON.parse(JSON.stringify(r)) as typeof r) };
+      // JSON round-trip strips Infinity/NaN so seroval can serialize.
+      const clean = JSON.parse(JSON.stringify(r)) as typeof r;
+      return { ...base, ...clean, top: clean.top as unknown[], error: "" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[runStrategyOptimizer]", msg, e);
-      // Return a structured error the panel can render instead of a raw 500.
-      return {
-        ok: false as const,
-        error: msg,
-        strategy: data.strategy,
-        symbol: data.symbol,
-        windows: data.windows,
-        population: data.population ?? 0,
-        generations: data.generations ?? 0,
-        evaluated: 0,
-        cache_hits: 0,
-        bars_fetched: 0,
-        elapsed_ms: 0,
-        top: [] as Array<Record<string, unknown>>,
-      };
+      return { ...base, error: msg };
     }
   });
+
 
 
 // ------------------------------------------------------------------

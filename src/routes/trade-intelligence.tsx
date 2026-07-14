@@ -141,26 +141,43 @@ function TradeIntelligencePage() {
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
+      const runOne = async (combo: { presetId: string; execId: string; tf: string }) => {
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            return await record({
+              data: {
+                source: form.source, symbol: form.symbol,
+                timeframe: combo.tf as "15m",
+                displayTimezone: "IST", strategyTimezone: "London",
+                fromMs: from, toMs: to,
+                strategyPresetId: combo.presetId,
+                execPresetId: combo.execId,
+                tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+              },
+            });
+          } catch (e) {
+            lastErr = e;
+            // Small backoff: 500ms, 1500ms — gives worker time to recover from
+            // transient "Failed to fetch" (cold start / network blip).
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1) * (attempt + 1)));
+          }
+        }
+        throw lastErr;
+      };
       for (const combo of combos) {
         try {
-          const res = await record({
-            data: {
-              source: form.source, symbol: form.symbol,
-              timeframe: combo.tf as "15m",
-              displayTimezone: "IST", strategyTimezone: "London",
-              fromMs: from, toMs: to,
-              strategyPresetId: combo.presetId,
-              execPresetId: combo.execId,
-              tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-            },
-          });
+          const res = await runOne(combo);
           rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
         } catch (e) {
           rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+        // brief yield between combos so the worker isn't hammered back-to-back.
+        await new Promise((r) => setTimeout(r, 150));
       }
+
       return rows;
     },
     onSuccess: () => {

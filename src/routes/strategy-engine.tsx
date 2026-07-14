@@ -61,6 +61,40 @@ function StrategyEnginePage() {
     },
   });
 
+  const BATCH_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+  const BATCH_PRESETS = Object.keys(STRATEGY_PRESETS);
+  type BatchRow = { presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
+  const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const batch = useMutation({
+    mutationFn: async () => {
+      const combos: { presetId: string; tf: Timeframe }[] = [];
+      for (const p of BATCH_PRESETS) for (const tf of BATCH_TFS) combos.push({ presetId: p, tf });
+      setBatchResults([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const toMs = now;
+      const fromMs = toMs - days * 86_400_000;
+      const rows: BatchRow[] = [];
+      for (const c of combos) {
+        try {
+          const res = await runner({
+            data: {
+              source, symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs, presetId: c.presetId, mode,
+            },
+          });
+          rows.push({ presetId: c.presetId, tf: c.tf, result: res.result });
+        } catch (e) {
+          rows.push({ presetId: c.presetId, tf: c.tf, error: (e as Error).message });
+        }
+        setBatchResults([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
+    },
+  });
+
   const r = mut.data?.result;
   const rejects = useMemo(
     () => r ? Object.entries(r.stats.filterRejects).sort((a, b) => b[1] - a[1]) : [],

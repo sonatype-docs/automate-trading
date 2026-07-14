@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TradeIntelligenceRouteImport } from './routes/trade-intelligence'
 import { Route as StrategyEngineRouteImport } from './routes/strategy-engine'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as MarketDataRouteImport } from './routes/market-data'
@@ -47,6 +48,11 @@ const StrategyEngineRoute = StrategyEngineRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResearchRoute = ResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -247,6 +256,7 @@ export interface FileRouteTypes {
     | '/market-data'
     | '/pending-orders'
     | '/reports'
+    | '/research'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/market-data'
     | '/pending-orders'
     | '/reports'
+    | '/research'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/market-data'
     | '/pending-orders'
     | '/reports'
+    | '/research'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -324,6 +336,7 @@ export interface RootRouteChildren {
   MarketDataRoute: typeof MarketDataRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
+  ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
@@ -357,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/research': {
+      id: '/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -548,6 +568,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketDataRoute: MarketDataRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
+  ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
   TradeIntelligenceRoute: TradeIntelligenceRoute,

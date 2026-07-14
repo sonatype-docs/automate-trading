@@ -5,7 +5,7 @@
 // - exportTrades: return CSV/JSON body for download
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+// admin client loaded inside handlers (project uses admin-only server access)
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import type { TradeQuerySpec, TradeRecord } from "./trade-intelligence/types";
 
@@ -131,9 +131,10 @@ function rowToRecord(row: Record<string, unknown>): TradeRecord {
 }
 
 export const recordTradesFromExecution = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+
   .inputValidator((raw) => RunAndRecordInput.parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS }, { toTradeRecord }] =
       await Promise.all([
         import("@/lib/market-data/loader.server"),
@@ -181,7 +182,7 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
     const rows = records.map(recordToRow);
     // Upsert on trade_id so re-runs are idempotent.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error, count } = await context.supabase
+    const { error, count } = await supabase
       .from("trade_intelligence")
       .upsert(rows as any, { onConflict: "trade_id", count: "exact" });
 
@@ -211,12 +212,13 @@ const QueryInput = z.object({
 });
 
 export const queryTrades = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+
   .inputValidator((raw) => QueryInput.parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     const { applyQuery } = await import("./trade-intelligence/query");
     const spec = data as TradeQuerySpec;
-    const q = applyQuery(context.supabase, "trade_intelligence", spec);
+    const q = applyQuery(supabase, "trade_intelligence", spec);
     const { data: rows, error, count } = await q;
     if (error) throw new Error(error.message);
     return {
@@ -226,13 +228,14 @@ export const queryTrades = createServerFn({ method: "POST" })
   });
 
 export const exportTrades = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+
   .inputValidator((raw) => QueryInput.extend({ format: z.enum(["json", "csv"]) }).parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const spec: TradeQuerySpec = { ...data, limit: 1000 };
-    const q = applyQuery(context.supabase, "trade_intelligence", spec);
+    const q = applyQuery(supabase, "trade_intelligence", spec);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     const records = (rows ?? []).map((r) => rowToRecord(r as Record<string, unknown>));
@@ -240,29 +243,32 @@ export const exportTrades = createServerFn({ method: "POST" })
   });
 
 export const deleteTrade = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+
   .inputValidator((raw) => z.object({ tradeId: z.string() }).parse(raw))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabase
       .from("trade_intelligence").delete().eq("trade_id", data.tradeId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const clearStrategy = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+
   .inputValidator((raw) => z.object({ strategyId: z.string() }).parse(raw))
-  .handler(async ({ data, context }) => {
-    const { error, count } = await context.supabase
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { error, count } = await supabase
       .from("trade_intelligence").delete({ count: "exact" }).eq("strategy_id", data.strategyId);
     if (error) throw new Error(error.message);
     return { deleted: count ?? 0 };
   });
 
 export const summariseTrades = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+
+  .handler(async () => {
+    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabase
       .from("trade_intelligence")
       .select("strategy_id, symbol, direction, net_pnl");
     if (error) throw new Error(error.message);

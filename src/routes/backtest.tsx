@@ -231,6 +231,16 @@ function BacktestLab() {
       setResult(r);
       setHourCache({});
       setHourFilter(null);
+      // Publish Fib-Zone snapshot for the /backtest/compare view.
+      import("@/lib/backtest-snapshots").then(({ saveSnapshot, metricsFromSummary }) => {
+        saveSnapshot({
+          strategy: "fib_zone",
+          label: "Fib Zone",
+          ranAt: Date.now(),
+          params: (form ? { ...form } : {}) as Record<string, unknown>,
+          metrics: metricsFromSummary(r.summary),
+        });
+      }).catch(() => { /* snapshot save is best-effort */ });
       toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),

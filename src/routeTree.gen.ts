@@ -18,6 +18,10 @@ import { Route as BotRouteImport } from './routes/bot'
 import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
+import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
+import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
+import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
@@ -66,6 +70,26 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
+  id: '/silver-bullet',
+  path: '/silver-bullet',
+  getParentRoute: () => BacktestRoute,
+} as any)
+const BacktestOrbRoute = BacktestOrbRouteImport.update({
+  id: '/orb',
+  path: '/orb',
+  getParentRoute: () => BacktestRoute,
+} as any)
+const BacktestCompareRoute = BacktestCompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => BacktestRoute,
+} as any)
+const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
+  id: '/asian-sweep',
+  path: '/asian-sweep',
+  getParentRoute: () => BacktestRoute,
+} as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
     id: '/api/public/webhook/tradingview',
@@ -82,26 +106,34 @@ const ApiPublicHooksStrategyTickRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRoute
+  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRoute
+  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -109,13 +141,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRoute
+  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -131,6 +167,10 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
+    | '/backtest/compare'
+    | '/backtest/orb'
+    | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesByTo: FileRoutesByTo
@@ -144,6 +184,10 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
+    | '/backtest/compare'
+    | '/backtest/orb'
+    | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   id:
@@ -157,6 +201,10 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
+    | '/backtest/compare'
+    | '/backtest/orb'
+    | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesById: FileRoutesById
@@ -164,7 +212,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
-  BacktestRoute: typeof BacktestRoute
+  BacktestRoute: typeof BacktestRouteWithChildren
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
   JournalRoute: typeof JournalRoute
@@ -240,6 +288,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backtest/silver-bullet': {
+      id: '/backtest/silver-bullet'
+      path: '/silver-bullet'
+      fullPath: '/backtest/silver-bullet'
+      preLoaderRoute: typeof BacktestSilverBulletRouteImport
+      parentRoute: typeof BacktestRoute
+    }
+    '/backtest/orb': {
+      id: '/backtest/orb'
+      path: '/orb'
+      fullPath: '/backtest/orb'
+      preLoaderRoute: typeof BacktestOrbRouteImport
+      parentRoute: typeof BacktestRoute
+    }
+    '/backtest/compare': {
+      id: '/backtest/compare'
+      path: '/compare'
+      fullPath: '/backtest/compare'
+      preLoaderRoute: typeof BacktestCompareRouteImport
+      parentRoute: typeof BacktestRoute
+    }
+    '/backtest/asian-sweep': {
+      id: '/backtest/asian-sweep'
+      path: '/asian-sweep'
+      fullPath: '/backtest/asian-sweep'
+      preLoaderRoute: typeof BacktestAsianSweepRouteImport
+      parentRoute: typeof BacktestRoute
+    }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
       path: '/api/public/webhook/tradingview'
@@ -257,10 +333,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BacktestRouteChildren {
+  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
+  BacktestCompareRoute: typeof BacktestCompareRoute
+  BacktestOrbRoute: typeof BacktestOrbRoute
+  BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
+}
+
+const BacktestRouteChildren: BacktestRouteChildren = {
+  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
+  BacktestCompareRoute: BacktestCompareRoute,
+  BacktestOrbRoute: BacktestOrbRoute,
+  BacktestSilverBulletRoute: BacktestSilverBulletRoute,
+}
+
+const BacktestRouteWithChildren = BacktestRoute._addFileChildren(
+  BacktestRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
-  BacktestRoute: BacktestRoute,
+  BacktestRoute: BacktestRouteWithChildren,
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,
   JournalRoute: JournalRoute,

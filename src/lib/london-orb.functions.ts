@@ -28,7 +28,8 @@ const OrbSchema = z.object({
   timeToFillMaxHours: z.number().positive().max(24),
   entryCutoffUtc: z.string().regex(/^\d{2}:\d{2}$/),
   maxHoldHours: z.number().min(0).max(48),
-}) satisfies z.ZodType<LondonOrbOpts>;
+});
+export type OrbInput = z.infer<typeof OrbSchema> & LondonOrbOpts;
 
 export const runLondonOrb = createServerFn({ method: "POST" })
   .validator((input: unknown) => OrbSchema.parse(input))

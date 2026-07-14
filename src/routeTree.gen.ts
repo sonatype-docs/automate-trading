@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TradeIntelligenceRouteImport } from './routes/trade-intelligence'
 import { Route as StrategyEngineRouteImport } from './routes/strategy-engine'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResearchLabRouteImport } from './routes/research-lab'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
@@ -50,6 +51,11 @@ const StrategyEngineRoute = StrategyEngineRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResearchLabRoute = ResearchLabRouteImport.update({
+  id: '/research-lab',
+  path: '/research-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResearchRoute = ResearchRouteImport.update({
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
+  '/research-lab': typeof ResearchLabRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -217,6 +224,7 @@ export interface FileRoutesByTo {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
+  '/research-lab': typeof ResearchLabRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
+  '/research-lab': typeof ResearchLabRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/research'
+    | '/research-lab'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/research'
+    | '/research-lab'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/research'
+    | '/research-lab'
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
@@ -363,6 +375,7 @@ export interface RootRouteChildren {
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
+  ResearchLabRoute: typeof ResearchLabRoute
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
@@ -396,6 +409,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/research-lab': {
+      id: '/research-lab'
+      path: '/research-lab'
+      fullPath: '/research-lab'
+      preLoaderRoute: typeof ResearchLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/research': {
@@ -611,6 +631,7 @@ const rootRouteChildren: RootRouteChildren = {
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
+  ResearchLabRoute: ResearchLabRoute,
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
   TradeIntelligenceRoute: TradeIntelligenceRoute,

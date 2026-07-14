@@ -72,11 +72,11 @@ const ExperimentInput = z.object({
   decision: z.enum(["accepted", "rejected", "pending", "needs_review", "deprecated", "archived"]).default("pending"),
   decision_reason: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
-  strategy_snapshot: z.record(z.string(), z.unknown()).default({}),
-  optimizer_snapshot: z.record(z.string(), z.unknown()).default({}),
-  backtest_snapshot: z.record(z.string(), z.unknown()).default({}),
-  ai_findings: z.array(z.unknown()).default([]),
-  metrics: z.record(z.string(), z.unknown()).default({}),
+  strategy_snapshot: z.any().default({}),
+  optimizer_snapshot: z.any().default({}),
+  backtest_snapshot: z.any().default({}),
+  ai_findings: z.any().default([]),
+  metrics: z.any().default({}),
   notes: z.string().optional().nullable(),
 });
 
@@ -145,9 +145,14 @@ export const diffExperiments = createServerFn({ method: "POST" })
       ...Object.keys((b.metrics ?? {}) as object),
     ]);
     const diff = Array.from(keys).map((k) => {
-      const av = (a.metrics as Record<string, unknown>)[k];
-      const bv = (b.metrics as Record<string, unknown>)[k];
-      return { key: k, a: av, b: bv, changed: JSON.stringify(av) !== JSON.stringify(bv) };
+      const av = (a.metrics as Record<string, unknown>)[k] ?? null;
+      const bv = (b.metrics as Record<string, unknown>)[k] ?? null;
+      return {
+        key: k,
+        a: JSON.stringify(av),
+        b: JSON.stringify(bv),
+        changed: JSON.stringify(av) !== JSON.stringify(bv),
+      };
     });
     return { a, b, diff };
   });

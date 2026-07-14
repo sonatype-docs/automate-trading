@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TradeIntelligenceRouteImport } from './routes/trade-intelligence'
 import { Route as StrategyEngineRouteImport } from './routes/strategy-engine'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -33,6 +34,11 @@ import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$v
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
+const TradeIntelligenceRoute = TradeIntelligenceRouteImport.update({
+  id: '/trade-intelligence',
+  path: '/trade-intelligence',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StrategyEngineRoute = StrategyEngineRouteImport.update({
   id: '/strategy-engine',
   path: '/strategy-engine',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
+  '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
+  '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
+  '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/strategy-engine'
+    | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/strategy-engine'
+    | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/strategy-engine'
+    | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -314,6 +326,7 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
+  TradeIntelligenceRoute: typeof TradeIntelligenceRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
@@ -325,6 +338,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/trade-intelligence': {
+      id: '/trade-intelligence'
+      path: '/trade-intelligence'
+      fullPath: '/trade-intelligence'
+      preLoaderRoute: typeof TradeIntelligenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/strategy-engine': {
       id: '/strategy-engine'
       path: '/strategy-engine'
@@ -530,6 +550,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
+  TradeIntelligenceRoute: TradeIntelligenceRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,

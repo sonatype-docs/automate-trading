@@ -27,8 +27,58 @@ import {
 } from "@/lib/research/metrics";
 import { histogram } from "@/lib/research/distributions";
 import { correlationMatrix } from "@/lib/research/correlation";
-import { applyRules, type Rule, type Op } from "@/lib/research/filters";
-import { download, toCsv, toMarkdownReport } from "@/lib/research/export";
+// Local filter/export helpers (kept in-route to avoid colliding with the
+// existing research/filters + research/export modules used by grading/AI).
+type Op = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "in";
+interface Rule { field: string; op: Op; value: string }
+function readPath(obj: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, k) => (acc && typeof acc === "object" ? (acc as Record<string, unknown>)[k] : undefined), obj);
+}
+function coerce(v: unknown): number | string | null {
+  if (v == null) return null;
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  const n = Number(v);
+  return Number.isFinite(n) && String(v).trim() !== "" ? n : String(v);
+}
+function applyRules(rows: TradeRecord[], rules: Rule[]): TradeRecord[] {
+  if (!rules.length) return rows;
+  return rows.filter((row) => rules.every((r) => {
+    const raw = coerce(readPath(row, r.field));
+    const rhs = coerce(r.value);
+    if (raw == null) return false;
+    switch (r.op) {
+      case "eq": return String(raw) === String(rhs);
+      case "neq": return String(raw) !== String(rhs);
+      case "gt": return typeof raw === "number" && typeof rhs === "number" && raw > rhs;
+      case "gte": return typeof raw === "number" && typeof rhs === "number" && raw >= rhs;
+      case "lt": return typeof raw === "number" && typeof rhs === "number" && raw < rhs;
+      case "lte": return typeof raw === "number" && typeof rhs === "number" && raw <= rhs;
+      case "contains": return String(raw).toLowerCase().includes(String(rhs).toLowerCase());
+      case "in": return String(r.value).split(",").map((s) => s.trim()).includes(String(raw));
+    }
+  }));
+}
+function download(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function toCsv(rows: Array<Record<string, unknown>>): string {
+  if (!rows.length) return "";
+  const keys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  const esc = (v: unknown) => {
+    if (v == null) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [keys.join(","), ...rows.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
+}
+function toMarkdownReport(title: string, sections: Array<{ heading: string; body: string }>) {
+  return [`# ${title}`, "", ...sections.flatMap((s) => [`## ${s.heading}`, "", s.body, ""])].join("\n");
+}
 
 export const Route = createFileRoute("/research")({
   head: () => ({

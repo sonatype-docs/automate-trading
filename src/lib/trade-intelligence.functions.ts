@@ -180,9 +180,11 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
     }
     const rows = records.map(recordToRow);
     // Upsert on trade_id so re-runs are idempotent.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error, count } = await context.supabase
       .from("trade_intelligence")
-      .upsert(rows, { onConflict: "trade_id", count: "exact" });
+      .upsert(rows as any, { onConflict: "trade_id", count: "exact" });
+
     if (error) throw new Error(error.message);
     return { inserted: count ?? rows.length, tradesInRun: eres.trades.length, skipped: 0 };
   });

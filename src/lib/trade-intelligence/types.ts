@@ -53,7 +53,9 @@ export interface TradeRecordCore {
   exitReason?: string | null;
 }
 
-export type JsonMap = Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type JsonMap = Record<string, any>;
+
 
 export interface TradeRecord extends TradeRecordCore {
   price: JsonMap;

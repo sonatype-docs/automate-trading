@@ -23,7 +23,7 @@ const RunInput = z.object({
 async function fetchTrades(spec: z.infer<typeof RunInput>): Promise<TradeRecord[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { applyQuery } = await import("./trade-intelligence/query");
-  const { rowToRecord } = await import("./ai-research/row-mapper");
+  const { rowToRecord } = await import("@/lib/trade-intelligence/mapper");
   const q = applyQuery(supabaseAdmin, "trade_intelligence", {
     strategyId: spec.strategyId,
     symbol: spec.symbol,
@@ -53,7 +53,7 @@ export const reviewOneTrade = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ tradeId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { rowToRecord } = await import("./ai-research/row-mapper");
+    const { rowToRecord } = await import("@/lib/trade-intelligence/mapper");
     const { data: rows, error } = await supabaseAdmin
       .from("trade_intelligence").select("*").eq("trade_id", data.tradeId).limit(1);
     if (error) throw new Error(error.message);

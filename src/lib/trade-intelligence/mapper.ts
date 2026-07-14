@@ -1,8 +1,47 @@
-// Row mapper: mirror of trade-intelligence.functions.ts rowToRecord.
-// Isolated here so ai-research can reuse it without depending on server-only
-// modules loaded inside another handler.
+// Trade Intelligence — row <-> record mappers.
+// Single source of truth for camelCase TradeRecord <-> snake_case DB row.
+// Client-safe (pure), so any *.functions.ts handler can dynamic-import it
+// without violating server-fn split rules.
 
-import type { TradeRecord } from "@/lib/trade-intelligence/types";
+import type { TradeRecord } from "./types";
+
+export function recordToRow(r: TradeRecord) {
+  return {
+    trade_id: r.tradeId,
+    strategy_id: r.strategyId,
+    strategy_version: r.strategyVersion,
+    symbol: r.symbol,
+    timeframe: r.timeframe,
+    direction: r.direction,
+    trade_type: r.tradeType,
+    entry_type: r.entryType,
+    stop_type: r.stopType,
+    target_type: r.targetType,
+    status: r.status,
+    session: r.session,
+    signal_time: r.signalTime ? new Date(r.signalTime).toISOString() : null,
+    order_time: r.orderTime ? new Date(r.orderTime).toISOString() : null,
+    fill_time: r.fillTime ? new Date(r.fillTime).toISOString() : null,
+    entry_time: new Date(r.entryTime).toISOString(),
+    exit_time: new Date(r.exitTime).toISOString(),
+    weekday: r.weekday, week_number: r.weekNumber, month: r.month,
+    quarter: r.quarter, year: r.year,
+    entry_price: r.entryPrice, fill_price: r.fillPrice, exit_price: r.exitPrice,
+    stop_price: r.stopPrice, target_price: r.targetPrice,
+    position_size: r.positionSize, risk_usd: r.riskUsd, risk_pct: r.riskPct,
+    actual_rr: r.actualRr, gross_pnl: r.grossPnl, net_pnl: r.netPnl,
+    pnl_pct: r.pnlPct, pnl_r: r.pnlR, mae: r.mae, mfe: r.mfe,
+    fees: r.fees, commission: r.commission, slippage: r.slippage,
+    spread_cost: r.spreadCost,
+    holding_bars: r.holdingBars, duration_ms: r.durationMs, exit_reason: r.exitReason,
+    price: r.price, risk: r.risk, performance: r.performance, duration: r.duration,
+    volatility: r.volatility, trend: r.trend, structure: r.structure,
+    liquidity: r.liquidity, smart_money: r.smartMoney, volume_profile: r.volumeProfile,
+    breakout: r.breakout, entry_quality: r.entryQuality, stop: r.stop, target: r.target,
+    filters: r.filters, news: r.news, regime: r.regime, custom: r.custom,
+    tags: r.tags, raw: r.raw,
+  };
+}
 
 export function rowToRecord(row: Record<string, unknown>): TradeRecord {
   const toMs = (v: unknown) => (v ? new Date(String(v)).getTime() : null);

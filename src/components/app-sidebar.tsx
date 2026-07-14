@@ -14,6 +14,7 @@ import {
   Zap,
   GitCompare,
   BookMarked,
+  Database,
 } from "lucide-react";
 import {
   Sidebar,
@@ -48,6 +49,7 @@ const backtest = [
 ];
 
 const meta = [
+  { title: "Market Data Engine", url: "/market-data", icon: Database },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

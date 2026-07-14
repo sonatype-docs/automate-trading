@@ -51,6 +51,7 @@ const backtest = [
 
 const meta = [
   { title: "Market Data Engine", url: "/market-data", icon: Database },
+  { title: "Strategy Engine", url: "/strategy-engine", icon: Cpu },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

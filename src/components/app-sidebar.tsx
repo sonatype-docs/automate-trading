@@ -58,6 +58,7 @@ const meta = [
   { title: "Strategy Engine", url: "/strategy-engine", icon: Cpu },
   { title: "Execution Engine", url: "/execution-engine", icon: Zap },
   { title: "Trade Intelligence", url: "/trade-intelligence", icon: Database },
+  { title: "Research", url: "/research", icon: BarChart3 },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

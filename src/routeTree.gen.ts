@@ -15,9 +15,9 @@ import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BotRouteImport } from './routes/bot'
-import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BacktestIndexRouteImport } from './routes/backtest.index'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
@@ -55,11 +55,6 @@ const BotRoute = BotRouteImport.update({
   path: '/bot',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BacktestRoute = BacktestRouteImport.update({
-  id: '/backtest',
-  path: '/backtest',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -70,25 +65,30 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BacktestIndexRoute = BacktestIndexRouteImport.update({
+  id: '/backtest/',
+  path: '/backtest/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
-  id: '/silver-bullet',
-  path: '/silver-bullet',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/silver-bullet',
+  path: '/backtest/silver-bullet',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestOrbRoute = BacktestOrbRouteImport.update({
-  id: '/orb',
-  path: '/orb',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/orb',
+  path: '/backtest/orb',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestCompareRoute = BacktestCompareRouteImport.update({
-  id: '/compare',
-  path: '/compare',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/compare',
+  path: '/backtest/compare',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
-  id: '/asian-sweep',
-  path: '/asian-sweep',
-  getParentRoute: () => BacktestRoute,
+  id: '/backtest/asian-sweep',
+  path: '/backtest/asian-sweep',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
@@ -106,7 +106,6 @@ const ApiPublicHooksStrategyTickRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
@@ -117,13 +116,13 @@ export interface FileRoutesByFullPath {
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
+  '/backtest/': typeof BacktestIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
@@ -134,6 +133,7 @@ export interface FileRoutesByTo {
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
+  '/backtest': typeof BacktestIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -141,7 +141,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
-  '/backtest': typeof BacktestRouteWithChildren
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
@@ -152,6 +151,7 @@ export interface FileRoutesById {
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
+  '/backtest/': typeof BacktestIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -160,7 +160,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analytics'
-    | '/backtest'
     | '/bot'
     | '/docs'
     | '/journal'
@@ -171,13 +170,13 @@ export interface FileRouteTypes {
     | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
+    | '/backtest/'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/analytics'
-    | '/backtest'
     | '/bot'
     | '/docs'
     | '/journal'
@@ -188,13 +187,13 @@ export interface FileRouteTypes {
     | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
+    | '/backtest'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   id:
     | '__root__'
     | '/'
     | '/analytics'
-    | '/backtest'
     | '/bot'
     | '/docs'
     | '/journal'
@@ -205,6 +204,7 @@ export interface FileRouteTypes {
     | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
+    | '/backtest/'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesById: FileRoutesById
@@ -212,13 +212,17 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
-  BacktestRoute: typeof BacktestRouteWithChildren
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
   JournalRoute: typeof JournalRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
+  BacktestCompareRoute: typeof BacktestCompareRoute
+  BacktestOrbRoute: typeof BacktestOrbRoute
+  BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
+  BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
 }
@@ -267,13 +271,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BotRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/backtest': {
-      id: '/backtest'
-      path: '/backtest'
-      fullPath: '/backtest'
-      preLoaderRoute: typeof BacktestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/analytics': {
       id: '/analytics'
       path: '/analytics'
@@ -288,33 +285,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backtest/': {
+      id: '/backtest/'
+      path: '/backtest'
+      fullPath: '/backtest/'
+      preLoaderRoute: typeof BacktestIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/backtest/silver-bullet': {
       id: '/backtest/silver-bullet'
-      path: '/silver-bullet'
+      path: '/backtest/silver-bullet'
       fullPath: '/backtest/silver-bullet'
       preLoaderRoute: typeof BacktestSilverBulletRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/orb': {
       id: '/backtest/orb'
-      path: '/orb'
+      path: '/backtest/orb'
       fullPath: '/backtest/orb'
       preLoaderRoute: typeof BacktestOrbRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/compare': {
       id: '/backtest/compare'
-      path: '/compare'
+      path: '/backtest/compare'
       fullPath: '/backtest/compare'
       preLoaderRoute: typeof BacktestCompareRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/backtest/asian-sweep': {
       id: '/backtest/asian-sweep'
-      path: '/asian-sweep'
+      path: '/backtest/asian-sweep'
       fullPath: '/backtest/asian-sweep'
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
-      parentRoute: typeof BacktestRoute
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
@@ -333,47 +337,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface BacktestRouteChildren {
-  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
-  BacktestCompareRoute: typeof BacktestCompareRoute
-  BacktestOrbRoute: typeof BacktestOrbRoute
-  BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
-}
-
-const BacktestRouteChildren: BacktestRouteChildren = {
-  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
-  BacktestCompareRoute: BacktestCompareRoute,
-  BacktestOrbRoute: BacktestOrbRoute,
-  BacktestSilverBulletRoute: BacktestSilverBulletRoute,
-}
-
-const BacktestRouteWithChildren = BacktestRoute._addFileChildren(
-  BacktestRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
-  BacktestRoute: BacktestRouteWithChildren,
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,
   JournalRoute: JournalRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
+  BacktestCompareRoute: BacktestCompareRoute,
+  BacktestOrbRoute: BacktestOrbRoute,
+  BacktestSilverBulletRoute: BacktestSilverBulletRoute,
+  BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

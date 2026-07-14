@@ -35,7 +35,7 @@ export const runLondonOrb = createServerFn({ method: "POST" })
   .validator((input: unknown) => OrbSchema.parse(input))
   .handler(async ({ data }) => {
     const { runLondonOrbBacktest } = await import("@/lib/strategy/london-orb.server");
-    return runLondonOrbBacktest(data);
+    return runLondonOrbBacktest(data as LondonOrbOpts);
   });
 
 export const optimizeLondonOrbFn = createServerFn({ method: "POST" })
@@ -45,5 +45,5 @@ export const optimizeLondonOrbFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { optimizeLondonOrb } = await import("@/lib/strategy/london-orb.server");
     const { topN, ...opts } = data;
-    return optimizeLondonOrb(opts, topN ?? 12);
+    return optimizeLondonOrb(opts as LondonOrbOpts, topN ?? 12);
   });

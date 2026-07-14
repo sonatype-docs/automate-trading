@@ -13,6 +13,7 @@ import {
   Sunrise,
   Zap,
   GitCompare,
+  BookMarked,
 } from "lucide-react";
 import {
   Sidebar,
@@ -124,6 +125,38 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Handbook</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/handbook" || pathname.startsWith("/handbook")}
+                  tooltip="XAU/USD Handbook"
+                >
+                  <Link to="/handbook">
+                    <BookMarked className="h-4 w-4" />
+                    <span>XAU/USD Handbook</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith("/handbook/v1/london-orb")}
+                  tooltip="London ORB"
+                >
+                  <Link to="/handbook/$volume/$strategy" params={{ volume: "v1", strategy: "london-orb" }}>
+                    <Target className="h-4 w-4" />
+                    <span>London ORB</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

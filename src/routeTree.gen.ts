@@ -13,15 +13,20 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as JournalRouteImport } from './routes/journal'
+import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BotRouteImport } from './routes/bot'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HandbookIndexRouteImport } from './routes/handbook.index'
 import { Route as BacktestIndexRouteImport } from './routes/backtest.index'
+import { Route as HandbookVolumeRouteImport } from './routes/handbook.$volume'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
+import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
+import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
@@ -45,6 +50,11 @@ const JournalRoute = JournalRouteImport.update({
   path: '/journal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HandbookRoute = HandbookRouteImport.update({
+  id: '/handbook',
+  path: '/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
@@ -65,10 +75,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HandbookIndexRoute = HandbookIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HandbookRoute,
+} as any)
 const BacktestIndexRoute = BacktestIndexRouteImport.update({
   id: '/backtest/',
   path: '/backtest/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const HandbookVolumeRoute = HandbookVolumeRouteImport.update({
+  id: '/$volume',
+  path: '/$volume',
+  getParentRoute: () => HandbookRoute,
 } as any)
 const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
   id: '/backtest/silver-bullet',
@@ -90,6 +110,16 @@ const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
   path: '/backtest/asian-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HandbookVolumeIndexRoute = HandbookVolumeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => HandbookVolumeRoute,
+} as any)
+const HandbookVolumeStrategyRoute = HandbookVolumeStrategyRouteImport.update({
+  id: '/$strategy',
+  path: '/$strategy',
+  getParentRoute: () => HandbookVolumeRoute,
+} as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
     id: '/api/public/webhook/tradingview',
@@ -108,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
+  '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
@@ -116,7 +147,11 @@ export interface FileRoutesByFullPath {
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
+  '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
+  '/handbook/': typeof HandbookIndexRoute
+  '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
+  '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -134,6 +169,9 @@ export interface FileRoutesByTo {
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/backtest': typeof BacktestIndexRoute
+  '/handbook': typeof HandbookIndexRoute
+  '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
+  '/handbook/$volume': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -143,6 +181,7 @@ export interface FileRoutesById {
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
+  '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
@@ -151,7 +190,11 @@ export interface FileRoutesById {
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
+  '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
+  '/handbook/': typeof HandbookIndexRoute
+  '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
+  '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
 }
@@ -162,6 +205,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/bot'
     | '/docs'
+    | '/handbook'
     | '/journal'
     | '/pending-orders'
     | '/reports'
@@ -170,7 +214,11 @@ export interface FileRouteTypes {
     | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
+    | '/handbook/$volume'
     | '/backtest/'
+    | '/handbook/'
+    | '/handbook/$volume/$strategy'
+    | '/handbook/$volume/'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesByTo: FileRoutesByTo
@@ -188,6 +236,9 @@ export interface FileRouteTypes {
     | '/backtest/orb'
     | '/backtest/silver-bullet'
     | '/backtest'
+    | '/handbook'
+    | '/handbook/$volume/$strategy'
+    | '/handbook/$volume'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   id:
@@ -196,6 +247,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/bot'
     | '/docs'
+    | '/handbook'
     | '/journal'
     | '/pending-orders'
     | '/reports'
@@ -204,7 +256,11 @@ export interface FileRouteTypes {
     | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
+    | '/handbook/$volume'
     | '/backtest/'
+    | '/handbook/'
+    | '/handbook/$volume/$strategy'
+    | '/handbook/$volume/'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
   fileRoutesById: FileRoutesById
@@ -214,6 +270,7 @@ export interface RootRouteChildren {
   AnalyticsRoute: typeof AnalyticsRoute
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
+  HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
@@ -257,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JournalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/handbook': {
+      id: '/handbook'
+      path: '/handbook'
+      fullPath: '/handbook'
+      preLoaderRoute: typeof HandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs': {
       id: '/docs'
       path: '/docs'
@@ -285,12 +349,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/handbook/': {
+      id: '/handbook/'
+      path: '/'
+      fullPath: '/handbook/'
+      preLoaderRoute: typeof HandbookIndexRouteImport
+      parentRoute: typeof HandbookRoute
+    }
     '/backtest/': {
       id: '/backtest/'
       path: '/backtest'
       fullPath: '/backtest/'
       preLoaderRoute: typeof BacktestIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/handbook/$volume': {
+      id: '/handbook/$volume'
+      path: '/$volume'
+      fullPath: '/handbook/$volume'
+      preLoaderRoute: typeof HandbookVolumeRouteImport
+      parentRoute: typeof HandbookRoute
     }
     '/backtest/silver-bullet': {
       id: '/backtest/silver-bullet'
@@ -320,6 +398,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/handbook/$volume/': {
+      id: '/handbook/$volume/'
+      path: '/'
+      fullPath: '/handbook/$volume/'
+      preLoaderRoute: typeof HandbookVolumeIndexRouteImport
+      parentRoute: typeof HandbookVolumeRoute
+    }
+    '/handbook/$volume/$strategy': {
+      id: '/handbook/$volume/$strategy'
+      path: '/$strategy'
+      fullPath: '/handbook/$volume/$strategy'
+      preLoaderRoute: typeof HandbookVolumeStrategyRouteImport
+      parentRoute: typeof HandbookVolumeRoute
+    }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
       path: '/api/public/webhook/tradingview'
@@ -337,11 +429,40 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface HandbookVolumeRouteChildren {
+  HandbookVolumeStrategyRoute: typeof HandbookVolumeStrategyRoute
+  HandbookVolumeIndexRoute: typeof HandbookVolumeIndexRoute
+}
+
+const HandbookVolumeRouteChildren: HandbookVolumeRouteChildren = {
+  HandbookVolumeStrategyRoute: HandbookVolumeStrategyRoute,
+  HandbookVolumeIndexRoute: HandbookVolumeIndexRoute,
+}
+
+const HandbookVolumeRouteWithChildren = HandbookVolumeRoute._addFileChildren(
+  HandbookVolumeRouteChildren,
+)
+
+interface HandbookRouteChildren {
+  HandbookVolumeRoute: typeof HandbookVolumeRouteWithChildren
+  HandbookIndexRoute: typeof HandbookIndexRoute
+}
+
+const HandbookRouteChildren: HandbookRouteChildren = {
+  HandbookVolumeRoute: HandbookVolumeRouteWithChildren,
+  HandbookIndexRoute: HandbookIndexRoute,
+}
+
+const HandbookRouteWithChildren = HandbookRoute._addFileChildren(
+  HandbookRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,
+  HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
@@ -357,3 +478,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

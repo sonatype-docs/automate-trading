@@ -72,6 +72,14 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
         extraTags: data.tags ?? [],
       }),
     );
+    // Deterministic trade_id so re-runs UPSERT the same row instead of
+    // duplicating. Identity = strategy + exec + symbol + tf + direction +
+    // signal/entry timestamp. Any of these differ => different row.
+    for (const r of records) {
+      const ts = r.signalTime ?? r.entryTime;
+      r.tradeId = `ti_${data.strategyPresetId}_${data.execPresetId}_${r.symbol}_${r.timeframe ?? "na"}_${r.direction}_${ts}`;
+    }
+
     if (records.length === 0) {
       return { inserted: 0, tradesInRun: 0, skipped: 0 };
     }

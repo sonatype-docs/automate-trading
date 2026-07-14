@@ -157,7 +157,9 @@ export const SILVER_BULLET_SPACE: ParamSpace = {
   fvg_min_usd: { kind: "float", min: 0, max: 5, step: 0.25 },
   sl_buffer_usd: { kind: "float", min: 0, max: 2, step: 0.1 },
   max_trades_per_day: { kind: "enum", values: ["1", "2", "3"] as const },
-  execution_tf: { kind: "enum", values: ["3m", "5m", "15m"] as const },
+  // 3m dropped — 3× the bar volume for marginal edge and it's the top cause of
+  // Worker CPU-limit crashes on the optimizer.
+  execution_tf: { kind: "enum", values: ["5m", "15m"] as const },
   rr: { kind: "float", min: 1, max: 4, step: 0.25 },
 };
 

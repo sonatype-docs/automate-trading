@@ -493,8 +493,14 @@ export interface OptimizerInput {
 
 export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunSummary> {
   const startedAt = Date.now();
-  const population = Math.max(20, Math.min(120, input.population ?? 40));
-  const generations = Math.max(5, Math.min(60, input.generations ?? 25));
+  // Silver Bullet is 5m-bar-heavy; every candidate scans ~26k bars per window
+  // per IS/OOS split. Cap population×generations tighter for SB so we stay
+  // under the 30s Cloudflare Worker CPU budget.
+  const isSb = input.strategy === "silver_bullet";
+  const popCap = isSb ? 60 : 120;
+  const genCap = isSb ? 20 : 60;
+  const population = Math.max(20, Math.min(popCap, input.population ?? (isSb ? 30 : 40)));
+  const generations = Math.max(5, Math.min(genCap, input.generations ?? (isSb ? 12 : 25)));
   const eliteCount = Math.max(2, Math.min(10, input.eliteCount ?? 4));
   const mutationRate = input.mutationRate ?? 0.18;
   const topN = Math.max(5, Math.min(50, input.topN ?? 20));
@@ -516,11 +522,14 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   // Fetch klines for max window, once per required timeframe.
   const client = createSharkClient();
   const now = Date.now();
-  // Hard cap max window to 180 days to keep the Worker inside its CPU budget;
-  // longer windows fetch 10⁵+ bars per timeframe and blow past the limit.
+  // Hard-cap max window per strategy so the Worker stays inside its CPU budget.
+  // SB scans 5m bars → keep tighter than ORB/Sweep which scan 1h bars.
+  const perStrategyMax = isSb ? 90 : 180;
   const requestedMax = Math.max(...input.windows);
-  const maxDays = Math.min(180, requestedMax);
-  const cappedWindows = input.windows.map((d) => Math.min(180, d));
+  const maxDays = Math.min(perStrategyMax, requestedMax);
+  const cappedWindows = Array.from(
+    new Set(input.windows.map((d) => Math.min(perStrategyMax, d))),
+  ).sort((a, b) => a - b);
   const fromMsMax = now - maxDays * 86_400_000;
 
   // Silver Bullet needs 5m + 15m (3m dropped for perf). Sweep + ORB use 1h.

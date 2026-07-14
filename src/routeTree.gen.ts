@@ -19,6 +19,7 @@ import { Route as BacktestRouteImport } from './routes/backtest'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
+import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
@@ -72,6 +73,11 @@ const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
   path: '/silver-bullet',
   getParentRoute: () => BacktestRoute,
 } as any)
+const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
+  id: '/asian-sweep',
+  path: '/asian-sweep',
+  getParentRoute: () => BacktestRoute,
+} as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
     id: '/api/public/webhook/tradingview',
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/backtest/asian-sweep'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -259,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestSilverBulletRouteImport
       parentRoute: typeof BacktestRoute
     }
+    '/backtest/asian-sweep': {
+      id: '/backtest/asian-sweep'
+      path: '/asian-sweep'
+      fullPath: '/backtest/asian-sweep'
+      preLoaderRoute: typeof BacktestAsianSweepRouteImport
+      parentRoute: typeof BacktestRoute
+    }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
       path: '/api/public/webhook/tradingview'
@@ -277,10 +296,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface BacktestRouteChildren {
+  BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
 }
 
 const BacktestRouteChildren: BacktestRouteChildren = {
+  BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
 }
 

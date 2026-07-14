@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StrategyEngineRouteImport } from './routes/strategy-engine'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
@@ -31,6 +32,11 @@ import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$v
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 
+const StrategyEngineRoute = StrategyEngineRouteImport.update({
+  id: '/strategy-engine',
+  path: '/strategy-engine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/strategy-engine': typeof StrategyEngineRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/strategy-engine': typeof StrategyEngineRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -195,6 +203,7 @@ export interface FileRoutesById {
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/strategy-engine': typeof StrategyEngineRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -220,6 +229,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/strategy-engine'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/strategy-engine'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/pending-orders'
     | '/reports'
     | '/settings'
+    | '/strategy-engine'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -288,6 +300,7 @@ export interface RootRouteChildren {
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  StrategyEngineRoute: typeof StrategyEngineRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
@@ -299,6 +312,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/strategy-engine': {
+      id: '/strategy-engine'
+      path: '/strategy-engine'
+      fullPath: '/strategy-engine'
+      preLoaderRoute: typeof StrategyEngineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -488,6 +508,7 @@ const rootRouteChildren: RootRouteChildren = {
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  StrategyEngineRoute: StrategyEngineRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,

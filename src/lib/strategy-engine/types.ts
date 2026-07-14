@@ -197,7 +197,7 @@ export interface StrategySignal {
   filtersFailed: string[];
   expiryTs: number | null;
   invalidationReason?: string;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, string | number | boolean | null>;
 }
 
 // ---------- Events ----------
@@ -208,7 +208,7 @@ export type EngineEventName =
 export interface EngineEvent {
   name: EngineEventName;
   ts: number;
-  data: Record<string, unknown>;
+  data: Record<string, string | number | boolean | null>;
 }
 
 export type EventListener = (e: EngineEvent) => void;

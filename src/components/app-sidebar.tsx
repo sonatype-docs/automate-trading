@@ -107,6 +107,29 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel>Backtest</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {backtest.map((i) => (
+                <SidebarMenuItem key={i.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={i.url === "/backtest" ? pathname === "/backtest" : isActive(i.url)}
+                    tooltip={i.title}
+                  >
+                    <Link to={i.url}>
+                      <i.icon className="h-4 w-4" />
+                      <span>{i.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+
+        <SidebarGroup>
           <SidebarGroupLabel>System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

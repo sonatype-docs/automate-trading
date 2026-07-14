@@ -82,7 +82,7 @@ export function runExecution(
         emit("OnRiskBlock", bar.ts, { signalId: sig.signalId, reason: block });
         continue;
       }
-      const order = orderFromSignal(sig, cfg, bar);
+      const order = orderFromSignal(sig, cfg, bar, i);
       openOrders.push(order);
       ordersCreated++;
       emit("OnOrderCreated", bar.ts, {
@@ -118,10 +118,10 @@ export function runExecution(
       if (cfg.respectGaps && prev) {
         const g = gapDirection(dir, pos.ctx.currentStop, pos.legs[0]?.price ?? pos.order.targetPrice, prev.close, bar.open);
         if (g === "gap_through_stop") {
-          closePosition(pos, bar, bar.open, "gap_through_stop", cfg, risk, trades, emit);
+          closePosition(pos, bar, i, bar.open, "gap_through_stop", cfg, risk, trades, emit);
           openPositions.splice(p, 1); closedThisBar = true;
         } else if (g === "gap_through_target") {
-          closePosition(pos, bar, bar.open, "gap_through_target", cfg, risk, trades, emit);
+          closePosition(pos, bar, i, bar.open, "gap_through_target", cfg, risk, trades, emit);
           openPositions.splice(p, 1); closedThisBar = true;
         }
       }
@@ -130,7 +130,7 @@ export function runExecution(
       // Evaluate bar for stop/target.
       const outcome = evaluateBar(dir, pos.ctx.currentStop, pos.legs, bar, cfg.intrabar);
       if (outcome.order === "stop_first") {
-        closePosition(pos, bar, pos.ctx.currentStop, be ? "break_even_stop" : "stop_loss", cfg, risk, trades, emit);
+        closePosition(pos, bar, i, pos.ctx.currentStop, be ? "break_even_stop" : "stop_loss", cfg, risk, trades, emit);
         openPositions.splice(p, 1); continue;
       }
       if (outcome.order === "target_first") {
@@ -149,7 +149,7 @@ export function runExecution(
           emit("OnPartialTP", bar.ts, { orderId: pos.order.orderId, leg: li + 1, price: leg.price, units: legUnits, pnl: legPnl });
           if (remainingLegs === 0) {
             // All legs filled → close using last leg as exit price.
-            closePosition(pos, bar, leg.price, "take_profit_all", cfg, risk, trades, emit, /* alreadyPartial */ true);
+            closePosition(pos, bar, i, leg.price, "take_profit_all", cfg, risk, trades, emit, /* alreadyPartial */ true);
             openPositions.splice(p, 1);
             break;
           }
@@ -160,11 +160,11 @@ export function runExecution(
       // Time-stop / max-holding.
       const held = i - pos.entryBarIndex;
       if (cfg.timeStopBars != null && held >= cfg.timeStopBars) {
-        closePosition(pos, bar, bar.close, "time_stop", cfg, risk, trades, emit);
+        closePosition(pos, bar, i, bar.close, "time_stop", cfg, risk, trades, emit);
         openPositions.splice(p, 1); continue;
       }
       if (cfg.maxHoldingBars != null && held >= cfg.maxHoldingBars) {
-        closePosition(pos, bar, bar.close, "max_holding", cfg, risk, trades, emit);
+        closePosition(pos, bar, i, bar.close, "max_holding", cfg, risk, trades, emit);
         openPositions.splice(p, 1); continue;
       }
     }
@@ -241,7 +241,7 @@ export function runExecution(
   const last = bars[bars.length - 1];
   if (last) {
     for (const pos of openPositions) {
-      closePosition(pos, last, last.close, "end_of_data", cfg, risk, trades, emit);
+      closePosition(pos, last, bars.length - 1, last.close, "end_of_data", cfg, risk, trades, emit);
     }
   }
 
@@ -308,7 +308,7 @@ function orderFromSignal(sig: StrategySignal, cfg: ExecutionConfig, bar: Enriche
     expiryBars: cfg.tif === "DAY" ? null : (sig.metadata.expiryBars as number | undefined) ?? null,
     status: "pending",
     fillPrice: null, filledTs: null, fillDelayBars: null,
-    metadata: { createdBar: (bar as unknown as { __i?: number }).__i ?? 0, tif: cfg.tif },
+    metadata: { createdBar: barIndex, tif: cfg.tif },
   };
 }
 

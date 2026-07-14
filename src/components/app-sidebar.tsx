@@ -16,10 +16,13 @@ import {
   BookMarked,
   Database,
   Cpu,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -27,6 +30,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const primary = [
@@ -185,6 +189,30 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border/60">
+        <CollapseToggle />
+      </SidebarFooter>
     </Sidebar>
+  );
+}
+
+function CollapseToggle() {
+  const { state, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed";
+  return (
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+    >
+      {collapsed
+        ? <ChevronsRight className="h-4 w-4 shrink-0" />
+        : <ChevronsLeft className="h-4 w-4 shrink-0" />}
+      <span className="group-data-[collapsible=icon]:hidden">
+        {collapsed ? "Expand" : "Collapse"}
+      </span>
+    </button>
   );
 }

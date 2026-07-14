@@ -136,7 +136,11 @@ export function OptimizerPanel(props: {
               evaluated {data.evaluated} genomes · cache hits {data.cache_hits} · bars fetched{" "}
               {data.bars_fetched} · {(data.elapsed_ms / 1000).toFixed(1)}s
             </div>
-            {data.top.length === 0 ? (
+            {data.error ? (
+              <div className="rounded border border-red-500/50 bg-red-500/5 p-4 text-xs text-red-500 font-mono whitespace-pre-wrap">
+                {data.error}
+              </div>
+            ) : data.top.length === 0 ? (
               <div className="rounded border border-dashed p-4 text-xs text-muted-foreground">
                 No parameter combo passed the out-of-sample gates for every selected window.
                 Try fewer / shorter windows, more generations, or relax the symbol / risk.

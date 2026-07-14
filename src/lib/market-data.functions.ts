@@ -4,14 +4,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import type { QualityReport } from "@/lib/market-data/quality";
-import { DEFAULT_CONFIG, TIMEFRAMES, TIMEZONES, type EnrichedCandle } from "@/lib/market-data/types";
+import { DEFAULT_CONFIG, TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone, type EnrichedCandle } from "@/lib/market-data/types";
 
 const InputSchema = z.object({
   source: z.enum(["shark", "yahoo"]).default("yahoo"),
   symbol: z.string().default("XAUUSDT"),
-  timeframe: z.enum([...TIMEFRAMES] as [string, ...string[]]).default("5m"),
-  displayTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("IST"),
-  strategyTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("London"),
+  timeframe: z.enum([...TIMEFRAMES] as [Timeframe, ...Timeframe[]]).default("5m"),
+  displayTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]).default("IST"),
+  strategyTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]).default("London"),
   fromMs: z.number(),
   toMs: z.number(),
   openingRangeMinutes: z.number().int().min(5).max(240).default(60),

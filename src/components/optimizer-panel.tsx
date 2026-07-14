@@ -210,9 +210,11 @@ const ORB_LABELS: Record<string, string> = {
 function PresetCard({
   preset,
   strategy,
+  onApply,
 }: {
   preset: OptResult["top"][number];
   strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
+  onApply?: () => void;
 }) {
   const labels =
     strategy === "silver_bullet"

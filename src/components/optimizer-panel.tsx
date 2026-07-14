@@ -149,7 +149,19 @@ export function OptimizerPanel(props: {
             ) : (
               <div className="space-y-4">
                 {data.top.map((p) => (
-                  <PresetCard key={p.rank} preset={p} strategy={props.strategy} />
+                  <PresetCard
+                    key={p.rank}
+                    preset={p}
+                    strategy={props.strategy}
+                    onApply={
+                      props.onApplyPreset
+                        ? () => {
+                            props.onApplyPreset!(p.genome);
+                            toast.success(`Preset #${p.rank} applied to parameters above`);
+                          }
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
             )}

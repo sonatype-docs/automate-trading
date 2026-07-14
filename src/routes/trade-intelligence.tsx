@@ -113,7 +113,7 @@ function TradeIntelligencePage() {
       const from = to - form.days * 24 * 60 * 60 * 1000;
       return record({
         data: {
-          source: "yahoo", symbol: form.symbol,
+          source: form.source, symbol: form.symbol,
           timeframe: form.timeframe as "15m",
           displayTimezone: "IST", strategyTimezone: "London",
           fromMs: from, toMs: to,
@@ -122,6 +122,46 @@ function TradeIntelligencePage() {
           tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         },
       });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trade-intel"] });
+    },
+  });
+
+  const batchMut = useMutation({
+    mutationFn: async () => {
+      const to = Date.now();
+      const from = to - form.days * 24 * 60 * 60 * 1000;
+      const combos: Array<{ presetId: string; execId: string; tf: string }> = [];
+      for (const presetId of strategyIds) {
+        for (const execId of execIds) {
+          for (const tf of BATCH_TFS) combos.push({ presetId, execId, tf });
+        }
+      }
+      setBatchRows([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const rows: BatchRow[] = [];
+      for (const combo of combos) {
+        try {
+          const res = await record({
+            data: {
+              source: form.source, symbol: form.symbol,
+              timeframe: combo.tf as "15m",
+              displayTimezone: "IST", strategyTimezone: "London",
+              fromMs: from, toMs: to,
+              strategyPresetId: combo.presetId,
+              execPresetId: combo.execId,
+              tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+            },
+          });
+          rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
+        } catch (e) {
+          rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
+        }
+        setBatchRows([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["trade-intel"] });

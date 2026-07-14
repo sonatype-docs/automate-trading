@@ -23,6 +23,7 @@ import { Route as ExecutionEngineRouteImport } from './routes/execution-engine'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BotRouteImport } from './routes/bot'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as AiResearchRouteImport } from './routes/ai-research'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HandbookIndexRouteImport } from './routes/handbook.index'
 import { Route as BacktestIndexRouteImport } from './routes/backtest.index'
@@ -106,6 +107,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiResearchRoute = AiResearchRouteImport.update({
+  id: '/ai-research',
+  path: '/ai-research',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -171,6 +177,7 @@ const ApiPublicHooksStrategyTickRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-research': typeof AiResearchRoute
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-research': typeof AiResearchRoute
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
@@ -226,6 +234,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-research': typeof AiResearchRoute
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai-research'
     | '/analytics'
     | '/bot'
     | '/docs'
@@ -284,6 +294,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai-research'
     | '/analytics'
     | '/bot'
     | '/docs'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai-research'
     | '/analytics'
     | '/bot'
     | '/docs'
@@ -339,6 +351,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiResearchRoute: typeof AiResearchRoute
   AnalyticsRoute: typeof AnalyticsRoute
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
@@ -462,6 +475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai-research': {
+      id: '/ai-research'
+      path: '/ai-research'
+      fullPath: '/ai-research'
+      preLoaderRoute: typeof AiResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -579,6 +599,7 @@ const HandbookRouteWithChildren = HandbookRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiResearchRoute: AiResearchRoute,
   AnalyticsRoute: AnalyticsRoute,
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,

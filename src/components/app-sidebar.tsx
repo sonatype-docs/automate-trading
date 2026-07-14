@@ -61,6 +61,7 @@ const meta = [
   { title: "Trade Intelligence", url: "/trade-intelligence", icon: Database },
   { title: "Research", url: "/research", icon: BarChart3 },
   { title: "Optimizer", url: "/optimizer", icon: Sparkles },
+  { title: "AI Research", url: "/ai-research", icon: Sparkles },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

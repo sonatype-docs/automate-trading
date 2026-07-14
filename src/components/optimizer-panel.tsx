@@ -38,11 +38,15 @@ export function OptimizerPanel(props: {
       }),
     onSuccess: (r) => {
       setData(r);
-      toast.success(
-        r.top.length > 0
-          ? `Optimizer found ${r.top.length} profitable presets · best net $${r.top[0].total_net_pnl.toFixed(0)}`
-          : "Optimizer completed — no preset passed the OOS gates.",
-      );
+      if (r.error) {
+        toast.error(`Optimizer failed: ${r.error}`);
+      } else {
+        toast.success(
+          r.top.length > 0
+            ? `Optimizer found ${r.top.length} profitable presets · best net $${r.top[0].total_net_pnl.toFixed(0)}`
+            : "Optimizer completed — no preset passed the OOS gates.",
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

@@ -30,7 +30,7 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
   .inputValidator((raw) => RunAndRecordInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
-    const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS }, { toTradeRecord }] =
+    const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS }, { toTradeRecord }, { recordToRow }] =
       await Promise.all([
         import("@/lib/market-data/loader.server"),
         import("@/lib/market-data/enrich"),
@@ -40,6 +40,7 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
         import("@/lib/strategy-engine/presets"),
         import("@/lib/execution-engine/presets"),
         import("./trade-intelligence/recorder"),
+        import("./trade-intelligence/mapper"),
       ]);
 
     const scfg = STRATEGY_PRESETS[data.strategyPresetId as keyof typeof STRATEGY_PRESETS];

@@ -15,6 +15,7 @@ export function OptimizerPanel(props: {
   strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
   title: string;
   defaults: { symbol: string; slRiskUsd: number; skipWeekdays: number[] };
+  onApplyPreset?: (genome: Record<string, string | number | boolean>) => void;
 }) {
   const run = useServerFn(runStrategyOptimizer);
   const [windows, setWindows] = useState<number[]>([...ALL_WINDOWS]);
@@ -148,7 +149,19 @@ export function OptimizerPanel(props: {
             ) : (
               <div className="space-y-4">
                 {data.top.map((p) => (
-                  <PresetCard key={p.rank} preset={p} strategy={props.strategy} />
+                  <PresetCard
+                    key={p.rank}
+                    preset={p}
+                    strategy={props.strategy}
+                    onApply={
+                      props.onApplyPreset
+                        ? () => {
+                            props.onApplyPreset!(p.genome);
+                            toast.success(`Preset #${p.rank} applied to parameters above`);
+                          }
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -197,9 +210,11 @@ const ORB_LABELS: Record<string, string> = {
 function PresetCard({
   preset,
   strategy,
+  onApply,
 }: {
   preset: OptResult["top"][number];
   strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
+  onApply?: () => void;
 }) {
   const labels =
     strategy === "silver_bullet"
@@ -235,6 +250,11 @@ function PresetCard({
           OOS passed {preset.windows_passed}/{preset.windows.length} · score{" "}
           {preset.score.toFixed(0)}
         </span>
+        {onApply && (
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onApply}>
+            Apply to parameters
+          </Button>
+        )}
       </div>
 
       {/* Per-window P&L table */}

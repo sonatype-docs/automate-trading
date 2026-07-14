@@ -183,10 +183,34 @@ function SilverBulletPage() {
         strategy="silver_bullet"
         title="ICT Silver Bullet"
         defaults={{ symbol: form.symbol, slRiskUsd: form.slRiskUsd, skipWeekdays: [0, 6] }}
+        onApplyPreset={(g) => {
+          const start = String(g.window_start_ist);
+          const [sh, sm] = start.split(":").map((n) => parseInt(n, 10));
+          const startMin = sh * 60 + (sm || 0);
+          const winLen = parseInt(String(g.window_len_min), 10);
+          const endMin = Math.min(24 * 60 - 1, startMin + winLen);
+          const holdExtra = parseInt(String(g.hold_extra_min), 10);
+          const holdMin = Math.min(24 * 60 - 1, endMin + holdExtra);
+          const fmt = (m: number) =>
+            `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+          setForm((f) => ({
+            ...f,
+            windowStart: start,
+            windowEnd: fmt(endMin),
+            holdCutoff: fmt(holdMin),
+            swingLookback: Number(g.swing_lookback),
+            fvgMinUsd: Number(g.fvg_min_usd),
+            slBufferUsd: Number(g.sl_buffer_usd),
+            maxTradesPerDay: parseInt(String(g.max_trades_per_day), 10),
+            executionTf: g.execution_tf as "3m" | "5m" | "15m",
+            rr: Number(g.rr),
+          }));
+        }}
       />
     </StrategyPageShell>
   );
 }
+
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

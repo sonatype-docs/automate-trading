@@ -218,10 +218,22 @@ function OrbPage() {
         strategy="orb_sessions"
         title="Multi-Session ORB"
         defaults={{ symbol: form.symbol, slRiskUsd: form.slRiskUsd, skipWeekdays: [0, 6] }}
+        onApplyPreset={(g) => {
+          const session = String(g.session_start_ist);
+          setForm((f) => ({
+            ...f,
+            rr: Number(g.rr),
+            trailEnabled: Boolean(g.trail_enabled),
+            trailActivateR: Number(g.trail_activate_r),
+            trailStepR: Number(g.trail_step_r),
+            sessions: f.sessions.includes(session) ? f.sessions : [session, ...f.sessions],
+          }));
+        }}
       />
     </StrategyPageShell>
   );
 }
+
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

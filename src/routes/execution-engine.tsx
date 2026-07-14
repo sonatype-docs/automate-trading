@@ -77,6 +77,41 @@ function ExecutionEnginePage() {
     },
   });
 
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const batch = useMutation({
+    mutationFn: async () => {
+      const toMs = now;
+      const fromMs = toMs - days * 86_400_000;
+      const combos: Array<{ sp: string; ep: string; tf: Timeframe }> = [];
+      for (const sp of BATCH_STRATEGY_PRESETS) {
+        for (const ep of BATCH_EXEC_PRESETS) {
+          for (const tf of BATCH_TFS) combos.push({ sp, ep, tf });
+        }
+      }
+      setBatchRows([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const rows: BatchRow[] = [];
+      for (const c of combos) {
+        try {
+          const res = await runner({
+            data: {
+              source, symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode,
+            },
+          });
+          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, result: res });
+        } catch (e) {
+          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, error: e instanceof Error ? e.message : String(e) });
+        }
+        setBatchRows([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
+    },
+  });
+
   const r = mut.data?.result;
   const winRate = useMemo(() => {
     if (!r || r.stats.tradesClosed === 0) return 0;

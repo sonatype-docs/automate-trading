@@ -144,13 +144,64 @@ function StrategyEnginePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <div className="md:col-span-4 flex items-end">
-              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            <div className="md:col-span-4 flex flex-wrap items-end gap-2">
+              <Button onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running</> : <><Activity className="w-4 h-4 mr-2" />Run engine</>}
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => batch.mutate()}
+                disabled={mut.isPending || batch.isPending}
+                title="Runs all 3 strategy presets across 1m, 3m, 5m, 15m, 30m, 1h"
+              >
+                {batch.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
+                  : <><Activity className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+              </Button>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                Matrix = {BATCH_PRESETS.length} presets × {BATCH_TFS.length} timeframes
+              </span>
             </div>
           </CardContent>
         </Card>
+
+        {batchResults.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-mono tracking-widest">Batch Matrix Results</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">Preset</th>
+                    <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Bars</th>
+                    <th className="py-1 pr-3">Setups</th>
+                    <th className="py-1 pr-3">Signals</th>
+                    <th className="py-1 pr-3">Invalidated</th>
+                    <th className="py-1 pr-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchResults.map((b, i) => (
+                    <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
+                      <td className="py-1 pr-3">{b.tf}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.signalsInvalidated.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">
+                        {b.error
+                          ? <span className="text-destructive">{b.error}</span>
+                          : <span className="text-emerald-500">ok</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
 
         {presetCfg && (
           <Card>

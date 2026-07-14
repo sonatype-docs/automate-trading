@@ -37,8 +37,11 @@ function slice(bars: EnrichedCandle[], fromTs: number, toTs: number): EnrichedCa
 export function toTradeRecord(trade: Trade, ctx: RecorderContext): TradeRecord {
   const entryBar = findBarAt(ctx.bars, trade.entryTime) ?? ctx.bars[0];
   const exitBar = findBarAt(ctx.bars, trade.exitTime) ?? entryBar;
+  void exitBar;
   const inTrade = slice(ctx.bars, trade.entryTime, trade.exitTime);
   const sig = ctx.signalsById?.get(trade.signalId);
+  const meta = (sig?.metadata ?? {}) as unknown as JsonMap;
+
 
   const risk = trade.risk;
   const riskPct = risk > 0 ? (Math.abs(trade.netPnL) / risk) * (trade.netPnL < 0 ? -1 : 1) : null;

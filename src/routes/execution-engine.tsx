@@ -229,6 +229,61 @@ function ExecutionEnginePage() {
           </Card>
         )}
 
+        {batchRows.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-mono tracking-widest">
+                Matrix results ({batchProgress.done}/{batchProgress.total})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">Strategy</th>
+                    <th className="py-1 pr-3">Exec</th>
+                    <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Signals</th>
+                    <th className="py-1 pr-3">Filled</th>
+                    <th className="py-1 pr-3">Trades</th>
+                    <th className="py-1 pr-3">Win%</th>
+                    <th className="py-1 pr-3">Net PnL</th>
+                    <th className="py-1 pr-3">Max DD%</th>
+                    <th className="py-1 pr-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchRows.map((row, i) => {
+                    const s = row.result?.result.stats;
+                    const wr = s && s.tradesClosed > 0 ? (s.winners / s.tradesClosed) * 100 : 0;
+                    return (
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 pr-3">{STRATEGY_PRESETS[row.strategyPresetId as keyof typeof STRATEGY_PRESETS]?.strategyName ?? row.strategyPresetId}</td>
+                        <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
+                        <td className="py-1 pr-3">{row.tf}</td>
+                        <td className="py-1 pr-3">{s ? s.signalsIn : "—"}</td>
+                        <td className="py-1 pr-3">{s ? s.ordersFilled : "—"}</td>
+                        <td className="py-1 pr-3">{s ? s.tradesClosed : "—"}</td>
+                        <td className="py-1 pr-3">{s ? `${fmt(wr, 1)}%` : "—"}</td>
+                        <td className={`py-1 pr-3 ${s ? (s.netPnL >= 0 ? "text-emerald-500" : "text-destructive") : ""}`}>
+                          {s ? fmtMoney(s.netPnL) : "—"}
+                        </td>
+                        <td className="py-1 pr-3">{s ? `${fmt(s.maxDrawdownPct, 2)}%` : "—"}</td>
+                        <td className="py-1 pr-3">
+                          {row.error ? <Badge variant="destructive" className="text-[9px]">error</Badge>
+                            : <Badge variant="outline" className="text-[9px] text-emerald-500 border-emerald-500/40">ok</Badge>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+
+
+
         {mut.isError && (
           <Card className="border-destructive/60">
             <CardContent className="py-4 text-sm text-destructive">{(mut.error as Error).message}</CardContent>

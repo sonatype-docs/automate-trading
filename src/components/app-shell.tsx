@@ -1,38 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
-
-const AUTO_COLLAPSE_MS = 4000;
-
-function AutoCollapse({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const schedule = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setOpen(false), AUTO_COLLAPSE_MS);
-    };
-    const sidebarEl = document.querySelector('[data-sidebar="sidebar"]')?.closest('.group\\/sidebar-wrapper, [data-slot="sidebar"], .group') as HTMLElement | null;
-    const el = document.querySelector('[data-slot="sidebar-container"]') as HTMLElement | null ?? sidebarEl;
-    const cancel = () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    schedule();
-    el?.addEventListener("mouseenter", cancel);
-    el?.addEventListener("mouseleave", schedule);
-    el?.addEventListener("focusin", cancel);
-    el?.addEventListener("focusout", schedule);
-    return () => {
-      cancel();
-      el?.removeEventListener("mouseenter", cancel);
-      el?.removeEventListener("mouseleave", schedule);
-      el?.removeEventListener("focusin", cancel);
-      el?.removeEventListener("focusout", schedule);
-    };
-  }, [open, setOpen]);
-  return null;
-}
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -52,7 +22,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider open={open} onOpenChange={setOpen}>
-      <AutoCollapse open={open} setOpen={setOpen} />
       <AppSidebar />
       <SidebarInset>
         <a
@@ -62,8 +31,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           Skip to main content
         </a>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/40 bg-background/50 px-4 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/30 sm:px-6">
-          <SidebarTrigger className="h-9 w-9 rounded-lg" aria-label="Toggle navigation" />
-          <Separator orientation="vertical" className="h-6 opacity-40" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
               <span className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70 sm:inline">

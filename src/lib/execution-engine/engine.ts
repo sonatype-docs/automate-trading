@@ -96,24 +96,25 @@ export function runExecution(
     //    (any close frees capacity for the next entry).
     for (let p = openPositions.length - 1; p >= 0; p--) {
       const pos = openPositions[p];
-      // Update running extremes.
       const dir = pos.ctx.direction;
+
+      // Update running MAE/MFE for reporting only (does not influence
+      // resolution ordering).
       pos.mae = dir === "long"
         ? Math.min(pos.mae, bar.low - pos.ctx.fillPrice)
         : Math.min(pos.mae, pos.ctx.fillPrice - bar.high);
       pos.mfe = dir === "long"
         ? Math.max(pos.mfe, bar.high - pos.ctx.fillPrice)
         : Math.max(pos.mfe, pos.ctx.fillPrice - bar.low);
-      if (dir === "long") pos.ctx.runnerHigh = Math.max(pos.ctx.runnerHigh, bar.high);
-      else pos.ctx.runnerLow = Math.min(pos.ctx.runnerLow, bar.low);
 
-      // Break-even & trailing checks (pre-outcome, price = close proxy).
-      const be = maybeMoveToBreakEven(pos.ctx, dir === "long" ? bar.high : bar.low, cfg.breakEvenAtR);
-      if (be) emit("OnBreakEven", bar.ts, { orderId: pos.order.orderId, stop: pos.ctx.currentStop });
-      const trailed = maybeTrail(pos.ctx, dir === "long" ? bar.high : bar.low, cfg.trailAfterR, cfg.trailStepR);
-      if (trailed) emit("OnTrailingStop", bar.ts, { orderId: pos.order.orderId, stop: pos.ctx.currentStop });
+      // === FIX: no same-bar trailing look-ahead ===
+      // Resolve stop/target for THIS bar using the stop carried from the
+      // PRIOR bar. Only after resolution do we update runner peaks + BE/trail
+      // so they apply to the NEXT bar. Previously, trailing used this bar's
+      // high/low to move the stop up *before* the stop check ran, which
+      // rescued trades whose low actually dipped through SL first.
 
-      // Gap-through handling on open.
+      // Gap-through handling on open (still uses stop from prior bar).
       let closedThisBar = false;
       if (cfg.respectGaps && prev) {
         const g = gapDirection(dir, pos.ctx.currentStop, pos.legs[0]?.price ?? pos.order.targetPrice, prev.close, bar.open);
@@ -127,14 +128,14 @@ export function runExecution(
       }
       if (closedThisBar) continue;
 
-      // Evaluate bar for stop/target.
+      // Evaluate bar for stop/target — using stop as set at end of prior bar.
       const outcome = evaluateBar(dir, pos.ctx.currentStop, pos.legs, bar, cfg.intrabar);
       if (outcome.order === "stop_first") {
-        closePosition(pos, bar, i, pos.ctx.currentStop, be ? "break_even_stop" : "stop_loss", cfg, risk, trades, emit);
+        const wasBE = pos.ctx.breakEvenApplied;
+        closePosition(pos, bar, i, pos.ctx.currentStop, wasBE ? "break_even_stop" : "stop_loss", cfg, risk, trades, emit);
         openPositions.splice(p, 1); continue;
       }
       if (outcome.order === "target_first") {
-        // Fill each touched leg (partial exits); if last remaining leg → close.
         let remainingLegs = pos.legs.filter((l) => !l.filled).length;
         for (let li = 0; li < pos.legs.length; li++) {
           if (!outcome.tpLegs[li] || pos.legs[li].filled) continue;
@@ -148,7 +149,6 @@ export function runExecution(
           remainingLegs--;
           emit("OnPartialTP", bar.ts, { orderId: pos.order.orderId, leg: li + 1, price: leg.price, units: legUnits, pnl: legPnl });
           if (remainingLegs === 0) {
-            // All legs filled → close using last leg as exit price.
             closePosition(pos, bar, i, leg.price, "take_profit_all", cfg, risk, trades, emit, /* alreadyPartial */ true);
             openPositions.splice(p, 1);
             break;
@@ -156,6 +156,15 @@ export function runExecution(
         }
         continue;
       }
+
+      // No stop / target hit this bar — NOW update runner peaks and apply
+      // BE / trailing so they affect the NEXT bar's resolution.
+      if (dir === "long") pos.ctx.runnerHigh = Math.max(pos.ctx.runnerHigh, bar.high);
+      else pos.ctx.runnerLow = Math.min(pos.ctx.runnerLow, bar.low);
+      const be = maybeMoveToBreakEven(pos.ctx, dir === "long" ? bar.high : bar.low, cfg.breakEvenAtR);
+      if (be) emit("OnBreakEven", bar.ts, { orderId: pos.order.orderId, stop: pos.ctx.currentStop });
+      const trailed = maybeTrail(pos.ctx, dir === "long" ? bar.high : bar.low, cfg.trailAfterR, cfg.trailStepR);
+      if (trailed) emit("OnTrailingStop", bar.ts, { orderId: pos.order.orderId, stop: pos.ctx.currentStop });
 
       // Time-stop / max-holding.
       const held = i - pos.entryBarIndex;
@@ -168,6 +177,7 @@ export function runExecution(
         openPositions.splice(p, 1); continue;
       }
     }
+
 
     // 3) Try to fill pending orders on THIS bar (after position management).
     for (let o = openOrders.length - 1; o >= 0; o--) {
@@ -208,7 +218,7 @@ export function runExecution(
       const cmm = commissionFor(cfg.commission, fillPrice, ord.units);
       const spreadCost = half * ord.units;
       const slipCost = slip * ord.units;
-      openPositions.push({
+      const newPos: OpenPosition = {
         order: ord, entryBarIndex: i, mae: 0, mfe: 0, partials: [],
         fees: cmm + spreadCost + slipCost,
         commission: cmm, slippage: slipCost, spreadCost,
@@ -222,10 +232,55 @@ export function runExecution(
           runnerLow: bar.low,
           breakEvenApplied: false,
         },
-      });
+      };
+      openPositions.push(newPos);
       risk.openPositions++;
       openOrders.splice(o, 1);
+
+      // === FIX: same-bar entry SL / TP resolution ===
+      // The trigger bar can itself take out SL or TP after the fill. We can't
+      // know intrabar sequence, so on ambiguity (both hit) we conservatively
+      // assume SL first. Update MAE/MFE and emit a same_bar_* exit reason.
+      const sameHitSl = dir === "long" ? bar.low <= newPos.ctx.currentStop : bar.high >= newPos.ctx.currentStop;
+      const sameLegHits = newPos.legs.map((l) =>
+        dir === "long" ? bar.high >= l.price : bar.low <= l.price,
+      );
+      const sameHitTp = sameLegHits.some(Boolean);
+      if (sameHitSl || sameHitTp) {
+        newPos.mae = dir === "long"
+          ? Math.min(newPos.mae, bar.low - fillPrice)
+          : Math.min(newPos.mae, fillPrice - bar.high);
+        newPos.mfe = dir === "long"
+          ? Math.max(newPos.mfe, bar.high - fillPrice)
+          : Math.max(newPos.mfe, fillPrice - bar.low);
+        const slFirst = sameHitSl && (!sameHitTp || cfg.intrabar === "conservative");
+        if (slFirst) {
+          closePosition(newPos, bar, i, newPos.ctx.currentStop, "same_bar_stop", cfg, risk, trades, emit);
+          openPositions.pop();
+          continue;
+        }
+        // Target first (optimistic) — fill legs and close if fully out.
+        let remainingLegs = newPos.legs.filter((l) => !l.filled).length;
+        for (let li = 0; li < newPos.legs.length; li++) {
+          if (!sameLegHits[li] || newPos.legs[li].filled) continue;
+          const leg = newPos.legs[li];
+          const legUnits = newPos.order.units * (leg.sizePct / 100);
+          const legPnl = pnl(dir, fillPrice, leg.price, legUnits, cfg.contractMultiplier);
+          const legCmm = commissionFor(cfg.commission, leg.price, legUnits);
+          newPos.commission += legCmm; newPos.fees += legCmm;
+          newPos.partials.push({ ts: bar.ts, price: leg.price, units: legUnits, pnl: legPnl - legCmm, reason: `same_bar_tp_${li + 1}` });
+          leg.filled = true;
+          remainingLegs--;
+          emit("OnPartialTP", bar.ts, { orderId: newPos.order.orderId, leg: li + 1, price: leg.price, units: legUnits, pnl: legPnl });
+          if (remainingLegs === 0) {
+            closePosition(newPos, bar, i, leg.price, "same_bar_target", cfg, risk, trades, emit, true);
+            openPositions.pop();
+            break;
+          }
+        }
+      }
     }
+
 
     // 4) Mark-to-market equity checkpoint (using last close + running open PnL).
     let openPnl = 0;

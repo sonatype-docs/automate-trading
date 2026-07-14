@@ -180,10 +180,28 @@ function AsianSweepPage() {
         strategy="asian_sweep"
         title="Asian Sweep"
         defaults={{ symbol: form.symbol, slRiskUsd: form.slRiskUsd, skipWeekdays: [0, 6] }}
+        onApplyPreset={(g) => {
+          const asianStart = Number(g.asian_start_ist);
+          const asianEnd = Math.min(23, asianStart + Number(g.asian_len));
+          const entryEnd = Math.min(24, asianEnd + Number(g.entry_len));
+          setForm((f) => ({
+            ...f,
+            rr: Number(g.rr),
+            asianStart,
+            asianEnd,
+            entryEnd,
+            minRangeUsd: Number(g.min_range_usd),
+            entryPullbackPct: Number(g.entry_pullback_pct),
+            slBufferPct: Number(g.sl_buffer_pct),
+            tpMode: g.tp_mode as "rr" | "opposite" | "midrange",
+            requireCloseInside: Boolean(g.require_close_inside),
+          }));
+        }}
       />
     </StrategyPageShell>
   );
 }
+
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

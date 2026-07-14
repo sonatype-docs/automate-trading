@@ -49,7 +49,7 @@ function VolumeIndex() {
       <main className="max-w-7xl mx-auto px-3 md:px-6 py-6 space-y-6">
         <p className="text-sm text-muted-foreground max-w-3xl">{volume.intro}</p>
         <div className="grid gap-3 md:grid-cols-2">
-          {volume.strategies.map((s) => (
+          {volume.strategies.map((s: (typeof volume)["strategies"][number]) => (
             <Card key={s.slug} className="hover:border-primary/50 transition-colors">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">

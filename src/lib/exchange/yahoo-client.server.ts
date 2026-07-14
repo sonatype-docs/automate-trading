@@ -157,16 +157,37 @@ export interface YahooKlineSource {
 export function createYahooClient(): YahooKlineSource {
   return {
     async getKlinesRange(symbol, interval, fromMs, toMs) {
-      // Yahoo caps 1m to ~7d and 60m to ~730d. Clamp fromMs to a safe window
-      // so extreme ranges don't 422 the request.
-      const maxLookbackMs =
+      // Per-request window cap enforced by Yahoo's chart API.
+      const perRequestMs =
         interval === "1m" ? 7 * 86_400_000 :
         interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
         interval === "1h" || interval === "60m" ? 729 * 86_400_000 :
-        365 * 5 * 86_400_000; // 5y for daily and above
-      const clampedFrom = Math.max(fromMs, toMs - maxLookbackMs);
-      const rows = await fetchYahoo(symbol, interval, clampedFrom, toMs);
-      return rows;
+        365 * 5 * 86_400_000;
+      // Chunk large ranges into sequential per-request windows so lookbacks
+      // beyond the single-request cap still return data (Yahoo serves older
+      // intraday history when asked in ≤cap slices).
+      const chunks: Kline[] = [];
+      let cursor = fromMs;
+      const seen = new Set<number>();
+      while (cursor < toMs) {
+        const end = Math.min(cursor + perRequestMs, toMs);
+        try {
+          const rows = await fetchYahoo(symbol, interval, cursor, end);
+          for (const r of rows) {
+            if (!seen.has(r.openTime)) {
+              seen.add(r.openTime);
+              chunks.push(r);
+            }
+          }
+        } catch {
+          // Skip window if Yahoo rejects it (e.g. data not available that far back)
+          // and continue with the next chunk instead of failing the whole run.
+        }
+        if (end === toMs) break;
+        cursor = end;
+      }
+      chunks.sort((a, b) => a.openTime - b.openTime);
+      return chunks;
     },
     async getKlines(symbol, interval = "1h", limit = 100, opts) {
       const intervalMs =

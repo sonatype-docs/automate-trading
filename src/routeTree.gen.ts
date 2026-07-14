@@ -16,6 +16,7 @@ import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as MarketDataRouteImport } from './routes/market-data'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
+import { Route as ExecutionEngineRouteImport } from './routes/execution-engine'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BotRouteImport } from './routes/bot'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
@@ -65,6 +66,11 @@ const JournalRoute = JournalRouteImport.update({
 const HandbookRoute = HandbookRouteImport.update({
   id: '/handbook',
   path: '/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExecutionEngineRoute = ExecutionEngineRouteImport.update({
+  id: '/execution-engine',
+  path: '/execution-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
+  '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
+  '/execution-engine': typeof ExecutionEngineRoute
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/analytics': typeof AnalyticsRoute
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
+  '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/bot'
     | '/docs'
+    | '/execution-engine'
     | '/handbook'
     | '/journal'
     | '/market-data'
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/bot'
     | '/docs'
+    | '/execution-engine'
     | '/journal'
     | '/market-data'
     | '/pending-orders'
@@ -269,6 +280,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/bot'
     | '/docs'
+    | '/execution-engine'
     | '/handbook'
     | '/journal'
     | '/market-data'
@@ -294,6 +306,7 @@ export interface RootRouteChildren {
   AnalyticsRoute: typeof AnalyticsRoute
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
+  ExecutionEngineRoute: typeof ExecutionEngineRoute
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
   MarketDataRoute: typeof MarketDataRoute
@@ -359,6 +372,13 @@ declare module '@tanstack/react-router' {
       path: '/handbook'
       fullPath: '/handbook'
       preLoaderRoute: typeof HandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/execution-engine': {
+      id: '/execution-engine'
+      path: '/execution-engine'
+      fullPath: '/execution-engine'
+      preLoaderRoute: typeof ExecutionEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -502,6 +522,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnalyticsRoute: AnalyticsRoute,
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,
+  ExecutionEngineRoute: ExecutionEngineRoute,
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
   MarketDataRoute: MarketDataRoute,

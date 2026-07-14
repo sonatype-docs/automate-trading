@@ -229,7 +229,7 @@ const NoteInput = z.object({
   title: z.string().optional().nullable(),
   body_md: z.string().default(""),
   tags: z.array(z.string()).default([]),
-  attachments: z.array(z.unknown()).default([]),
+  attachments: z.any().default([]),
 });
 
 export const listNotes = createServerFn({ method: "GET" }).handler(async () => {

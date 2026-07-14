@@ -72,6 +72,7 @@ export interface OptimizerRunSummary {
   bars_fetched: number;
   elapsed_ms: number;
   top: OptimizerPreset[];
+  error?: string;
 }
 
 // ---------- Parameter space ----------

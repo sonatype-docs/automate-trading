@@ -113,6 +113,7 @@ export const queryTrades = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
     const { applyQuery } = await import("./trade-intelligence/query");
+    const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
     const q = applyQuery(supabase, "trade_intelligence", spec);
     const { data: rows, error, count } = await q;

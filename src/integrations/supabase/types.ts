@@ -142,6 +142,357 @@ export type Database = {
         }
         Relationships: []
       }
+      research_bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          tags: string[]
+          target_id: string
+          target_kind: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          tags?: string[]
+          target_id: string
+          target_kind: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          tags?: string[]
+          target_id?: string
+          target_kind?: string
+        }
+        Relationships: []
+      }
+      research_changelog: {
+        Row: {
+          created_at: string
+          event_type: string
+          experiment_id: string | null
+          id: string
+          payload: Json
+          project_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          experiment_id?: string | null
+          id?: string
+          payload?: Json
+          project_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          experiment_id?: string | null
+          id?: string
+          payload?: Json
+          project_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_changelog_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "research_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_changelog_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_experiments: {
+        Row: {
+          ai_findings: Json
+          backtest_snapshot: Json
+          created_at: string
+          data_source: string | null
+          dataset_version: string | null
+          date_from: string | null
+          date_to: string | null
+          decision: string
+          decision_reason: string | null
+          id: string
+          kind: string
+          metrics: Json
+          notes: string | null
+          optimizer_snapshot: Json
+          project_id: string | null
+          strategy_id: string | null
+          strategy_snapshot: Json
+          strategy_version: string | null
+          symbol: string | null
+          tags: string[]
+          timeframe: string | null
+          timezone: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_findings?: Json
+          backtest_snapshot?: Json
+          created_at?: string
+          data_source?: string | null
+          dataset_version?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          decision?: string
+          decision_reason?: string | null
+          id?: string
+          kind?: string
+          metrics?: Json
+          notes?: string | null
+          optimizer_snapshot?: Json
+          project_id?: string | null
+          strategy_id?: string | null
+          strategy_snapshot?: Json
+          strategy_version?: string | null
+          symbol?: string | null
+          tags?: string[]
+          timeframe?: string | null
+          timezone?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_findings?: Json
+          backtest_snapshot?: Json
+          created_at?: string
+          data_source?: string | null
+          dataset_version?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          decision?: string
+          decision_reason?: string | null
+          id?: string
+          kind?: string
+          metrics?: Json
+          notes?: string | null
+          optimizer_snapshot?: Json
+          project_id?: string | null
+          strategy_id?: string | null
+          strategy_snapshot?: Json
+          strategy_version?: string | null
+          symbol?: string | null
+          tags?: string[]
+          timeframe?: string | null
+          timezone?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_experiments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_hypotheses: {
+        Row: {
+          conclusion: string | null
+          confidence: number | null
+          created_at: string
+          evidence: string | null
+          id: string
+          project_id: string | null
+          statement: string
+          status: string
+          supporting_experiment_ids: string[]
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          conclusion?: string | null
+          confidence?: number | null
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          project_id?: string | null
+          statement: string
+          status?: string
+          supporting_experiment_ids?: string[]
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          conclusion?: string | null
+          confidence?: number | null
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          project_id?: string | null
+          statement?: string
+          status?: string
+          supporting_experiment_ids?: string[]
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_hypotheses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_notes: {
+        Row: {
+          attachments: Json
+          body_md: string
+          created_at: string
+          experiment_id: string | null
+          id: string
+          project_id: string | null
+          tags: string[]
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          body_md?: string
+          created_at?: string
+          experiment_id?: string | null
+          id?: string
+          project_id?: string | null
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          body_md?: string
+          created_at?: string
+          experiment_id?: string | null
+          id?: string
+          project_id?: string | null
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_notes_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "research_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_projects: {
+        Row: {
+          archived: boolean
+          created_at: string
+          description: string | null
+          goals: string | null
+          id: string
+          name: string
+          priority: string
+          status: string
+          tags: string[]
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          description?: string | null
+          goals?: string | null
+          id?: string
+          name: string
+          priority?: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          description?: string | null
+          goals?: string | null
+          id?: string
+          name?: string
+          priority?: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      research_tasks: {
+        Row: {
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          priority: string
+          project_id: string | null
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          priority?: string
+          project_id?: string | null
+          status?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          priority?: string
+          project_id?: string | null
+          status?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settings: {
         Row: {
           allowed_symbols: string[]

@@ -280,7 +280,7 @@ function pnl(dir: "long" | "short", entry: number, exit: number, units: number, 
   return (dir === "long" ? exit - entry : entry - exit) * units * mult;
 }
 
-function orderFromSignal(sig: StrategySignal, cfg: ExecutionConfig, bar: EnrichedCandle): Order {
+function orderFromSignal(sig: StrategySignal, cfg: ExecutionConfig, bar: EnrichedCandle, barIndex: number): Order {
   const side: "buy" | "sell" = sig.direction === "long" ? "buy" : "sell";
   const kind: Order["kind"] =
     sig.entryType === "market" ? "market"
@@ -315,6 +315,7 @@ function orderFromSignal(sig: StrategySignal, cfg: ExecutionConfig, bar: Enriche
 function closePosition(
   pos: OpenPosition,
   bar: EnrichedCandle,
+  barIndex: number,
   rawExit: number,
   reason: string,
   cfg: ExecutionConfig,
@@ -361,7 +362,7 @@ function closePosition(
     mae: pos.mae, mfe: pos.mfe,
     duration: bar.ts - (pos.order.filledTs ?? pos.order.createdTs),
     fillDelay: pos.order.fillDelayBars ?? 0,
-    holdingTime: Math.max(0, (bar as unknown as { __i?: number }).__i ?? 0 - pos.entryBarIndex),
+    holdingTime: Math.max(0, barIndex - pos.entryBarIndex),
     partialExits: pos.partials,
     runnerProfit: alreadyPartial ? pos.partials[pos.partials.length - 1]?.pnl ?? 0 : 0,
     status: "closed",

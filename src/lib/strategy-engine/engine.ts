@@ -24,7 +24,7 @@ export function runStrategy(
   opts: EngineRunOptions,
 ): EngineRunResult {
   const events: EngineEvent[] = [];
-  const emit = (name: EngineEvent["name"], ts: number, data: Record<string, unknown>) => {
+  const emit = (name: EngineEvent["name"], ts: number, data: Record<string, string | number | boolean | null>) => {
     const e: EngineEvent = { name, ts, data };
     events.push(e); opts.onEvent?.(e);
   };

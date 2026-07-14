@@ -515,17 +515,26 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   // Fetch klines for max window, once per required timeframe.
   const client = createSharkClient();
   const now = Date.now();
-  const maxDays = Math.max(...input.windows);
+  // Hard cap max window to 180 days to keep the Worker inside its CPU budget;
+  // longer windows fetch 10⁵+ bars per timeframe and blow past the limit.
+  const requestedMax = Math.max(...input.windows);
+  const maxDays = Math.min(180, requestedMax);
+  const cappedWindows = input.windows.map((d) => Math.min(180, d));
   const fromMsMax = now - maxDays * 86_400_000;
 
-  // Silver Bullet needs intraday tfs. Asian Sweep + ORB use 1h.
+  // Silver Bullet needs 5m + 15m (3m dropped for perf). Sweep + ORB use 1h.
   const timeframes: string[] =
-    input.strategy === "silver_bullet" ? ["3m", "5m", "15m"] : ["1h"];
+    input.strategy === "silver_bullet" ? ["5m", "15m"] : ["1h"];
 
   const klinesByTf: Record<string, Kline[]> = {};
   let barsFetched = 0;
   for (const tf of timeframes) {
     const bars = await client.getKlinesRange(input.symbol, tf, fromMsMax, now);
+    if (!bars || bars.length === 0) {
+      throw new Error(
+        `No historical bars returned for ${input.symbol} @ ${tf} — check the symbol name (spot vs perp) or try again in a moment.`,
+      );
+    }
     klinesByTf[tf] = bars;
     barsFetched += bars.length;
   }

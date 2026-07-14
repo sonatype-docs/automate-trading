@@ -9,6 +9,10 @@ import {
   Settings as SettingsIcon,
   Waves,
   Bot,
+  Target,
+  Sunrise,
+  Zap,
+  GitCompare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,10 +35,16 @@ const primary = [
 
 const trading = [
   { title: "ORB Bot", url: "/bot", icon: Bot },
-  { title: "Backtest", url: "/backtest", icon: Beaker },
   { title: "Pending Orders", url: "/pending-orders", icon: ListOrdered },
 ];
 
+const backtest = [
+  { title: "Fib Zone Lab", url: "/backtest", icon: Beaker },
+  { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
+  { title: "Asian Sweep", url: "/backtest/asian-sweep", icon: Sunrise },
+  { title: "Multi-Session ORB", url: "/backtest/orb", icon: Target },
+  { title: "Compare all", url: "/backtest/compare", icon: GitCompare },
+];
 
 const meta = [
   { title: "Docs", url: "/docs", icon: FileText },

@@ -252,8 +252,8 @@ function AiResearchPage() {
                       <div className="font-mono text-lg">{review.data.score.toFixed(0)}/100</div>
                       <Badge variant="outline" className="text-[10px]">{review.data.outcome}</Badge>
                     </div>
-                    {review.data.whyWon.length > 0 && <div><div className="text-xs text-emerald-400 uppercase tracking-widest">Why it won</div><ul className="text-xs list-disc pl-4">{review.data.whyWon.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
-                    {review.data.whyLost.length > 0 && <div><div className="text-xs text-rose-400 uppercase tracking-widest">Why it lost</div><ul className="text-xs list-disc pl-4">{review.data.whyLost.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
+                    {(review.data.whyWon?.length ?? 0) > 0 && <div><div className="text-xs text-emerald-400 uppercase tracking-widest">Why it won</div><ul className="text-xs list-disc pl-4">{review.data.whyWon!.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
+                    {(review.data.whyLost?.length ?? 0) > 0 && <div><div className="text-xs text-rose-400 uppercase tracking-widest">Why it lost</div><ul className="text-xs list-disc pl-4">{review.data.whyLost!.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
                     {review.data.filtersPassed.length > 0 && <div className="text-xs"><span className="text-muted-foreground">Filters passed: </span><span className="font-mono">{review.data.filtersPassed.join(", ")}</span></div>}
                     {review.data.filtersFailed.length > 0 && <div className="text-xs"><span className="text-muted-foreground">Filters failed: </span><span className="font-mono">{review.data.filtersFailed.join(", ")}</span></div>}
                     {review.data.suggestions.length > 0 && <div><div className="text-xs uppercase tracking-widest text-muted-foreground">Suggestions</div><ul className="text-xs list-disc pl-4">{review.data.suggestions.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}

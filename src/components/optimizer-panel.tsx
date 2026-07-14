@@ -250,6 +250,11 @@ function PresetCard({
           OOS passed {preset.windows_passed}/{preset.windows.length} · score{" "}
           {preset.score.toFixed(0)}
         </span>
+        {onApply && (
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onApply}>
+            Apply to parameters
+          </Button>
+        )}
       </div>
 
       {/* Per-window P&L table */}

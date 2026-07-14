@@ -9,11 +9,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Gauge, Loader2 } from "lucide-react";
+import { Activity, Gauge, Layers, Loader2 } from "lucide-react";
 import { runExecutionEngine, type RunExecutionResult } from "@/lib/execution-engine.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+
+const BATCH_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+const BATCH_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
+const BATCH_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
+
+type BatchRow = {
+  strategyPresetId: string;
+  execPresetId: string;
+  tf: Timeframe;
+  result?: RunExecutionResult;
+  error?: string;
+};
 
 export const Route = createFileRoute("/execution-engine")({
   head: () => ({

@@ -237,7 +237,7 @@ function BacktestLab() {
           strategy: "fib_zone",
           label: "Fib Zone",
           ranAt: Date.now(),
-          params: form ?? {},
+          params: (form ? { ...form } : {}) as Record<string, unknown>,
           metrics: metricsFromSummary(r.summary),
         });
       }).catch(() => { /* snapshot save is best-effort */ });

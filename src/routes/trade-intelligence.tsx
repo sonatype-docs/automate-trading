@@ -18,7 +18,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Download, Database } from "lucide-react";
+import { Trash2, Download, Database, Layers } from "lucide-react";
+
+const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
+type BatchRow = {
+  presetId: string;
+  execId: string;
+  tf: string;
+  inserted?: number;
+  tradesInRun?: number;
+  error?: string;
+};
 
 export const Route = createFileRoute("/trade-intelligence")({
   component: TradeIntelligencePage,
@@ -57,9 +67,13 @@ function TradeIntelligencePage() {
     execPresetId: execIds[0] ?? "",
     symbol: "XAUUSDT",
     timeframe: "15m",
-    days: 30,
+    days: 200,
+    source: "shark" as "yahoo" | "shark",
     tags: "",
   });
+
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
 
   const [filter, setFilter] = useState({
     strategyId: "",
@@ -99,7 +113,7 @@ function TradeIntelligencePage() {
       const from = to - form.days * 24 * 60 * 60 * 1000;
       return record({
         data: {
-          source: "yahoo", symbol: form.symbol,
+          source: form.source, symbol: form.symbol,
           timeframe: form.timeframe as "15m",
           displayTimezone: "IST", strategyTimezone: "London",
           fromMs: from, toMs: to,
@@ -108,6 +122,46 @@ function TradeIntelligencePage() {
           tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         },
       });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trade-intel"] });
+    },
+  });
+
+  const batchMut = useMutation({
+    mutationFn: async () => {
+      const to = Date.now();
+      const from = to - form.days * 24 * 60 * 60 * 1000;
+      const combos: Array<{ presetId: string; execId: string; tf: string }> = [];
+      for (const presetId of strategyIds) {
+        for (const execId of execIds) {
+          for (const tf of BATCH_TFS) combos.push({ presetId, execId, tf });
+        }
+      }
+      setBatchRows([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const rows: BatchRow[] = [];
+      for (const combo of combos) {
+        try {
+          const res = await record({
+            data: {
+              source: form.source, symbol: form.symbol,
+              timeframe: combo.tf as "15m",
+              displayTimezone: "IST", strategyTimezone: "London",
+              fromMs: from, toMs: to,
+              strategyPresetId: combo.presetId,
+              execPresetId: combo.execId,
+              tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+            },
+          });
+          rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
+        } catch (e) {
+          rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
+        }
+        setBatchRows([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["trade-intel"] });
@@ -177,14 +231,33 @@ function TradeIntelligencePage() {
             <Input value={form.timeframe} onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value }))} />
           </div>
           <div className="space-y-1"><Label>Days back</Label>
-            <Input type="number" value={form.days} onChange={(e) => setForm((f) => ({ ...f, days: Number(e.target.value) }))} />
+            <Input type="number" min={1} max={1000} value={form.days} onChange={(e) => setForm((f) => ({ ...f, days: Number(e.target.value) }))} />
+          </div>
+          <div className="space-y-1"><Label>Source</Label>
+            <Select value={form.source} onValueChange={(v) => setForm((f) => ({ ...f, source: v as "yahoo" | "shark" }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yahoo">Yahoo</SelectItem>
+                <SelectItem value="shark">SharkExchange</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1"><Label>Tags (csv)</Label>
             <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="research,london" />
           </div>
-          <div className="md:col-span-6 flex items-center gap-3">
-            <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending}>
+          <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
+            <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
               {recordMut.isPending ? "Recording…" : "Run & record"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => batchMut.mutate()}
+              disabled={recordMut.isPending || batchMut.isPending}
+            >
+              <Layers className="h-4 w-4 mr-1" />
+              {batchMut.isPending
+                ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
+                : `Record All (Matrix: ${strategyIds.length}×${execIds.length}×${BATCH_TFS.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
@@ -195,6 +268,44 @@ function TradeIntelligencePage() {
           </div>
         </CardContent>
       </Card>
+
+      {batchRows.length > 0 ? (
+        <Card>
+          <CardHeader><CardTitle>Matrix results</CardTitle></CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead>Exec</TableHead>
+                    <TableHead>TF</TableHead>
+                    <TableHead className="text-right">Trades</TableHead>
+                    <TableHead className="text-right">Inserted</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {batchRows.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{r.presetId}</TableCell>
+                      <TableCell className="text-xs">{r.execId}</TableCell>
+                      <TableCell className="text-xs">{r.tf}</TableCell>
+                      <TableCell className="text-right text-xs">{r.tradesInRun ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs">{r.inserted ?? "—"}</TableCell>
+                      <TableCell>
+                        {r.error
+                          ? <Badge variant="destructive" className="text-[10px]">{r.error.slice(0, 40)}</Badge>
+                          : <Badge className="text-[10px] bg-emerald-600">ok</Badge>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

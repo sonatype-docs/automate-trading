@@ -178,7 +178,7 @@ function ExecutionEnginePage() {
               </Select>
             </Field>
             <Field label="Lookback (days)">
-              <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
+              <Input type="number" min={1} max={1000} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
             </Field>
             <Field label="Display TZ">
               <Select value={displayTz} onValueChange={(v) => setDisplayTz(v as Timezone)}>

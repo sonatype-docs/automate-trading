@@ -15,6 +15,7 @@ export function OptimizerPanel(props: {
   strategy: "silver_bullet" | "asian_sweep" | "orb_sessions";
   title: string;
   defaults: { symbol: string; slRiskUsd: number; skipWeekdays: number[] };
+  onApplyPreset?: (genome: Record<string, string | number | boolean>) => void;
 }) {
   const run = useServerFn(runStrategyOptimizer);
   const [windows, setWindows] = useState<number[]>([...ALL_WINDOWS]);

@@ -667,7 +667,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   return {
     strategy: input.strategy,
     symbol: input.symbol,
-    windows: input.windows,
+    windows: cappedWindows,
     population,
     generations,
     evaluated,

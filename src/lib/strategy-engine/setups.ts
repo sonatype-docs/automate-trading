@@ -10,7 +10,7 @@ export interface SetupTrigger {
   level: number;              // reference price (breakout, sweep, etc.)
   swingHigh: number | null;
   swingLow: number | null;
-  meta: Record<string, unknown>;
+  meta: Record<string, string | number | boolean | null>;
 }
 
 export function detectSetup(

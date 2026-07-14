@@ -945,21 +945,8 @@ const OptimizerSchema = z.object({
 
 export const runStrategyOptimizer = createServerFn({ method: "POST" })
   .validator((input: unknown) => OptimizerSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<import("@/lib/strategy/optimizer.server").OptimizerRunSummary> => {
     const { runOptimizer } = await import("@/lib/strategy/optimizer.server");
-    const base = {
-      strategy: data.strategy,
-      symbol: data.symbol,
-      windows: data.windows,
-      population: data.population ?? 0,
-      generations: data.generations ?? 0,
-      evaluated: 0,
-      cache_hits: 0,
-      bars_fetched: 0,
-      elapsed_ms: 0,
-      top: [] as unknown[],
-      error: "" as string,
-    };
     try {
       const r = await runOptimizer({
         strategy: data.strategy,
@@ -972,14 +959,26 @@ export const runStrategyOptimizer = createServerFn({ method: "POST" })
         topN: data.top_n,
       });
       // JSON round-trip strips Infinity/NaN so seroval can serialize.
-      const clean = JSON.parse(JSON.stringify(r)) as typeof r;
-      return { ...base, ...clean, top: clean.top as unknown[], error: "" };
+      return { ...(JSON.parse(JSON.stringify(r)) as typeof r), error: "" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[runStrategyOptimizer]", msg, e);
-      return { ...base, error: msg };
+      return {
+        strategy: data.strategy,
+        symbol: data.symbol,
+        windows: data.windows,
+        population: data.population ?? 0,
+        generations: data.generations ?? 0,
+        evaluated: 0,
+        cache_hits: 0,
+        bars_fetched: 0,
+        elapsed_ms: 0,
+        top: [],
+        error: msg,
+      };
     }
   });
+
 
 
 

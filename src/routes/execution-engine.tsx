@@ -9,11 +9,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Gauge, Loader2 } from "lucide-react";
+import { Activity, Gauge, Layers, Loader2 } from "lucide-react";
 import { runExecutionEngine, type RunExecutionResult } from "@/lib/execution-engine.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+
+const BATCH_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+const BATCH_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
+const BATCH_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
+
+type BatchRow = {
+  strategyPresetId: string;
+  execPresetId: string;
+  tf: Timeframe;
+  result?: RunExecutionResult;
+  error?: string;
+};
 
 export const Route = createFileRoute("/execution-engine")({
   head: () => ({
@@ -62,6 +74,41 @@ function ExecutionEnginePage() {
           fromMs, toMs, strategyPresetId, execPresetId, mode,
         },
       });
+    },
+  });
+
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const batch = useMutation({
+    mutationFn: async () => {
+      const toMs = now;
+      const fromMs = toMs - days * 86_400_000;
+      const combos: Array<{ sp: string; ep: string; tf: Timeframe }> = [];
+      for (const sp of BATCH_STRATEGY_PRESETS) {
+        for (const ep of BATCH_EXEC_PRESETS) {
+          for (const tf of BATCH_TFS) combos.push({ sp, ep, tf });
+        }
+      }
+      setBatchRows([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const rows: BatchRow[] = [];
+      for (const c of combos) {
+        try {
+          const res = await runner({
+            data: {
+              source, symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode,
+            },
+          });
+          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, result: res });
+        } catch (e) {
+          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, error: e instanceof Error ? e.message : String(e) });
+        }
+        setBatchRows([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
     },
   });
 
@@ -131,7 +178,7 @@ function ExecutionEnginePage() {
               </Select>
             </Field>
             <Field label="Lookback (days)">
-              <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
+              <Input type="number" min={1} max={1000} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
             </Field>
             <Field label="Display TZ">
               <Select value={displayTz} onValueChange={(v) => setDisplayTz(v as Timezone)}>
@@ -156,10 +203,19 @@ function ExecutionEnginePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <div className="md:col-span-4 flex items-end">
-              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            <div className="md:col-span-4 flex flex-col md:flex-row gap-2 items-stretch md:items-end">
+              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Simulating</> : <><Activity className="w-4 h-4 mr-2" />Run execution</>}
               </Button>
+              <Button variant="secondary" className="w-full md:w-auto" onClick={() => batch.mutate()} disabled={mut.isPending || batch.isPending}>
+                {batch.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
+                  : <><Layers className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+              </Button>
+              <div className="text-[10px] font-mono text-muted-foreground md:ml-2">
+                {BATCH_STRATEGY_PRESETS.length} strat × {BATCH_EXEC_PRESETS.length} exec × {BATCH_TFS.length} TF ={" "}
+                {BATCH_STRATEGY_PRESETS.length * BATCH_EXEC_PRESETS.length * BATCH_TFS.length} runs
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -172,6 +228,61 @@ function ExecutionEnginePage() {
             </CardContent>
           </Card>
         )}
+
+        {batchRows.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-mono tracking-widest">
+                Matrix results ({batchProgress.done}/{batchProgress.total})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">Strategy</th>
+                    <th className="py-1 pr-3">Exec</th>
+                    <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Signals</th>
+                    <th className="py-1 pr-3">Filled</th>
+                    <th className="py-1 pr-3">Trades</th>
+                    <th className="py-1 pr-3">Win%</th>
+                    <th className="py-1 pr-3">Net PnL</th>
+                    <th className="py-1 pr-3">Max DD%</th>
+                    <th className="py-1 pr-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchRows.map((row, i) => {
+                    const s = row.result?.result.stats;
+                    const wr = s && s.tradesClosed > 0 ? (s.winners / s.tradesClosed) * 100 : 0;
+                    return (
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 pr-3">{STRATEGY_PRESETS[row.strategyPresetId as keyof typeof STRATEGY_PRESETS]?.strategyName ?? row.strategyPresetId}</td>
+                        <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
+                        <td className="py-1 pr-3">{row.tf}</td>
+                        <td className="py-1 pr-3">{s ? s.signalsIn : "—"}</td>
+                        <td className="py-1 pr-3">{s ? s.ordersFilled : "—"}</td>
+                        <td className="py-1 pr-3">{s ? s.tradesClosed : "—"}</td>
+                        <td className="py-1 pr-3">{s ? `${fmt(wr, 1)}%` : "—"}</td>
+                        <td className={`py-1 pr-3 ${s ? (s.netPnL >= 0 ? "text-emerald-500" : "text-destructive") : ""}`}>
+                          {s ? fmtMoney(s.netPnL) : "—"}
+                        </td>
+                        <td className="py-1 pr-3">{s ? `${fmt(s.maxDrawdownPct, 2)}%` : "—"}</td>
+                        <td className="py-1 pr-3">
+                          {row.error ? <Badge variant="destructive" className="text-[9px]">error</Badge>
+                            : <Badge variant="outline" className="text-[9px] text-emerald-500 border-emerald-500/40">ok</Badge>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+
+
 
         {mut.isError && (
           <Card className="border-destructive/60">

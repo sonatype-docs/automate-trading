@@ -551,7 +551,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
         ? ((g.execution_tf as string) ?? "5m")
         : "1h";
     return {
-      windowSlices: input.windows.map((days) => {
+      windowSlices: cappedWindows.map((days) => {
         const fromMs = now - days * 86_400_000;
         return { days, klines: sliceByTf(tf, days), fromMs, toMs: now };
       }),

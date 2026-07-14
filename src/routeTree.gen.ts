@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
+import { Route as MarketDataRouteImport } from './routes/market-data'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as DocsRouteImport } from './routes/docs'
@@ -43,6 +44,11 @@ const ReportsRoute = ReportsRouteImport.update({
 const PendingOrdersRoute = PendingOrdersRouteImport.update({
   id: '/pending-orders',
   path: '/pending-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketDataRoute = MarketDataRouteImport.update({
+  id: '/market-data',
+  path: '/market-data',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JournalRoute = JournalRouteImport.update({
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/journal': typeof JournalRoute
+  '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/market-data': typeof MarketDataRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/handbook'
     | '/journal'
+    | '/market-data'
     | '/pending-orders'
     | '/reports'
     | '/settings'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/bot'
     | '/docs'
     | '/journal'
+    | '/market-data'
     | '/pending-orders'
     | '/reports'
     | '/settings'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/handbook'
     | '/journal'
+    | '/market-data'
     | '/pending-orders'
     | '/reports'
     | '/settings'
@@ -272,6 +284,7 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
+  MarketDataRoute: typeof MarketDataRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       path: '/pending-orders'
       fullPath: '/pending-orders'
       preLoaderRoute: typeof PendingOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/market-data': {
+      id: '/market-data'
+      path: '/market-data'
+      fullPath: '/market-data'
+      preLoaderRoute: typeof MarketDataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/journal': {
@@ -464,6 +484,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
+  MarketDataRoute: MarketDataRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,

@@ -9,9 +9,9 @@ import { DEFAULT_CONFIG, TIMEFRAMES, TIMEZONES, type EnrichedCandle } from "@/li
 const InputSchema = z.object({
   source: z.enum(["shark", "yahoo"]).default("yahoo"),
   symbol: z.string().default("XAUUSDT"),
-  timeframe: z.enum(TIMEFRAMES).default("5m"),
-  displayTimezone: z.enum(TIMEZONES).default("IST"),
-  strategyTimezone: z.enum(TIMEZONES).default("London"),
+  timeframe: z.enum([...TIMEFRAMES] as [string, ...string[]]).default("5m"),
+  displayTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("IST"),
+  strategyTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("London"),
   fromMs: z.number(),
   toMs: z.number(),
   openingRangeMinutes: z.number().int().min(5).max(240).default(60),

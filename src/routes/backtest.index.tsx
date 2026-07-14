@@ -37,7 +37,7 @@ import { ResearchPanel } from "@/components/research/research-panel";
 import { HourFilterBar } from "@/components/research/hour-filter-bar";
 
 
-export const Route = createFileRoute("/backtest")({
+export const Route = createFileRoute("/backtest/")({
   component: BacktestLab,
   head: () => ({
     meta: [

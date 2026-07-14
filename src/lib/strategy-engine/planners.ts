@@ -1,6 +1,6 @@
 // Entry, stop, target planners — all pure.
 import type { EnrichedCandle } from "@/lib/market-data/types";
-import type { EntryConfig, EntryModel, SignalDirection, StopModel, TargetConfig } from "./types";
+import type { EntryConfig, EntryModel, SignalDirection, StopModel, TargetConfig, TargetKind } from "./types";
 
 export interface PendingEntry {
   price: number;
@@ -83,7 +83,7 @@ export function planTargets(
   entryPrice: number,
   stopLoss: number,
   cfg: TargetConfig,
-): Array<{ kind: string; price: number; sizePct: number }> {
+): Array<{ kind: TargetKind; price: number; sizePct: number }> {
   const side = direction === "long" ? 1 : -1;
   const rDist = Math.abs(entryPrice - stopLoss);
   return cfg.legs.map((leg) => {

@@ -15,6 +15,7 @@ import {
   GitCompare,
   BookMarked,
   Database,
+  Cpu,
 } from "lucide-react";
 import {
   Sidebar,

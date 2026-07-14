@@ -72,6 +72,7 @@ export interface OptimizerRunSummary {
   bars_fetched: number;
   elapsed_ms: number;
   top: OptimizerPreset[];
+  error?: string;
 }
 
 // ---------- Parameter space ----------
@@ -157,7 +158,9 @@ export const SILVER_BULLET_SPACE: ParamSpace = {
   fvg_min_usd: { kind: "float", min: 0, max: 5, step: 0.25 },
   sl_buffer_usd: { kind: "float", min: 0, max: 2, step: 0.1 },
   max_trades_per_day: { kind: "enum", values: ["1", "2", "3"] as const },
-  execution_tf: { kind: "enum", values: ["3m", "5m", "15m"] as const },
+  // 3m dropped — 3× the bar volume for marginal edge and it's the top cause of
+  // Worker CPU-limit crashes on the optimizer.
+  execution_tf: { kind: "enum", values: ["5m", "15m"] as const },
   rr: { kind: "float", min: 1, max: 4, step: 0.25 },
 };
 
@@ -513,17 +516,26 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   // Fetch klines for max window, once per required timeframe.
   const client = createSharkClient();
   const now = Date.now();
-  const maxDays = Math.max(...input.windows);
+  // Hard cap max window to 180 days to keep the Worker inside its CPU budget;
+  // longer windows fetch 10⁵+ bars per timeframe and blow past the limit.
+  const requestedMax = Math.max(...input.windows);
+  const maxDays = Math.min(180, requestedMax);
+  const cappedWindows = input.windows.map((d) => Math.min(180, d));
   const fromMsMax = now - maxDays * 86_400_000;
 
-  // Silver Bullet needs intraday tfs. Asian Sweep + ORB use 1h.
+  // Silver Bullet needs 5m + 15m (3m dropped for perf). Sweep + ORB use 1h.
   const timeframes: string[] =
-    input.strategy === "silver_bullet" ? ["3m", "5m", "15m"] : ["1h"];
+    input.strategy === "silver_bullet" ? ["5m", "15m"] : ["1h"];
 
   const klinesByTf: Record<string, Kline[]> = {};
   let barsFetched = 0;
   for (const tf of timeframes) {
     const bars = await client.getKlinesRange(input.symbol, tf, fromMsMax, now);
+    if (!bars || bars.length === 0) {
+      throw new Error(
+        `No historical bars returned for ${input.symbol} @ ${tf} — check the symbol name (spot vs perp) or try again in a moment.`,
+      );
+    }
     klinesByTf[tf] = bars;
     barsFetched += bars.length;
   }
@@ -540,7 +552,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
         ? ((g.execution_tf as string) ?? "5m")
         : "1h";
     return {
-      windowSlices: input.windows.map((days) => {
+      windowSlices: cappedWindows.map((days) => {
         const fromMs = now - days * 86_400_000;
         return { days, klines: sliceByTf(tf, days), fromMs, toMs: now };
       }),
@@ -656,7 +668,7 @@ export async function runOptimizer(input: OptimizerInput): Promise<OptimizerRunS
   return {
     strategy: input.strategy,
     symbol: input.symbol,
-    windows: input.windows,
+    windows: cappedWindows,
     population,
     generations,
     evaluated,

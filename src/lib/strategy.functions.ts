@@ -945,20 +945,42 @@ const OptimizerSchema = z.object({
 
 export const runStrategyOptimizer = createServerFn({ method: "POST" })
   .validator((input: unknown) => OptimizerSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<import("@/lib/strategy/optimizer.server").OptimizerRunSummary> => {
     const { runOptimizer } = await import("@/lib/strategy/optimizer.server");
-    const r = await runOptimizer({
-      strategy: data.strategy,
-      symbol: data.symbol,
-      windows: Array.from(new Set(data.windows)).sort((a, b) => a - b),
-      slRiskUsd: data.sl_risk_usd,
-      skipWeekdays: data.skip_weekdays ?? [],
-      population: data.population,
-      generations: data.generations,
-      topN: data.top_n,
-    });
-    return JSON.parse(JSON.stringify(r)) as typeof r;
+    try {
+      const r = await runOptimizer({
+        strategy: data.strategy,
+        symbol: data.symbol,
+        windows: Array.from(new Set(data.windows)).sort((a, b) => a - b),
+        slRiskUsd: data.sl_risk_usd,
+        skipWeekdays: data.skip_weekdays ?? [],
+        population: data.population,
+        generations: data.generations,
+        topN: data.top_n,
+      });
+      // JSON round-trip strips Infinity/NaN so seroval can serialize.
+      return { ...(JSON.parse(JSON.stringify(r)) as typeof r), error: "" };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[runStrategyOptimizer]", msg, e);
+      return {
+        strategy: data.strategy,
+        symbol: data.symbol,
+        windows: data.windows,
+        population: data.population ?? 0,
+        generations: data.generations ?? 0,
+        evaluated: 0,
+        cache_hits: 0,
+        bars_fetched: 0,
+        elapsed_ms: 0,
+        top: [],
+        error: msg,
+      };
+    }
   });
+
+
+
 
 // ------------------------------------------------------------------
 // Live-trade controls: edit SL / TP / close of the currently triggered setup.

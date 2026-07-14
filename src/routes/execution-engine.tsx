@@ -203,10 +203,19 @@ function ExecutionEnginePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <div className="md:col-span-4 flex items-end">
-              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            <div className="md:col-span-4 flex flex-col md:flex-row gap-2 items-stretch md:items-end">
+              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Simulating</> : <><Activity className="w-4 h-4 mr-2" />Run execution</>}
               </Button>
+              <Button variant="secondary" className="w-full md:w-auto" onClick={() => batch.mutate()} disabled={mut.isPending || batch.isPending}>
+                {batch.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
+                  : <><Layers className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+              </Button>
+              <div className="text-[10px] font-mono text-muted-foreground md:ml-2">
+                {BATCH_STRATEGY_PRESETS.length} strat × {BATCH_EXEC_PRESETS.length} exec × {BATCH_TFS.length} TF ={" "}
+                {BATCH_STRATEGY_PRESETS.length * BATCH_EXEC_PRESETS.length * BATCH_TFS.length} runs
+              </div>
             </div>
           </CardContent>
         </Card>

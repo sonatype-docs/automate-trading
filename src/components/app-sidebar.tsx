@@ -16,6 +16,7 @@ import {
   BookMarked,
   Database,
   Cpu,
+  Sparkles,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -59,6 +60,7 @@ const meta = [
   { title: "Execution Engine", url: "/execution-engine", icon: Zap },
   { title: "Trade Intelligence", url: "/trade-intelligence", icon: Database },
   { title: "Research", url: "/research", icon: BarChart3 },
+  { title: "Optimizer", url: "/optimizer", icon: Sparkles },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

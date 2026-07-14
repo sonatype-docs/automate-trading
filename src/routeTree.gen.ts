@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
+import { Route as OptimizerRouteImport } from './routes/optimizer'
 import { Route as MarketDataRouteImport } from './routes/market-data'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
@@ -63,6 +64,11 @@ const ReportsRoute = ReportsRouteImport.update({
 const PendingOrdersRoute = PendingOrdersRouteImport.update({
   id: '/pending-orders',
   path: '/pending-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OptimizerRoute = OptimizerRouteImport.update({
+  id: '/optimizer',
+  path: '/optimizer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketDataRoute = MarketDataRouteImport.update({
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
+  '/optimizer': typeof OptimizerRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/execution-engine': typeof ExecutionEngineRoute
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
+  '/optimizer': typeof OptimizerRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
+  '/optimizer': typeof OptimizerRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/journal'
     | '/market-data'
+    | '/optimizer'
     | '/pending-orders'
     | '/reports'
     | '/research'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/execution-engine'
     | '/journal'
     | '/market-data'
+    | '/optimizer'
     | '/pending-orders'
     | '/reports'
     | '/research'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/journal'
     | '/market-data'
+    | '/optimizer'
     | '/pending-orders'
     | '/reports'
     | '/research'
@@ -334,6 +346,7 @@ export interface RootRouteChildren {
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
   MarketDataRoute: typeof MarketDataRoute
+  OptimizerRoute: typeof OptimizerRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
@@ -391,6 +404,13 @@ declare module '@tanstack/react-router' {
       path: '/pending-orders'
       fullPath: '/pending-orders'
       preLoaderRoute: typeof PendingOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/optimizer': {
+      id: '/optimizer'
+      path: '/optimizer'
+      fullPath: '/optimizer'
+      preLoaderRoute: typeof OptimizerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/market-data': {
@@ -566,6 +586,7 @@ const rootRouteChildren: RootRouteChildren = {
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
   MarketDataRoute: MarketDataRoute,
+  OptimizerRoute: OptimizerRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,

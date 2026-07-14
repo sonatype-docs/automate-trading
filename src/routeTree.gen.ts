@@ -20,6 +20,7 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
+import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
@@ -79,6 +80,11 @@ const BacktestOrbRoute = BacktestOrbRouteImport.update({
   path: '/orb',
   getParentRoute: () => BacktestRoute,
 } as any)
+const BacktestCompareRoute = BacktestCompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => BacktestRoute,
+} as any)
 const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
   id: '/asian-sweep',
   path: '/asian-sweep',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
+  '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/backtest/asian-sweep'
+    | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/backtest/asian-sweep'
+    | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/backtest/asian-sweep'
+    | '/backtest/compare'
     | '/backtest/orb'
     | '/backtest/silver-bullet'
     | '/api/public/hooks/strategy-tick'
@@ -290,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestOrbRouteImport
       parentRoute: typeof BacktestRoute
     }
+    '/backtest/compare': {
+      id: '/backtest/compare'
+      path: '/compare'
+      fullPath: '/backtest/compare'
+      preLoaderRoute: typeof BacktestCompareRouteImport
+      parentRoute: typeof BacktestRoute
+    }
     '/backtest/asian-sweep': {
       id: '/backtest/asian-sweep'
       path: '/asian-sweep'
@@ -316,12 +335,14 @@ declare module '@tanstack/react-router' {
 
 interface BacktestRouteChildren {
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
+  BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
 }
 
 const BacktestRouteChildren: BacktestRouteChildren = {
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
+  BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
 }

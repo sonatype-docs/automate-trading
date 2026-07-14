@@ -61,6 +61,40 @@ function StrategyEnginePage() {
     },
   });
 
+  const BATCH_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+  const BATCH_PRESETS = Object.keys(STRATEGY_PRESETS);
+  type BatchRow = { presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
+  const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const batch = useMutation({
+    mutationFn: async () => {
+      const combos: { presetId: string; tf: Timeframe }[] = [];
+      for (const p of BATCH_PRESETS) for (const tf of BATCH_TFS) combos.push({ presetId: p, tf });
+      setBatchResults([]);
+      setBatchProgress({ done: 0, total: combos.length });
+      const toMs = now;
+      const fromMs = toMs - days * 86_400_000;
+      const rows: BatchRow[] = [];
+      for (const c of combos) {
+        try {
+          const res = await runner({
+            data: {
+              source, symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs, presetId: c.presetId, mode,
+            },
+          });
+          rows.push({ presetId: c.presetId, tf: c.tf, result: res.result });
+        } catch (e) {
+          rows.push({ presetId: c.presetId, tf: c.tf, error: (e as Error).message });
+        }
+        setBatchResults([...rows]);
+        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      return rows;
+    },
+  });
+
   const r = mut.data?.result;
   const rejects = useMemo(
     () => r ? Object.entries(r.stats.filterRejects).sort((a, b) => b[1] - a[1]) : [],
@@ -144,13 +178,64 @@ function StrategyEnginePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <div className="md:col-span-4 flex items-end">
-              <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            <div className="md:col-span-4 flex flex-wrap items-end gap-2">
+              <Button onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running</> : <><Activity className="w-4 h-4 mr-2" />Run engine</>}
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => batch.mutate()}
+                disabled={mut.isPending || batch.isPending}
+                title="Runs all 3 strategy presets across 1m, 3m, 5m, 15m, 30m, 1h"
+              >
+                {batch.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
+                  : <><Activity className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+              </Button>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                Matrix = {BATCH_PRESETS.length} presets × {BATCH_TFS.length} timeframes
+              </span>
             </div>
           </CardContent>
         </Card>
+
+        {batchResults.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-mono tracking-widest">Batch Matrix Results</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">Preset</th>
+                    <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Bars</th>
+                    <th className="py-1 pr-3">Setups</th>
+                    <th className="py-1 pr-3">Signals</th>
+                    <th className="py-1 pr-3">Invalidated</th>
+                    <th className="py-1 pr-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchResults.map((b, i) => (
+                    <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
+                      <td className="py-1 pr-3">{b.tf}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">{b.result?.stats.signalsInvalidated.toLocaleString() ?? "—"}</td>
+                      <td className="py-1 pr-3">
+                        {b.error
+                          ? <span className="text-destructive">{b.error}</span>
+                          : <span className="text-emerald-500">ok</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
 
         {presetCfg && (
           <Card>

@@ -17,6 +17,7 @@ import {
   Database,
   Cpu,
   Sparkles,
+  FlaskConical,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -62,6 +63,7 @@ const meta = [
   { title: "Research", url: "/research", icon: BarChart3 },
   { title: "Optimizer", url: "/optimizer", icon: Sparkles },
   { title: "AI Research", url: "/ai-research", icon: Sparkles },
+  { title: "Research Lab", url: "/research-lab", icon: FlaskConical },
   { title: "Docs", url: "/docs", icon: FileText },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];

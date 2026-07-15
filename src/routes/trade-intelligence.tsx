@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   recordTradesFromExecution, queryTrades, exportTrades,
-  deleteTrade, clearStrategy, summariseTrades, listSnapshots,
+  deleteTrade, clearStrategy, summariseTrades, listSnapshots, dedupeTrades,
 } from "@/lib/trade-intelligence.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS } from "@/lib/execution-engine/presets";

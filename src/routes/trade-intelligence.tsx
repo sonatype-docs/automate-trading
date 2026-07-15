@@ -77,6 +77,11 @@ function TradeIntelligencePage() {
 
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [mxSymbols, setMxSymbols] = useState<string[]>([...BATCH_SYMBOLS]);
+  const [mxTfs, setMxTfs] = useState<string[]>([...BATCH_TFS]);
+  const [mxStrategies, setMxStrategies] = useState<string[]>(strategyIds);
+  const [mxExecs, setMxExecs] = useState<string[]>(execIds);
+
 
   const [filter, setFilter] = useState({
     strategyId: "",

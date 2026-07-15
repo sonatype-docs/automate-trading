@@ -214,6 +214,89 @@ export const clearStrategy = createServerFn({ method: "POST" })
     return { deleted: count ?? 0 };
   });
 
+/**
+ * Remove exact-duplicate trades from the live table.
+ * Group key: (strategy_id, symbol, timeframe, direction, entry_time, exit_time,
+ * net_pnl, entry_price, exit_price). Keeps the lexicographically smallest
+ * trade_id in each group; deletes the rest. Only runs on the live dataset —
+ * archived snapshots are read-only.
+ */
+export const dedupeTrades = createServerFn({ method: "POST" })
+  .inputValidator((raw) =>
+    z.object({ dataset: z.string().optional() }).optional().parse(raw),
+  )
+  .handler(async ({ data }) => {
+    if (data?.dataset && data.dataset !== "live") {
+      throw new Error("Dedupe only runs on the live dataset.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
+
+    const CHUNK = 1000;
+    type Row = {
+      trade_id: string;
+      strategy_id: string;
+      symbol: string;
+      timeframe: string | null;
+      direction: string;
+      entry_time: string;
+      exit_time: string;
+      net_pnl: number | null;
+      entry_price: number | null;
+      exit_price: number | null;
+    };
+    const rows: Row[] = [];
+    for (let offset = 0; ; offset += CHUNK) {
+      const { data: chunk, error } = await supabase
+        .from("trade_intelligence")
+        .select("trade_id, strategy_id, symbol, timeframe, direction, entry_time, exit_time, net_pnl, entry_price, exit_price")
+        .range(offset, offset + CHUNK - 1);
+      if (error) throw new Error(error.message);
+      if (!chunk || chunk.length === 0) break;
+      rows.push(...(chunk as Row[]));
+      if (chunk.length < CHUNK) break;
+    }
+
+    const groups = new Map<string, string[]>();
+    for (const r of rows) {
+      const key = [
+        r.strategy_id, r.symbol, r.timeframe ?? "", r.direction,
+        r.entry_time, r.exit_time,
+        r.net_pnl ?? "", r.entry_price ?? "", r.exit_price ?? "",
+      ].join("|");
+      const arr = groups.get(key);
+      if (arr) arr.push(r.trade_id);
+      else groups.set(key, [r.trade_id]);
+    }
+
+    const toDelete: string[] = [];
+    for (const ids of groups.values()) {
+      if (ids.length < 2) continue;
+      ids.sort();
+      // keep ids[0], remove the rest
+      for (let i = 1; i < ids.length; i++) toDelete.push(ids[i]);
+    }
+
+    if (toDelete.length === 0) {
+      return { scanned: rows.length, duplicateGroups: 0, deleted: 0 };
+    }
+
+    let deleted = 0;
+    const DEL_CHUNK = 200;
+    for (let i = 0; i < toDelete.length; i += DEL_CHUNK) {
+      const slice = toDelete.slice(i, i + DEL_CHUNK);
+      const { error, count } = await supabase
+        .from("trade_intelligence")
+        .delete({ count: "exact" })
+        .in("trade_id", slice);
+      if (error) throw new Error(error.message);
+      deleted += count ?? slice.length;
+    }
+    const duplicateGroups = Array.from(groups.values()).filter((a) => a.length > 1).length;
+    return { scanned: rows.length, duplicateGroups, deleted };
+  });
+
 export const summariseTrades = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))

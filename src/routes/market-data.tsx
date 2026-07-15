@@ -82,6 +82,54 @@ function MarketDataPage() {
     },
   });
 
+  // Matrix: symbols × timeframes (SharkExchange only)
+  const [mxSymbols, setMxSymbols] = useState<string[]>(["XAUUSDT", "BTCUSDT"]);
+  const [mxTfs, setMxTfs] = useState<string[]>(["1m", "5m", "15m", "1h"]);
+  type MxRow = {
+    symbol: string; tf: string;
+    bars?: number; avgAtr?: number | null; bos?: number; choch?: number; error?: string;
+  };
+  const [mxRows, setMxRows] = useState<MxRow[]>([]);
+  const [mxProgress, setMxProgress] = useState({ done: 0, total: 0 });
+  const matrix = useMutation({
+    mutationFn: async () => {
+      const toMs = Date.now();
+      const fromMs = toMs - days * 86_400_000;
+      const combos: { symbol: string; tf: string }[] = [];
+      for (const s of mxSymbols) for (const t of mxTfs) combos.push({ symbol: s, tf: t });
+      setMxRows([]);
+      setMxProgress({ done: 0, total: combos.length });
+      const rows: MxRow[] = [];
+      for (const c of combos) {
+        try {
+          const res = await fetcher({
+            data: {
+              source: "shark", symbol: c.symbol, timeframe: c.tf as Timeframe,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs,
+              openingRangeMinutes: orMinutes,
+              openingRangeStartHour: orStartHour,
+              openingRangeStartMinute: orStartMinute,
+              atrLen, swingLookback,
+              customSessions: [], holidays: [], maxRows: 500,
+            },
+          });
+          rows.push({
+            symbol: c.symbol, tf: c.tf,
+            bars: res.count, avgAtr: res.summary.avgAtr,
+            bos: res.summary.bosCount, choch: res.summary.chochCount,
+          });
+        } catch (e) {
+          rows.push({ symbol: c.symbol, tf: c.tf, error: (e as Error).message });
+        }
+        setMxRows([...rows]);
+        setMxProgress((p) => ({ ...p, done: p.done + 1 }));
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return rows;
+    },
+  });
+
   const result = mut.data;
 
   const sessionRows = useMemo(() => {

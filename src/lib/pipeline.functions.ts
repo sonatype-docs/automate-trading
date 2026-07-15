@@ -82,7 +82,8 @@ export const updatePipelineRun = createServerFn({ method: "POST" })
       // Cap log at 2000 entries — enough for large matrices without bloating the row.
       patch.log = log.slice(-2000);
     }
-    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch).eq("id", data.runId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

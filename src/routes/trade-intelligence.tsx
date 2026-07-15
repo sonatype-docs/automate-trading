@@ -350,6 +350,7 @@ function TradeIntelligencePage() {
                     <TableHead>Exec</TableHead>
                     <TableHead>TF</TableHead>
                     <TableHead>Strat TZ</TableHead>
+                    <TableHead>Disp TZ</TableHead>
                     <TableHead className="text-right">Trades</TableHead>
                     <TableHead className="text-right">Inserted</TableHead>
                     <TableHead>Status</TableHead>
@@ -364,6 +365,7 @@ function TradeIntelligencePage() {
                       <TableCell className="text-xs">{r.execId}</TableCell>
                       <TableCell className="text-xs">{r.tf}</TableCell>
                       <TableCell className="text-xs">{r.stratTz}</TableCell>
+                      <TableCell className="text-xs">{r.displayTz}</TableCell>
                       <TableCell className="text-right text-xs">{r.tradesInRun ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs">{r.inserted ?? "—"}</TableCell>
                       <TableCell>

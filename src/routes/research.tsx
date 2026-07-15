@@ -134,13 +134,16 @@ function pnlColor(n: number): string {
 
 function ResearchPage() {
   const [section, setSection] = useState<Section>("Overview");
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("research-nav-collapsed") === "1";
-  });
+  // Read from localStorage in an effect so SSR and first client render match.
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("research-nav-collapsed") === "1") setNavCollapsed(true);
+    } catch { /* storage unavailable */ }
+  }, []);
   const toggleNav = () => setNavCollapsed((c) => {
     const next = !c;
-    if (typeof window !== "undefined") window.localStorage.setItem("research-nav-collapsed", next ? "1" : "0");
+    try { window.localStorage.setItem("research-nav-collapsed", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
   const queryFn = useServerFn(queryTrades);

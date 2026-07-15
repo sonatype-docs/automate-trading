@@ -81,10 +81,12 @@ function TradeIntelligencePage() {
 
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [mxSources, setMxSources] = useState<string[]>([...BATCH_SOURCES]);
   const [mxSymbols, setMxSymbols] = useState<string[]>([...BATCH_SYMBOLS]);
   const [mxTfs, setMxTfs] = useState<string[]>([...BATCH_TFS]);
   const [mxStrategies, setMxStrategies] = useState<string[]>(strategyIds);
   const [mxExecs, setMxExecs] = useState<string[]>(execIds);
+  const [mxStratTzs, setMxStratTzs] = useState<string[]>(["London"]);
 
 
   const [filter, setFilter] = useState({
@@ -144,26 +146,30 @@ function TradeIntelligencePage() {
     mutationFn: async () => {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ symbol: string; presetId: string; execId: string; tf: string }> = [];
-      for (const symbol of mxSymbols) {
-        for (const presetId of mxStrategies) {
-          for (const execId of mxExecs) {
-            for (const tf of mxTfs) combos.push({ symbol, presetId, execId, tf });
+      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }> = [];
+      for (const source of mxSources) {
+        for (const symbol of mxSymbols) {
+          for (const presetId of mxStrategies) {
+            for (const execId of mxExecs) {
+              for (const tf of mxTfs) {
+                for (const stratTz of mxStratTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz });
+              }
+            }
           }
         }
       }
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
-      const runOne = async (combo: { symbol: string; presetId: string; execId: string; tf: string }) => {
+      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }) => {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             return await record({
               data: {
-                source: form.source, symbol: combo.symbol,
+                source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
                 timeframe: combo.tf as "15m",
-                displayTimezone: "IST", strategyTimezone: "London",
+                displayTimezone: "IST", strategyTimezone: combo.stratTz as "London",
                 fromMs: from, toMs: to,
                 strategyPresetId: combo.presetId,
                 execPresetId: combo.execId,

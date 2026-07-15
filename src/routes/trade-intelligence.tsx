@@ -32,6 +32,7 @@ type BatchRow = {
   execId: string;
   tf: string;
   stratTz: string;
+  displayTz: string;
   inserted?: number;
   tradesInRun?: number;
   error?: string;

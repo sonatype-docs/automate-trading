@@ -170,7 +170,15 @@ function ExecutionEnginePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Symbol"><Input value={symbol} onChange={(e) => setSymbol(e.target.value)} /></Field>
+            <Field label="Symbol">
+              <Select value={symbol} onValueChange={setSymbol}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="XAUUSDT">XAUUSDT</SelectItem>
+                  <SelectItem value="BTCUSDT">BTCUSDT</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Timeframe">
               <Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>

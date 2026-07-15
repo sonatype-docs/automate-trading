@@ -302,67 +302,116 @@ function PipelinePage() {
     onSettled: () => { resumable.refetch(); },
   });
 
-  const resumeMut = useMutation({
-    mutationFn: async () => {
-      const row = resumable.data?.row;
-      if (!row) return;
-      setControl("running");
-      // Rebuild combos from the stored matrix so ordering is identical.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const m = row.matrix as any;
-      const rebuilt: ComboSpec[] = [];
-      for (const symbol of m.symbols) {
-        for (const tf of m.timeframes) {
-          for (const strategyPresetId of m.strategyPresetIds) {
-            for (const execPresetId of m.execPresetIds) {
-              rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId });
-            }
+  async function beginResume(restart: boolean) {
+    const row = resumable.data?.row;
+    if (!row) return;
+    setControl("running");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m = row.matrix as any;
+    const rebuilt: ComboSpec[] = [];
+    for (const symbol of m.symbols) {
+      for (const tf of m.timeframes) {
+        for (const strategyPresetId of m.strategyPresetIds) {
+          for (const execPresetId of m.execPresetIds) {
+            rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId });
           }
         }
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const prog0 = (row.progress ?? {}) as any;
-      const completed = Number(prog0.completed ?? 0);
-      const initialResults: ComboResult[] = rebuilt.map((spec, idx) => ({
-        spec,
-        status: idx < completed ? "ok" : "pending",
-        stage: idx < completed ? "intelligence" : null,
-        bars: 0, signals: 0, trades: 0, inserted: 0, netPnl: 0,
-        error: null, elapsedMs: 0,
-      }));
-      setResults(initialResults);
-      const initialProgress: PipelineProgress = {
-        total: Number(prog0.total ?? rebuilt.length),
-        completed,
-        currentCombo: null, currentStage: null,
-        ok: Number(prog0.ok ?? 0),
-        failed: Number(prog0.failed ?? 0),
-        totalTrades: Number(prog0.totalTrades ?? 0),
-        totalInserted: Number(prog0.totalInserted ?? 0),
-      };
-      setProgress(initialProgress);
-      setRunId(row.id as string);
-
-      // Restore matrix into UI so users see what will run.
-      setSource(m.source);
-      setSymbols(m.symbols);
-      setTfs(m.timeframes);
-      setStrats(m.strategyPresetIds);
-      setExecs(m.execPresetIds);
-      setDisplayTz(m.displayTimezone);
-      setStrategyTz(m.strategyTimezone);
-      setLookbackDays(m.lookbackDays);
-      setRiskUsd(m.riskUsdPerTrade);
-
-      const toMs = Date.now();
-      const fromMs = toMs - Number(m.lookbackDays) * 86_400_000;
-      await runCombosLoop({
-        id: row.id as string, combosToRun: rebuilt, startIndex: completed,
-        fromMs, toMs, initialProgress, initialResults,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prog0 = (row.progress ?? {}) as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const logArr = (Array.isArray((row as any).log) ? (row as any).log : []) as Array<any>;
+    // Index the log by combo signature so we can hydrate per-combo trade counts.
+    const key = (c: ComboSpec) => `${c.symbol}|${c.timeframe}|${c.strategyPresetId}|${c.execPresetId}`;
+    const logByCombo = new Map<string, { trades: number; inserted: number; elapsedMs: number; status: string }>();
+    for (const entry of logArr) {
+      if (!entry?.combo) continue;
+      const k = `${entry.combo.symbol}|${entry.combo.timeframe}|${entry.combo.strategyPresetId}|${entry.combo.execPresetId}`;
+      logByCombo.set(k, {
+        trades: Number(entry.trades ?? 0),
+        inserted: Number(entry.inserted ?? 0),
+        elapsedMs: Number(entry.elapsedMs ?? 0),
+        status: String(entry.status ?? "ok"),
       });
-    },
+    }
+
+    const completed = restart ? 0 : Number(prog0.completed ?? 0);
+    const initialResults: ComboResult[] = rebuilt.map((spec, idx) => {
+      if (restart || idx >= completed) {
+        return {
+          spec, status: "pending", stage: null, bars: 0, signals: 0, trades: 0,
+          inserted: 0, netPnl: 0, error: null, elapsedMs: 0,
+        };
+      }
+      const hit = logByCombo.get(key(spec));
+      return {
+        spec,
+        status: hit?.status === "failed" ? "failed" : "ok",
+        stage: "intelligence",
+        bars: 0, signals: 0,
+        trades: hit?.trades ?? 0,
+        inserted: hit?.inserted ?? 0,
+        netPnl: 0,
+        error: null,
+        elapsedMs: hit?.elapsedMs ?? 0,
+      };
+    });
+    setResults(initialResults);
+    const initialProgress: PipelineProgress = restart
+      ? {
+          total: rebuilt.length, completed: 0,
+          currentCombo: null, currentStage: null,
+          ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+        }
+      : {
+          total: Number(prog0.total ?? rebuilt.length),
+          completed,
+          currentCombo: null, currentStage: null,
+          ok: Number(prog0.ok ?? 0),
+          failed: Number(prog0.failed ?? 0),
+          totalTrades: Number(prog0.totalTrades ?? 0),
+          totalInserted: Number(prog0.totalInserted ?? 0),
+        };
+    setProgress(initialProgress);
+    setRunId(row.id as string);
+
+    // Restore matrix into UI so users see what will run.
+    setSource(m.source);
+    setSymbols(m.symbols);
+    setTfs(m.timeframes);
+    setStrats(m.strategyPresetIds);
+    setExecs(m.execPresetIds);
+    setDisplayTz(m.displayTimezone);
+    setStrategyTz(m.strategyTimezone);
+    setLookbackDays(m.lookbackDays);
+    setRiskUsd(m.riskUsdPerTrade);
+
+    // On restart, persist the reset progress so a subsequent pause/resume
+    // sees a clean slate instead of the stale "completed" count.
+    if (restart) {
+      await updateFn({ data: { runId: row.id as string, progress: initialProgress } }).catch(() => {});
+    }
+
+    const toMs = Date.now();
+    const fromMs = toMs - Number(m.lookbackDays) * 86_400_000;
+    await runCombosLoop({
+      id: row.id as string,
+      combosToRun: rebuilt,
+      startIndex: restart ? 0 : completed,
+      fromMs, toMs, initialProgress, initialResults,
+    });
+  }
+
+  const resumeMut = useMutation({
+    mutationFn: () => beginResume(false),
     onSettled: () => { resumable.refetch(); },
   });
+  const restartMut = useMutation({
+    mutationFn: () => beginResume(true),
+    onSettled: () => { resumable.refetch(); },
+  });
+
 
   const totalCombos = combos.length;
   const isRunning = control === "running" || control === "paused" || control === "stopping";
@@ -430,10 +479,21 @@ function PipelinePage() {
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {Number(((resumableRow.progress ?? {}) as any).total ?? 0)} combos completed
               </span>
-              <Button size="sm" onClick={() => resumeMut.mutate()} disabled={resumeMut.isPending}>
+              <Button size="sm" onClick={() => resumeMut.mutate()} disabled={resumeMut.isPending || restartMut.isPending}>
                 {resumeMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
                 Resume last run
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => restartMut.mutate()}
+                disabled={resumeMut.isPending || restartMut.isPending}
+                title="Reset progress and rerun every combo from the beginning (use this if live trades were cleared while paused)."
+              >
+                {restartMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Restart from beginning
+              </Button>
+
             </AlertDescription>
           </Alert>
         )}

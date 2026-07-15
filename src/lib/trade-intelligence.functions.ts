@@ -216,20 +216,24 @@ export const clearStrategy = createServerFn({ method: "POST" })
 
 export const summariseTrades = createServerFn({ method: "POST" })
 
-  .handler(async () => {
+  .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))
+  .handler(async ({ data }) => {
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { table, snapshotName } = resolveTable(data?.dataset);
     // Chunked scan — PostgREST caps rows at 1000 per response.
     const CHUNK = 1000;
     const rows: { strategy_id: string; symbol: string; direction: string; net_pnl: number }[] = [];
     for (let offset = 0; ; offset += CHUNK) {
-      const { data, error } = await supabase
-        .from("trade_intelligence")
+      let q = supabase
+        .from(table)
         .select("strategy_id, symbol, direction, net_pnl")
         .range(offset, offset + CHUNK - 1);
+      if (snapshotName) q = q.eq("snapshot_name", snapshotName);
+      const { data: rowsChunk, error } = await q;
       if (error) throw new Error(error.message);
-      if (!data || data.length === 0) break;
-      rows.push(...(data as typeof rows));
-      if (data.length < CHUNK) break;
+      if (!rowsChunk || rowsChunk.length === 0) break;
+      rows.push(...(rowsChunk as typeof rows));
+      if (rowsChunk.length < CHUNK) break;
     }
     const total = rows.length;
     const winners = rows.filter((r) => Number(r.net_pnl) > 0).length;
@@ -239,3 +243,27 @@ export const summariseTrades = createServerFn({ method: "POST" })
     const symbols = Array.from(new Set(rows.map((r) => r.symbol)));
     return { total, winners, losers, netPnl: net, strategies, symbols };
   });
+
+export const listSnapshots = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+  const CHUNK = 1000;
+  const counts = new Map<string, number>();
+  for (let offset = 0; ; offset += CHUNK) {
+    const { data, error } = await supabase
+      .from("trade_intelligence_archive")
+      .select("snapshot_name")
+      .range(offset, offset + CHUNK - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    for (const r of data as { snapshot_name: string }[]) {
+      counts.set(r.snapshot_name, (counts.get(r.snapshot_name) ?? 0) + 1);
+    }
+    if (data.length < CHUNK) break;
+  }
+  return {
+    snapshots: Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
+});
+

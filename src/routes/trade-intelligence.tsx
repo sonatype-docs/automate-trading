@@ -88,6 +88,7 @@ function TradeIntelligencePage() {
   const [mxStrategies, setMxStrategies] = useState<string[]>(strategyIds);
   const [mxExecs, setMxExecs] = useState<string[]>(execIds);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>(["London"]);
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>(["IST"]);
 
 
   const [filter, setFilter] = useState({

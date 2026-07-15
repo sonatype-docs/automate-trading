@@ -229,6 +229,72 @@ function MarketDataPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-mono tracking-widest">
+              Matrix Loader — SharkExchange (symbols × timeframes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <MatrixGroup title="Symbols"
+                options={[{ value: "XAUUSDT" }, { value: "BTCUSDT" }]}
+                selected={mxSymbols} onChange={setMxSymbols} />
+              <MatrixGroup title="Timeframes"
+                options={TIMEFRAMES.map((t) => ({ value: t }))}
+                selected={mxTfs} onChange={setMxTfs} />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="secondary"
+                onClick={() => matrix.mutate()}
+                disabled={matrix.isPending || mxSymbols.length === 0 || mxTfs.length === 0}>
+                <Layers className="w-4 h-4 mr-2" />
+                {matrix.isPending
+                  ? `Loading matrix ${mxProgress.done}/${mxProgress.total}…`
+                  : `Run Matrix (${mxSymbols.length}×${mxTfs.length} = ${mxSymbols.length * mxTfs.length})`}
+              </Button>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                Source: SharkExchange · Lookback: {days}d
+              </span>
+            </div>
+            {mxRows.length > 0 && (
+              <div className="overflow-x-auto rounded-md border border-border/60">
+                <table className="w-full text-xs font-mono">
+                  <thead className="text-muted-foreground">
+                    <tr className="text-left">
+                      <th className="py-1 px-3">Symbol</th>
+                      <th className="py-1 px-3">TF</th>
+                      <th className="py-1 px-3 text-right">Bars</th>
+                      <th className="py-1 px-3 text-right">Avg ATR</th>
+                      <th className="py-1 px-3 text-right">BOS</th>
+                      <th className="py-1 px-3 text-right">CHOCH</th>
+                      <th className="py-1 px-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mxRows.map((r, i) => (
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 px-3">{r.symbol}</td>
+                        <td className="py-1 px-3">{r.tf}</td>
+                        <td className="py-1 px-3 text-right">{r.bars?.toLocaleString() ?? "—"}</td>
+                        <td className="py-1 px-3 text-right">{fmtNum(r.avgAtr ?? null)}</td>
+                        <td className="py-1 px-3 text-right">{r.bos ?? "—"}</td>
+                        <td className="py-1 px-3 text-right">{r.choch ?? "—"}</td>
+                        <td className="py-1 px-3">
+                          {r.error
+                            ? <span className="text-destructive">{r.error.slice(0, 40)}</span>
+                            : <span className="text-emerald-500">ok</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
         {mut.isError && (
           <Card className="border-destructive/60">
             <CardContent className="py-4 text-sm text-destructive">

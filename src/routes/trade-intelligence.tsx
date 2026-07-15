@@ -376,6 +376,20 @@ function TradeIntelligencePage() {
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
                 : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
             </Button>
+            {resumable && !batchMut.isPending && !resumeMut.isPending ? (
+              <Button variant="outline" onClick={() => resumeMut.mutate()}>
+                Resume ({resumable.done}/{resumable.combos.length})
+              </Button>
+            ) : null}
+            {resumeMut.isPending ? (
+              <Badge variant="secondary" className="text-[10px]">Resuming {batchProgress.done}/{batchProgress.total}…</Badge>
+            ) : null}
+            {(batchMut.isPending || resumeMut.isPending) ? (
+              <Button variant="destructive" size="sm" onClick={() => { abortRef.current = true; }}>Stop</Button>
+            ) : null}
+            {batchRows.length > 0 && !batchMut.isPending && !resumeMut.isPending ? (
+              <Button variant="ghost" size="sm" onClick={clearProgress}>Clear</Button>
+            ) : null}
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
                 Inserted {recordMut.data.inserted} of {recordMut.data.tradesInRun} trades.

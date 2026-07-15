@@ -62,15 +62,19 @@ function StrategyEnginePage() {
     },
   });
 
-  const BATCH_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
-  const BATCH_PRESETS = Object.keys(STRATEGY_PRESETS);
-  type BatchRow = { presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
+  const ALL_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+  const ALL_PRESETS = Object.keys(STRATEGY_PRESETS);
+  const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
+  const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
+  const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
+  const [mxPresets, setMxPresets] = useState<string[]>(ALL_PRESETS);
+  type BatchRow = { symbol: string; presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
   const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
-      const combos: { presetId: string; tf: Timeframe }[] = [];
-      for (const p of BATCH_PRESETS) for (const tf of BATCH_TFS) combos.push({ presetId: p, tf });
+      const combos: { symbol: string; presetId: string; tf: Timeframe }[] = [];
+      for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) combos.push({ symbol: s, presetId: p, tf: tf as Timeframe });
       setBatchResults([]);
       setBatchProgress({ done: 0, total: combos.length });
       const toMs = now;
@@ -80,14 +84,14 @@ function StrategyEnginePage() {
         try {
           const res = await runner({
             data: {
-              source, symbol, timeframe: c.tf,
+              source, symbol: c.symbol, timeframe: c.tf,
               displayTimezone: displayTz, strategyTimezone: strategyTz,
               fromMs, toMs, presetId: c.presetId, mode,
             },
           });
-          rows.push({ presetId: c.presetId, tf: c.tf, result: res.result });
+          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, result: res.result });
         } catch (e) {
-          rows.push({ presetId: c.presetId, tf: c.tf, error: (e as Error).message });
+          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, error: (e as Error).message });
         }
         setBatchResults([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));

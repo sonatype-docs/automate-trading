@@ -13,6 +13,7 @@ import { Activity, Cpu, Loader2 } from "lucide-react";
 import { runUniversalStrategy, type RunStrategyResult } from "@/lib/strategy-engine.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+import { MatrixGroup } from "@/components/matrix-picker";
 
 export const Route = createFileRoute("/strategy-engine")({
   head: () => ({

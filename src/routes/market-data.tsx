@@ -82,11 +82,13 @@ function MarketDataPage() {
     },
   });
 
-  // Matrix: symbols × timeframes (SharkExchange only)
+  // Matrix: sources × symbols × timeframes × strategy TZs
+  const [mxSources, setMxSources] = useState<string[]>(["shark"]);
   const [mxSymbols, setMxSymbols] = useState<string[]>(["XAUUSDT", "BTCUSDT"]);
   const [mxTfs, setMxTfs] = useState<string[]>(["1m", "5m", "15m", "1h"]);
+  const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
   type MxRow = {
-    symbol: string; tf: string;
+    source: string; symbol: string; tf: string; stratTz: string;
     bars?: number; avgAtr?: number | null; bos?: number; choch?: number; error?: string;
   };
   const [mxRows, setMxRows] = useState<MxRow[]>([]);
@@ -95,8 +97,9 @@ function MarketDataPage() {
     mutationFn: async () => {
       const toMs = Date.now();
       const fromMs = toMs - days * 86_400_000;
-      const combos: { symbol: string; tf: string }[] = [];
-      for (const s of mxSymbols) for (const t of mxTfs) combos.push({ symbol: s, tf: t });
+      const combos: { source: string; symbol: string; tf: string; stratTz: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const t of mxTfs) for (const tz of mxStratTzs)
+        combos.push({ source: src, symbol: s, tf: t, stratTz: tz });
       setMxRows([]);
       setMxProgress({ done: 0, total: combos.length });
       const rows: MxRow[] = [];
@@ -104,8 +107,8 @@ function MarketDataPage() {
         try {
           const res = await fetcher({
             data: {
-              source: "shark", symbol: c.symbol, timeframe: c.tf as Timeframe,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf as Timeframe,
+              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
               fromMs, toMs,
               openingRangeMinutes: orMinutes,
               openingRangeStartHour: orStartHour,
@@ -115,12 +118,12 @@ function MarketDataPage() {
             },
           });
           rows.push({
-            symbol: c.symbol, tf: c.tf,
+            source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz,
             bars: res.count, avgAtr: res.summary.avgAtr,
             bos: res.summary.bosCount, choch: res.summary.chochCount,
           });
         } catch (e) {
-          rows.push({ symbol: c.symbol, tf: c.tf, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
         }
         setMxRows([...rows]);
         setMxProgress((p) => ({ ...p, done: p.done + 1 }));
@@ -232,29 +235,35 @@ function MarketDataPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-mono tracking-widest">
-              Matrix Loader — SharkExchange (symbols × timeframes)
+              Matrix Loader — sources × symbols × timeframes × strategy TZs
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <MatrixGroup title="Sources"
+                options={SOURCES.map((s) => ({ value: s.id, label: s.label }))}
+                selected={mxSources} onChange={setMxSources} />
               <MatrixGroup title="Symbols"
                 options={[{ value: "XAUUSDT" }, { value: "BTCUSDT" }]}
                 selected={mxSymbols} onChange={setMxSymbols} />
               <MatrixGroup title="Timeframes"
                 options={TIMEFRAMES.map((t) => ({ value: t }))}
                 selected={mxTfs} onChange={setMxTfs} />
+              <MatrixGroup title="Strategy TZ"
+                options={TIMEZONES.map((t) => ({ value: t }))}
+                selected={mxStratTzs} onChange={setMxStratTzs} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="secondary"
                 onClick={() => matrix.mutate()}
-                disabled={matrix.isPending || mxSymbols.length === 0 || mxTfs.length === 0}>
+                disabled={matrix.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStratTzs.length === 0}>
                 <Layers className="w-4 h-4 mr-2" />
                 {matrix.isPending
                   ? `Loading matrix ${mxProgress.done}/${mxProgress.total}…`
-                  : `Run Matrix (${mxSymbols.length}×${mxTfs.length} = ${mxSymbols.length * mxTfs.length})`}
+                  : `Run Matrix (${mxSources.length}×${mxSymbols.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxTfs.length * mxStratTzs.length})`}
               </Button>
               <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                Source: SharkExchange · Lookback: {days}d
+                Lookback: {days}d
               </span>
             </div>
             {mxRows.length > 0 && (
@@ -262,8 +271,10 @@ function MarketDataPage() {
                 <table className="w-full text-xs font-mono">
                   <thead className="text-muted-foreground">
                     <tr className="text-left">
+                      <th className="py-1 px-3">Source</th>
                       <th className="py-1 px-3">Symbol</th>
                       <th className="py-1 px-3">TF</th>
+                      <th className="py-1 px-3">Strat TZ</th>
                       <th className="py-1 px-3 text-right">Bars</th>
                       <th className="py-1 px-3 text-right">Avg ATR</th>
                       <th className="py-1 px-3 text-right">BOS</th>
@@ -274,8 +285,10 @@ function MarketDataPage() {
                   <tbody>
                     {mxRows.map((r, i) => (
                       <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 px-3">{r.source}</td>
                         <td className="py-1 px-3">{r.symbol}</td>
                         <td className="py-1 px-3">{r.tf}</td>
+                        <td className="py-1 px-3">{r.stratTz}</td>
                         <td className="py-1 px-3 text-right">{r.bars?.toLocaleString() ?? "—"}</td>
                         <td className="py-1 px-3 text-right">{fmtNum(r.avgAtr ?? null)}</td>
                         <td className="py-1 px-3 text-right">{r.bos ?? "—"}</td>

@@ -21,7 +21,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Trash2, Download, Database, Layers } from "lucide-react";
 
 const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
+const BATCH_SYMBOLS = ["XAUUSDT", "BTCUSDT"] as const;
 type BatchRow = {
+  symbol: string;
   presetId: string;
   execId: string;
   tf: string;
@@ -132,22 +134,24 @@ function TradeIntelligencePage() {
     mutationFn: async () => {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ presetId: string; execId: string; tf: string }> = [];
-      for (const presetId of strategyIds) {
-        for (const execId of execIds) {
-          for (const tf of BATCH_TFS) combos.push({ presetId, execId, tf });
+      const combos: Array<{ symbol: string; presetId: string; execId: string; tf: string }> = [];
+      for (const symbol of BATCH_SYMBOLS) {
+        for (const presetId of strategyIds) {
+          for (const execId of execIds) {
+            for (const tf of BATCH_TFS) combos.push({ symbol, presetId, execId, tf });
+          }
         }
       }
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
-      const runOne = async (combo: { presetId: string; execId: string; tf: string }) => {
+      const runOne = async (combo: { symbol: string; presetId: string; execId: string; tf: string }) => {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             return await record({
               data: {
-                source: form.source, symbol: form.symbol,
+                source: form.source, symbol: combo.symbol,
                 timeframe: combo.tf as "15m",
                 displayTimezone: "IST", strategyTimezone: "London",
                 fromMs: from, toMs: to,
@@ -158,8 +162,6 @@ function TradeIntelligencePage() {
             });
           } catch (e) {
             lastErr = e;
-            // Small backoff: 500ms, 1500ms — gives worker time to recover from
-            // transient "Failed to fetch" (cold start / network blip).
             await new Promise((r) => setTimeout(r, 500 * (attempt + 1) * (attempt + 1)));
           }
         }
@@ -174,7 +176,6 @@ function TradeIntelligencePage() {
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
-        // brief yield between combos so the worker isn't hammered back-to-back.
         await new Promise((r) => setTimeout(r, 150));
       }
 
@@ -242,7 +243,13 @@ function TradeIntelligencePage() {
             </Select>
           </div>
           <div className="space-y-1"><Label>Symbol</Label>
-            <Input value={form.symbol} onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value }))} />
+            <Select value={form.symbol} onValueChange={(v) => setForm((f) => ({ ...f, symbol: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="XAUUSDT">XAUUSDT</SelectItem>
+                <SelectItem value="BTCUSDT">BTCUSDT</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1"><Label>Timeframe</Label>
             <Input value={form.timeframe} onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value }))} />
@@ -274,7 +281,7 @@ function TradeIntelligencePage() {
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record All (Matrix: ${strategyIds.length}×${execIds.length}×${BATCH_TFS.length})`}
+                : `Record All (Matrix: ${BATCH_SYMBOLS.length}×${strategyIds.length}×${execIds.length}×${BATCH_TFS.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
@@ -294,6 +301,7 @@ function TradeIntelligencePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Symbol</TableHead>
                     <TableHead>Strategy</TableHead>
                     <TableHead>Exec</TableHead>
                     <TableHead>TF</TableHead>
@@ -305,6 +313,7 @@ function TradeIntelligencePage() {
                 <TableBody>
                   {batchRows.map((r, i) => (
                     <TableRow key={i}>
+                      <TableCell className="text-xs">{r.symbol}</TableCell>
                       <TableCell className="text-xs">{r.presetId}</TableCell>
                       <TableCell className="text-xs">{r.execId}</TableCell>
                       <TableCell className="text-xs">{r.tf}</TableCell>

@@ -218,15 +218,21 @@ function StrategyEnginePage() {
                 <MatrixGroup title="Strategy TZ"
                   options={TIMEZONES.map((v) => ({ value: v }))}
                   selected={mxStratTzs} onChange={setMxStratTzs} />
+                <MatrixGroup title="Display TZ"
+                  options={TIMEZONES.map((v) => ({ value: v }))}
+                  selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
+                <MatrixGroup title="Modes"
+                  options={ALL_MODES.map((v) => ({ value: v }))}
+                  selected={mxModes} onChange={setMxModes} />
               </div>
               <Button
                 variant="secondary"
                 onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0 || mxStratTzs.length === 0}
+                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0 || mxModes.length === 0}
               >
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxPresets.length}×{mxTfs.length}×{mxStratTzs.length} = {mxSources.length * mxSymbols.length * mxPresets.length * mxTfs.length * mxStratTzs.length})</>}
+                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxPresets.length}×{mxTfs.length}×{mxStratTzs.length}×{mxDisplayTzs.length}×{mxModes.length} = {mxSources.length * mxSymbols.length * mxPresets.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length * mxModes.length})</>}
               </Button>
             </div>
           </CardContent>

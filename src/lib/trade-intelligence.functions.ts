@@ -32,7 +32,7 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
   .inputValidator((raw) => RunAndRecordInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
-    const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS }, { toTradeRecord }, { recordToRow }] =
+    const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS, withRiskUsd }, { toTradeRecord }, { recordToRow }] =
       await Promise.all([
         import("@/lib/market-data/loader.server"),
         import("@/lib/market-data/enrich"),
@@ -47,8 +47,9 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
 
     const scfg = STRATEGY_PRESETS[data.strategyPresetId as keyof typeof STRATEGY_PRESETS];
     if (!scfg) throw new Error(`Unknown strategy preset: ${data.strategyPresetId}`);
-    const ecfg = EXEC_PRESETS[data.execPresetId as keyof typeof EXEC_PRESETS];
-    if (!ecfg) throw new Error(`Unknown execution preset: ${data.execPresetId}`);
+    const baseEcfg = EXEC_PRESETS[data.execPresetId as keyof typeof EXEC_PRESETS];
+    if (!baseEcfg) throw new Error(`Unknown execution preset: ${data.execPresetId}`);
+    const ecfg = data.riskUsdOverride != null ? withRiskUsd(baseEcfg, data.riskUsdOverride) : baseEcfg;
 
     const { candles } = await loadRawCandles({
       source: data.source, symbol: data.symbol, timeframe: data.timeframe,

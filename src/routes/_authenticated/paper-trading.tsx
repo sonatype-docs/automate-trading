@@ -71,7 +71,7 @@ function PaperTradingPage() {
   const anyRunning = runnersList.some((r) => r.running);
 
   return (
-    <AppShell title="Paper Trading" description="Live continuous paper trades across selected strategy combos.">
+    <AppShell>
       <div className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">

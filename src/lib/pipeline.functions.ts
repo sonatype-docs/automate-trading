@@ -93,7 +93,7 @@ export const updatePipelineRun = createServerFn({ method: "POST" })
 export const finishPipelineRun = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({
     runId: z.string(),
-    status: z.enum(["done", "failed", "stopped"]),
+    status: z.enum(["done", "failed", "stopped", "paused"]),
     error: z.string().nullable().optional(),
     progress: z.record(z.string(), z.unknown()).optional(),
   }).parse(raw))

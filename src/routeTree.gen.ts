@@ -17,6 +17,7 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
+import { Route as PaperTradingRouteImport } from './routes/paper-trading'
 import { Route as OptimizerRouteImport } from './routes/optimizer'
 import { Route as MarketDataRouteImport } from './routes/market-data'
 import { Route as JournalRouteImport } from './routes/journal'
@@ -34,7 +35,6 @@ import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silv
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
-import { Route as AuthenticatedPaperTradingRouteImport } from './routes/_authenticated/paper-trading'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
 import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
@@ -79,6 +79,11 @@ const PipelineRoute = PipelineRouteImport.update({
 const PendingOrdersRoute = PendingOrdersRouteImport.update({
   id: '/pending-orders',
   path: '/pending-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaperTradingRoute = PaperTradingRouteImport.update({
+  id: '/paper-trading',
+  path: '/paper-trading',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OptimizerRoute = OptimizerRouteImport.update({
@@ -166,12 +171,6 @@ const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
   path: '/backtest/asian-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedPaperTradingRoute =
-  AuthenticatedPaperTradingRouteImport.update({
-    id: '/_authenticated/paper-trading',
-    path: '/paper-trading',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const HandbookVolumeIndexRoute = HandbookVolumeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -211,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
+  '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
   '/reports': typeof ReportsRoute
@@ -219,7 +219,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -243,6 +242,7 @@ export interface FileRoutesByTo {
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
+  '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
   '/reports': typeof ReportsRoute
@@ -251,7 +251,6 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -276,6 +275,7 @@ export interface FileRoutesById {
   '/journal': typeof JournalRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
+  '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
   '/reports': typeof ReportsRoute
@@ -284,7 +284,6 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/_authenticated/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -311,6 +310,7 @@ export interface FileRouteTypes {
     | '/journal'
     | '/market-data'
     | '/optimizer'
+    | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
     | '/reports'
@@ -319,7 +319,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -343,6 +342,7 @@ export interface FileRouteTypes {
     | '/journal'
     | '/market-data'
     | '/optimizer'
+    | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
     | '/reports'
@@ -351,7 +351,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -375,6 +374,7 @@ export interface FileRouteTypes {
     | '/journal'
     | '/market-data'
     | '/optimizer'
+    | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
     | '/reports'
@@ -383,7 +383,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/_authenticated/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -409,6 +408,7 @@ export interface RootRouteChildren {
   JournalRoute: typeof JournalRoute
   MarketDataRoute: typeof MarketDataRoute
   OptimizerRoute: typeof OptimizerRoute
+  PaperTradingRoute: typeof PaperTradingRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   PipelineRoute: typeof PipelineRoute
   ReportsRoute: typeof ReportsRoute
@@ -417,7 +417,6 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
-  AuthenticatedPaperTradingRoute: typeof AuthenticatedPaperTradingRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
@@ -484,6 +483,13 @@ declare module '@tanstack/react-router' {
       path: '/pending-orders'
       fullPath: '/pending-orders'
       preLoaderRoute: typeof PendingOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/paper-trading': {
+      id: '/paper-trading'
+      path: '/paper-trading'
+      fullPath: '/paper-trading'
+      preLoaderRoute: typeof PaperTradingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/optimizer': {
@@ -605,13 +611,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/paper-trading': {
-      id: '/_authenticated/paper-trading'
-      path: '/paper-trading'
-      fullPath: '/paper-trading'
-      preLoaderRoute: typeof AuthenticatedPaperTradingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/handbook/$volume/': {
       id: '/handbook/$volume/'
       path: '/'
@@ -689,6 +688,7 @@ const rootRouteChildren: RootRouteChildren = {
   JournalRoute: JournalRoute,
   MarketDataRoute: MarketDataRoute,
   OptimizerRoute: OptimizerRoute,
+  PaperTradingRoute: PaperTradingRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   PipelineRoute: PipelineRoute,
   ReportsRoute: ReportsRoute,
@@ -697,7 +697,6 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
   TradeIntelligenceRoute: TradeIntelligenceRoute,
-  AuthenticatedPaperTradingRoute: AuthenticatedPaperTradingRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,

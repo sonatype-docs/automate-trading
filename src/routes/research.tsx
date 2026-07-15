@@ -273,7 +273,7 @@ function ResearchPage() {
         {section === "Distributions" && <DistributionSection trades={trades} />}
         {section === "Correlation" && <CorrelationSection trades={trades} />}
         {section === "Compare" && <CompareSection trades={allTrades} />}
-        {section === "TF Optimizer" && <TimeframeOptimizerSection trades={allTrades} />}
+        {section === "TF Optimizer" && <TimeframeOptimizerSection trades={trades} />}
         {section === "Filters" && (
           <FiltersSection rules={customRules} onChange={setCustomRules} count={trades.length} />
         )}
@@ -1075,6 +1075,7 @@ function ReportSection({ trades }: { trades: TradeRecord[] }) {
 // ============================================================
 interface TfRow {
   strategyId: string;
+  symbol: string;
   timeframe: string;
   trades: number;
   netProfit: number;
@@ -1111,25 +1112,31 @@ function rankAsc(values: number[]): number[] {
 
 function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   const [strategyFocus, setStrategyFocus] = useState<string>("all");
+  // Snapshot the input trades — only recomputed when the user clicks "Run".
+  const [snapshot, setSnapshot] = useState<TradeRecord[]>(() => trades);
+  const [ranAt, setRanAt] = useState<number>(() => Date.now());
+  const stale = snapshot !== trades;
+
   const strategies = useMemo(
-    () => Array.from(new Set(trades.map((t) => t.strategyId))).sort(),
-    [trades],
+    () => Array.from(new Set(snapshot.map((t) => t.strategyId))).sort(),
+    [snapshot],
   );
 
   const rows: TfRow[] = useMemo(() => {
-    // Group by strategy + timeframe
+    // Group by strategy + symbol + timeframe
     const map = new Map<string, TradeRecord[]>();
-    for (const t of trades) {
-      const key = `${t.strategyId}||${t.timeframe ?? "—"}`;
+    for (const t of snapshot) {
+      const key = `${t.strategyId}||${t.symbol ?? "—"}||${t.timeframe ?? "—"}`;
       const arr = map.get(key) ?? [];
       arr.push(t);
       map.set(key, arr);
     }
     const raw = Array.from(map.entries()).map(([key, rs]) => {
-      const [strategyId, timeframe] = key.split("||");
+      const [strategyId, symbol, timeframe] = key.split("||");
       const k = computeKpis(rs);
       return {
         strategyId,
+        symbol,
         timeframe,
         trades: k.total,
         netProfit: k.netProfit,
@@ -1195,7 +1202,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
         ? b.robustness - a.robustness
         : a.strategyId.localeCompare(b.strategyId),
     );
-  }, [trades]);
+  }, [snapshot]);
 
   const filtered = strategyFocus === "all" ? rows : rows.filter((r) => r.strategyId === strategyFocus);
 
@@ -1211,23 +1218,46 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   const robustColor = (score: number) =>
     score >= 70 ? "text-emerald-500" : score >= 50 ? "text-amber-500" : "text-rose-500";
 
+  const runOptimization = () => {
+    setSnapshot(trades);
+    setRanAt(Date.now());
+  };
+
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle className="text-sm">Timeframe Optimizer</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
               Ranks every timeframe within each strategy. Robustness = 35% PF · 25% Sample · 20% Net Profit · 10% Win Rate · 10% Drawdown.
             </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {stale ? (
+                <span className="text-amber-500">Filters changed — click Run to refresh.</span>
+              ) : (
+                <>Last run: {new Date(ranAt).toLocaleTimeString()} · {snapshot.length.toLocaleString()} trades</>
+              )}
+            </p>
           </div>
-          <Select value={strategyFocus} onValueChange={setStrategyFocus}>
-            <SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All strategies</SelectItem>
-              {strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={strategyFocus} onValueChange={setStrategyFocus}>
+              <SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All strategies</SelectItem>
+                {strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant={stale ? "default" : "outline"}
+              onClick={runOptimization}
+              className="h-8"
+            >
+              <Gauge className="h-3.5 w-3.5 mr-1.5" />
+              Run optimization
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
@@ -1238,6 +1268,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Strategy</TableHead>
+                <TableHead>Symbol</TableHead>
                 <TableHead>Best TF</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net</TableHead>
@@ -1251,6 +1282,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
               {bestPerStrategy.map((r) => (
                 <TableRow key={r.strategyId}>
                   <TableCell className="font-medium">{r.strategyId}</TableCell>
+                  <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="secondary">{r.timeframe}</Badge></TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
@@ -1266,12 +1298,13 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">All Strategy × Timeframe Combinations</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">All Strategy × Symbol × Timeframe Combinations</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Strategy</TableHead>
+                <TableHead>Symbol</TableHead>
                 <TableHead>TF</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
@@ -1286,8 +1319,9 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
-                <TableRow key={`${r.strategyId}-${r.timeframe}`}>
+                <TableRow key={`${r.strategyId}-${r.symbol}-${r.timeframe}`}>
                   <TableCell className="text-xs">{r.strategyId}</TableCell>
+                  <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="outline">{r.timeframe}</Badge></TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>

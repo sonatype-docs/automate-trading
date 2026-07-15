@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle } from "lucide-react";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { queryTrades } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import {
@@ -92,10 +92,21 @@ export const Route = createFileRoute("/research")({
 });
 
 const SECTIONS = [
-  "Overview", "Performance", "Trades", "Risk", "Market", "Session",
-  "Explorer", "Heatmaps", "Distributions", "Correlation", "Compare", "Filters", "Report",
+  { name: "Overview", icon: LayoutDashboard },
+  { name: "Performance", icon: TrendingUp },
+  { name: "Trades", icon: ListOrdered },
+  { name: "Risk", icon: ShieldAlert },
+  { name: "Market", icon: Globe },
+  { name: "Session", icon: Clock },
+  { name: "Explorer", icon: Compass },
+  { name: "Heatmaps", icon: Grid3x3 },
+  { name: "Distributions", icon: BarChart3 },
+  { name: "Correlation", icon: Network },
+  { name: "Compare", icon: GitCompare },
+  { name: "Filters", icon: SlidersHorizontal },
+  { name: "Report", icon: FileText },
 ] as const;
-type Section = (typeof SECTIONS)[number];
+type Section = (typeof SECTIONS)[number]["name"];
 
 function fmt(n: number, digits = 2): string {
   if (!Number.isFinite(n)) return "∞";
@@ -123,6 +134,15 @@ function pnlColor(n: number): string {
 
 function ResearchPage() {
   const [section, setSection] = useState<Section>("Overview");
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("research-nav-collapsed") === "1";
+  });
+  const toggleNav = () => setNavCollapsed((c) => {
+    const next = !c;
+    if (typeof window !== "undefined") window.localStorage.setItem("research-nav-collapsed", next ? "1" : "0");
+    return next;
+  });
   const queryFn = useServerFn(queryTrades);
 
   const { data, isLoading, error } = useQuery({
@@ -151,22 +171,44 @@ function ResearchPage() {
   return (
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
       {/* Left research navigation */}
-      <aside className="w-52 shrink-0 border-r border-border/60 bg-muted/20 p-3 space-y-1">
-        <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-2 py-1">
-          Research
-        </div>
-        {SECTIONS.map((s) => (
+      <aside
+        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 space-y-2 transition-[width] duration-200`}
+      >
+        <div className="flex items-center justify-between px-1 pb-2">
+          {!navCollapsed && (
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-2">
+              Research
+            </span>
+          )}
           <button
-            key={s}
-            onClick={() => setSection(s)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-              section === s ? "bg-primary text-primary-foreground font-medium"
-                : "hover:bg-accent hover:text-accent-foreground"
-            }`}
+            onClick={toggleNav}
+            className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            aria-label={navCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={navCollapsed ? "Expand" : "Collapse"}
           >
-            {s}
+            {navCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
-        ))}
+        </div>
+        <nav className="space-y-1">
+          {SECTIONS.map(({ name, icon: Icon }) => {
+            const active = section === name;
+            return (
+              <button
+                key={name}
+                onClick={() => setSection(name)}
+                title={navCollapsed ? name : undefined}
+                className={`w-full flex items-center gap-3 ${navCollapsed ? "justify-center px-0" : "px-3"} py-2.5 rounded-md text-sm transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!navCollapsed && <span className="truncate">{name}</span>}
+              </button>
+            );
+          })}
+        </nav>
       </aside>
 
       <main className="flex-1 overflow-auto p-4 space-y-4">

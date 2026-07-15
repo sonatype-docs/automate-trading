@@ -306,6 +306,8 @@ function ExecutionEnginePage() {
                     <th className="py-1 pr-3">Exec</th>
                     <th className="py-1 pr-3">TF</th>
                     <th className="py-1 pr-3">Strat TZ</th>
+                    <th className="py-1 pr-3">Disp TZ</th>
+                    <th className="py-1 pr-3">Mode</th>
                     <th className="py-1 pr-3">Signals</th>
                     <th className="py-1 pr-3">Filled</th>
                     <th className="py-1 pr-3">Trades</th>

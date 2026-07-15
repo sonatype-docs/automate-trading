@@ -105,7 +105,8 @@ export const finishPipelineRun = createServerFn({ method: "POST" })
     };
     if (data.error !== undefined) patch.error = data.error;
     if (data.progress) patch.progress = data.progress;
-    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch).eq("id", data.runId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

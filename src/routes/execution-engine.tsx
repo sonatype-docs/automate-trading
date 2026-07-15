@@ -80,16 +80,22 @@ function ExecutionEnginePage() {
     },
   });
 
+  const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
+  const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
+  const [mxStrategyPresets, setMxStrategyPresets] = useState<string[]>(ALL_STRATEGY_PRESETS);
+  const [mxExecPresets, setMxExecPresets] = useState<string[]>(ALL_EXEC_PRESETS);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
       const toMs = now;
       const fromMs = toMs - days * 86_400_000;
-      const combos: Array<{ sp: string; ep: string; tf: Timeframe }> = [];
-      for (const sp of BATCH_STRATEGY_PRESETS) {
-        for (const ep of BATCH_EXEC_PRESETS) {
-          for (const tf of BATCH_TFS) combos.push({ sp, ep, tf });
+      const combos: Array<{ sym: string; sp: string; ep: string; tf: Timeframe }> = [];
+      for (const sym of mxSymbols) {
+        for (const sp of mxStrategyPresets) {
+          for (const ep of mxExecPresets) {
+            for (const tf of mxTfs) combos.push({ sym, sp, ep, tf: tf as Timeframe });
+          }
         }
       }
       setBatchRows([]);
@@ -99,14 +105,14 @@ function ExecutionEnginePage() {
         try {
           const res = await runner({
             data: {
-              source, symbol, timeframe: c.tf,
+              source, symbol: c.sym, timeframe: c.tf,
               displayTimezone: displayTz, strategyTimezone: strategyTz,
               fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode,
             },
           });
-          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, result: res });
+          rows.push({ symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, result: res });
         } catch (e) {
-          rows.push({ strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, error: e instanceof Error ? e.message : String(e) });
+          rows.push({ symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, error: e instanceof Error ? e.message : String(e) });
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));

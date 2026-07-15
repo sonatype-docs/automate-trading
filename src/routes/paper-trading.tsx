@@ -17,7 +17,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 
-export const Route = createFileRoute("/_authenticated/paper-trading")({
+export const Route = createFileRoute("/paper-trading")({
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),
   component: PaperTradingPage,
 });

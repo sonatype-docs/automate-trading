@@ -21,6 +21,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   PlayCircle,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,6 +47,7 @@ const primary = [
 const trading = [
   { title: "ORB Bot", url: "/bot", icon: Bot },
   { title: "Pending Orders", url: "/pending-orders", icon: ListOrdered },
+  { title: "Paper Trading", url: "/paper-trading", icon: Activity },
 ];
 
 const backtest = [

@@ -156,6 +156,7 @@ function ResearchPage() {
 
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
+  const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [customRules, setCustomRules] = useState<Rule[]>([]);
 
@@ -163,13 +164,15 @@ function ResearchPage() {
     let t = allTrades;
     if (strategyFilter !== "all") t = t.filter((r) => r.strategyId === strategyFilter);
     if (symbolFilter !== "all") t = t.filter((r) => r.symbol === symbolFilter);
+    if (timeframeFilter !== "all") t = t.filter((r) => (r.timeframe ?? "—") === timeframeFilter);
     if (directionFilter !== "all") t = t.filter((r) => r.direction === directionFilter);
     if (customRules.length) t = applyRules(t, customRules);
     return t;
-  }, [allTrades, strategyFilter, symbolFilter, directionFilter, customRules]);
+  }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, directionFilter, customRules]);
 
   const strategies = Array.from(new Set(allTrades.map((r) => r.strategyId)));
   const symbols = Array.from(new Set(allTrades.map((r) => r.symbol)));
+  const timeframes = Array.from(new Set(allTrades.map((r) => r.timeframe ?? "—"))).sort();
 
   return (
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
@@ -238,6 +241,13 @@ function ResearchPage() {
               <SelectContent>
                 <SelectItem value="all">All symbols</SelectItem>
                 {symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
+              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Timeframe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All timeframes</SelectItem>
+                {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={directionFilter} onValueChange={setDirectionFilter}>

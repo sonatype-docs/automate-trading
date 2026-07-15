@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, Gauge, Layers, Loader2 } from "lucide-react";
 import { runExecutionEngine, type RunExecutionResult } from "@/lib/execution-engine.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
-import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
+import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
 
@@ -69,6 +69,7 @@ function ExecutionEnginePage() {
   const [displayTz, setDisplayTz] = useState<Timezone>("IST");
   const [strategyTz, setStrategyTz] = useState<Timezone>("London");
   const [days, setDays] = useState(30);
+  const [riskUsd, setRiskUsd] = useState<number>(DEFAULT_RISK_USD_PER_TRADE);
   const [mode, setMode] = useState<"historical" | "live" | "replay" | "paper">("historical");
 
   const runner = useServerFn(runExecutionEngine);
@@ -81,6 +82,7 @@ function ExecutionEnginePage() {
           source, symbol, timeframe,
           displayTimezone: displayTz, strategyTimezone: strategyTz,
           fromMs, toMs, strategyPresetId, execPresetId, mode,
+          riskUsdOverride: riskUsd,
         },
       });
     },

@@ -139,6 +139,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
+    const { table, snapshotName } = resolveTable(data.dataset);
     const requestedLimit = Math.min(spec.limit ?? 100, 20000);
     const baseOffset = spec.offset ?? 0;
     const CHUNK = 1000; // PostgREST default max_rows cap
@@ -147,8 +148,9 @@ export const queryTrades = createServerFn({ method: "POST" })
     for (let fetched = 0; fetched < requestedLimit; fetched += CHUNK) {
       const remaining = requestedLimit - fetched;
       const chunkSize = Math.min(CHUNK, remaining);
-      const q = applyQuery(supabase, "trade_intelligence", {
+      const q = applyQuery(supabase, table, {
         ...spec,
+        snapshotName,
         limit: chunkSize,
         offset: baseOffset + fetched,
       });
@@ -173,12 +175,13 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
+    const { table, snapshotName } = resolveTable(data.dataset);
     const CHUNK = 1000;
     const MAX = 20000;
     const allRows: Record<string, unknown>[] = [];
     for (let offset = 0; offset < MAX; offset += CHUNK) {
-      const spec: TradeQuerySpec = { ...data, limit: CHUNK, offset };
-      const q = applyQuery(supabase, "trade_intelligence", spec);
+      const spec: TradeQuerySpec & { snapshotName?: string } = { ...data, snapshotName, limit: CHUNK, offset };
+      const q = applyQuery(supabase, table, spec);
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       if (!rows || rows.length === 0) break;

@@ -79,6 +79,11 @@ function TradeIntelligencePage() {
   const del = useServerFn(deleteTrade);
   const clear = useServerFn(clearStrategy);
   const summary = useServerFn(summariseTrades);
+  const snapshots = useServerFn(listSnapshots);
+
+  // "live" = current writable trade_intelligence table (still being appended
+  // to by any running pipeline). Anything else = an archived snapshot label.
+  const [dataset, setDataset] = useState<string>("live");
 
   const [form, setForm] = useState({
     strategyPresetId: strategyIds[0] ?? "",

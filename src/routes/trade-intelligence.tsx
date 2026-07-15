@@ -308,6 +308,9 @@ function TradeIntelligencePage() {
             <MatrixGroup title="Strategy TZ"
               options={BATCH_TZS.map((v) => ({ value: v }))}
               selected={mxStratTzs} onChange={setMxStratTzs} />
+            <MatrixGroup title="Display TZ"
+              options={BATCH_TZS.map((v) => ({ value: v }))}
+              selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
           </div>
           <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
             <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
@@ -316,12 +319,12 @@ function TradeIntelligencePage() {
             <Button
               variant="secondary"
               onClick={() => batchMut.mutate()}
-              disabled={recordMut.isPending || batchMut.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0 || mxStratTzs.length === 0}
+              disabled={recordMut.isPending || batchMut.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0}
             >
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length})`}
+                : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">

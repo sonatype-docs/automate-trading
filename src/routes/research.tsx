@@ -243,6 +243,13 @@ function ResearchPage() {
                 {symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
+              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Timeframe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All timeframes</SelectItem>
+                {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={directionFilter} onValueChange={setDirectionFilter}>
               <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Direction" /></SelectTrigger>
               <SelectContent>

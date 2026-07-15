@@ -253,15 +253,18 @@ function MarketDataPage() {
               <MatrixGroup title="Strategy TZ"
                 options={TIMEZONES.map((t) => ({ value: t }))}
                 selected={mxStratTzs} onChange={setMxStratTzs} />
+              <MatrixGroup title="Display TZ"
+                options={TIMEZONES.map((t) => ({ value: t }))}
+                selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="secondary"
                 onClick={() => matrix.mutate()}
-                disabled={matrix.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStratTzs.length === 0}>
+                disabled={matrix.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0}>
                 <Layers className="w-4 h-4 mr-2" />
                 {matrix.isPending
                   ? `Loading matrix ${mxProgress.done}/${mxProgress.total}…`
-                  : `Run Matrix (${mxSources.length}×${mxSymbols.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxTfs.length * mxStratTzs.length})`}
+                  : `Run Matrix (${mxSources.length}×${mxSymbols.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
               </Button>
               <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
                 Lookback: {days}d

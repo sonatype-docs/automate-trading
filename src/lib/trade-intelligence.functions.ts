@@ -123,12 +123,29 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
-    const q = applyQuery(supabase, "trade_intelligence", spec);
-    const { data: rows, error, count } = await q;
-    if (error) throw new Error(error.message);
+    const requestedLimit = Math.min(spec.limit ?? 100, 10000);
+    const baseOffset = spec.offset ?? 0;
+    const CHUNK = 1000; // PostgREST default max_rows cap
+    const allRows: Record<string, unknown>[] = [];
+    let total = 0;
+    for (let fetched = 0; fetched < requestedLimit; fetched += CHUNK) {
+      const remaining = requestedLimit - fetched;
+      const chunkSize = Math.min(CHUNK, remaining);
+      const q = applyQuery(supabase, "trade_intelligence", {
+        ...spec,
+        limit: chunkSize,
+        offset: baseOffset + fetched,
+      });
+      const { data: rows, error, count } = await q;
+      if (error) throw new Error(error.message);
+      total = count ?? total;
+      if (!rows || rows.length === 0) break;
+      allRows.push(...(rows as Record<string, unknown>[]));
+      if (rows.length < chunkSize) break;
+    }
     return {
-      rows: (rows ?? []).map((r) => rowToRecord(r as Record<string, unknown>)),
-      total: count ?? 0,
+      rows: allRows.map((r) => rowToRecord(r)),
+      total,
     };
   });
 
@@ -140,11 +157,19 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
-    const spec: TradeQuerySpec = { ...data, limit: 1000 };
-    const q = applyQuery(supabase, "trade_intelligence", spec);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    const records = (rows ?? []).map((r) => rowToRecord(r as Record<string, unknown>));
+    const CHUNK = 1000;
+    const MAX = 10000;
+    const allRows: Record<string, unknown>[] = [];
+    for (let offset = 0; offset < MAX; offset += CHUNK) {
+      const spec: TradeQuerySpec = { ...data, limit: CHUNK, offset };
+      const q = applyQuery(supabase, "trade_intelligence", spec);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!rows || rows.length === 0) break;
+      allRows.push(...(rows as Record<string, unknown>[]));
+      if (rows.length < CHUNK) break;
+    }
+    const records = allRows.map((r) => rowToRecord(r));
     return exportRecords(records, data.format);
   });
 

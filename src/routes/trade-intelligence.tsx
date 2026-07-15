@@ -301,6 +301,7 @@ function TradeIntelligencePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Symbol</TableHead>
                     <TableHead>Strategy</TableHead>
                     <TableHead>Exec</TableHead>
                     <TableHead>TF</TableHead>
@@ -312,6 +313,7 @@ function TradeIntelligencePage() {
                 <TableBody>
                   {batchRows.map((r, i) => (
                     <TableRow key={i}>
+                      <TableCell className="text-xs">{r.symbol}</TableCell>
                       <TableCell className="text-xs">{r.presetId}</TableCell>
                       <TableCell className="text-xs">{r.execId}</TableCell>
                       <TableCell className="text-xs">{r.tf}</TableCell>

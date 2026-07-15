@@ -1,0 +1,125 @@
+// Pipeline — server functions.
+// One-click Jenkins-style pipeline that runs Data → Strategy → Execution →
+// Trade Intelligence for every combo in a matrix. Client-orchestrated: the
+// browser expands the matrix and calls `runComboPipeline` per combo, updating
+// a `pipeline_runs` row for history/resume.
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+
+const MatrixSchema = z.object({
+  source: z.enum(["yahoo", "shark"]),
+  symbols: z.array(z.string()).min(1),
+  timeframes: z.array(z.enum([...TIMEFRAMES] as [Timeframe, ...Timeframe[]])).min(1),
+  strategyPresetIds: z.array(z.string()).min(1),
+  execPresetIds: z.array(z.string()).min(1),
+  displayTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]),
+  strategyTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]),
+  mode: z.enum(["historical", "live", "replay", "paper"]),
+  lookbackDays: z.number().int().positive().max(2000),
+  riskUsdPerTrade: z.number().positive(),
+});
+
+// ---------- start a run ----------
+
+export const startPipelineRun = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({ matrix: MatrixSchema, total: z.number().int().nonnegative() }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ownerRow } = await supabaseAdmin.from("owner").select("user_id").eq("id", true).maybeSingle();
+    const userId = ownerRow?.user_id ?? "00000000-0000-0000-0000-000000000000";
+    const { data: row, error } = await supabaseAdmin
+      .from("pipeline_runs")
+      .insert({
+        user_id: userId,
+        status: "running",
+        matrix: data.matrix,
+        progress: {
+          total: data.total, completed: 0, ok: 0, failed: 0,
+          totalTrades: 0, totalInserted: 0,
+          currentCombo: null, currentStage: null,
+        },
+        log: [],
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { runId: row.id as string };
+  });
+
+// ---------- update progress ----------
+
+const ProgressPatch = z.object({
+  runId: z.string(),
+  progress: z.record(z.string(), z.unknown()),
+  logEntry: z
+    .object({
+      ts: z.number(),
+      combo: z.record(z.string(), z.unknown()),
+      stage: z.string().nullable(),
+      status: z.string(),
+      trades: z.number().optional(),
+      inserted: z.number().optional(),
+      netPnl: z.number().optional(),
+      bars: z.number().optional(),
+      signals: z.number().optional(),
+      elapsedMs: z.number().optional(),
+      error: z.string().nullable().optional(),
+    })
+    .optional(),
+});
+
+export const updatePipelineRun = createServerFn({ method: "POST" })
+  .inputValidator((raw) => ProgressPatch.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch: Record<string, unknown> = { progress: data.progress };
+    if (data.logEntry) {
+      const { data: existing } = await supabaseAdmin
+        .from("pipeline_runs").select("log").eq("id", data.runId).maybeSingle();
+      const log = Array.isArray(existing?.log) ? existing!.log as unknown[] : [];
+      log.push(data.logEntry);
+      // Cap log at 2000 entries — enough for large matrices without bloating the row.
+      patch.log = log.slice(-2000);
+    }
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch).eq("id", data.runId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- finish a run ----------
+
+export const finishPipelineRun = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({
+    runId: z.string(),
+    status: z.enum(["done", "failed", "stopped"]),
+    error: z.string().nullable().optional(),
+    progress: z.record(z.string(), z.unknown()).optional(),
+  }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch: Record<string, unknown> = {
+      status: data.status,
+      finished_at: new Date().toISOString(),
+    };
+    if (data.error !== undefined) patch.error = data.error;
+    if (data.progress) patch.progress = data.progress;
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch).eq("id", data.runId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- list runs ----------
+
+export const listPipelineRuns = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({ limit: z.number().int().positive().max(50).default(20) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("pipeline_runs")
+      .select("id,status,matrix,progress,error,started_at,finished_at")
+      .order("started_at", { ascending: false })
+      .limit(data.limit);
+    if (error) throw new Error(error.message);
+    return { rows: rows ?? [] };
+  });

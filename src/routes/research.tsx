@@ -103,6 +103,7 @@ const SECTIONS = [
   { name: "Distributions", icon: BarChart3 },
   { name: "Correlation", icon: Network },
   { name: "Compare", icon: GitCompare },
+  { name: "TF Optimizer", icon: Gauge },
   { name: "Filters", icon: SlidersHorizontal },
   { name: "Report", icon: FileText },
 ] as const;

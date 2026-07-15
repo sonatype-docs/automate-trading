@@ -127,7 +127,7 @@ function ResearchPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["research", "all-trades"],
-    queryFn: () => queryFn({ data: { limit: 5000, orderBy: "exit_time", order: "asc" } }),
+    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc" } }),
   });
   const allTrades: TradeRecord[] = data?.rows ?? [];
 

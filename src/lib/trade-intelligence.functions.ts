@@ -157,11 +157,19 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
-    const spec: TradeQuerySpec = { ...data, limit: 10000 };
-    const q = applyQuery(supabase, "trade_intelligence", spec);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    const records = (rows ?? []).map((r) => rowToRecord(r as Record<string, unknown>));
+    const CHUNK = 1000;
+    const MAX = 10000;
+    const allRows: Record<string, unknown>[] = [];
+    for (let offset = 0; offset < MAX; offset += CHUNK) {
+      const spec: TradeQuerySpec = { ...data, limit: CHUNK, offset };
+      const q = applyQuery(supabase, "trade_intelligence", spec);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      if (!rows || rows.length === 0) break;
+      allRows.push(...(rows as Record<string, unknown>[]));
+      if (rows.length < CHUNK) break;
+    }
+    const records = allRows.map((r) => rowToRecord(r));
     return exportRecords(records, data.format);
   });
 

@@ -66,19 +66,22 @@ function StrategyEnginePage() {
   const ALL_PRESETS = Object.keys(STRATEGY_PRESETS);
   const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
   const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+  const ALL_MODES = ["historical", "live", "replay", "paper"] as const;
   const [mxSources, setMxSources] = useState<string[]>([source]);
   const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
   const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
   const [mxPresets, setMxPresets] = useState<string[]>(ALL_PRESETS);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
-  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; result?: RunStrategyResult["result"]; error?: string };
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>([displayTz]);
+  const [mxModes, setMxModes] = useState<string[]>([mode]);
+  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; displayTz: string; mode: string; result?: RunStrategyResult["result"]; error?: string };
   const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
-      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string }[] = [];
-      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs)
-        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz });
+      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; displayTz: string; mode: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs) for (const dtz of mxDisplayTzs) for (const md of mxModes)
+        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz, displayTz: dtz, mode: md });
       setBatchResults([]);
       setBatchProgress({ done: 0, total: combos.length });
       const toMs = now;
@@ -89,13 +92,13 @@ function StrategyEnginePage() {
           const res = await runner({
             data: {
               source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
-              fromMs, toMs, presetId: c.presetId, mode,
+              displayTimezone: c.displayTz as Timezone, strategyTimezone: c.stratTz as Timezone,
+              fromMs, toMs, presetId: c.presetId, mode: c.mode as typeof mode,
             },
           });
-          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, result: res.result });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz, mode: c.mode, result: res.result });
         } catch (e) {
-          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz, mode: c.mode, error: (e as Error).message });
         }
         setBatchResults([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
@@ -215,15 +218,21 @@ function StrategyEnginePage() {
                 <MatrixGroup title="Strategy TZ"
                   options={TIMEZONES.map((v) => ({ value: v }))}
                   selected={mxStratTzs} onChange={setMxStratTzs} />
+                <MatrixGroup title="Display TZ"
+                  options={TIMEZONES.map((v) => ({ value: v }))}
+                  selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
+                <MatrixGroup title="Modes"
+                  options={ALL_MODES.map((v) => ({ value: v }))}
+                  selected={mxModes} onChange={setMxModes} />
               </div>
               <Button
                 variant="secondary"
                 onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0 || mxStratTzs.length === 0}
+                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0 || mxModes.length === 0}
               >
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxPresets.length}×{mxTfs.length}×{mxStratTzs.length} = {mxSources.length * mxSymbols.length * mxPresets.length * mxTfs.length * mxStratTzs.length})</>}
+                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxPresets.length}×{mxTfs.length}×{mxStratTzs.length}×{mxDisplayTzs.length}×{mxModes.length} = {mxSources.length * mxSymbols.length * mxPresets.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length * mxModes.length})</>}
               </Button>
             </div>
           </CardContent>
@@ -241,6 +250,8 @@ function StrategyEnginePage() {
                     <th className="py-1 pr-3">Preset</th>
                     <th className="py-1 pr-3">TF</th>
                     <th className="py-1 pr-3">Strat TZ</th>
+                    <th className="py-1 pr-3">Disp TZ</th>
+                    <th className="py-1 pr-3">Mode</th>
                     <th className="py-1 pr-3">Bars</th>
                     <th className="py-1 pr-3">Setups</th>
                     <th className="py-1 pr-3">Signals</th>
@@ -256,6 +267,8 @@ function StrategyEnginePage() {
                       <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
                       <td className="py-1 pr-3">{b.tf}</td>
                       <td className="py-1 pr-3">{b.stratTz}</td>
+                      <td className="py-1 pr-3">{b.displayTz}</td>
+                      <td className="py-1 pr-3">{b.mode}</td>
                       <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>

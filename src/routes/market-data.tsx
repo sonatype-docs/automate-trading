@@ -87,8 +87,9 @@ function MarketDataPage() {
   const [mxSymbols, setMxSymbols] = useState<string[]>(["XAUUSDT", "BTCUSDT"]);
   const [mxTfs, setMxTfs] = useState<string[]>(["1m", "5m", "15m", "1h"]);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>([displayTz]);
   type MxRow = {
-    source: string; symbol: string; tf: string; stratTz: string;
+    source: string; symbol: string; tf: string; stratTz: string; displayTz: string;
     bars?: number; avgAtr?: number | null; bos?: number; choch?: number; error?: string;
   };
   const [mxRows, setMxRows] = useState<MxRow[]>([]);
@@ -97,9 +98,9 @@ function MarketDataPage() {
     mutationFn: async () => {
       const toMs = Date.now();
       const fromMs = toMs - days * 86_400_000;
-      const combos: { source: string; symbol: string; tf: string; stratTz: string }[] = [];
-      for (const src of mxSources) for (const s of mxSymbols) for (const t of mxTfs) for (const tz of mxStratTzs)
-        combos.push({ source: src, symbol: s, tf: t, stratTz: tz });
+      const combos: { source: string; symbol: string; tf: string; stratTz: string; displayTz: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const t of mxTfs) for (const tz of mxStratTzs) for (const dtz of mxDisplayTzs)
+        combos.push({ source: src, symbol: s, tf: t, stratTz: tz, displayTz: dtz });
       setMxRows([]);
       setMxProgress({ done: 0, total: combos.length });
       const rows: MxRow[] = [];
@@ -108,7 +109,7 @@ function MarketDataPage() {
           const res = await fetcher({
             data: {
               source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf as Timeframe,
-              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
+              displayTimezone: c.displayTz as Timezone, strategyTimezone: c.stratTz as Timezone,
               fromMs, toMs,
               openingRangeMinutes: orMinutes,
               openingRangeStartHour: orStartHour,
@@ -118,12 +119,12 @@ function MarketDataPage() {
             },
           });
           rows.push({
-            source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz,
+            source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz,
             bars: res.count, avgAtr: res.summary.avgAtr,
             bos: res.summary.bosCount, choch: res.summary.chochCount,
           });
         } catch (e) {
-          rows.push({ source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz, error: (e as Error).message });
         }
         setMxRows([...rows]);
         setMxProgress((p) => ({ ...p, done: p.done + 1 }));
@@ -252,15 +253,18 @@ function MarketDataPage() {
               <MatrixGroup title="Strategy TZ"
                 options={TIMEZONES.map((t) => ({ value: t }))}
                 selected={mxStratTzs} onChange={setMxStratTzs} />
+              <MatrixGroup title="Display TZ"
+                options={TIMEZONES.map((t) => ({ value: t }))}
+                selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="secondary"
                 onClick={() => matrix.mutate()}
-                disabled={matrix.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStratTzs.length === 0}>
+                disabled={matrix.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0}>
                 <Layers className="w-4 h-4 mr-2" />
                 {matrix.isPending
                   ? `Loading matrix ${mxProgress.done}/${mxProgress.total}…`
-                  : `Run Matrix (${mxSources.length}×${mxSymbols.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxTfs.length * mxStratTzs.length})`}
+                  : `Run Matrix (${mxSources.length}×${mxSymbols.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
               </Button>
               <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
                 Lookback: {days}d
@@ -275,6 +279,7 @@ function MarketDataPage() {
                       <th className="py-1 px-3">Symbol</th>
                       <th className="py-1 px-3">TF</th>
                       <th className="py-1 px-3">Strat TZ</th>
+                      <th className="py-1 px-3">Disp TZ</th>
                       <th className="py-1 px-3 text-right">Bars</th>
                       <th className="py-1 px-3 text-right">Avg ATR</th>
                       <th className="py-1 px-3 text-right">BOS</th>
@@ -289,6 +294,7 @@ function MarketDataPage() {
                         <td className="py-1 px-3">{r.symbol}</td>
                         <td className="py-1 px-3">{r.tf}</td>
                         <td className="py-1 px-3">{r.stratTz}</td>
+                        <td className="py-1 px-3">{r.displayTz}</td>
                         <td className="py-1 px-3 text-right">{r.bars?.toLocaleString() ?? "—"}</td>
                         <td className="py-1 px-3 text-right">{fmtNum(r.avgAtr ?? null)}</td>
                         <td className="py-1 px-3 text-right">{r.bos ?? "—"}</td>

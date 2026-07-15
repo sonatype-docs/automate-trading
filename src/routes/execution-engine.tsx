@@ -21,6 +21,7 @@ const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
 const ALL_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
 const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+const ALL_MODES = ["historical", "live", "replay", "paper"] as const;
 
 type BatchRow = {
   source: string;
@@ -29,6 +30,8 @@ type BatchRow = {
   execPresetId: string;
   tf: Timeframe;
   stratTz: string;
+  displayTz: string;
+  mode: string;
   result?: RunExecutionResult;
   error?: string;
 };
@@ -89,19 +92,25 @@ function ExecutionEnginePage() {
   const [mxStrategyPresets, setMxStrategyPresets] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [mxExecPresets, setMxExecPresets] = useState<string[]>(ALL_EXEC_PRESETS);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>([displayTz]);
+  const [mxModes, setMxModes] = useState<string[]>([mode]);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
       const toMs = now;
       const fromMs = toMs - days * 86_400_000;
-      const combos: Array<{ src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string }> = [];
+      const combos: Array<{ src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string; dtz: string; md: string }> = [];
       for (const src of mxSources) {
         for (const sym of mxSymbols) {
           for (const sp of mxStrategyPresets) {
             for (const ep of mxExecPresets) {
               for (const tf of mxTfs) {
-                for (const tz of mxStratTzs) combos.push({ src, sym, sp, ep, tf: tf as Timeframe, tz });
+                for (const tz of mxStratTzs) {
+                  for (const dtz of mxDisplayTzs) {
+                    for (const md of mxModes) combos.push({ src, sym, sp, ep, tf: tf as Timeframe, tz, dtz, md });
+                  }
+                }
               }
             }
           }
@@ -115,13 +124,13 @@ function ExecutionEnginePage() {
           const res = await runner({
             data: {
               source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: c.tz as Timezone,
-              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode,
+              displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
+              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
             },
           });
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, result: res });
+          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res });
         } catch (e) {
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, error: e instanceof Error ? e.message : String(e) });
+          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, error: e instanceof Error ? e.message : String(e) });
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
@@ -253,13 +262,19 @@ function ExecutionEnginePage() {
               <MatrixGroup title="Strategy TZ"
                 options={TIMEZONES.map((v) => ({ value: v }))}
                 selected={mxStratTzs} onChange={setMxStratTzs} />
+              <MatrixGroup title="Display TZ"
+                options={TIMEZONES.map((v) => ({ value: v }))}
+                selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
+              <MatrixGroup title="Modes"
+                options={ALL_MODES.map((v) => ({ value: v }))}
+                selected={mxModes} onChange={setMxModes} />
             </div>
             <div className="md:col-span-4 flex items-center gap-3">
               <Button variant="secondary" onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0 || mxStratTzs.length === 0}>
+                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0 || mxModes.length === 0}>
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length}×{mxStratTzs.length} = {mxSources.length * mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length * mxStratTzs.length})</>}
+                  : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length}×{mxStratTzs.length}×{mxDisplayTzs.length}×{mxModes.length} = {mxSources.length * mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length * mxModes.length})</>}
               </Button>
             </div>
           </CardContent>
@@ -291,6 +306,8 @@ function ExecutionEnginePage() {
                     <th className="py-1 pr-3">Exec</th>
                     <th className="py-1 pr-3">TF</th>
                     <th className="py-1 pr-3">Strat TZ</th>
+                    <th className="py-1 pr-3">Disp TZ</th>
+                    <th className="py-1 pr-3">Mode</th>
                     <th className="py-1 pr-3">Signals</th>
                     <th className="py-1 pr-3">Filled</th>
                     <th className="py-1 pr-3">Trades</th>
@@ -312,6 +329,8 @@ function ExecutionEnginePage() {
                         <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
                         <td className="py-1 pr-3">{row.tf}</td>
                         <td className="py-1 pr-3">{row.stratTz}</td>
+                        <td className="py-1 pr-3">{row.displayTz}</td>
+                        <td className="py-1 pr-3">{row.mode}</td>
                         <td className="py-1 pr-3">{s ? s.signalsIn : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.ordersFilled : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.tradesClosed : "—"}</td>

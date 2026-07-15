@@ -32,6 +32,7 @@ type BatchRow = {
   execId: string;
   tf: string;
   stratTz: string;
+  displayTz: string;
   inserted?: number;
   tradesInRun?: number;
   error?: string;
@@ -87,6 +88,7 @@ function TradeIntelligencePage() {
   const [mxStrategies, setMxStrategies] = useState<string[]>(strategyIds);
   const [mxExecs, setMxExecs] = useState<string[]>(execIds);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>(["London"]);
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>(["IST"]);
 
 
   const [filter, setFilter] = useState({
@@ -146,13 +148,15 @@ function TradeIntelligencePage() {
     mutationFn: async () => {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }> = [];
+      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }> = [];
       for (const source of mxSources) {
         for (const symbol of mxSymbols) {
           for (const presetId of mxStrategies) {
             for (const execId of mxExecs) {
               for (const tf of mxTfs) {
-                for (const stratTz of mxStratTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz });
+                for (const stratTz of mxStratTzs) {
+                  for (const displayTz of mxDisplayTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
+                }
               }
             }
           }
@@ -161,7 +165,7 @@ function TradeIntelligencePage() {
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
-      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }) => {
+      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }) => {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
@@ -169,7 +173,7 @@ function TradeIntelligencePage() {
               data: {
                 source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
                 timeframe: combo.tf as "15m",
-                displayTimezone: "IST", strategyTimezone: combo.stratTz as "London",
+                displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
                 fromMs: from, toMs: to,
                 strategyPresetId: combo.presetId,
                 execPresetId: combo.execId,
@@ -304,6 +308,9 @@ function TradeIntelligencePage() {
             <MatrixGroup title="Strategy TZ"
               options={BATCH_TZS.map((v) => ({ value: v }))}
               selected={mxStratTzs} onChange={setMxStratTzs} />
+            <MatrixGroup title="Display TZ"
+              options={BATCH_TZS.map((v) => ({ value: v }))}
+              selected={mxDisplayTzs} onChange={setMxDisplayTzs} />
           </div>
           <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
             <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
@@ -312,12 +319,12 @@ function TradeIntelligencePage() {
             <Button
               variant="secondary"
               onClick={() => batchMut.mutate()}
-              disabled={recordMut.isPending || batchMut.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0 || mxStratTzs.length === 0}
+              disabled={recordMut.isPending || batchMut.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0}
             >
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length})`}
+                : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
@@ -343,6 +350,7 @@ function TradeIntelligencePage() {
                     <TableHead>Exec</TableHead>
                     <TableHead>TF</TableHead>
                     <TableHead>Strat TZ</TableHead>
+                    <TableHead>Disp TZ</TableHead>
                     <TableHead className="text-right">Trades</TableHead>
                     <TableHead className="text-right">Inserted</TableHead>
                     <TableHead>Status</TableHead>
@@ -357,6 +365,7 @@ function TradeIntelligencePage() {
                       <TableCell className="text-xs">{r.execId}</TableCell>
                       <TableCell className="text-xs">{r.tf}</TableCell>
                       <TableCell className="text-xs">{r.stratTz}</TableCell>
+                      <TableCell className="text-xs">{r.displayTz}</TableCell>
                       <TableCell className="text-right text-xs">{r.tradesInRun ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs">{r.inserted ?? "—"}</TableCell>
                       <TableCell>

@@ -250,6 +250,8 @@ function StrategyEnginePage() {
                     <th className="py-1 pr-3">Preset</th>
                     <th className="py-1 pr-3">TF</th>
                     <th className="py-1 pr-3">Strat TZ</th>
+                    <th className="py-1 pr-3">Disp TZ</th>
+                    <th className="py-1 pr-3">Mode</th>
                     <th className="py-1 pr-3">Bars</th>
                     <th className="py-1 pr-3">Setups</th>
                     <th className="py-1 pr-3">Signals</th>
@@ -265,6 +267,8 @@ function StrategyEnginePage() {
                       <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
                       <td className="py-1 pr-3">{b.tf}</td>
                       <td className="py-1 pr-3">{b.stratTz}</td>
+                      <td className="py-1 pr-3">{b.displayTz}</td>
+                      <td className="py-1 pr-3">{b.mode}</td>
                       <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>

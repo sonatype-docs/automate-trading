@@ -80,6 +80,15 @@ function TradeIntelligencePage() {
   const clear = useServerFn(clearStrategy);
   const summary = useServerFn(summariseTrades);
   const snapshots = useServerFn(listSnapshots);
+  const dedupe = useServerFn(dedupeTrades);
+  const [dedupeResult, setDedupeResult] = useState<{ scanned: number; duplicateGroups: number; deleted: number } | null>(null);
+  const dedupeMut = useMutation({
+    mutationFn: async () => dedupe({ data: { dataset: "live" } }),
+    onSuccess: (r) => {
+      setDedupeResult(r);
+      qc.invalidateQueries({ queryKey: ["trade-intel"] });
+    },
+  });
 
   // "live" = current writable trade_intelligence table (still being appended
   // to by any running pipeline). Anything else = an archived snapshot label.

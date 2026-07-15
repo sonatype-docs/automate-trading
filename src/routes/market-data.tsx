@@ -279,6 +279,7 @@ function MarketDataPage() {
                       <th className="py-1 px-3">Symbol</th>
                       <th className="py-1 px-3">TF</th>
                       <th className="py-1 px-3">Strat TZ</th>
+                      <th className="py-1 px-3">Disp TZ</th>
                       <th className="py-1 px-3 text-right">Bars</th>
                       <th className="py-1 px-3 text-right">Avg ATR</th>
                       <th className="py-1 px-3 text-right">BOS</th>
@@ -293,6 +294,7 @@ function MarketDataPage() {
                         <td className="py-1 px-3">{r.symbol}</td>
                         <td className="py-1 px-3">{r.tf}</td>
                         <td className="py-1 px-3">{r.stratTz}</td>
+                        <td className="py-1 px-3">{r.displayTz}</td>
                         <td className="py-1 px-3 text-right">{r.bars?.toLocaleString() ?? "—"}</td>
                         <td className="py-1 px-3 text-right">{fmtNum(r.avgAtr ?? null)}</td>
                         <td className="py-1 px-3 text-right">{r.bos ?? "—"}</td>

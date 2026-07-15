@@ -412,6 +412,48 @@ function PipelinePage() {
     onSettled: () => { resumable.refetch(); },
   });
 
+  // Re-record trades for every completed combo in the resume row's log.
+  // Use case: live table was cleared / trades went missing while paused;
+  // upserts are keyed by deterministic trade_id, so re-runs restore missing
+  // rows without duplicating existing ones.
+  const [reRecordState, setReRecordState] = useState<{ done: number; total: number; inserted: number } | null>(null);
+  const reRecordMut = useMutation({
+    mutationFn: async () => {
+      const row = resumable.data?.row;
+      if (!row) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = row.matrix as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const logArr = (Array.isArray((row as any).log) ? (row as any).log : []) as Array<any>;
+      const completed = logArr.filter((e) => e?.combo && e.status === "ok");
+      const toMs = Date.now();
+      const fromMs = toMs - Number(m.lookbackDays) * 86_400_000;
+      let inserted = 0;
+      setReRecordState({ done: 0, total: completed.length, inserted: 0 });
+      for (let i = 0; i < completed.length; i++) {
+        const c = completed[i].combo;
+        try {
+          const res = await runFn({
+            data: {
+              source: m.source, symbol: c.symbol, timeframe: c.timeframe,
+              displayTimezone: m.displayTimezone, strategyTimezone: m.strategyTimezone,
+              fromMs, toMs,
+              strategyPresetId: c.strategyPresetId,
+              execPresetId: c.execPresetId,
+              tags: ["pipeline", `run:${row.id}`, "rerecord"],
+              riskUsdOverride: Number(m.riskUsdPerTrade),
+            },
+          });
+          inserted += res.inserted ?? 0;
+        } catch (e) {
+          console.error("[pipeline] rerecord failed", c, e);
+        }
+        setReRecordState({ done: i + 1, total: completed.length, inserted });
+      }
+    },
+    onSettled: () => { resumable.refetch(); },
+  });
+
 
   const totalCombos = combos.length;
   const isRunning = control === "running" || control === "paused" || control === "stopping";
@@ -487,12 +529,27 @@ function PipelinePage() {
                 size="sm"
                 variant="outline"
                 onClick={() => restartMut.mutate()}
-                disabled={resumeMut.isPending || restartMut.isPending}
+                disabled={resumeMut.isPending || restartMut.isPending || reRecordMut.isPending}
                 title="Reset progress and rerun every combo from the beginning (use this if live trades were cleared while paused)."
               >
                 {restartMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
                 Restart from beginning
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => reRecordMut.mutate()}
+                disabled={resumeMut.isPending || restartMut.isPending || reRecordMut.isPending}
+                title="Re-run every completed combo to restore trades missing from the live table. Safe — upserts dedupe by trade_id."
+              >
+                {reRecordMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Re-record completed combos
+              </Button>
+              {reRecordState && (
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  re-recorded {reRecordState.done}/{reRecordState.total} · +{reRecordState.inserted.toLocaleString()} trades
+                </span>
+              )}
 
             </AlertDescription>
           </Alert>

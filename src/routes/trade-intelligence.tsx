@@ -282,12 +282,12 @@ function TradeIntelligencePage() {
             <Button
               variant="secondary"
               onClick={() => batchMut.mutate()}
-              disabled={recordMut.isPending || batchMut.isPending}
+              disabled={recordMut.isPending || batchMut.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0}
             >
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record All (Matrix: ${BATCH_SYMBOLS.length}×${strategyIds.length}×${execIds.length}×${BATCH_TFS.length})`}
+                : `Record Matrix (${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length} = ${mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">

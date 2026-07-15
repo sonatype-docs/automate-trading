@@ -243,7 +243,13 @@ function TradeIntelligencePage() {
             </Select>
           </div>
           <div className="space-y-1"><Label>Symbol</Label>
-            <Input value={form.symbol} onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value }))} />
+            <Select value={form.symbol} onValueChange={(v) => setForm((f) => ({ ...f, symbol: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="XAUUSDT">XAUUSDT</SelectItem>
+                <SelectItem value="BTCUSDT">BTCUSDT</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1"><Label>Timeframe</Label>
             <Input value={form.timeframe} onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value }))} />

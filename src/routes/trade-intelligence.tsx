@@ -134,22 +134,24 @@ function TradeIntelligencePage() {
     mutationFn: async () => {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ presetId: string; execId: string; tf: string }> = [];
-      for (const presetId of strategyIds) {
-        for (const execId of execIds) {
-          for (const tf of BATCH_TFS) combos.push({ presetId, execId, tf });
+      const combos: Array<{ symbol: string; presetId: string; execId: string; tf: string }> = [];
+      for (const symbol of BATCH_SYMBOLS) {
+        for (const presetId of strategyIds) {
+          for (const execId of execIds) {
+            for (const tf of BATCH_TFS) combos.push({ symbol, presetId, execId, tf });
+          }
         }
       }
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
-      const runOne = async (combo: { presetId: string; execId: string; tf: string }) => {
+      const runOne = async (combo: { symbol: string; presetId: string; execId: string; tf: string }) => {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             return await record({
               data: {
-                source: form.source, symbol: form.symbol,
+                source: form.source, symbol: combo.symbol,
                 timeframe: combo.tf as "15m",
                 displayTimezone: "IST", strategyTimezone: "London",
                 fromMs: from, toMs: to,
@@ -160,8 +162,6 @@ function TradeIntelligencePage() {
             });
           } catch (e) {
             lastErr = e;
-            // Small backoff: 500ms, 1500ms — gives worker time to recover from
-            // transient "Failed to fetch" (cold start / network blip).
             await new Promise((r) => setTimeout(r, 500 * (attempt + 1) * (attempt + 1)));
           }
         }
@@ -176,7 +176,6 @@ function TradeIntelligencePage() {
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
-        // brief yield between combos so the worker isn't hammered back-to-back.
         await new Promise((r) => setTimeout(r, 150));
       }
 

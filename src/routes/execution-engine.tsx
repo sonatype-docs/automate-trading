@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, Gauge, Layers, Loader2 } from "lucide-react";
 import { runExecutionEngine, type RunExecutionResult } from "@/lib/execution-engine.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
-import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
+import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
 
@@ -69,6 +69,7 @@ function ExecutionEnginePage() {
   const [displayTz, setDisplayTz] = useState<Timezone>("IST");
   const [strategyTz, setStrategyTz] = useState<Timezone>("London");
   const [days, setDays] = useState(30);
+  const [riskUsd, setRiskUsd] = useState<number>(DEFAULT_RISK_USD_PER_TRADE);
   const [mode, setMode] = useState<"historical" | "live" | "replay" | "paper">("historical");
 
   const runner = useServerFn(runExecutionEngine);
@@ -81,6 +82,7 @@ function ExecutionEnginePage() {
           source, symbol, timeframe,
           displayTimezone: displayTz, strategyTimezone: strategyTz,
           fromMs, toMs, strategyPresetId, execPresetId, mode,
+          riskUsdOverride: riskUsd,
         },
       });
     },
@@ -155,6 +157,7 @@ function ExecutionEnginePage() {
               source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
               displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
               fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
+              riskUsdOverride: riskUsd,
             },
           });
           row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res };
@@ -287,6 +290,9 @@ function ExecutionEnginePage() {
             </Field>
             <Field label="Lookback (days)">
               <Input type="number" min={1} max={1000} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
+            </Field>
+            <Field label="Risk per trade (USD)">
+              <Input type="number" min={1} step={1} value={riskUsd} onChange={(e) => setRiskUsd(Math.max(1, Number(e.target.value) || 1))} />
             </Field>
             <Field label="Display TZ">
               <Select value={displayTz} onValueChange={(v) => setDisplayTz(v as Timezone)}>

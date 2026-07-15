@@ -5,7 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
-import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
+import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
 import type { ExecRunResult } from "@/lib/execution-engine/types";
 
 const Input = z.object({
@@ -19,6 +19,8 @@ const Input = z.object({
   strategyPresetId: z.string(),
   execPresetId: z.string(),
   mode: z.enum(["historical", "live", "replay", "paper"]).default("historical"),
+  /** Optional override — every trade risks this many USD. */
+  riskUsdOverride: z.number().positive().optional(),
 });
 
 export interface RunExecutionResult {
@@ -34,8 +36,9 @@ export const runExecutionEngine = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<RunExecutionResult> => {
     const scfg = STRATEGY_PRESETS[data.strategyPresetId as keyof typeof STRATEGY_PRESETS];
     if (!scfg) throw new Error(`Unknown strategy preset: ${data.strategyPresetId}`);
-    const ecfg = EXEC_PRESETS[data.execPresetId as keyof typeof EXEC_PRESETS];
-    if (!ecfg) throw new Error(`Unknown execution preset: ${data.execPresetId}`);
+    const baseEcfg = EXEC_PRESETS[data.execPresetId as keyof typeof EXEC_PRESETS];
+    if (!baseEcfg) throw new Error(`Unknown execution preset: ${data.execPresetId}`);
+    const ecfg = data.riskUsdOverride != null ? withRiskUsd(baseEcfg, data.riskUsdOverride) : baseEcfg;
 
     const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }] =
       await Promise.all([

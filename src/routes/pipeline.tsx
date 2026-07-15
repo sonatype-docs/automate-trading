@@ -1,0 +1,428 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { PlayCircle, Loader2, Square, RefreshCw, CheckCircle2, XCircle, Circle } from "lucide-react";
+import { MatrixGroup } from "@/components/matrix-picker";
+import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
+import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
+import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+import { recordTradesFromExecution } from "@/lib/trade-intelligence.functions";
+import {
+  startPipelineRun, updatePipelineRun, finishPipelineRun,
+} from "@/lib/pipeline.functions";
+import type {
+  ComboResult, ComboSpec, PipelineProgress, PipelineStage,
+} from "@/lib/pipeline/types";
+
+const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
+const PIPELINE_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
+const ALL_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
+
+export const Route = createFileRoute("/pipeline")({
+  head: () => ({
+    meta: [
+      { title: "Automation Pipeline — Data → Strategy → Execution → Intelligence" },
+      { name: "description", content: "One-click Jenkins-style pipeline that sweeps a matrix of symbols, timeframes, strategy and execution presets end-to-end." },
+      { name: "robots", content: "noindex" },
+      { property: "og:title", content: "Automation Pipeline" },
+      { property: "og:description", content: "Run all 4 engines in one click across every matrix combination." },
+    ],
+  }),
+  component: PipelinePage,
+});
+
+function fmt(n: number, d = 2): string {
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+}
+function fmtMoney(n: number): string { return `${n < 0 ? "-" : ""}$${fmt(Math.abs(n))}`; }
+
+function StageDot({ stage, current, done, failed }: {
+  stage: PipelineStage; current: PipelineStage | null; done: boolean; failed: boolean;
+}) {
+  const active = current === stage && !done && !failed;
+  return (
+    <div className={`flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest ${
+      failed ? "text-rose-500" : done ? "text-emerald-500" : active ? "text-primary" : "text-muted-foreground/60"
+    }`}>
+      {failed
+        ? <XCircle className="h-3 w-3" />
+        : done
+          ? <CheckCircle2 className="h-3 w-3" />
+          : active
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <Circle className="h-3 w-3" />}
+      {stage}
+    </div>
+  );
+}
+
+function PipelinePage() {
+  const [source, setSource] = useState<"yahoo" | "shark">("shark");
+  const [displayTz, setDisplayTz] = useState<Timezone>("IST");
+  const [strategyTz, setStrategyTz] = useState<Timezone>("London");
+  const [mode] = useState<"historical">("historical");
+  const [lookbackDays, setLookbackDays] = useState<number>(500);
+  const [riskUsd, setRiskUsd] = useState<number>(DEFAULT_RISK_USD_PER_TRADE);
+
+  const [symbols, setSymbols] = useState<string[]>(ALL_SYMBOLS);
+  const [tfs, setTfs] = useState<string[]>(PIPELINE_TFS);
+  const [strats, setStrats] = useState<string[]>(ALL_STRATEGY_PRESETS);
+  const [execs, setExecs] = useState<string[]>(ALL_EXEC_PRESETS);
+
+  const [results, setResults] = useState<ComboResult[]>([]);
+  const [progress, setProgress] = useState<PipelineProgress>({
+    total: 0, completed: 0, currentCombo: null, currentStage: null,
+    ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+  });
+  const [runId, setRunId] = useState<string | null>(null);
+  const [failFast, setFailFast] = useState(true);
+  const abortRef = useRef(false);
+
+  const runFn = useServerFn(recordTradesFromExecution);
+  const startFn = useServerFn(startPipelineRun);
+  const updateFn = useServerFn(updatePipelineRun);
+  const finishFn = useServerFn(finishPipelineRun);
+
+  const combos: ComboSpec[] = useMemo(() => {
+    const out: ComboSpec[] = [];
+    for (const symbol of symbols) {
+      for (const tf of tfs) {
+        for (const strategyPresetId of strats) {
+          for (const execPresetId of execs) {
+            out.push({ symbol, timeframe: tf as Timeframe, strategyPresetId, execPresetId });
+          }
+        }
+      }
+    }
+    return out;
+  }, [symbols, tfs, strats, execs]);
+
+  const runMut = useMutation({
+    mutationFn: async () => {
+      abortRef.current = false;
+      const total = combos.length;
+      const initialResults: ComboResult[] = combos.map((spec) => ({
+        spec, status: "pending", stage: null, bars: 0, signals: 0, trades: 0,
+        inserted: 0, netPnl: 0, error: null, elapsedMs: 0,
+      }));
+      setResults(initialResults);
+      const initialProgress: PipelineProgress = {
+        total, completed: 0, currentCombo: null, currentStage: null,
+        ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+      };
+      setProgress(initialProgress);
+
+      const matrix = {
+        source, symbols, timeframes: tfs as Timeframe[],
+        strategyPresetIds: strats, execPresetIds: execs,
+        displayTimezone: displayTz, strategyTimezone: strategyTz,
+        mode, lookbackDays, riskUsdPerTrade: riskUsd,
+      };
+      const { runId: id } = await startFn({ data: { matrix, total } });
+      setRunId(id);
+
+      const toMs = Date.now();
+      const fromMs = toMs - lookbackDays * 86_400_000;
+      const nextResults = [...initialResults];
+      const prog = { ...initialProgress };
+
+      for (let i = 0; i < combos.length; i++) {
+        if (abortRef.current) {
+          await finishFn({ data: { runId: id, status: "stopped", progress: prog } });
+          return;
+        }
+        const spec = combos[i];
+        const started = Date.now();
+        prog.currentCombo = spec;
+        prog.currentStage = "data";
+        nextResults[i] = { ...nextResults[i], status: "running", stage: "data" };
+        setResults([...nextResults]);
+        setProgress({ ...prog });
+
+        try {
+          // recordTradesFromExecution runs Data → Strategy → Execution →
+          // Trade Intelligence insert in a single server call.
+          prog.currentStage = "execution";
+          nextResults[i] = { ...nextResults[i], stage: "execution" };
+          setResults([...nextResults]);
+          setProgress({ ...prog });
+          const res = await runFn({
+            data: {
+              source, symbol: spec.symbol, timeframe: spec.timeframe,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs,
+              strategyPresetId: spec.strategyPresetId,
+              execPresetId: spec.execPresetId,
+              tags: ["pipeline", `run:${id}`],
+              riskUsdOverride: riskUsd,
+            },
+          });
+          prog.currentStage = "intelligence";
+          setProgress({ ...prog });
+
+          const inserted = res.inserted ?? 0;
+          const trades = res.tradesInRun ?? 0;
+          nextResults[i] = {
+            ...nextResults[i], status: "ok", stage: "intelligence",
+            trades, inserted, netPnl: 0,
+            elapsedMs: Date.now() - started,
+          };
+          prog.ok += 1;
+          prog.totalTrades += trades;
+          prog.totalInserted += inserted;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          nextResults[i] = {
+            ...nextResults[i], status: "failed",
+            error: msg, elapsedMs: Date.now() - started,
+          };
+          prog.failed += 1;
+          setResults([...nextResults]);
+          prog.completed += 1;
+          setProgress({ ...prog });
+          await updateFn({
+            data: {
+              runId: id,
+              progress: { ...prog, currentCombo: null, currentStage: null },
+              logEntry: {
+                ts: Date.now(), combo: spec, stage: "execution", status: "failed",
+                error: msg, elapsedMs: Date.now() - started,
+              },
+            },
+          }).catch(() => {});
+          if (failFast) {
+            await finishFn({ data: { runId: id, status: "failed", error: `${spec.symbol} ${spec.timeframe} ${spec.strategyPresetId}/${spec.execPresetId}: ${msg}`, progress: prog } });
+            return;
+          }
+          continue;
+        }
+
+        prog.completed += 1;
+        setResults([...nextResults]);
+        setProgress({ ...prog });
+
+        // Persist progress every combo (throttled batching would be an option,
+        // but per-combo keeps the DB row honest for the history view).
+        await updateFn({
+          data: {
+            runId: id,
+            progress: { ...prog, currentCombo: null, currentStage: null },
+            logEntry: {
+              ts: Date.now(), combo: spec, stage: "intelligence", status: "ok",
+              trades: nextResults[i].trades, inserted: nextResults[i].inserted,
+              elapsedMs: nextResults[i].elapsedMs,
+            },
+          },
+        }).catch(() => {});
+      }
+
+      await finishFn({ data: { runId: id, status: "done", progress: prog } });
+    },
+  });
+
+  const totalCombos = combos.length;
+  const isRunning = runMut.isPending;
+
+  return (
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-16 z-20 border-b border-border/70 bg-background/70 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
+              <PlayCircle className="w-4 h-4" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-mono">Automation</div>
+              <h1 className="font-display text-sm font-semibold tracking-tight truncate">One-Click Pipeline</h1>
+            </div>
+          </div>
+          <Badge variant="outline" className="uppercase text-[9px] tracking-widest">Data → Strategy → Execution → Intelligence</Badge>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-6">
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-mono tracking-widest">Global settings</CardTitle></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-4">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Source</Label>
+              <Select value={source} onValueChange={(v) => setSource(v as "yahoo" | "shark")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shark">SharkExchange</SelectItem>
+                  <SelectItem value="yahoo">Yahoo Finance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Display TZ</Label>
+              <Select value={displayTz} onValueChange={(v) => setDisplayTz(v as Timezone)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Strategy TZ</Label>
+              <Select value={strategyTz} onValueChange={(v) => setStrategyTz(v as Timezone)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Lookback (days)</Label>
+              <Input type="number" min={1} max={2000} value={lookbackDays}
+                onChange={(e) => setLookbackDays(Math.max(1, Number(e.target.value) || 1))} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Risk per trade (USD)</Label>
+              <Input type="number" min={1} step={1} value={riskUsd}
+                onChange={(e) => setRiskUsd(Math.max(1, Number(e.target.value) || 1))} />
+              <span className="text-[10px] text-muted-foreground">
+                Every trade sizes so |entry − SL| × units = ${riskUsd}. Targets untouched.
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">On error</Label>
+              <Select value={failFast ? "fail" : "continue"} onValueChange={(v) => setFailFast(v === "fail")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fail">Stop on first failure</SelectItem>
+                  <SelectItem value="continue">Continue on failure</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
+              Matrix
+              <Badge variant="outline" className="text-[9px]">
+                {symbols.length} × {tfs.length} × {strats.length} × {execs.length} = {totalCombos} combos
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MatrixGroup title="Symbols"
+              options={ALL_SYMBOLS.map((v) => ({ value: v }))}
+              selected={symbols} onChange={setSymbols} />
+            <MatrixGroup title="Timeframes"
+              options={PIPELINE_TFS.map((v) => ({ value: v }))}
+              selected={tfs} onChange={setTfs} />
+            <MatrixGroup title="Strategy presets"
+              options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
+              selected={strats} onChange={setStrats} />
+            <MatrixGroup title="Execution presets"
+              options={ALL_EXEC_PRESETS.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+              selected={execs} onChange={setExecs} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="py-4 flex flex-wrap items-center gap-3">
+            <Button
+              size="lg"
+              disabled={isRunning || totalCombos === 0}
+              onClick={() => runMut.mutate()}
+              className="min-w-56"
+            >
+              {isRunning
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running {progress.completed}/{progress.total}</>
+                : <><PlayCircle className="w-4 h-4 mr-2" />Run pipeline ({totalCombos} combos)</>}
+            </Button>
+            {isRunning && (
+              <Button variant="ghost" onClick={() => { abortRef.current = true; }}>
+                <Square className="w-4 h-4 mr-2" />Stop
+              </Button>
+            )}
+            {!isRunning && results.length > 0 && (
+              <Button variant="ghost" onClick={() => { setResults([]); setProgress({ total: 0, completed: 0, currentCombo: null, currentStage: null, ok: 0, failed: 0, totalTrades: 0, totalInserted: 0 }); setRunId(null); }}>
+                <RefreshCw className="w-4 h-4 mr-2" />Clear
+              </Button>
+            )}
+            {runId && <Badge variant="outline" className="text-[10px] font-mono">run {runId.slice(0, 8)}</Badge>}
+            <div className="ml-auto flex flex-wrap items-center gap-3 text-xs font-mono">
+              <span className="text-emerald-500">✓ {progress.ok}</span>
+              <span className="text-rose-500">✗ {progress.failed}</span>
+              <span className="text-muted-foreground">trades {progress.totalTrades.toLocaleString()}</span>
+              <span className="text-muted-foreground">inserted {progress.totalInserted.toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {results.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-mono tracking-widest">
+                Run log ({progress.completed}/{progress.total})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1 pr-3">Status</th>
+                    <th className="py-1 pr-3">Symbol</th>
+                    <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Strategy</th>
+                    <th className="py-1 pr-3">Exec</th>
+                    <th className="py-1 pr-3">Stages</th>
+                    <th className="py-1 pr-3 text-right">Trades</th>
+                    <th className="py-1 pr-3 text-right">Inserted</th>
+                    <th className="py-1 pr-3 text-right">Elapsed</th>
+                    <th className="py-1 pr-3">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => (
+                    <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">
+                        {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
+                        {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
+                        {r.status === "running" && <Badge variant="secondary" className="text-[9px]"><Loader2 className="w-3 h-3 mr-1 animate-spin inline" />RUN</Badge>}
+                        {r.status === "pending" && <Badge variant="outline" className="text-[9px]">…</Badge>}
+                      </td>
+                      <td className="py-1 pr-3">{r.spec.symbol}</td>
+                      <td className="py-1 pr-3">{r.spec.timeframe}</td>
+                      <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
+                      <td className="py-1 pr-3">{r.spec.execPresetId}</td>
+                      <td className="py-1 pr-3">
+                        <div className="flex gap-2">
+                          <StageDot stage="data" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["strategy","execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "data"} />
+                          <StageDot stage="strategy" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "strategy"} />
+                          <StageDot stage="execution" current={r.stage} done={r.status === "ok" || r.stage === "intelligence"} failed={r.status === "failed" && r.stage === "execution"} />
+                          <StageDot stage="intelligence" current={r.stage} done={r.status === "ok"} failed={r.status === "failed" && r.stage === "intelligence"} />
+                        </div>
+                      </td>
+                      <td className="py-1 pr-3 text-right">{r.trades.toLocaleString()}</td>
+                      <td className="py-1 pr-3 text-right">{r.inserted.toLocaleString()}</td>
+                      <td className="py-1 pr-3 text-right">{r.elapsedMs > 0 ? `${(r.elapsedMs / 1000).toFixed(1)}s` : "—"}</td>
+                      <td className="py-1 pr-3 text-rose-500 truncate max-w-md" title={r.error ?? ""}>{r.error ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {progress.failed === 0 && progress.completed === progress.total && progress.total > 0 && (
+                <div className="mt-4 text-xs text-emerald-500">
+                  Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Total net exposure risk was {fmtMoney(riskUsd)} per trade.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    </div>
+  );
+}

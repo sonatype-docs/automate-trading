@@ -20,6 +20,7 @@ import {
   FlaskConical,
   ChevronsLeft,
   ChevronsRight,
+  PlayCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,6 +57,7 @@ const backtest = [
 ];
 
 const meta = [
+  { title: "Pipeline", url: "/pipeline", icon: PlayCircle },
   { title: "Market Data Engine", url: "/market-data", icon: Database },
   { title: "Strategy Engine", url: "/strategy-engine", icon: Cpu },
   { title: "Execution Engine", url: "/execution-engine", icon: Zap },

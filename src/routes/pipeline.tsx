@@ -406,7 +406,10 @@ function PipelinePage() {
               <h1 className="font-display text-sm font-semibold tracking-tight truncate">One-Click Pipeline</h1>
             </div>
           </div>
-          <Badge variant="outline" className="uppercase text-[9px] tracking-widest">Data → Strategy → Execution → Intelligence</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="uppercase text-[9px] tracking-widest font-mono">Mode: {mode}</Badge>
+            <Badge variant="outline" className="uppercase text-[9px] tracking-widest">Data → Strategy → Execution → Intelligence</Badge>
+          </div>
         </div>
       </header>
 

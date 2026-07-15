@@ -342,14 +342,29 @@ function ExecutionEnginePage() {
                 options={ALL_MODES.map((v) => ({ value: v }))}
                 selected={mxModes} onChange={setMxModes} />
             </div>
-            <div className="md:col-span-4 flex items-center gap-3">
+            <div className="md:col-span-4 flex flex-wrap items-center gap-3">
               <Button variant="secondary" onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0 || mxModes.length === 0}>
+                disabled={mut.isPending || batch.isPending || resumeBatch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0 || mxStratTzs.length === 0 || mxDisplayTzs.length === 0 || mxModes.length === 0}>
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
                   : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length}×{mxStratTzs.length}×{mxDisplayTzs.length}×{mxModes.length} = {mxSources.length * mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length * mxModes.length})</>}
               </Button>
+              {resumable && !batch.isPending && !resumeBatch.isPending && (
+                <Button variant="default" onClick={() => resumeBatch.mutate()}>
+                  Resume previous run ({resumable.done}/{resumable.combos.length})
+                </Button>
+              )}
+              {resumeBatch.isPending && (
+                <Badge variant="outline" className="text-[10px]"><Loader2 className="w-3 h-3 mr-1 animate-spin inline" />Resuming {batchProgress.done}/{batchProgress.total}</Badge>
+              )}
+              {(batch.isPending || resumeBatch.isPending) && (
+                <Button variant="ghost" size="sm" onClick={() => { abortRef.current = true; }}>Stop</Button>
+              )}
+              {!batch.isPending && !resumeBatch.isPending && batchRows.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => { setBatchRows([]); setBatchProgress({ done: 0, total: 0 }); setResumable(null); clearProgress(); }}>Clear</Button>
+              )}
             </div>
+
           </CardContent>
         </Card>
 

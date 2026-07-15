@@ -23,11 +23,15 @@ import { MatrixGroup } from "@/components/matrix-picker";
 
 const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
 const BATCH_SYMBOLS = ["XAUUSDT", "BTCUSDT"] as const;
+const BATCH_SOURCES = ["yahoo", "shark"] as const;
+const BATCH_TZS = ["London", "NewYork", "IST", "UTC", "Tokyo", "Sydney"] as const;
 type BatchRow = {
+  source: string;
   symbol: string;
   presetId: string;
   execId: string;
   tf: string;
+  stratTz: string;
   inserted?: number;
   tradesInRun?: number;
   error?: string;

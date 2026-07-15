@@ -199,15 +199,24 @@ export const summariseTrades = createServerFn({ method: "POST" })
 
   .handler(async () => {
     const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabase
-      .from("trade_intelligence")
-      .select("strategy_id, symbol, direction, net_pnl");
-    if (error) throw new Error(error.message);
-    const total = data.length;
-    const winners = data.filter((r) => Number(r.net_pnl) > 0).length;
-    const losers = data.filter((r) => Number(r.net_pnl) < 0).length;
-    const net = data.reduce((s, r) => s + Number(r.net_pnl), 0);
-    const strategies = Array.from(new Set(data.map((r) => r.strategy_id)));
-    const symbols = Array.from(new Set(data.map((r) => r.symbol)));
+    // Chunked scan — PostgREST caps rows at 1000 per response.
+    const CHUNK = 1000;
+    const rows: { strategy_id: string; symbol: string; direction: string; net_pnl: number }[] = [];
+    for (let offset = 0; ; offset += CHUNK) {
+      const { data, error } = await supabase
+        .from("trade_intelligence")
+        .select("strategy_id, symbol, direction, net_pnl")
+        .range(offset, offset + CHUNK - 1);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+      rows.push(...(data as typeof rows));
+      if (data.length < CHUNK) break;
+    }
+    const total = rows.length;
+    const winners = rows.filter((r) => Number(r.net_pnl) > 0).length;
+    const losers = rows.filter((r) => Number(r.net_pnl) < 0).length;
+    const net = rows.reduce((s, r) => s + Number(r.net_pnl), 0);
+    const strategies = Array.from(new Set(rows.map((r) => r.strategy_id)));
+    const symbols = Array.from(new Set(rows.map((r) => r.symbol)));
     return { total, winners, losers, netPnl: net, strategies, symbols };
   });

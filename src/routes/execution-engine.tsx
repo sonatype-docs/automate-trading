@@ -270,6 +270,7 @@ function ExecutionEnginePage() {
               <table className="w-full text-xs font-mono">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
+                    <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">Strategy</th>
                     <th className="py-1 pr-3">Exec</th>
                     <th className="py-1 pr-3">TF</th>
@@ -288,6 +289,7 @@ function ExecutionEnginePage() {
                     const wr = s && s.tradesClosed > 0 ? (s.winners / s.tradesClosed) * 100 : 0;
                     return (
                       <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 pr-3">{row.symbol}</td>
                         <td className="py-1 pr-3">{STRATEGY_PRESETS[row.strategyPresetId as keyof typeof STRATEGY_PRESETS]?.strategyName ?? row.strategyPresetId}</td>
                         <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
                         <td className="py-1 pr-3">{row.tf}</td>

@@ -60,9 +60,12 @@ export const runExecutionEngine = createServerFn({ method: "POST" })
 
     const sres = runStrategy(enriched, scfg, { mode: data.mode, symbol: data.symbol });
     const result = runExecution(enriched, sres.signals, ecfg, { symbol: data.symbol });
-    // Trim events for wire size.
+    // Trim wire payload so massive runs (many days / 1m TF) don't OOM the worker.
+    // Stats are computed against the full arrays before trimming.
     result.events = result.events.slice(-500);
     result.equityCurve = downsample(result.equityCurve, 500);
+    if (result.trades.length > 2000) result.trades = result.trades.slice(-2000);
+    if (result.cancelledOrders.length > 500) result.cancelledOrders = result.cancelledOrders.slice(-500);
     return {
       strategyPresetId: data.strategyPresetId,
       execPresetId: data.execPresetId,

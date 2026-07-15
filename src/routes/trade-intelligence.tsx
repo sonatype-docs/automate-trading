@@ -152,15 +152,21 @@ function TradeIntelligencePage() {
     order: filter.order,
     limit: filter.limit,
     offset: 0,
-  }), [filter]);
+    dataset,
+  }), [filter, dataset]);
 
   const trades = useQuery({
     queryKey: ["trade-intel", "query", spec],
     queryFn: () => query({ data: spec }),
   });
   const stats = useQuery({
-    queryKey: ["trade-intel", "summary"],
-    queryFn: () => summary(),
+    queryKey: ["trade-intel", "summary", dataset],
+    queryFn: () => summary({ data: { dataset } }),
+  });
+  const snapshotList = useQuery({
+    queryKey: ["trade-intel", "snapshots"],
+    queryFn: () => snapshots(),
+    staleTime: 60_000,
   });
 
   const recordMut = useMutation({

@@ -129,7 +129,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
-    const requestedLimit = Math.min(spec.limit ?? 100, 10000);
+    const requestedLimit = Math.min(spec.limit ?? 100, 20000);
     const baseOffset = spec.offset ?? 0;
     const CHUNK = 1000; // PostgREST default max_rows cap
     const allRows: Record<string, unknown>[] = [];
@@ -164,7 +164,7 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const CHUNK = 1000;
-    const MAX = 10000;
+    const MAX = 20000;
     const allRows: Record<string, unknown>[] = [];
     for (let offset = 0; offset < MAX; offset += CHUNK) {
       const spec: TradeQuerySpec = { ...data, limit: CHUNK, offset };

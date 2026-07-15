@@ -122,7 +122,14 @@ const QueryInput = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   limit: z.number().int().positive().max(100000).optional(),
   offset: z.number().int().min(0).optional(),
+  /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
+  dataset: z.string().optional(),
 });
+
+function resolveTable(dataset?: string): { table: string; snapshotName?: string } {
+  if (!dataset || dataset === "live") return { table: "trade_intelligence" };
+  return { table: "trade_intelligence_archive", snapshotName: dataset };
+}
 
 export const queryTrades = createServerFn({ method: "POST" })
 

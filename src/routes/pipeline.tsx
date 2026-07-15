@@ -479,10 +479,21 @@ function PipelinePage() {
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {Number(((resumableRow.progress ?? {}) as any).total ?? 0)} combos completed
               </span>
-              <Button size="sm" onClick={() => resumeMut.mutate()} disabled={resumeMut.isPending}>
+              <Button size="sm" onClick={() => resumeMut.mutate()} disabled={resumeMut.isPending || restartMut.isPending}>
                 {resumeMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
                 Resume last run
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => restartMut.mutate()}
+                disabled={resumeMut.isPending || restartMut.isPending}
+                title="Reset progress and rerun every combo from the beginning (use this if live trades were cleared while paused)."
+              >
+                {restartMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Restart from beginning
+              </Button>
+
             </AlertDescription>
           </Alert>
         )}

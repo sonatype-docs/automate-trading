@@ -115,6 +115,196 @@ export type Database = {
         }
         Relationships: []
       }
+      paper_positions: {
+        Row: {
+          direction: string
+          entry_price: number
+          entry_ts: string
+          last_price: number
+          runner_id: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          units: number
+          unrealized_pnl: number
+          updated_at: string
+        }
+        Insert: {
+          direction: string
+          entry_price: number
+          entry_ts: string
+          last_price: number
+          runner_id: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          units: number
+          unrealized_pnl?: number
+          updated_at?: string
+        }
+        Update: {
+          direction?: string
+          entry_price?: number
+          entry_ts?: string
+          last_price?: number
+          runner_id?: string
+          stop_price?: number
+          strategy_preset?: string
+          symbol?: string
+          target_price?: number
+          timeframe?: string
+          units?: number
+          unrealized_pnl?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_positions_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: true
+            referencedRelation: "paper_runners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paper_runners: {
+        Row: {
+          created_at: string
+          exec_preset: string
+          id: string
+          label: string
+          last_tick_at: string | null
+          last_tick_error: string | null
+          lookback_days: number
+          risk_usd: number
+          running: boolean
+          source: string
+          started_at: string | null
+          strategy_preset: string
+          symbol: string
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          exec_preset?: string
+          id?: string
+          label: string
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          lookback_days?: number
+          risk_usd?: number
+          running?: boolean
+          source?: string
+          started_at?: string | null
+          strategy_preset: string
+          symbol: string
+          timeframe: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          exec_preset?: string
+          id?: string
+          label?: string
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          lookback_days?: number
+          risk_usd?: number
+          running?: boolean
+          source?: string
+          started_at?: string | null
+          strategy_preset?: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      paper_trades: {
+        Row: {
+          created_at: string
+          dedup_key: string
+          direction: string
+          entry_price: number
+          entry_ts: string
+          exit_price: number
+          exit_reason: string
+          exit_ts: string
+          fees: number
+          fill_price: number
+          gross_pnl: number
+          id: string
+          net_pnl: number
+          rr: number
+          runner_id: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          units: number
+        }
+        Insert: {
+          created_at?: string
+          dedup_key: string
+          direction: string
+          entry_price: number
+          entry_ts: string
+          exit_price: number
+          exit_reason: string
+          exit_ts: string
+          fees?: number
+          fill_price: number
+          gross_pnl?: number
+          id?: string
+          net_pnl?: number
+          rr?: number
+          runner_id: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          units?: number
+        }
+        Update: {
+          created_at?: string
+          dedup_key?: string
+          direction?: string
+          entry_price?: number
+          entry_ts?: string
+          exit_price?: number
+          exit_reason?: string
+          exit_ts?: string
+          fees?: number
+          fill_price?: number
+          gross_pnl?: number
+          id?: string
+          net_pnl?: number
+          rr?: number
+          runner_id?: string
+          stop_price?: number
+          strategy_preset?: string
+          symbol?: string
+          target_price?: number
+          timeframe?: string
+          units?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_trades_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: false
+            referencedRelation: "paper_runners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_runs: {
         Row: {
           error: string | null

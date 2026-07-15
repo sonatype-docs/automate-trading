@@ -273,6 +273,7 @@ function ResearchPage() {
         {section === "Distributions" && <DistributionSection trades={trades} />}
         {section === "Correlation" && <CorrelationSection trades={trades} />}
         {section === "Compare" && <CompareSection trades={allTrades} />}
+        {section === "TF Optimizer" && <TimeframeOptimizerSection trades={allTrades} />}
         {section === "Filters" && (
           <FiltersSection rules={customRules} onChange={setCustomRules} count={trades.length} />
         )}

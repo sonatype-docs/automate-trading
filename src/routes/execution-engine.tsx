@@ -96,11 +96,90 @@ function ExecutionEnginePage() {
   const [mxModes, setMxModes] = useState<string[]>([mode]);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const abortRef = useRef(false);
+
+  // Slim persisted shape: drop bulky arrays so localStorage stays small.
+  type PersistedRow = Omit<BatchRow, "result"> & {
+    result?: { result: { stats: RunExecutionResult["result"]["stats"] }; barsIn: number; signalsIn: number };
+  };
+  type Persisted = { combos: Combo[]; done: number; rows: PersistedRow[]; days: number; savedAt: number };
+  type Combo = { src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string; dtz: string; md: string };
+  const STORAGE_KEY = "exec-matrix-progress-v1";
+
+  const slim = (row: BatchRow): PersistedRow => ({
+    ...row,
+    result: row.result
+      ? { result: { stats: row.result.result.stats }, barsIn: row.result.barsIn, signalsIn: row.result.signalsIn }
+      : undefined,
+  });
+  const saveProgress = (combos: Combo[], done: number, rows: BatchRow[]) => {
+    try {
+      const p: Persisted = { combos, done, rows: rows.map(slim), days, savedAt: Date.now() };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    } catch { /* quota / disabled — ignore */ }
+  };
+  const clearProgress = () => { try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ } };
+
+  // Restore any previous unfinished run so a crash / refresh doesn't wipe hours of matrix work.
+  const [resumable, setResumable] = useState<Persisted | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw) as Persisted;
+      if (p?.rows?.length) {
+        setBatchRows(p.rows as unknown as BatchRow[]);
+        setBatchProgress({ done: p.done, total: p.combos.length });
+        if (p.done < p.combos.length) setResumable(p);
+      }
+    } catch { /* corrupted — ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const runCombos = async (combos: Combo[], startAt: number, seedRows: BatchRow[], daysUsed: number) => {
+    const toMs = Date.now();
+    const fromMs = toMs - daysUsed * 86_400_000;
+    const rows: BatchRow[] = [...seedRows];
+    setBatchProgress({ done: startAt, total: combos.length });
+    saveProgress(combos, startAt, rows);
+    abortRef.current = false;
+    for (let i = startAt; i < combos.length; i++) {
+      if (abortRef.current) break;
+      const c = combos[i];
+      let row: BatchRow | null = null;
+      // Retry transient failures (network / worker OOM) up to 2 times with backoff.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await runner({
+            data: {
+              source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
+              displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
+              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
+            },
+          });
+          row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res };
+          break;
+        } catch (e) {
+          if (attempt === 2) {
+            row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, error: e instanceof Error ? e.message : String(e) };
+          } else {
+            await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
+          }
+        }
+      }
+      if (row) rows.push(row);
+      setBatchRows([...rows]);
+      const done = i + 1;
+      setBatchProgress({ done, total: combos.length });
+      // Persist after EVERY combo so a crash never loses more than one run's worth.
+      saveProgress(combos, done, rows);
+    }
+    return rows;
+  };
+
   const batch = useMutation({
     mutationFn: async () => {
-      const toMs = now;
-      const fromMs = toMs - days * 86_400_000;
-      const combos: Array<{ src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string; dtz: string; md: string }> = [];
+      const combos: Combo[] = [];
       for (const src of mxSources) {
         for (const sym of mxSymbols) {
           for (const sp of mxStrategyPresets) {
@@ -117,27 +196,21 @@ function ExecutionEnginePage() {
         }
       }
       setBatchRows([]);
-      setBatchProgress({ done: 0, total: combos.length });
-      const rows: BatchRow[] = [];
-      for (const c of combos) {
-        try {
-          const res = await runner({
-            data: {
-              source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
-              displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
-              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
-            },
-          });
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res });
-        } catch (e) {
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, error: e instanceof Error ? e.message : String(e) });
-        }
-        setBatchRows([...rows]);
-        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
-      }
-      return rows;
+      setResumable(null);
+      return runCombos(combos, 0, [], days);
     },
   });
+
+  const resumeBatch = useMutation({
+    mutationFn: async () => {
+      if (!resumable) return [];
+      const seeded = resumable.rows as unknown as BatchRow[];
+      setResumable(null);
+      return runCombos(resumable.combos, resumable.done, seeded, resumable.days);
+    },
+  });
+
+
 
   const r = mut.data?.result;
   const winRate = useMemo(() => {

@@ -92,13 +92,13 @@ function StrategyEnginePage() {
           const res = await runner({
             data: {
               source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
-              fromMs, toMs, presetId: c.presetId, mode,
+              displayTimezone: c.displayTz as Timezone, strategyTimezone: c.stratTz as Timezone,
+              fromMs, toMs, presetId: c.presetId, mode: c.mode as typeof mode,
             },
           });
-          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, result: res.result });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz, mode: c.mode, result: res.result });
         } catch (e) {
-          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, displayTz: c.displayTz, mode: c.mode, error: (e as Error).message });
         }
         setBatchResults([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));

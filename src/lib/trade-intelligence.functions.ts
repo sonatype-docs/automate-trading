@@ -247,7 +247,9 @@ export const summariseTrades = createServerFn({ method: "POST" })
   });
 
 export const listSnapshots = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = supabaseAdmin as any;
   const CHUNK = 1000;
   const counts = new Map<string, number>();
   for (let offset = 0; ; offset += CHUNK) {

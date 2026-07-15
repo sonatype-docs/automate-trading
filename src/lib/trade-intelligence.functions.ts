@@ -123,12 +123,29 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
-    const q = applyQuery(supabase, "trade_intelligence", spec);
-    const { data: rows, error, count } = await q;
-    if (error) throw new Error(error.message);
+    const requestedLimit = Math.min(spec.limit ?? 100, 10000);
+    const baseOffset = spec.offset ?? 0;
+    const CHUNK = 1000; // PostgREST default max_rows cap
+    const allRows: Record<string, unknown>[] = [];
+    let total = 0;
+    for (let fetched = 0; fetched < requestedLimit; fetched += CHUNK) {
+      const remaining = requestedLimit - fetched;
+      const chunkSize = Math.min(CHUNK, remaining);
+      const q = applyQuery(supabase, "trade_intelligence", {
+        ...spec,
+        limit: chunkSize,
+        offset: baseOffset + fetched,
+      });
+      const { data: rows, error, count } = await q;
+      if (error) throw new Error(error.message);
+      total = count ?? total;
+      if (!rows || rows.length === 0) break;
+      allRows.push(...(rows as Record<string, unknown>[]));
+      if (rows.length < chunkSize) break;
+    }
     return {
-      rows: (rows ?? []).map((r) => rowToRecord(r as Record<string, unknown>)),
-      total: count ?? 0,
+      rows: allRows.map((r) => rowToRecord(r)),
+      total,
     };
   });
 

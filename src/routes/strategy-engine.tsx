@@ -65,16 +65,20 @@ function StrategyEnginePage() {
   const ALL_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
   const ALL_PRESETS = Object.keys(STRATEGY_PRESETS);
   const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
+  const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+  const [mxSources, setMxSources] = useState<string[]>([source]);
   const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
   const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
   const [mxPresets, setMxPresets] = useState<string[]>(ALL_PRESETS);
-  type BatchRow = { symbol: string; presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
+  const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
+  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; result?: RunStrategyResult["result"]; error?: string };
   const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
-      const combos: { symbol: string; presetId: string; tf: Timeframe }[] = [];
-      for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) combos.push({ symbol: s, presetId: p, tf: tf as Timeframe });
+      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs)
+        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz });
       setBatchResults([]);
       setBatchProgress({ done: 0, total: combos.length });
       const toMs = now;
@@ -84,14 +88,14 @@ function StrategyEnginePage() {
         try {
           const res = await runner({
             data: {
-              source, symbol: c.symbol, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
               fromMs, toMs, presetId: c.presetId, mode,
             },
           });
-          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, result: res.result });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, result: res.result });
         } catch (e) {
-          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
         }
         setBatchResults([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
@@ -195,7 +199,10 @@ function StrategyEnginePage() {
               <Button onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running</> : <><Activity className="w-4 h-4 mr-2" />Run engine</>}
               </Button>
-              <div className="w-full grid gap-3 md:grid-cols-3">
+              <div className="w-full grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <MatrixGroup title="Sources"
+                  options={ALL_SOURCES.map((v) => ({ value: v }))}
+                  selected={mxSources} onChange={setMxSources} />
                 <MatrixGroup title="Symbols"
                   options={ALL_SYMBOLS.map((v) => ({ value: v }))}
                   selected={mxSymbols} onChange={setMxSymbols} />
@@ -205,15 +212,18 @@ function StrategyEnginePage() {
                 <MatrixGroup title="Strategy presets"
                   options={ALL_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v]?.strategyName ?? v }))}
                   selected={mxPresets} onChange={setMxPresets} />
+                <MatrixGroup title="Strategy TZ"
+                  options={TIMEZONES.map((v) => ({ value: v }))}
+                  selected={mxStratTzs} onChange={setMxStratTzs} />
               </div>
               <Button
                 variant="secondary"
                 onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0}
+                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0 || mxStratTzs.length === 0}
               >
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSymbols.length}×{mxPresets.length}×{mxTfs.length} = {mxSymbols.length * mxPresets.length * mxTfs.length})</>}
+                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxPresets.length}×{mxTfs.length}×{mxStratTzs.length} = {mxSources.length * mxSymbols.length * mxPresets.length * mxTfs.length * mxStratTzs.length})</>}
               </Button>
             </div>
           </CardContent>
@@ -226,9 +236,11 @@ function StrategyEnginePage() {
               <table className="w-full text-xs font-mono">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
+                    <th className="py-1 pr-3">Source</th>
                     <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">Preset</th>
                     <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Strat TZ</th>
                     <th className="py-1 pr-3">Bars</th>
                     <th className="py-1 pr-3">Setups</th>
                     <th className="py-1 pr-3">Signals</th>
@@ -239,9 +251,11 @@ function StrategyEnginePage() {
                 <tbody>
                   {batchResults.map((b, i) => (
                     <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">{b.source}</td>
                       <td className="py-1 pr-3">{b.symbol}</td>
                       <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
                       <td className="py-1 pr-3">{b.tf}</td>
+                      <td className="py-1 pr-3">{b.stratTz}</td>
                       <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Download, Database, Layers } from "lucide-react";
+import { MatrixGroup } from "@/components/matrix-picker";
 
 const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
 const BATCH_SYMBOLS = ["XAUUSDT", "BTCUSDT"] as const;
@@ -76,6 +77,11 @@ function TradeIntelligencePage() {
 
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [mxSymbols, setMxSymbols] = useState<string[]>([...BATCH_SYMBOLS]);
+  const [mxTfs, setMxTfs] = useState<string[]>([...BATCH_TFS]);
+  const [mxStrategies, setMxStrategies] = useState<string[]>(strategyIds);
+  const [mxExecs, setMxExecs] = useState<string[]>(execIds);
+
 
   const [filter, setFilter] = useState({
     strategyId: "",
@@ -135,10 +141,10 @@ function TradeIntelligencePage() {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
       const combos: Array<{ symbol: string; presetId: string; execId: string; tf: string }> = [];
-      for (const symbol of BATCH_SYMBOLS) {
-        for (const presetId of strategyIds) {
-          for (const execId of execIds) {
-            for (const tf of BATCH_TFS) combos.push({ symbol, presetId, execId, tf });
+      for (const symbol of mxSymbols) {
+        for (const presetId of mxStrategies) {
+          for (const execId of mxExecs) {
+            for (const tf of mxTfs) combos.push({ symbol, presetId, execId, tf });
           }
         }
       }
@@ -269,6 +275,20 @@ function TradeIntelligencePage() {
           <div className="space-y-1"><Label>Tags (csv)</Label>
             <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="research,london" />
           </div>
+          <div className="md:col-span-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MatrixGroup title="Symbols"
+              options={BATCH_SYMBOLS.map((v) => ({ value: v }))}
+              selected={mxSymbols} onChange={setMxSymbols} />
+            <MatrixGroup title="Timeframes"
+              options={BATCH_TFS.map((v) => ({ value: v }))}
+              selected={mxTfs} onChange={setMxTfs} />
+            <MatrixGroup title="Strategies"
+              options={strategyIds.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
+              selected={mxStrategies} onChange={setMxStrategies} />
+            <MatrixGroup title="Execution presets"
+              options={execIds.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+              selected={mxExecs} onChange={setMxExecs} />
+          </div>
           <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
             <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
               {recordMut.isPending ? "Recording…" : "Run & record"}
@@ -276,12 +296,12 @@ function TradeIntelligencePage() {
             <Button
               variant="secondary"
               onClick={() => batchMut.mutate()}
-              disabled={recordMut.isPending || batchMut.isPending}
+              disabled={recordMut.isPending || batchMut.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0}
             >
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record All (Matrix: ${BATCH_SYMBOLS.length}×${strategyIds.length}×${execIds.length}×${BATCH_TFS.length})`}
+                : `Record Matrix (${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length} = ${mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">

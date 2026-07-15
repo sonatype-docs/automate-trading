@@ -29,7 +29,7 @@ import type {
 } from "@/lib/pipeline/types";
 
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
-const PIPELINE_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
+const PIPELINE_TFS: Timeframe[] = ["1m", "2m", "3m", "5m", "10m", "15m", "30m", "45m", "1h"];
 const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
 const ALL_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
 
@@ -406,7 +406,10 @@ function PipelinePage() {
               <h1 className="font-display text-sm font-semibold tracking-tight truncate">One-Click Pipeline</h1>
             </div>
           </div>
-          <Badge variant="outline" className="uppercase text-[9px] tracking-widest">Data → Strategy → Execution → Intelligence</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="uppercase text-[9px] tracking-widest font-mono">Mode: {mode}</Badge>
+            <Badge variant="outline" className="uppercase text-[9px] tracking-widest">Data → Strategy → Execution → Intelligence</Badge>
+          </div>
         </div>
       </header>
 

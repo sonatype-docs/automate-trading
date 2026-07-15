@@ -285,7 +285,10 @@ function TradeIntelligencePage() {
           <div className="space-y-1"><Label>Tags (csv)</Label>
             <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="research,london" />
           </div>
-          <div className="md:col-span-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="md:col-span-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <MatrixGroup title="Sources"
+              options={BATCH_SOURCES.map((v) => ({ value: v }))}
+              selected={mxSources} onChange={setMxSources} />
             <MatrixGroup title="Symbols"
               options={BATCH_SYMBOLS.map((v) => ({ value: v }))}
               selected={mxSymbols} onChange={setMxSymbols} />
@@ -298,6 +301,9 @@ function TradeIntelligencePage() {
             <MatrixGroup title="Execution presets"
               options={execIds.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
               selected={mxExecs} onChange={setMxExecs} />
+            <MatrixGroup title="Strategy TZ"
+              options={BATCH_TZS.map((v) => ({ value: v }))}
+              selected={mxStratTzs} onChange={setMxStratTzs} />
           </div>
           <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
             <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
@@ -306,12 +312,12 @@ function TradeIntelligencePage() {
             <Button
               variant="secondary"
               onClick={() => batchMut.mutate()}
-              disabled={recordMut.isPending || batchMut.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0}
+              disabled={recordMut.isPending || batchMut.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategies.length === 0 || mxExecs.length === 0 || mxStratTzs.length === 0}
             >
               <Layers className="h-4 w-4 mr-1" />
               {batchMut.isPending
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
-                : `Record Matrix (${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length} = ${mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length})`}
+                : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length})`}
             </Button>
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
@@ -331,10 +337,12 @@ function TradeIntelligencePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Source</TableHead>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Strategy</TableHead>
                     <TableHead>Exec</TableHead>
                     <TableHead>TF</TableHead>
+                    <TableHead>Strat TZ</TableHead>
                     <TableHead className="text-right">Trades</TableHead>
                     <TableHead className="text-right">Inserted</TableHead>
                     <TableHead>Status</TableHead>
@@ -343,10 +351,12 @@ function TradeIntelligencePage() {
                 <TableBody>
                   {batchRows.map((r, i) => (
                     <TableRow key={i}>
+                      <TableCell className="text-xs">{r.source}</TableCell>
                       <TableCell className="text-xs">{r.symbol}</TableCell>
                       <TableCell className="text-xs">{r.presetId}</TableCell>
                       <TableCell className="text-xs">{r.execId}</TableCell>
                       <TableCell className="text-xs">{r.tf}</TableCell>
+                      <TableCell className="text-xs">{r.stratTz}</TableCell>
                       <TableCell className="text-right text-xs">{r.tradesInRun ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs">{r.inserted ?? "—"}</TableCell>
                       <TableCell>

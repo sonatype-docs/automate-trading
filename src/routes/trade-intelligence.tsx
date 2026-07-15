@@ -312,6 +312,25 @@ function TradeIntelligencePage() {
             </SelectContent>
           </Select>
           {dataset !== "live" ? <Badge variant="secondary">read-only</Badge> : null}
+          {dataset === "live" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setDedupeResult(null); dedupeMut.mutate(); }}
+              disabled={dedupeMut.isPending}
+              title="Remove exact-duplicate trades (same strategy, symbol, timeframe, direction, entry/exit time & PnL)"
+            >
+              {dedupeMut.isPending ? "Deduping…" : "Remove duplicates"}
+            </Button>
+          ) : null}
+          {dedupeResult ? (
+            <span className="text-xs text-muted-foreground">
+              scanned {dedupeResult.scanned.toLocaleString()} · {dedupeResult.duplicateGroups} groups · removed {dedupeResult.deleted}
+            </span>
+          ) : null}
+          {dedupeMut.isError ? (
+            <span className="text-xs text-destructive">{String(dedupeMut.error)}</span>
+          ) : null}
         </div>
       </header>
 

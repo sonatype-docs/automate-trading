@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   recordTradesFromExecution, queryTrades, exportTrades,
-  deleteTrade, clearStrategy, summariseTrades, listSnapshots,
+  deleteTrade, clearStrategy, summariseTrades, listSnapshots, dedupeTrades,
 } from "@/lib/trade-intelligence.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS } from "@/lib/execution-engine/presets";
@@ -80,6 +80,15 @@ function TradeIntelligencePage() {
   const clear = useServerFn(clearStrategy);
   const summary = useServerFn(summariseTrades);
   const snapshots = useServerFn(listSnapshots);
+  const dedupe = useServerFn(dedupeTrades);
+  const [dedupeResult, setDedupeResult] = useState<{ scanned: number; duplicateGroups: number; deleted: number } | null>(null);
+  const dedupeMut = useMutation({
+    mutationFn: async () => dedupe({ data: { dataset: "live" } }),
+    onSuccess: (r) => {
+      setDedupeResult(r);
+      qc.invalidateQueries({ queryKey: ["trade-intel"] });
+    },
+  });
 
   // "live" = current writable trade_intelligence table (still being appended
   // to by any running pipeline). Anything else = an archived snapshot label.
@@ -303,6 +312,25 @@ function TradeIntelligencePage() {
             </SelectContent>
           </Select>
           {dataset !== "live" ? <Badge variant="secondary">read-only</Badge> : null}
+          {dataset === "live" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setDedupeResult(null); dedupeMut.mutate(); }}
+              disabled={dedupeMut.isPending}
+              title="Remove exact-duplicate trades (same strategy, symbol, timeframe, direction, entry/exit time & PnL)"
+            >
+              {dedupeMut.isPending ? "Deduping…" : "Remove duplicates"}
+            </Button>
+          ) : null}
+          {dedupeResult ? (
+            <span className="text-xs text-muted-foreground">
+              scanned {dedupeResult.scanned.toLocaleString()} · {dedupeResult.duplicateGroups} groups · removed {dedupeResult.deleted}
+            </span>
+          ) : null}
+          {dedupeMut.isError ? (
+            <span className="text-xs text-destructive">{String(dedupeMut.error)}</span>
+          ) : null}
         </div>
       </header>
 

@@ -34,6 +34,7 @@ import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silv
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
+import { Route as AuthenticatedPaperTradingRouteImport } from './routes/_authenticated/paper-trading'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
 import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
@@ -165,6 +166,12 @@ const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
   path: '/backtest/asian-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedPaperTradingRoute =
+  AuthenticatedPaperTradingRouteImport.update({
+    id: '/_authenticated/paper-trading',
+    path: '/paper-trading',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const HandbookVolumeIndexRoute = HandbookVolumeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -212,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
+  '/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -243,6 +251,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
+  '/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -275,6 +284,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
+  '/_authenticated/paper-trading': typeof AuthenticatedPaperTradingRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -309,6 +319,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
+    | '/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
+    | '/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
+    | '/_authenticated/paper-trading'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -404,6 +417,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
+  AuthenticatedPaperTradingRoute: typeof AuthenticatedPaperTradingRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
@@ -591,6 +605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/paper-trading': {
+      id: '/_authenticated/paper-trading'
+      path: '/paper-trading'
+      fullPath: '/paper-trading'
+      preLoaderRoute: typeof AuthenticatedPaperTradingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/handbook/$volume/': {
       id: '/handbook/$volume/'
       path: '/'
@@ -676,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
   TradeIntelligenceRoute: TradeIntelligenceRoute,
+  AuthenticatedPaperTradingRoute: AuthenticatedPaperTradingRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,

@@ -66,19 +66,22 @@ function StrategyEnginePage() {
   const ALL_PRESETS = Object.keys(STRATEGY_PRESETS);
   const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
   const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+  const ALL_MODES = ["historical", "live", "replay", "paper"] as const;
   const [mxSources, setMxSources] = useState<string[]>([source]);
   const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
   const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
   const [mxPresets, setMxPresets] = useState<string[]>(ALL_PRESETS);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
-  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; result?: RunStrategyResult["result"]; error?: string };
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>([displayTz]);
+  const [mxModes, setMxModes] = useState<string[]>([mode]);
+  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; displayTz: string; mode: string; result?: RunStrategyResult["result"]; error?: string };
   const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
-      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string }[] = [];
-      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs)
-        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz });
+      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; displayTz: string; mode: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs) for (const dtz of mxDisplayTzs) for (const md of mxModes)
+        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz, displayTz: dtz, mode: md });
       setBatchResults([]);
       setBatchProgress({ done: 0, total: combos.length });
       const toMs = now;

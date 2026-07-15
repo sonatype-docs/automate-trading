@@ -3,7 +3,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   recordTradesFromExecution, queryTrades, exportTrades,
   deleteTrade, clearStrategy, summariseTrades,
@@ -36,6 +36,16 @@ type BatchRow = {
   inserted?: number;
   tradesInRun?: number;
   error?: string;
+};
+
+const STORAGE_KEY = "trade-intel-matrix-progress-v1";
+type ComboKey = { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string };
+type Persisted = {
+  combos: ComboKey[];
+  done: number;
+  rows: BatchRow[];
+  days: number;
+  tags: string;
 };
 
 export const Route = createFileRoute("/trade-intelligence")({
@@ -90,6 +100,31 @@ function TradeIntelligencePage() {
   const [mxStratTzs, setMxStratTzs] = useState<string[]>(["London"]);
   const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>(["IST"]);
 
+  const abortRef = useRef(false);
+  const [resumable, setResumable] = useState<Persisted | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw) as Persisted;
+      if (p && Array.isArray(p.combos) && p.combos.length > 0) {
+        setBatchRows(p.rows ?? []);
+        setBatchProgress({ done: p.done ?? 0, total: p.combos.length });
+        if ((p.done ?? 0) < p.combos.length) setResumable(p);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveProgress = (p: Persisted) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch { /* quota */ }
+  };
+  const clearProgress = () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    setResumable(null);
+    setBatchRows([]);
+    setBatchProgress({ done: 0, total: 0 });
+  };
 
   const [filter, setFilter] = useState({
     strategyId: "",
@@ -144,67 +179,82 @@ function TradeIntelligencePage() {
     },
   });
 
+  const runCombos = async (combos: ComboKey[], seedRows: BatchRow[], seedDone: number, days: number, tags: string) => {
+    abortRef.current = false;
+    const to = Date.now();
+    const from = to - days * 24 * 60 * 60 * 1000;
+    const rows: BatchRow[] = [...seedRows];
+    setBatchRows(rows);
+    setBatchProgress({ done: seedDone, total: combos.length });
+    saveProgress({ combos, done: seedDone, rows, days, tags });
+
+    const runOne = async (combo: ComboKey) => {
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (abortRef.current) throw new Error("aborted");
+        try {
+          return await record({
+            data: {
+              source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
+              timeframe: combo.tf as "15m",
+              displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
+              fromMs: from, toMs: to,
+              strategyPresetId: combo.presetId,
+              execPresetId: combo.execId,
+              tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+            },
+          });
+        } catch (e) {
+          lastErr = e;
+          await new Promise((r) => setTimeout(r, 750 * (attempt + 1) * (attempt + 1)));
+        }
+      }
+      throw lastErr;
+    };
+
+    for (let i = seedDone; i < combos.length; i++) {
+      if (abortRef.current) break;
+      const combo = combos[i];
+      try {
+        const res = await runOne(combo);
+        rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
+      } catch (e) {
+        rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
+      }
+      setBatchRows([...rows]);
+      const done = i + 1;
+      setBatchProgress({ done, total: combos.length });
+      saveProgress({ combos, done, rows, days, tags });
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    setResumable(null);
+    return rows;
+  };
+
   const batchMut = useMutation({
     mutationFn: async () => {
-      const to = Date.now();
-      const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }> = [];
-      for (const source of mxSources) {
-        for (const symbol of mxSymbols) {
-          for (const presetId of mxStrategies) {
-            for (const execId of mxExecs) {
-              for (const tf of mxTfs) {
-                for (const stratTz of mxStratTzs) {
-                  for (const displayTz of mxDisplayTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
-                }
-              }
-            }
-          }
-        }
-      }
-      setBatchRows([]);
-      setBatchProgress({ done: 0, total: combos.length });
-      const rows: BatchRow[] = [];
-      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }) => {
-        let lastErr: unknown = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            return await record({
-              data: {
-                source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
-                timeframe: combo.tf as "15m",
-                displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
-                fromMs: from, toMs: to,
-                strategyPresetId: combo.presetId,
-                execPresetId: combo.execId,
-                tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-              },
-            });
-          } catch (e) {
-            lastErr = e;
-            await new Promise((r) => setTimeout(r, 500 * (attempt + 1) * (attempt + 1)));
-          }
-        }
-        throw lastErr;
-      };
-      for (const combo of combos) {
-        try {
-          const res = await runOne(combo);
-          rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
-        } catch (e) {
-          rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
-        }
-        setBatchRows([...rows]);
-        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
-        await new Promise((r) => setTimeout(r, 150));
-      }
-
-      return rows;
+      const combos: ComboKey[] = [];
+      for (const source of mxSources)
+        for (const symbol of mxSymbols)
+          for (const presetId of mxStrategies)
+            for (const execId of mxExecs)
+              for (const tf of mxTfs)
+                for (const stratTz of mxStratTzs)
+                  for (const displayTz of mxDisplayTzs)
+                    combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
+      return runCombos(combos, [], 0, form.days, form.tags);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trade-intel"] });
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trade-intel"] }); },
   });
+
+  const resumeMut = useMutation({
+    mutationFn: async () => {
+      if (!resumable) return [];
+      return runCombos(resumable.combos, resumable.rows, resumable.done, resumable.days, resumable.tags);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trade-intel"] }); },
+  });
+
 
   const doExport = async (format: "json" | "csv") => {
     const out = await exportFn({ data: { ...spec, format } });
@@ -326,6 +376,20 @@ function TradeIntelligencePage() {
                 ? `Recording matrix ${batchProgress.done}/${batchProgress.total}…`
                 : `Record Matrix (${mxSources.length}×${mxSymbols.length}×${mxStrategies.length}×${mxExecs.length}×${mxTfs.length}×${mxStratTzs.length}×${mxDisplayTzs.length} = ${mxSources.length * mxSymbols.length * mxStrategies.length * mxExecs.length * mxTfs.length * mxStratTzs.length * mxDisplayTzs.length})`}
             </Button>
+            {resumable && !batchMut.isPending && !resumeMut.isPending ? (
+              <Button variant="outline" onClick={() => resumeMut.mutate()}>
+                Resume ({resumable.done}/{resumable.combos.length})
+              </Button>
+            ) : null}
+            {resumeMut.isPending ? (
+              <Badge variant="secondary" className="text-[10px]">Resuming {batchProgress.done}/{batchProgress.total}…</Badge>
+            ) : null}
+            {(batchMut.isPending || resumeMut.isPending) ? (
+              <Button variant="destructive" size="sm" onClick={() => { abortRef.current = true; }}>Stop</Button>
+            ) : null}
+            {batchRows.length > 0 && !batchMut.isPending && !resumeMut.isPending ? (
+              <Button variant="ghost" size="sm" onClick={clearProgress}>Clear</Button>
+            ) : null}
             {recordMut.data ? (
               <span className="text-sm text-muted-foreground">
                 Inserted {recordMut.data.inserted} of {recordMut.data.tradesInRun} trades.

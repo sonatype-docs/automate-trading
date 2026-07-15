@@ -157,6 +157,7 @@ function ExecutionEnginePage() {
               source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
               displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
               fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
+              riskUsdOverride: riskUsd,
             },
           });
           row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res };
@@ -289,6 +290,9 @@ function ExecutionEnginePage() {
             </Field>
             <Field label="Lookback (days)">
               <Input type="number" min={1} max={1000} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
+            </Field>
+            <Field label="Risk per trade (USD)">
+              <Input type="number" min={1} step={1} value={riskUsd} onChange={(e) => setRiskUsd(Math.max(1, Number(e.target.value) || 1))} />
             </Field>
             <Field label="Display TZ">
               <Select value={displayTz} onValueChange={(v) => setDisplayTz(v as Timezone)}>

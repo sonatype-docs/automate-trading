@@ -218,7 +218,9 @@ export const summariseTrades = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
     const { table, snapshotName } = resolveTable(data?.dataset);
     // Chunked scan — PostgREST caps rows at 1000 per response.
     const CHUNK = 1000;

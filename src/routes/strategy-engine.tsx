@@ -195,19 +195,26 @@ function StrategyEnginePage() {
               <Button onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running</> : <><Activity className="w-4 h-4 mr-2" />Run engine</>}
               </Button>
+              <div className="w-full grid gap-3 md:grid-cols-3">
+                <MatrixGroup title="Symbols"
+                  options={ALL_SYMBOLS.map((v) => ({ value: v }))}
+                  selected={mxSymbols} onChange={setMxSymbols} />
+                <MatrixGroup title="Timeframes"
+                  options={ALL_TFS.map((v) => ({ value: v }))}
+                  selected={mxTfs} onChange={setMxTfs} />
+                <MatrixGroup title="Strategy presets"
+                  options={ALL_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v]?.strategyName ?? v }))}
+                  selected={mxPresets} onChange={setMxPresets} />
+              </div>
               <Button
                 variant="secondary"
                 onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending}
-                title="Runs all 3 strategy presets across 1m, 3m, 5m, 15m, 30m, 1h"
+                disabled={mut.isPending || batch.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxPresets.length === 0}
               >
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Activity className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+                  : <><Activity className="w-4 h-4 mr-2" />Run Matrix ({mxSymbols.length}×{mxPresets.length}×{mxTfs.length} = {mxSymbols.length * mxPresets.length * mxTfs.length})</>}
               </Button>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                Matrix = {BATCH_PRESETS.length} presets × {BATCH_TFS.length} timeframes
-              </span>
             </div>
           </CardContent>
         </Card>
@@ -219,6 +226,7 @@ function StrategyEnginePage() {
               <table className="w-full text-xs font-mono">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
+                    <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">Preset</th>
                     <th className="py-1 pr-3">TF</th>
                     <th className="py-1 pr-3">Bars</th>

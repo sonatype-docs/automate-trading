@@ -100,6 +100,31 @@ function TradeIntelligencePage() {
   const [mxStratTzs, setMxStratTzs] = useState<string[]>(["London"]);
   const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>(["IST"]);
 
+  const abortRef = useRef(false);
+  const [resumable, setResumable] = useState<Persisted | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw) as Persisted;
+      if (p && Array.isArray(p.combos) && p.combos.length > 0) {
+        setBatchRows(p.rows ?? []);
+        setBatchProgress({ done: p.done ?? 0, total: p.combos.length });
+        if ((p.done ?? 0) < p.combos.length) setResumable(p);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveProgress = (p: Persisted) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch { /* quota */ }
+  };
+  const clearProgress = () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    setResumable(null);
+    setBatchRows([]);
+    setBatchProgress({ done: 0, total: 0 });
+  };
 
   const [filter, setFilter] = useState({
     strategyId: "",

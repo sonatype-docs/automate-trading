@@ -93,7 +93,7 @@ export const updatePipelineRun = createServerFn({ method: "POST" })
 export const finishPipelineRun = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({
     runId: z.string(),
-    status: z.enum(["done", "failed", "stopped"]),
+    status: z.enum(["done", "failed", "stopped", "paused"]),
     error: z.string().nullable().optional(),
     progress: z.record(z.string(), z.unknown()).optional(),
   }).parse(raw))
@@ -125,3 +125,18 @@ export const listPipelineRuns = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { rows: rows ?? [] };
   });
+
+// ---------- resumable run (latest paused/stopped/running-orphan) ----------
+
+export const getResumableRun = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: rows, error } = await supabaseAdmin
+    .from("pipeline_runs")
+    .select("id,status,matrix,progress,log,error,started_at,finished_at")
+    .in("status", ["paused", "stopped", "running"])
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return { row: rows?.[0] ?? null };
+});
+

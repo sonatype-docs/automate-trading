@@ -236,9 +236,11 @@ function StrategyEnginePage() {
               <table className="w-full text-xs font-mono">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
+                    <th className="py-1 pr-3">Source</th>
                     <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">Preset</th>
                     <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Strat TZ</th>
                     <th className="py-1 pr-3">Bars</th>
                     <th className="py-1 pr-3">Setups</th>
                     <th className="py-1 pr-3">Signals</th>
@@ -249,9 +251,11 @@ function StrategyEnginePage() {
                 <tbody>
                   {batchResults.map((b, i) => (
                     <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">{b.source}</td>
                       <td className="py-1 pr-3">{b.symbol}</td>
                       <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
                       <td className="py-1 pr-3">{b.tf}</td>
+                      <td className="py-1 pr-3">{b.stratTz}</td>
                       <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.setupsDetected.toLocaleString() ?? "—"}</td>
                       <td className="py-1 pr-3">{b.result?.stats.signalsCreated.toLocaleString() ?? "—"}</td>

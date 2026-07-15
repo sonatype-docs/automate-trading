@@ -21,7 +21,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Trash2, Download, Database, Layers } from "lucide-react";
 
 const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
+const BATCH_SYMBOLS = ["XAUUSDT", "BTCUSDT"] as const;
 type BatchRow = {
+  symbol: string;
   presetId: string;
   execId: string;
   tf: string;

@@ -84,14 +84,20 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
       return { inserted: 0, tradesInRun: 0, skipped: 0 };
     }
     const rows = records.map(recordToRow);
-    // Upsert on trade_id so re-runs are idempotent.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error, count } = await supabase
-      .from("trade_intelligence")
-      .upsert(rows as any, { onConflict: "trade_id", count: "exact" });
-
-    if (error) throw new Error(error.message);
-    return { inserted: count ?? rows.length, tradesInRun: eres.trades.length, skipped: 0 };
+    // Chunk upserts — a single 10k-row request can time out or exceed
+    // PostgREST's payload cap. 500/chunk keeps every request well within limits.
+    const CHUNK = 500;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error, count } = await supabase
+        .from("trade_intelligence")
+        .upsert(slice as any, { onConflict: "trade_id", count: "exact" });
+      if (error) throw new Error(error.message);
+      inserted += count ?? slice.length;
+    }
+    return { inserted, tradesInRun: eres.trades.length, skipped: 0 };
   });
 
 const QueryInput = z.object({

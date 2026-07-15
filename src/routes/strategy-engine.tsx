@@ -65,16 +65,20 @@ function StrategyEnginePage() {
   const ALL_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
   const ALL_PRESETS = Object.keys(STRATEGY_PRESETS);
   const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
+  const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+  const [mxSources, setMxSources] = useState<string[]>([source]);
   const [mxSymbols, setMxSymbols] = useState<string[]>(ALL_SYMBOLS);
   const [mxTfs, setMxTfs] = useState<string[]>(ALL_TFS);
   const [mxPresets, setMxPresets] = useState<string[]>(ALL_PRESETS);
-  type BatchRow = { symbol: string; presetId: string; tf: Timeframe; result?: RunStrategyResult["result"]; error?: string };
+  const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
+  type BatchRow = { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string; result?: RunStrategyResult["result"]; error?: string };
   const [batchResults, setBatchResults] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
-      const combos: { symbol: string; presetId: string; tf: Timeframe }[] = [];
-      for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) combos.push({ symbol: s, presetId: p, tf: tf as Timeframe });
+      const combos: { source: string; symbol: string; presetId: string; tf: Timeframe; stratTz: string }[] = [];
+      for (const src of mxSources) for (const s of mxSymbols) for (const p of mxPresets) for (const tf of mxTfs) for (const tz of mxStratTzs)
+        combos.push({ source: src, symbol: s, presetId: p, tf: tf as Timeframe, stratTz: tz });
       setBatchResults([]);
       setBatchProgress({ done: 0, total: combos.length });
       const toMs = now;
@@ -84,14 +88,14 @@ function StrategyEnginePage() {
         try {
           const res = await runner({
             data: {
-              source, symbol: c.symbol, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              source: c.source as "yahoo" | "shark", symbol: c.symbol, timeframe: c.tf,
+              displayTimezone: displayTz, strategyTimezone: c.stratTz as Timezone,
               fromMs, toMs, presetId: c.presetId, mode,
             },
           });
-          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, result: res.result });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, result: res.result });
         } catch (e) {
-          rows.push({ symbol: c.symbol, presetId: c.presetId, tf: c.tf, error: (e as Error).message });
+          rows.push({ source: c.source, symbol: c.symbol, presetId: c.presetId, tf: c.tf, stratTz: c.stratTz, error: (e as Error).message });
         }
         setBatchResults([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));

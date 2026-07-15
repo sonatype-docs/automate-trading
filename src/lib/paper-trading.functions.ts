@@ -91,8 +91,9 @@ export const setRunnerRunning = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid(), running: z.boolean() }).parse(raw))
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = { running: data.running };
-    if (data.running) patch.started_at = new Date().toISOString();
+    const patch = data.running
+      ? { running: true, started_at: new Date().toISOString() }
+      : { running: false };
     const { error } = await context.supabase.from("paper_runners").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -102,8 +103,9 @@ export const setAllRunnersRunning = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ running: z.boolean() }).parse(raw))
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = { running: data.running };
-    if (data.running) patch.started_at = new Date().toISOString();
+    const patch = data.running
+      ? { running: true, started_at: new Date().toISOString() }
+      : { running: false };
     const { error } = await context.supabase
       .from("paper_runners")
       .update(patch)
@@ -111,6 +113,7 @@ export const setAllRunnersRunning = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
 
 export const runPaperTickNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

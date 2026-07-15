@@ -92,19 +92,25 @@ function ExecutionEnginePage() {
   const [mxStrategyPresets, setMxStrategyPresets] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [mxExecPresets, setMxExecPresets] = useState<string[]>(ALL_EXEC_PRESETS);
   const [mxStratTzs, setMxStratTzs] = useState<string[]>([strategyTz]);
+  const [mxDisplayTzs, setMxDisplayTzs] = useState<string[]>([displayTz]);
+  const [mxModes, setMxModes] = useState<string[]>([mode]);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const batch = useMutation({
     mutationFn: async () => {
       const toMs = now;
       const fromMs = toMs - days * 86_400_000;
-      const combos: Array<{ src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string }> = [];
+      const combos: Array<{ src: string; sym: string; sp: string; ep: string; tf: Timeframe; tz: string; dtz: string; md: string }> = [];
       for (const src of mxSources) {
         for (const sym of mxSymbols) {
           for (const sp of mxStrategyPresets) {
             for (const ep of mxExecPresets) {
               for (const tf of mxTfs) {
-                for (const tz of mxStratTzs) combos.push({ src, sym, sp, ep, tf: tf as Timeframe, tz });
+                for (const tz of mxStratTzs) {
+                  for (const dtz of mxDisplayTzs) {
+                    for (const md of mxModes) combos.push({ src, sym, sp, ep, tf: tf as Timeframe, tz, dtz, md });
+                  }
+                }
               }
             }
           }
@@ -118,13 +124,13 @@ function ExecutionEnginePage() {
           const res = await runner({
             data: {
               source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
-              displayTimezone: displayTz, strategyTimezone: c.tz as Timezone,
-              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode,
+              displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
+              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
             },
           });
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, result: res });
+          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res });
         } catch (e) {
-          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, error: e instanceof Error ? e.message : String(e) });
+          rows.push({ source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, error: e instanceof Error ? e.message : String(e) });
         }
         setBatchRows([...rows]);
         setBatchProgress((p) => ({ ...p, done: p.done + 1 }));

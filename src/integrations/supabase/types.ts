@@ -1104,6 +1104,219 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_intelligence_archive: {
+        Row: {
+          actual_rr: number | null
+          breakout: Json
+          commission: number | null
+          created_at: string
+          custom: Json
+          direction: string
+          duration: Json
+          duration_ms: number | null
+          entry_price: number
+          entry_quality: Json
+          entry_time: string
+          entry_type: string | null
+          exit_price: number
+          exit_reason: string | null
+          exit_time: string
+          fees: number | null
+          fill_price: number | null
+          fill_time: string | null
+          filters: Json
+          gross_pnl: number | null
+          holding_bars: number | null
+          id: string
+          liquidity: Json
+          mae: number | null
+          mfe: number | null
+          month: number | null
+          net_pnl: number
+          news: Json
+          order_time: string | null
+          performance: Json
+          pnl_pct: number | null
+          pnl_r: number | null
+          position_size: number | null
+          price: Json
+          quarter: number | null
+          raw: Json
+          regime: Json
+          risk: Json
+          risk_pct: number | null
+          risk_usd: number | null
+          session: string | null
+          signal_time: string | null
+          slippage: number | null
+          smart_money: Json
+          snapshot_name: string
+          spread_cost: number | null
+          status: string
+          stop: Json
+          stop_price: number | null
+          stop_type: string | null
+          strategy_id: string
+          strategy_version: string | null
+          structure: Json
+          symbol: string
+          tags: string[]
+          target: Json
+          target_price: number | null
+          target_type: string | null
+          timeframe: string | null
+          trade_id: string
+          trade_type: string | null
+          trend: Json
+          updated_at: string
+          volatility: Json
+          volume_profile: Json
+          week_number: number | null
+          weekday: number | null
+          year: number | null
+        }
+        Insert: {
+          actual_rr?: number | null
+          breakout?: Json
+          commission?: number | null
+          created_at?: string
+          custom?: Json
+          direction: string
+          duration?: Json
+          duration_ms?: number | null
+          entry_price: number
+          entry_quality?: Json
+          entry_time: string
+          entry_type?: string | null
+          exit_price: number
+          exit_reason?: string | null
+          exit_time: string
+          fees?: number | null
+          fill_price?: number | null
+          fill_time?: string | null
+          filters?: Json
+          gross_pnl?: number | null
+          holding_bars?: number | null
+          id?: string
+          liquidity?: Json
+          mae?: number | null
+          mfe?: number | null
+          month?: number | null
+          net_pnl: number
+          news?: Json
+          order_time?: string | null
+          performance?: Json
+          pnl_pct?: number | null
+          pnl_r?: number | null
+          position_size?: number | null
+          price?: Json
+          quarter?: number | null
+          raw?: Json
+          regime?: Json
+          risk?: Json
+          risk_pct?: number | null
+          risk_usd?: number | null
+          session?: string | null
+          signal_time?: string | null
+          slippage?: number | null
+          smart_money?: Json
+          snapshot_name?: string
+          spread_cost?: number | null
+          status?: string
+          stop?: Json
+          stop_price?: number | null
+          stop_type?: string | null
+          strategy_id: string
+          strategy_version?: string | null
+          structure?: Json
+          symbol: string
+          tags?: string[]
+          target?: Json
+          target_price?: number | null
+          target_type?: string | null
+          timeframe?: string | null
+          trade_id: string
+          trade_type?: string | null
+          trend?: Json
+          updated_at?: string
+          volatility?: Json
+          volume_profile?: Json
+          week_number?: number | null
+          weekday?: number | null
+          year?: number | null
+        }
+        Update: {
+          actual_rr?: number | null
+          breakout?: Json
+          commission?: number | null
+          created_at?: string
+          custom?: Json
+          direction?: string
+          duration?: Json
+          duration_ms?: number | null
+          entry_price?: number
+          entry_quality?: Json
+          entry_time?: string
+          entry_type?: string | null
+          exit_price?: number
+          exit_reason?: string | null
+          exit_time?: string
+          fees?: number | null
+          fill_price?: number | null
+          fill_time?: string | null
+          filters?: Json
+          gross_pnl?: number | null
+          holding_bars?: number | null
+          id?: string
+          liquidity?: Json
+          mae?: number | null
+          mfe?: number | null
+          month?: number | null
+          net_pnl?: number
+          news?: Json
+          order_time?: string | null
+          performance?: Json
+          pnl_pct?: number | null
+          pnl_r?: number | null
+          position_size?: number | null
+          price?: Json
+          quarter?: number | null
+          raw?: Json
+          regime?: Json
+          risk?: Json
+          risk_pct?: number | null
+          risk_usd?: number | null
+          session?: string | null
+          signal_time?: string | null
+          slippage?: number | null
+          smart_money?: Json
+          snapshot_name?: string
+          spread_cost?: number | null
+          status?: string
+          stop?: Json
+          stop_price?: number | null
+          stop_type?: string | null
+          strategy_id?: string
+          strategy_version?: string | null
+          structure?: Json
+          symbol?: string
+          tags?: string[]
+          target?: Json
+          target_price?: number | null
+          target_type?: string | null
+          timeframe?: string | null
+          trade_id?: string
+          trade_type?: string | null
+          trend?: Json
+          updated_at?: string
+          volatility?: Json
+          volume_profile?: Json
+          week_number?: number | null
+          weekday?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           closed_at: string

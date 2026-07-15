@@ -224,15 +224,28 @@ function ExecutionEnginePage() {
               <Button className="w-full md:w-auto" onClick={() => mut.mutate()} disabled={mut.isPending || batch.isPending}>
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Simulating</> : <><Activity className="w-4 h-4 mr-2" />Run execution</>}
               </Button>
-              <Button variant="secondary" className="w-full md:w-auto" onClick={() => batch.mutate()} disabled={mut.isPending || batch.isPending}>
+            </div>
+            <div className="md:col-span-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <MatrixGroup title="Symbols"
+                options={ALL_SYMBOLS.map((v) => ({ value: v }))}
+                selected={mxSymbols} onChange={setMxSymbols} />
+              <MatrixGroup title="Timeframes"
+                options={ALL_TFS.map((v) => ({ value: v }))}
+                selected={mxTfs} onChange={setMxTfs} />
+              <MatrixGroup title="Strategy presets"
+                options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
+                selected={mxStrategyPresets} onChange={setMxStrategyPresets} />
+              <MatrixGroup title="Execution presets"
+                options={ALL_EXEC_PRESETS.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+                selected={mxExecPresets} onChange={setMxExecPresets} />
+            </div>
+            <div className="md:col-span-4 flex items-center gap-3">
+              <Button variant="secondary" onClick={() => batch.mutate()}
+                disabled={mut.isPending || batch.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0}>
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Layers className="w-4 h-4 mr-2" />Run All (Matrix)</>}
+                  : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length} = {mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length})</>}
               </Button>
-              <div className="text-[10px] font-mono text-muted-foreground md:ml-2">
-                {BATCH_STRATEGY_PRESETS.length} strat × {BATCH_EXEC_PRESETS.length} exec × {BATCH_TFS.length} TF ={" "}
-                {BATCH_STRATEGY_PRESETS.length * BATCH_EXEC_PRESETS.length * BATCH_TFS.length} runs
-              </div>
             </div>
           </CardContent>
         </Card>

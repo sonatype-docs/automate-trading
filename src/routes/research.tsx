@@ -179,7 +179,7 @@ function ResearchPage() {
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
       {/* Left research navigation */}
       <aside
-        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200`}
+        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200 sticky top-0 self-start h-[calc(100vh-3.5rem)]`}
       >
         {!navCollapsed && (
           <div className="px-3 pb-3">

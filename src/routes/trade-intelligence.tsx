@@ -275,6 +275,20 @@ function TradeIntelligencePage() {
           <div className="space-y-1"><Label>Tags (csv)</Label>
             <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="research,london" />
           </div>
+          <div className="md:col-span-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MatrixGroup title="Symbols"
+              options={BATCH_SYMBOLS.map((v) => ({ value: v }))}
+              selected={mxSymbols} onChange={setMxSymbols} />
+            <MatrixGroup title="Timeframes"
+              options={BATCH_TFS.map((v) => ({ value: v }))}
+              selected={mxTfs} onChange={setMxTfs} />
+            <MatrixGroup title="Strategies"
+              options={strategyIds.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
+              selected={mxStrategies} onChange={setMxStrategies} />
+            <MatrixGroup title="Execution presets"
+              options={execIds.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+              selected={mxExecs} onChange={setMxExecs} />
+          </div>
           <div className="md:col-span-6 flex flex-col md:flex-row items-start md:items-center gap-3">
             <Button onClick={() => recordMut.mutate()} disabled={recordMut.isPending || batchMut.isPending}>
               {recordMut.isPending ? "Recording…" : "Run & record"}

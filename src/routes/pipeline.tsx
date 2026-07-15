@@ -1,23 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { PlayCircle, Loader2, Square, RefreshCw, CheckCircle2, XCircle, Circle } from "lucide-react";
+import {
+  PlayCircle, Loader2, Square, RefreshCw, CheckCircle2, XCircle, Circle,
+  Pause, Play, AlertTriangle,
+} from "lucide-react";
 import { MatrixGroup } from "@/components/matrix-picker";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { recordTradesFromExecution } from "@/lib/trade-intelligence.functions";
 import {
-  startPipelineRun, updatePipelineRun, finishPipelineRun,
+  startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
 } from "@/lib/pipeline.functions";
 import type {
   ComboResult, ComboSpec, PipelineProgress, PipelineStage,
@@ -39,6 +44,18 @@ export const Route = createFileRoute("/pipeline")({
     ],
   }),
   component: PipelinePage,
+  errorComponent: ({ error, reset }) => (
+    <div className="max-w-2xl mx-auto p-6">
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Pipeline page crashed</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p className="text-xs font-mono break-all">{error?.message ?? "Unknown error"}</p>
+          <Button size="sm" onClick={reset}><RefreshCw className="w-3 h-3 mr-1" />Recover</Button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  ),
 });
 
 function fmt(n: number, d = 2): string {
@@ -67,6 +84,8 @@ function StageDot({ stage, current, done, failed }: {
   );
 }
 
+type Control = "idle" | "running" | "paused" | "stopping";
+
 function PipelinePage() {
   const [source, setSource] = useState<"yahoo" | "shark">("shark");
   const [displayTz, setDisplayTz] = useState<Timezone>("IST");
@@ -87,12 +106,22 @@ function PipelinePage() {
   });
   const [runId, setRunId] = useState<string | null>(null);
   const [failFast, setFailFast] = useState(true);
-  const abortRef = useRef(false);
+  const [control, setControl] = useState<Control>("idle");
+  const controlRef = useRef<Control>("idle");
+  useEffect(() => { controlRef.current = control; }, [control]);
 
   const runFn = useServerFn(recordTradesFromExecution);
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
+  const resumableFn = useServerFn(getResumableRun);
+
+  const resumable = useQuery({
+    queryKey: ["pipeline", "resumable"],
+    queryFn: () => resumableFn(),
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+  });
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];
@@ -108,9 +137,133 @@ function PipelinePage() {
     return out;
   }, [symbols, tfs, strats, execs]);
 
+  // Wait while paused; return false if user asked to stop.
+  async function waitIfPaused(): Promise<boolean> {
+    while (controlRef.current === "paused") {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return controlRef.current !== "stopping";
+  }
+
+  async function runCombosLoop(opts: {
+    id: string;
+    combosToRun: ComboSpec[];
+    startIndex: number;
+    fromMs: number;
+    toMs: number;
+    initialProgress: PipelineProgress;
+    initialResults: ComboResult[];
+  }) {
+    const { id, combosToRun, startIndex, fromMs, toMs } = opts;
+    const nextResults = [...opts.initialResults];
+    const prog = { ...opts.initialProgress };
+
+    for (let i = startIndex; i < combosToRun.length; i++) {
+      const alive = await waitIfPaused();
+      if (!alive) {
+        await finishFn({ data: { runId: id, status: "stopped", progress: prog } }).catch(() => {});
+        setControl("idle");
+        return;
+      }
+      const spec = combosToRun[i];
+      const started = Date.now();
+      prog.currentCombo = spec;
+      prog.currentStage = "data";
+      nextResults[i] = { ...nextResults[i], status: "running", stage: "data" };
+      setResults([...nextResults]);
+      setProgress({ ...prog });
+
+      // one automatic retry — reduces mid-run flakiness (network blips, brief
+      // upstream 5xx, statement-timeout retries at the DB layer).
+      let attempt = 0;
+      let lastErr: unknown = null;
+      let ok = false;
+      let inserted = 0;
+      let trades = 0;
+      while (attempt < 2 && !ok) {
+        try {
+          prog.currentStage = "execution";
+          nextResults[i] = { ...nextResults[i], stage: "execution" };
+          setResults([...nextResults]);
+          setProgress({ ...prog });
+          const res = await runFn({
+            data: {
+              source, symbol: spec.symbol, timeframe: spec.timeframe,
+              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              fromMs, toMs,
+              strategyPresetId: spec.strategyPresetId,
+              execPresetId: spec.execPresetId,
+              tags: ["pipeline", `run:${id}`],
+              riskUsdOverride: riskUsd,
+            },
+          });
+          inserted = res.inserted ?? 0;
+          trades = res.tradesInRun ?? 0;
+          ok = true;
+        } catch (e) {
+          lastErr = e;
+          attempt += 1;
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 800));
+        }
+      }
+
+      if (ok) {
+        prog.currentStage = "intelligence";
+        nextResults[i] = {
+          ...nextResults[i], status: "ok", stage: "intelligence",
+          trades, inserted, netPnl: 0, elapsedMs: Date.now() - started,
+        };
+        prog.ok += 1;
+        prog.totalTrades += trades;
+        prog.totalInserted += inserted;
+        prog.completed += 1;
+        setResults([...nextResults]);
+        setProgress({ ...prog });
+        await updateFn({
+          data: {
+            runId: id,
+            progress: { ...prog, currentCombo: null, currentStage: null },
+            logEntry: {
+              ts: Date.now(), combo: spec, stage: "intelligence", status: "ok",
+              trades, inserted, elapsedMs: Date.now() - started,
+            },
+          },
+        }).catch(() => {});
+      } else {
+        const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+        nextResults[i] = {
+          ...nextResults[i], status: "failed",
+          error: msg, elapsedMs: Date.now() - started,
+        };
+        prog.failed += 1;
+        prog.completed += 1;
+        setResults([...nextResults]);
+        setProgress({ ...prog });
+        await updateFn({
+          data: {
+            runId: id,
+            progress: { ...prog, currentCombo: null, currentStage: null },
+            logEntry: {
+              ts: Date.now(), combo: spec, stage: "execution", status: "failed",
+              error: msg, elapsedMs: Date.now() - started,
+            },
+          },
+        }).catch(() => {});
+        if (failFast) {
+          await finishFn({ data: { runId: id, status: "failed", error: `${spec.symbol} ${spec.timeframe} ${spec.strategyPresetId}/${spec.execPresetId}: ${msg}`, progress: prog } });
+          setControl("idle");
+          return;
+        }
+      }
+    }
+
+    await finishFn({ data: { runId: id, status: "done", progress: prog } });
+    setControl("idle");
+  }
+
   const runMut = useMutation({
     mutationFn: async () => {
-      abortRef.current = false;
+      setControl("running");
       const total = combos.length;
       const initialResults: ComboResult[] = combos.map((spec) => ({
         spec, status: "pending", stage: null, bars: 0, signals: 0, trades: 0,
@@ -134,105 +287,111 @@ function PipelinePage() {
 
       const toMs = Date.now();
       const fromMs = toMs - lookbackDays * 86_400_000;
-      const nextResults = [...initialResults];
-      const prog = { ...initialProgress };
 
-      for (let i = 0; i < combos.length; i++) {
-        if (abortRef.current) {
-          await finishFn({ data: { runId: id, status: "stopped", progress: prog } });
-          return;
-        }
-        const spec = combos[i];
-        const started = Date.now();
-        prog.currentCombo = spec;
-        prog.currentStage = "data";
-        nextResults[i] = { ...nextResults[i], status: "running", stage: "data" };
-        setResults([...nextResults]);
-        setProgress({ ...prog });
-
-        try {
-          // recordTradesFromExecution runs Data → Strategy → Execution →
-          // Trade Intelligence insert in a single server call.
-          prog.currentStage = "execution";
-          nextResults[i] = { ...nextResults[i], stage: "execution" };
-          setResults([...nextResults]);
-          setProgress({ ...prog });
-          const res = await runFn({
-            data: {
-              source, symbol: spec.symbol, timeframe: spec.timeframe,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
-              fromMs, toMs,
-              strategyPresetId: spec.strategyPresetId,
-              execPresetId: spec.execPresetId,
-              tags: ["pipeline", `run:${id}`],
-              riskUsdOverride: riskUsd,
-            },
-          });
-          prog.currentStage = "intelligence";
-          setProgress({ ...prog });
-
-          const inserted = res.inserted ?? 0;
-          const trades = res.tradesInRun ?? 0;
-          nextResults[i] = {
-            ...nextResults[i], status: "ok", stage: "intelligence",
-            trades, inserted, netPnl: 0,
-            elapsedMs: Date.now() - started,
-          };
-          prog.ok += 1;
-          prog.totalTrades += trades;
-          prog.totalInserted += inserted;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          nextResults[i] = {
-            ...nextResults[i], status: "failed",
-            error: msg, elapsedMs: Date.now() - started,
-          };
-          prog.failed += 1;
-          setResults([...nextResults]);
-          prog.completed += 1;
-          setProgress({ ...prog });
-          await updateFn({
-            data: {
-              runId: id,
-              progress: { ...prog, currentCombo: null, currentStage: null },
-              logEntry: {
-                ts: Date.now(), combo: spec, stage: "execution", status: "failed",
-                error: msg, elapsedMs: Date.now() - started,
-              },
-            },
-          }).catch(() => {});
-          if (failFast) {
-            await finishFn({ data: { runId: id, status: "failed", error: `${spec.symbol} ${spec.timeframe} ${spec.strategyPresetId}/${spec.execPresetId}: ${msg}`, progress: prog } });
-            return;
-          }
-          continue;
-        }
-
-        prog.completed += 1;
-        setResults([...nextResults]);
-        setProgress({ ...prog });
-
-        // Persist progress every combo (throttled batching would be an option,
-        // but per-combo keeps the DB row honest for the history view).
-        await updateFn({
-          data: {
-            runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
-            logEntry: {
-              ts: Date.now(), combo: spec, stage: "intelligence", status: "ok",
-              trades: nextResults[i].trades, inserted: nextResults[i].inserted,
-              elapsedMs: nextResults[i].elapsedMs,
-            },
-          },
-        }).catch(() => {});
-      }
-
-      await finishFn({ data: { runId: id, status: "done", progress: prog } });
+      await runCombosLoop({
+        id, combosToRun: combos, startIndex: 0, fromMs, toMs,
+        initialProgress, initialResults,
+      });
     },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[pipeline] fatal", msg);
+      if (runId) finishFn({ data: { runId, status: "failed", error: msg } }).catch(() => {});
+      setControl("idle");
+    },
+    onSettled: () => { resumable.refetch(); },
+  });
+
+  const resumeMut = useMutation({
+    mutationFn: async () => {
+      const row = resumable.data?.row;
+      if (!row) return;
+      setControl("running");
+      // Rebuild combos from the stored matrix so ordering is identical.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = row.matrix as any;
+      const rebuilt: ComboSpec[] = [];
+      for (const symbol of m.symbols) {
+        for (const tf of m.timeframes) {
+          for (const strategyPresetId of m.strategyPresetIds) {
+            for (const execPresetId of m.execPresetIds) {
+              rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId });
+            }
+          }
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prog0 = (row.progress ?? {}) as any;
+      const completed = Number(prog0.completed ?? 0);
+      const initialResults: ComboResult[] = rebuilt.map((spec, idx) => ({
+        spec,
+        status: idx < completed ? "ok" : "pending",
+        stage: idx < completed ? "intelligence" : null,
+        bars: 0, signals: 0, trades: 0, inserted: 0, netPnl: 0,
+        error: null, elapsedMs: 0,
+      }));
+      setResults(initialResults);
+      const initialProgress: PipelineProgress = {
+        total: Number(prog0.total ?? rebuilt.length),
+        completed,
+        currentCombo: null, currentStage: null,
+        ok: Number(prog0.ok ?? 0),
+        failed: Number(prog0.failed ?? 0),
+        totalTrades: Number(prog0.totalTrades ?? 0),
+        totalInserted: Number(prog0.totalInserted ?? 0),
+      };
+      setProgress(initialProgress);
+      setRunId(row.id as string);
+
+      // Restore matrix into UI so users see what will run.
+      setSource(m.source);
+      setSymbols(m.symbols);
+      setTfs(m.timeframes);
+      setStrats(m.strategyPresetIds);
+      setExecs(m.execPresetIds);
+      setDisplayTz(m.displayTimezone);
+      setStrategyTz(m.strategyTimezone);
+      setLookbackDays(m.lookbackDays);
+      setRiskUsd(m.riskUsdPerTrade);
+
+      const toMs = Date.now();
+      const fromMs = toMs - Number(m.lookbackDays) * 86_400_000;
+      await runCombosLoop({
+        id: row.id as string, combosToRun: rebuilt, startIndex: completed,
+        fromMs, toMs, initialProgress, initialResults,
+      });
+    },
+    onSettled: () => { resumable.refetch(); },
   });
 
   const totalCombos = combos.length;
-  const isRunning = runMut.isPending;
+  const isRunning = control === "running" || control === "paused" || control === "stopping";
+  const percent = progress.total > 0
+    ? Math.round((progress.completed / progress.total) * 100)
+    : 0;
+
+  const resumableRow = resumable.data?.row ?? null;
+  const showResumeBanner = !isRunning && resumableRow != null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    && Number(((resumableRow.progress ?? {}) as any).completed ?? 0)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       < Number(((resumableRow.progress ?? {}) as any).total ?? 0);
+
+  async function handlePause() {
+    setControl("paused");
+    if (runId) {
+      await updateFn({
+        data: { runId, progress: { ...progress, currentCombo: null, currentStage: null } },
+      }).catch(() => {});
+      await finishFn({ data: { runId, status: "paused", progress } }).catch(() => {});
+    }
+  }
+  function handleResumePlayback() {
+    setControl("running");
+  }
+  function handleStop() {
+    setControl("stopping");
+  }
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -252,6 +411,30 @@ function PipelinePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-6">
+        {showResumeBanner && resumableRow && (
+          <Alert>
+            <RefreshCw className="h-4 w-4" />
+            <AlertTitle className="flex items-center gap-2">
+              Resume previous run
+              <Badge variant="outline" className="text-[9px] font-mono">{(resumableRow.id as string).slice(0, 8)}</Badge>
+              <Badge variant="secondary" className="text-[9px] uppercase">{String(resumableRow.status)}</Badge>
+            </AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3 mt-2">
+              <span className="text-xs text-muted-foreground">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {Number(((resumableRow.progress ?? {}) as any).completed ?? 0)}
+                {" / "}
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {Number(((resumableRow.progress ?? {}) as any).total ?? 0)} combos completed
+              </span>
+              <Button size="sm" onClick={() => resumeMut.mutate()} disabled={resumeMut.isPending}>
+                {resumeMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
+                Resume last run
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader><CardTitle className="text-sm font-mono tracking-widest">Global settings</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-4">
@@ -331,34 +514,82 @@ function PipelinePage() {
         </Card>
 
         <Card>
-          <CardContent className="py-4 flex flex-wrap items-center gap-3">
-            <Button
-              size="lg"
-              disabled={isRunning || totalCombos === 0}
-              onClick={() => runMut.mutate()}
-              className="min-w-56"
-            >
-              {isRunning
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running {progress.completed}/{progress.total}</>
-                : <><PlayCircle className="w-4 h-4 mr-2" />Run pipeline ({totalCombos} combos)</>}
-            </Button>
-            {isRunning && (
-              <Button variant="ghost" onClick={() => { abortRef.current = true; }}>
-                <Square className="w-4 h-4 mr-2" />Stop
-              </Button>
-            )}
-            {!isRunning && results.length > 0 && (
-              <Button variant="ghost" onClick={() => { setResults([]); setProgress({ total: 0, completed: 0, currentCombo: null, currentStage: null, ok: 0, failed: 0, totalTrades: 0, totalInserted: 0 }); setRunId(null); }}>
-                <RefreshCw className="w-4 h-4 mr-2" />Clear
-              </Button>
-            )}
-            {runId && <Badge variant="outline" className="text-[10px] font-mono">run {runId.slice(0, 8)}</Badge>}
-            <div className="ml-auto flex flex-wrap items-center gap-3 text-xs font-mono">
-              <span className="text-emerald-500">✓ {progress.ok}</span>
-              <span className="text-rose-500">✗ {progress.failed}</span>
-              <span className="text-muted-foreground">trades {progress.totalTrades.toLocaleString()}</span>
-              <span className="text-muted-foreground">inserted {progress.totalInserted.toLocaleString()}</span>
+          <CardContent className="py-4 space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {control === "idle" && (
+                <Button
+                  size="lg"
+                  disabled={totalCombos === 0}
+                  onClick={() => runMut.mutate()}
+                  className="min-w-56"
+                >
+                  <PlayCircle className="w-4 h-4 mr-2" />Run pipeline ({totalCombos} combos)
+                </Button>
+              )}
+              {control === "running" && (
+                <>
+                  <Button size="lg" disabled className="min-w-56">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Running {progress.completed}/{progress.total}
+                  </Button>
+                  <Button variant="secondary" onClick={handlePause}>
+                    <Pause className="w-4 h-4 mr-2" />Pause
+                  </Button>
+                  <Button variant="ghost" onClick={handleStop}>
+                    <Square className="w-4 h-4 mr-2" />Stop
+                  </Button>
+                </>
+              )}
+              {control === "paused" && (
+                <>
+                  <Button size="lg" onClick={handleResumePlayback} className="min-w-56">
+                    <Play className="w-4 h-4 mr-2" />Resume ({progress.completed}/{progress.total})
+                  </Button>
+                  <Button variant="ghost" onClick={handleStop}>
+                    <Square className="w-4 h-4 mr-2" />Stop
+                  </Button>
+                </>
+              )}
+              {control === "stopping" && (
+                <Button size="lg" disabled className="min-w-56">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
+                </Button>
+              )}
+              {!isRunning && results.length > 0 && (
+                <Button variant="ghost" onClick={() => {
+                  setResults([]);
+                  setProgress({ total: 0, completed: 0, currentCombo: null, currentStage: null, ok: 0, failed: 0, totalTrades: 0, totalInserted: 0 });
+                  setRunId(null);
+                }}>
+                  <RefreshCw className="w-4 h-4 mr-2" />Clear
+                </Button>
+              )}
+              {runId && <Badge variant="outline" className="text-[10px] font-mono">run {runId.slice(0, 8)}</Badge>}
+              <div className="ml-auto flex flex-wrap items-center gap-3 text-xs font-mono">
+                <span className="text-emerald-500">✓ {progress.ok}</span>
+                <span className="text-rose-500">✗ {progress.failed}</span>
+                <span className="text-muted-foreground">trades {progress.totalTrades.toLocaleString()}</span>
+                <span className="text-muted-foreground">inserted {progress.totalInserted.toLocaleString()}</span>
+              </div>
             </div>
+
+            {(isRunning || progress.total > 0) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                  <span>
+                    {control === "paused" ? "Paused" : control === "stopping" ? "Stopping" : control === "running" ? "In progress" : "Complete"}
+                    {progress.currentCombo && control === "running" && (
+                      <span className="ml-2 text-foreground/80 normal-case">
+                        {progress.currentCombo.symbol} · {progress.currentCombo.timeframe} · {progress.currentCombo.strategyPresetId} / {progress.currentCombo.execPresetId}
+                        {progress.currentStage && <span className="ml-1 text-primary">[{progress.currentStage}]</span>}
+                      </span>
+                    )}
+                  </span>
+                  <span>{percent}%</span>
+                </div>
+                <Progress value={percent} className={control === "running" ? "animate-pulse" : ""} />
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -387,7 +618,7 @@ function PipelinePage() {
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={i} className="border-t border-border/40">
+                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${i}`} className="border-t border-border/40">
                       <td className="py-1 pr-3">
                         {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
                         {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
@@ -416,7 +647,7 @@ function PipelinePage() {
               </table>
               {progress.failed === 0 && progress.completed === progress.total && progress.total > 0 && (
                 <div className="mt-4 text-xs text-emerald-500">
-                  Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Total net exposure risk was {fmtMoney(riskUsd)} per trade.
+                  Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Risk per trade was {fmtMoney(riskUsd)}.
                 </div>
               )}
             </CardContent>

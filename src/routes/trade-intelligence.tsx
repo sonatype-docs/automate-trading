@@ -141,10 +141,10 @@ function TradeIntelligencePage() {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
       const combos: Array<{ symbol: string; presetId: string; execId: string; tf: string }> = [];
-      for (const symbol of BATCH_SYMBOLS) {
-        for (const presetId of strategyIds) {
-          for (const execId of execIds) {
-            for (const tf of BATCH_TFS) combos.push({ symbol, presetId, execId, tf });
+      for (const symbol of mxSymbols) {
+        for (const presetId of mxStrategies) {
+          for (const execId of mxExecs) {
+            for (const tf of mxTfs) combos.push({ symbol, presetId, execId, tf });
           }
         }
       }

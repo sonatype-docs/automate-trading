@@ -148,13 +148,15 @@ function TradeIntelligencePage() {
     mutationFn: async () => {
       const to = Date.now();
       const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }> = [];
+      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }> = [];
       for (const source of mxSources) {
         for (const symbol of mxSymbols) {
           for (const presetId of mxStrategies) {
             for (const execId of mxExecs) {
               for (const tf of mxTfs) {
-                for (const stratTz of mxStratTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz });
+                for (const stratTz of mxStratTzs) {
+                  for (const displayTz of mxDisplayTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
+                }
               }
             }
           }
@@ -163,7 +165,7 @@ function TradeIntelligencePage() {
       setBatchRows([]);
       setBatchProgress({ done: 0, total: combos.length });
       const rows: BatchRow[] = [];
-      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string }) => {
+      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }) => {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
@@ -171,7 +173,7 @@ function TradeIntelligencePage() {
               data: {
                 source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
                 timeframe: combo.tf as "15m",
-                displayTimezone: "IST", strategyTimezone: combo.stratTz as "London",
+                displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
                 fromMs: from, toMs: to,
                 strategyPresetId: combo.presetId,
                 execPresetId: combo.execId,

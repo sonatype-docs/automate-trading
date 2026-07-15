@@ -172,24 +172,16 @@ function ResearchPage() {
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
       {/* Left research navigation */}
       <aside
-        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 space-y-2 transition-[width] duration-200`}
+        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200`}
       >
-        <div className="flex items-center justify-between px-1 pb-2">
-          {!navCollapsed && (
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-2">
+        {!navCollapsed && (
+          <div className="px-3 pb-3">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Research
             </span>
-          )}
-          <button
-            onClick={toggleNav}
-            className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            aria-label={navCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={navCollapsed ? "Expand" : "Collapse"}
-          >
-            {navCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          </button>
-        </div>
-        <nav className="space-y-1">
+          </div>
+        )}
+        <nav className="space-y-1 flex-1 overflow-y-auto">
           {SECTIONS.map(({ name, icon: Icon }) => {
             const active = section === name;
             return (
@@ -209,6 +201,16 @@ function ResearchPage() {
             );
           })}
         </nav>
+        <div className="pt-2 mt-2 border-t border-border/60 flex">
+          <button
+            onClick={toggleNav}
+            className={`${navCollapsed ? "mx-auto" : "ml-auto"} p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors`}
+            aria-label={navCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={navCollapsed ? "Expand" : "Collapse"}
+          >
+            {navCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-auto p-4 space-y-4">

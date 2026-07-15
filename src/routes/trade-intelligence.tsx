@@ -373,8 +373,8 @@ function TradeIntelligencePage() {
               </Select>
             </div>
             <div className="space-y-1"><Label>Limit</Label>
-              <Input type="number" value={filter.limit} onChange={(e) => setFilter((f) => ({ ...f, limit: Number(e.target.value) }))} />
-            </div>
+              <Input type="number" min={1} max={10000} value={filter.limit} onChange={(e) => setFilter((f) => ({ ...f, limit: Math.min(10000, Math.max(1, Number(e.target.value) || 1)) }))} />
+              <p className="text-[10px] text-muted-foreground">Max 10,000</p>
           </div>
           <Separator />
           <div className="text-xs text-muted-foreground">

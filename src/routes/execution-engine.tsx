@@ -234,7 +234,10 @@ function ExecutionEnginePage() {
                 {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Simulating</> : <><Activity className="w-4 h-4 mr-2" />Run execution</>}
               </Button>
             </div>
-            <div className="md:col-span-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="md:col-span-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <MatrixGroup title="Sources"
+                options={ALL_SOURCES.map((v) => ({ value: v }))}
+                selected={mxSources} onChange={setMxSources} />
               <MatrixGroup title="Symbols"
                 options={ALL_SYMBOLS.map((v) => ({ value: v }))}
                 selected={mxSymbols} onChange={setMxSymbols} />
@@ -247,13 +250,16 @@ function ExecutionEnginePage() {
               <MatrixGroup title="Execution presets"
                 options={ALL_EXEC_PRESETS.map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
                 selected={mxExecPresets} onChange={setMxExecPresets} />
+              <MatrixGroup title="Strategy TZ"
+                options={TIMEZONES.map((v) => ({ value: v }))}
+                selected={mxStratTzs} onChange={setMxStratTzs} />
             </div>
             <div className="md:col-span-4 flex items-center gap-3">
               <Button variant="secondary" onClick={() => batch.mutate()}
-                disabled={mut.isPending || batch.isPending || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0}>
+                disabled={mut.isPending || batch.isPending || mxSources.length === 0 || mxSymbols.length === 0 || mxTfs.length === 0 || mxStrategyPresets.length === 0 || mxExecPresets.length === 0 || mxStratTzs.length === 0}>
                 {batch.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Matrix {batchProgress.done}/{batchProgress.total}</>
-                  : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length} = {mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length})</>}
+                  : <><Layers className="w-4 h-4 mr-2" />Run Matrix ({mxSources.length}×{mxSymbols.length}×{mxStrategyPresets.length}×{mxExecPresets.length}×{mxTfs.length}×{mxStratTzs.length} = {mxSources.length * mxSymbols.length * mxStrategyPresets.length * mxExecPresets.length * mxTfs.length * mxStratTzs.length})</>}
               </Button>
             </div>
           </CardContent>
@@ -279,10 +285,12 @@ function ExecutionEnginePage() {
               <table className="w-full text-xs font-mono">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
+                    <th className="py-1 pr-3">Source</th>
                     <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">Strategy</th>
                     <th className="py-1 pr-3">Exec</th>
                     <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">Strat TZ</th>
                     <th className="py-1 pr-3">Signals</th>
                     <th className="py-1 pr-3">Filled</th>
                     <th className="py-1 pr-3">Trades</th>
@@ -298,10 +306,12 @@ function ExecutionEnginePage() {
                     const wr = s && s.tradesClosed > 0 ? (s.winners / s.tradesClosed) * 100 : 0;
                     return (
                       <tr key={i} className="border-t border-border/40">
+                        <td className="py-1 pr-3">{row.source}</td>
                         <td className="py-1 pr-3">{row.symbol}</td>
                         <td className="py-1 pr-3">{STRATEGY_PRESETS[row.strategyPresetId as keyof typeof STRATEGY_PRESETS]?.strategyName ?? row.strategyPresetId}</td>
                         <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
                         <td className="py-1 pr-3">{row.tf}</td>
+                        <td className="py-1 pr-3">{row.stratTz}</td>
                         <td className="py-1 pr-3">{s ? s.signalsIn : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.ordersFilled : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.tradesClosed : "—"}</td>

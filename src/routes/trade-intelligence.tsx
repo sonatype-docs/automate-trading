@@ -179,67 +179,82 @@ function TradeIntelligencePage() {
     },
   });
 
+  const runCombos = async (combos: ComboKey[], seedRows: BatchRow[], seedDone: number, days: number, tags: string) => {
+    abortRef.current = false;
+    const to = Date.now();
+    const from = to - days * 24 * 60 * 60 * 1000;
+    const rows: BatchRow[] = [...seedRows];
+    setBatchRows(rows);
+    setBatchProgress({ done: seedDone, total: combos.length });
+    saveProgress({ combos, done: seedDone, rows, days, tags });
+
+    const runOne = async (combo: ComboKey) => {
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (abortRef.current) throw new Error("aborted");
+        try {
+          return await record({
+            data: {
+              source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
+              timeframe: combo.tf as "15m",
+              displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
+              fromMs: from, toMs: to,
+              strategyPresetId: combo.presetId,
+              execPresetId: combo.execId,
+              tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+            },
+          });
+        } catch (e) {
+          lastErr = e;
+          await new Promise((r) => setTimeout(r, 750 * (attempt + 1) * (attempt + 1)));
+        }
+      }
+      throw lastErr;
+    };
+
+    for (let i = seedDone; i < combos.length; i++) {
+      if (abortRef.current) break;
+      const combo = combos[i];
+      try {
+        const res = await runOne(combo);
+        rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
+      } catch (e) {
+        rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
+      }
+      setBatchRows([...rows]);
+      const done = i + 1;
+      setBatchProgress({ done, total: combos.length });
+      saveProgress({ combos, done, rows, days, tags });
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    setResumable(null);
+    return rows;
+  };
+
   const batchMut = useMutation({
     mutationFn: async () => {
-      const to = Date.now();
-      const from = to - form.days * 24 * 60 * 60 * 1000;
-      const combos: Array<{ source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }> = [];
-      for (const source of mxSources) {
-        for (const symbol of mxSymbols) {
-          for (const presetId of mxStrategies) {
-            for (const execId of mxExecs) {
-              for (const tf of mxTfs) {
-                for (const stratTz of mxStratTzs) {
-                  for (const displayTz of mxDisplayTzs) combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
-                }
-              }
-            }
-          }
-        }
-      }
-      setBatchRows([]);
-      setBatchProgress({ done: 0, total: combos.length });
-      const rows: BatchRow[] = [];
-      const runOne = async (combo: { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string }) => {
-        let lastErr: unknown = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            return await record({
-              data: {
-                source: combo.source as "yahoo" | "shark", symbol: combo.symbol,
-                timeframe: combo.tf as "15m",
-                displayTimezone: combo.displayTz as "IST", strategyTimezone: combo.stratTz as "London",
-                fromMs: from, toMs: to,
-                strategyPresetId: combo.presetId,
-                execPresetId: combo.execId,
-                tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-              },
-            });
-          } catch (e) {
-            lastErr = e;
-            await new Promise((r) => setTimeout(r, 500 * (attempt + 1) * (attempt + 1)));
-          }
-        }
-        throw lastErr;
-      };
-      for (const combo of combos) {
-        try {
-          const res = await runOne(combo);
-          rows.push({ ...combo, inserted: res.inserted, tradesInRun: res.tradesInRun });
-        } catch (e) {
-          rows.push({ ...combo, error: e instanceof Error ? e.message : String(e) });
-        }
-        setBatchRows([...rows]);
-        setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
-        await new Promise((r) => setTimeout(r, 150));
-      }
-
-      return rows;
+      const combos: ComboKey[] = [];
+      for (const source of mxSources)
+        for (const symbol of mxSymbols)
+          for (const presetId of mxStrategies)
+            for (const execId of mxExecs)
+              for (const tf of mxTfs)
+                for (const stratTz of mxStratTzs)
+                  for (const displayTz of mxDisplayTzs)
+                    combos.push({ source, symbol, presetId, execId, tf, stratTz, displayTz });
+      return runCombos(combos, [], 0, form.days, form.tags);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["trade-intel"] });
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trade-intel"] }); },
   });
+
+  const resumeMut = useMutation({
+    mutationFn: async () => {
+      if (!resumable) return [];
+      return runCombos(resumable.combos, resumable.rows, resumable.done, resumable.days, resumable.tags);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trade-intel"] }); },
+  });
+
 
   const doExport = async (format: "json" | "csv") => {
     const out = await exportFn({ data: { ...spec, format } });

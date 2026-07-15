@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Activity, Loader2 } from "lucide-react";
+import { Database, Activity, Loader2, Layers } from "lucide-react";
 import { loadEnrichedCandles, type LoadEnrichedResult } from "@/lib/market-data.functions";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+import { MatrixGroup } from "@/components/matrix-picker";
 
 export const Route = createFileRoute("/market-data")({
   head: () => ({

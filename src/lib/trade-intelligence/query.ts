@@ -4,7 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TradeQuerySpec } from "./types";
 
 export function applyQuery(client: SupabaseClient, table: string, spec: TradeQuerySpec) {
-  let q = client.from(table).select("*", { count: "exact" });
+  // Use "planned" (cheap pg planner estimate) instead of "exact" — an exact
+  // COUNT over the full trade_intelligence table on every chunk causes
+  // Postgres statement timeouts once the table grows past ~10k rows.
+  let q = client.from(table).select("*", { count: "planned" });
   if (spec.strategyId) q = q.eq("strategy_id", spec.strategyId);
   if (spec.symbol) q = q.eq("symbol", spec.symbol);
   if (spec.direction) q = q.eq("direction", spec.direction);

@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge } from "lucide-react";
 import { queryTrades } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import {
@@ -103,6 +103,7 @@ const SECTIONS = [
   { name: "Distributions", icon: BarChart3 },
   { name: "Correlation", icon: Network },
   { name: "Compare", icon: GitCompare },
+  { name: "TF Optimizer", icon: Gauge },
   { name: "Filters", icon: SlidersHorizontal },
   { name: "Report", icon: FileText },
 ] as const;
@@ -272,6 +273,7 @@ function ResearchPage() {
         {section === "Distributions" && <DistributionSection trades={trades} />}
         {section === "Correlation" && <CorrelationSection trades={trades} />}
         {section === "Compare" && <CompareSection trades={allTrades} />}
+        {section === "TF Optimizer" && <TimeframeOptimizerSection trades={allTrades} />}
         {section === "Filters" && (
           <FiltersSection rules={customRules} onChange={setCustomRules} count={trades.length} />
         )}
@@ -1065,5 +1067,245 @@ function ReportSection({ trades }: { trades: TradeRecord[] }) {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+// ============================================================
+// TIMEFRAME OPTIMIZER
+// ============================================================
+interface TfRow {
+  strategyId: string;
+  timeframe: string;
+  trades: number;
+  netProfit: number;
+  profitFactor: number;
+  winRate: number;
+  expectancy: number;
+  maxDrawdown: number;
+  stability: number;   // 0..1 — fraction of positive monthly buckets
+  rank: {
+    profitFactor: number;
+    netProfit: number;
+    winRate: number;
+    expectancy: number;
+    trades: number;
+    stability: number;
+  };
+  robustness: number;  // 0..100
+}
+
+function computeStability(rows: TradeRecord[]): number {
+  const monthly = rolledPnl(rows, "M");
+  if (monthly.length === 0) return 0;
+  const pos = monthly.filter((m) => m.pnl > 0).length;
+  return pos / monthly.length;
+}
+
+function rankAsc(values: number[]): number[] {
+  // higher value → rank 1 (best)
+  const idx = values.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+  const ranks = new Array(values.length).fill(0);
+  idx.forEach((e, r) => { ranks[e.i] = r + 1; });
+  return ranks;
+}
+
+function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
+  const [strategyFocus, setStrategyFocus] = useState<string>("all");
+  const strategies = useMemo(
+    () => Array.from(new Set(trades.map((t) => t.strategyId))).sort(),
+    [trades],
+  );
+
+  const rows: TfRow[] = useMemo(() => {
+    // Group by strategy + timeframe
+    const map = new Map<string, TradeRecord[]>();
+    for (const t of trades) {
+      const key = `${t.strategyId}||${t.timeframe ?? "—"}`;
+      const arr = map.get(key) ?? [];
+      arr.push(t);
+      map.set(key, arr);
+    }
+    const raw = Array.from(map.entries()).map(([key, rs]) => {
+      const [strategyId, timeframe] = key.split("||");
+      const k = computeKpis(rs);
+      return {
+        strategyId,
+        timeframe,
+        trades: k.total,
+        netProfit: k.netProfit,
+        profitFactor: Number.isFinite(k.profitFactor) ? k.profitFactor : 999,
+        winRate: k.winRate,
+        expectancy: k.expectancy,
+        maxDrawdown: k.maxDrawdown,
+        stability: computeStability(rs),
+      };
+    });
+
+    // Ranking is done per-strategy so timeframes compete within their strategy.
+    const byStrategy = new Map<string, typeof raw>();
+    for (const r of raw) {
+      const arr = byStrategy.get(r.strategyId) ?? [];
+      arr.push(r); byStrategy.set(r.strategyId, arr);
+    }
+
+    const out: TfRow[] = [];
+    for (const [, group] of byStrategy) {
+      const pfR = rankAsc(group.map((g) => g.profitFactor));
+      const npR = rankAsc(group.map((g) => g.netProfit));
+      const wrR = rankAsc(group.map((g) => g.winRate));
+      const exR = rankAsc(group.map((g) => g.expectancy));
+      const trR = rankAsc(group.map((g) => g.trades));
+      const stR = rankAsc(group.map((g) => g.stability));
+
+      // Normalized 0..1 components for the robustness score
+      // (higher is better; drawdown is inverted)
+      const maxPf = Math.max(...group.map((g) => g.profitFactor), 0.0001);
+      const maxNp = Math.max(...group.map((g) => g.netProfit), 0.0001);
+      const maxTr = Math.max(...group.map((g) => g.trades), 1);
+      const maxDd = Math.max(...group.map((g) => g.maxDrawdown), 0.0001);
+
+      group.forEach((g, i) => {
+        const pfN = Math.min(1, Math.max(0, g.profitFactor / Math.max(2, maxPf)));
+        const npN = Math.min(1, Math.max(0, g.netProfit / maxNp));
+        const trN = Math.min(1, g.trades / Math.max(100, maxTr));
+        const wrN = Math.min(1, Math.max(0, g.winRate));
+        const ddN = 1 - Math.min(1, g.maxDrawdown / maxDd); // less DD → higher
+        const robust =
+          0.35 * pfN +
+          0.25 * trN +
+          0.20 * npN +
+          0.10 * wrN +
+          0.10 * ddN;
+        out.push({
+          ...g,
+          rank: {
+            profitFactor: pfR[i],
+            netProfit: npR[i],
+            winRate: wrR[i],
+            expectancy: exR[i],
+            trades: trR[i],
+            stability: stR[i],
+          },
+          robustness: Math.round(robust * 100),
+        });
+      });
+    }
+    return out.sort((a, b) =>
+      a.strategyId === b.strategyId
+        ? b.robustness - a.robustness
+        : a.strategyId.localeCompare(b.strategyId),
+    );
+  }, [trades]);
+
+  const filtered = strategyFocus === "all" ? rows : rows.filter((r) => r.strategyId === strategyFocus);
+
+  const bestPerStrategy = useMemo(() => {
+    const map = new Map<string, TfRow>();
+    for (const r of rows) {
+      const cur = map.get(r.strategyId);
+      if (!cur || r.robustness > cur.robustness) map.set(r.strategyId, r);
+    }
+    return Array.from(map.values()).sort((a, b) => b.robustness - a.robustness);
+  }, [rows]);
+
+  const robustColor = (score: number) =>
+    score >= 70 ? "text-emerald-500" : score >= 50 ? "text-amber-500" : "text-rose-500";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm">Timeframe Optimizer</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ranks every timeframe within each strategy. Robustness = 35% PF · 25% Sample · 20% Net Profit · 10% Win Rate · 10% Drawdown.
+            </p>
+          </div>
+          <Select value={strategyFocus} onValueChange={setStrategyFocus}>
+            <SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All strategies</SelectItem>
+              {strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Best Timeframe per Strategy</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Strategy</TableHead>
+                <TableHead>Best TF</TableHead>
+                <TableHead className="text-right">Trades</TableHead>
+                <TableHead className="text-right">Net</TableHead>
+                <TableHead className="text-right">PF</TableHead>
+                <TableHead className="text-right">Win %</TableHead>
+                <TableHead className="text-right">Stability</TableHead>
+                <TableHead className="text-right">Robustness</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bestPerStrategy.map((r) => (
+                <TableRow key={r.strategyId}>
+                  <TableCell className="font-medium">{r.strategyId}</TableCell>
+                  <TableCell><Badge variant="secondary">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
+                  <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>
+                  <TableCell className="text-right font-mono">{pct(r.winRate)}</TableCell>
+                  <TableCell className="text-right font-mono">{pct(r.stability)}</TableCell>
+                  <TableCell className={`text-right font-mono font-semibold ${robustColor(r.robustness)}`}>{r.robustness}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm">All Strategy × Timeframe Combinations</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Strategy</TableHead>
+                <TableHead>TF</TableHead>
+                <TableHead className="text-right">Trades</TableHead>
+                <TableHead className="text-right">Net Profit</TableHead>
+                <TableHead className="text-right">PF</TableHead>
+                <TableHead className="text-right">Win %</TableHead>
+                <TableHead className="text-right">Expectancy</TableHead>
+                <TableHead className="text-right">Max DD</TableHead>
+                <TableHead className="text-right">Stability</TableHead>
+                <TableHead className="text-right">Rank (PF/N/W/E/T/S)</TableHead>
+                <TableHead className="text-right">Robustness</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={`${r.strategyId}-${r.timeframe}`}>
+                  <TableCell className="text-xs">{r.strategyId}</TableCell>
+                  <TableCell><Badge variant="outline">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
+                  <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>
+                  <TableCell className="text-right font-mono">{pct(r.winRate)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.expectancy)}</TableCell>
+                  <TableCell className="text-right font-mono text-rose-500">{fmt(-r.maxDrawdown)}</TableCell>
+                  <TableCell className="text-right font-mono">{pct(r.stability)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                    {r.rank.profitFactor}/{r.rank.netProfit}/{r.rank.winRate}/{r.rank.expectancy}/{r.rank.trades}/{r.rank.stability}
+                  </TableCell>
+                  <TableCell className={`text-right font-mono font-semibold ${robustColor(r.robustness)}`}>{r.robustness}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

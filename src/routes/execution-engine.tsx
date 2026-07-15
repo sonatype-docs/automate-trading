@@ -329,6 +329,8 @@ function ExecutionEnginePage() {
                         <td className="py-1 pr-3">{row.execPresetId.replace(/_/g, " ")}</td>
                         <td className="py-1 pr-3">{row.tf}</td>
                         <td className="py-1 pr-3">{row.stratTz}</td>
+                        <td className="py-1 pr-3">{row.displayTz}</td>
+                        <td className="py-1 pr-3">{row.mode}</td>
                         <td className="py-1 pr-3">{s ? s.signalsIn : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.ordersFilled : "—"}</td>
                         <td className="py-1 pr-3">{s ? s.tradesClosed : "—"}</td>

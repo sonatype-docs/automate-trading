@@ -140,7 +140,7 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
-    const spec: TradeQuerySpec = { ...data, limit: 1000 };
+    const spec: TradeQuerySpec = { ...data, limit: 10000 };
     const q = applyQuery(supabase, "trade_intelligence", spec);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);

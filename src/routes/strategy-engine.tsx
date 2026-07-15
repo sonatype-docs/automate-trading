@@ -239,6 +239,7 @@ function StrategyEnginePage() {
                 <tbody>
                   {batchResults.map((b, i) => (
                     <tr key={i} className="border-t border-border/40">
+                      <td className="py-1 pr-3">{b.symbol}</td>
                       <td className="py-1 pr-3">{STRATEGY_PRESETS[b.presetId]?.strategyName ?? b.presetId}</td>
                       <td className="py-1 pr-3">{b.tf}</td>
                       <td className="py-1 pr-3">{b.result?.stats.barsProcessed.toLocaleString() ?? "—"}</td>

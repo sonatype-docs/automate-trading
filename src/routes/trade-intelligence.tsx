@@ -38,6 +38,16 @@ type BatchRow = {
   error?: string;
 };
 
+const STORAGE_KEY = "trade-intel-matrix-progress-v1";
+type ComboKey = { source: string; symbol: string; presetId: string; execId: string; tf: string; stratTz: string; displayTz: string };
+type Persisted = {
+  combos: ComboKey[];
+  done: number;
+  rows: BatchRow[];
+  days: number;
+  tags: string;
+};
+
 export const Route = createFileRoute("/trade-intelligence")({
   component: TradeIntelligencePage,
   head: () => ({

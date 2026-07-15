@@ -21,6 +21,7 @@ const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
 const ALL_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
 const ALL_SOURCES: Array<"yahoo" | "shark"> = ["yahoo", "shark"];
+const ALL_MODES = ["historical", "live", "replay", "paper"] as const;
 
 type BatchRow = {
   source: string;
@@ -29,6 +30,8 @@ type BatchRow = {
   execPresetId: string;
   tf: Timeframe;
   stratTz: string;
+  displayTz: string;
+  mode: string;
   result?: RunExecutionResult;
   error?: string;
 };

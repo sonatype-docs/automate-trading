@@ -529,12 +529,27 @@ function PipelinePage() {
                 size="sm"
                 variant="outline"
                 onClick={() => restartMut.mutate()}
-                disabled={resumeMut.isPending || restartMut.isPending}
+                disabled={resumeMut.isPending || restartMut.isPending || reRecordMut.isPending}
                 title="Reset progress and rerun every combo from the beginning (use this if live trades were cleared while paused)."
               >
                 {restartMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
                 Restart from beginning
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => reRecordMut.mutate()}
+                disabled={resumeMut.isPending || restartMut.isPending || reRecordMut.isPending}
+                title="Re-run every completed combo to restore trades missing from the live table. Safe — upserts dedupe by trade_id."
+              >
+                {reRecordMut.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Re-record completed combos
+              </Button>
+              {reRecordState && (
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  re-recorded {reRecordState.done}/{reRecordState.total} · +{reRecordState.inserted.toLocaleString()} trades
+                </span>
+              )}
 
             </AlertDescription>
           </Alert>

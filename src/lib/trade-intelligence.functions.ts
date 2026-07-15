@@ -122,7 +122,14 @@ const QueryInput = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   limit: z.number().int().positive().max(100000).optional(),
   offset: z.number().int().min(0).optional(),
+  /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
+  dataset: z.string().optional(),
 });
+
+function resolveTable(dataset?: string): { table: string; snapshotName?: string } {
+  if (!dataset || dataset === "live") return { table: "trade_intelligence" };
+  return { table: "trade_intelligence_archive", snapshotName: dataset };
+}
 
 export const queryTrades = createServerFn({ method: "POST" })
 
@@ -132,6 +139,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
+    const { table, snapshotName } = resolveTable(data.dataset);
     const requestedLimit = Math.min(spec.limit ?? 100, 20000);
     const baseOffset = spec.offset ?? 0;
     const CHUNK = 1000; // PostgREST default max_rows cap
@@ -140,8 +148,9 @@ export const queryTrades = createServerFn({ method: "POST" })
     for (let fetched = 0; fetched < requestedLimit; fetched += CHUNK) {
       const remaining = requestedLimit - fetched;
       const chunkSize = Math.min(CHUNK, remaining);
-      const q = applyQuery(supabase, "trade_intelligence", {
+      const q = applyQuery(supabase, table, {
         ...spec,
+        snapshotName,
         limit: chunkSize,
         offset: baseOffset + fetched,
       });
@@ -166,12 +175,13 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
+    const { table, snapshotName } = resolveTable(data.dataset);
     const CHUNK = 1000;
     const MAX = 20000;
     const allRows: Record<string, unknown>[] = [];
     for (let offset = 0; offset < MAX; offset += CHUNK) {
-      const spec: TradeQuerySpec = { ...data, limit: CHUNK, offset };
-      const q = applyQuery(supabase, "trade_intelligence", spec);
+      const spec: TradeQuerySpec & { snapshotName?: string } = { ...data, snapshotName, limit: CHUNK, offset };
+      const q = applyQuery(supabase, table, spec);
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       if (!rows || rows.length === 0) break;
@@ -206,20 +216,26 @@ export const clearStrategy = createServerFn({ method: "POST" })
 
 export const summariseTrades = createServerFn({ method: "POST" })
 
-  .handler(async () => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+  .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
+    const { table, snapshotName } = resolveTable(data?.dataset);
     // Chunked scan — PostgREST caps rows at 1000 per response.
     const CHUNK = 1000;
     const rows: { strategy_id: string; symbol: string; direction: string; net_pnl: number }[] = [];
     for (let offset = 0; ; offset += CHUNK) {
-      const { data, error } = await supabase
-        .from("trade_intelligence")
+      let q = supabase
+        .from(table)
         .select("strategy_id, symbol, direction, net_pnl")
         .range(offset, offset + CHUNK - 1);
+      if (snapshotName) q = q.eq("snapshot_name", snapshotName);
+      const { data: rowsChunk, error } = await q;
       if (error) throw new Error(error.message);
-      if (!data || data.length === 0) break;
-      rows.push(...(data as typeof rows));
-      if (data.length < CHUNK) break;
+      if (!rowsChunk || rowsChunk.length === 0) break;
+      rows.push(...(rowsChunk as typeof rows));
+      if (rowsChunk.length < CHUNK) break;
     }
     const total = rows.length;
     const winners = rows.filter((r) => Number(r.net_pnl) > 0).length;
@@ -229,3 +245,29 @@ export const summariseTrades = createServerFn({ method: "POST" })
     const symbols = Array.from(new Set(rows.map((r) => r.symbol)));
     return { total, winners, losers, netPnl: net, strategies, symbols };
   });
+
+export const listSnapshots = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = supabaseAdmin as any;
+  const CHUNK = 1000;
+  const counts = new Map<string, number>();
+  for (let offset = 0; ; offset += CHUNK) {
+    const { data, error } = await supabase
+      .from("trade_intelligence_archive")
+      .select("snapshot_name")
+      .range(offset, offset + CHUNK - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    for (const r of data as { snapshot_name: string }[]) {
+      counts.set(r.snapshot_name, (counts.get(r.snapshot_name) ?? 0) + 1);
+    }
+    if (data.length < CHUNK) break;
+  }
+  return {
+    snapshots: Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
+});
+

@@ -279,15 +279,30 @@ function TradeIntelligencePage() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
-      <header className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
           <Database className="h-5 w-5" />
         </div>
-        <div>
+        <div className="flex-1 min-w-[240px]">
           <h1 className="text-2xl font-semibold tracking-tight">Trade Intelligence Database</h1>
           <p className="text-sm text-muted-foreground">
             Permanent, queryable store of every completed trade with full market context.
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs uppercase text-muted-foreground">Dataset</Label>
+          <Select value={dataset} onValueChange={setDataset}>
+            <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="live">Live (current, appended by pipeline)</SelectItem>
+              {(snapshotList.data?.snapshots ?? []).map((s) => (
+                <SelectItem key={s.name} value={s.name}>
+                  Snapshot · {s.name} ({s.count.toLocaleString()})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {dataset !== "live" ? <Badge variant="secondary">read-only</Badge> : null}
         </div>
       </header>
 

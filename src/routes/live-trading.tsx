@@ -773,7 +773,9 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
       <div className="text-[10px] text-muted-foreground">
         Setups: {d.setupsDetected} · Signals: {d.signalsCreated} · Invalidated: {d.signalsInvalidated}
       </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
+
   );
 }
 

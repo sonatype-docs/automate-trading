@@ -96,16 +96,6 @@ function LiveTradingPage() {
           <TabsTrigger value="performance">Strategy performance</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-semibold text-destructive">Real-money mode — SharkExchange</p>
-            <p className="text-muted-foreground">
-              Every entry signal places a live market order with an attached stop-loss and take-profit.
-              Position size is auto-computed so a stop hit ≈ your configured risk in USD. Start with a small risk value.
-            </p>
-          </div>
-        </div>
 
         <TickStatusCard runners={runnersList} />
 

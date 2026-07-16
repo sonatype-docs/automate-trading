@@ -105,6 +105,8 @@ function LiveTradingPage() {
           </div>
         </div>
 
+        <TickStatusCard runners={runnersList} />
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>Live runners</CardTitle>

@@ -334,6 +334,7 @@ export type Database = {
           lookback_days: number
           risk_usd: number
           running: boolean
+          score: number | null
           source: string
           started_at: string | null
           strategy_preset: string
@@ -351,6 +352,7 @@ export type Database = {
           lookback_days?: number
           risk_usd?: number
           running?: boolean
+          score?: number | null
           source?: string
           started_at?: string | null
           strategy_preset: string
@@ -368,6 +370,7 @@ export type Database = {
           lookback_days?: number
           risk_usd?: number
           running?: boolean
+          score?: number | null
           source?: string
           started_at?: string | null
           strategy_preset?: string

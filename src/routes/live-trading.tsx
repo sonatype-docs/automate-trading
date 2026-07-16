@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,14 @@ import {
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import {
+  windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
+  type IstWindow,
+} from "@/lib/session-windows";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -190,6 +194,7 @@ function RunnersTable({ runners, onToggle, onSave }: {
           <TableHead>Label</TableHead>
           <TableHead>Symbol / TF</TableHead>
           <TableHead>Strategy</TableHead>
+          <TableHead>Entry window (IST)</TableHead>
           <TableHead>Risk $</TableHead>
           <TableHead>Leverage</TableHead>
           <TableHead>Status</TableHead>
@@ -200,7 +205,7 @@ function RunnersTable({ runners, onToggle, onSave }: {
       <TableBody>
         {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
         {runners.length === 0 && (
-          <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+          <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
         )}
       </TableBody>
     </Table>
@@ -220,6 +225,7 @@ function RunnerRow({ r, onToggle, onSave }: {
       <TableCell className="font-medium">{r.label}</TableCell>
       <TableCell>{r.symbol} · {r.timeframe}</TableCell>
       <TableCell className="text-xs text-muted-foreground">{r.strategy_preset}</TableCell>
+      <TableCell><EntryWindowCell preset={r.strategy_preset} /></TableCell>
       <TableCell>
         <Input value={risk} onChange={(e) => setRisk(e.target.value)}
           disabled={r.running} className="h-8 w-20" inputMode="decimal" />
@@ -250,6 +256,57 @@ function RunnerRow({ r, onToggle, onSave }: {
     </TableRow>
   );
 }
+
+function EntryWindowCell({ preset }: { preset: string }) {
+  const windows = windowsForPreset(preset);
+  // Re-render every minute so active/next-open indicators stay accurate.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  if (!windows.length) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const anyActive = windows.some((w) => isWindowActive(w));
+  const nextOpen = anyActive
+    ? null
+    : windows.reduce<{ w: IstWindow; m: number } | null>((best, w) => {
+        const m = minutesUntilOpen(w);
+        if (!best || m < best.m) return { w, m };
+        return best;
+      }, null);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap gap-1">
+        {windows.map((w) => {
+          const active = isWindowActive(w);
+          return (
+            <Badge
+              key={w.session}
+              variant={active ? "default" : "outline"}
+              className={`gap-1 font-mono text-[10px] ${active ? "" : "text-muted-foreground"}`}
+              title={`${w.session.replace(/_/g, " ")} · ${w.label}`}
+            >
+              {active && <Clock className="h-3 w-3" />}
+              {w.label.replace(" IST", "")}
+            </Badge>
+          );
+        })}
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {anyActive
+          ? "✓ Entry window open now"
+          : nextOpen
+            ? `Next open in ${fmtDuration(nextOpen.m)}`
+            : ""}
+      </span>
+    </div>
+  );
+}
+
 
 function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id: string) => void }) {
   if (!trades.length) return <p className="text-sm text-muted-foreground">No open live orders.</p>;

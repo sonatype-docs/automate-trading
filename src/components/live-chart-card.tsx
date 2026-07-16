@@ -105,12 +105,13 @@ export function LiveChartCard() {
     return rows.filter((t) => t.runner_id === runnerId).slice(0, 10);
   }, [tradesQ.data, runnerId]);
 
-  // Fallback: no live trades yet — show last 10 backtest trades for this symbol.
+  // Fallback: no live trades yet — show last 10 backtest trades for this symbol+timeframe.
   const symbol = chartQ.data?.symbol;
+  const btTf = runnerTf ?? undefined;
   const btFn = useServerFn(queryTrades);
   const btQ = useQuery({
-    queryKey: ["bt-trades-recent", symbol],
-    queryFn: () => btFn({ data: { symbol, limit: 10, orderBy: "exit_time", order: "desc" } }),
+    queryKey: ["bt-trades-recent", symbol, btTf],
+    queryFn: () => btFn({ data: { symbol, timeframe: btTf, limit: 10, orderBy: "exit_time", order: "desc" } }),
     enabled: !!symbol && liveRecent.length === 0 && !tradesQ.isPending,
     refetchInterval: 60_000,
   });

@@ -13,7 +13,7 @@ import {
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
@@ -104,6 +104,8 @@ function LiveTradingPage() {
             </p>
           </div>
         </div>
+
+        <TickStatusCard runners={runnersList} />
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -323,6 +325,123 @@ function EntryWindowCell({ preset }: { preset: string }) {
     </div>
   );
 }
+
+function TickStatusCard({ runners }: { runners: LiveRunnerDTO[] }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const hook = useQuery({
+    queryKey: ["live-tick-hook-health"],
+    queryFn: async () => {
+      const t0 = performance.now();
+      const res = await fetch("/api/public/hooks/live-tick", { method: "GET" });
+      return { ok: res.ok, status: res.status, ms: Math.round(performance.now() - t0) };
+    },
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  // Most recent tick across all runners.
+  const lastTickMs = runners.reduce<number | null>((best, r) => {
+    if (!r.last_tick_at) return best;
+    const t = new Date(r.last_tick_at).getTime();
+    return best == null || t > best ? t : best;
+  }, null);
+  const ageMin = lastTickMs == null ? null : Math.floor((now - lastTickMs) / 60_000);
+  const tickFresh = ageMin != null && ageMin <= 2;
+  const tickStale = ageMin != null && ageMin > 5;
+
+  // Aggregated window state across running runners (fall back to all if none running).
+  const active = runners.length ? runners.filter((r) => r.running) : [];
+  const source = active.length ? active : runners;
+  const allWindows = source.flatMap((r) => windowsForPreset(r.strategy_preset));
+  const anyActive = allWindows.some((w) => isWindowActive(w));
+  const nextOpenMin = anyActive
+    ? null
+    : allWindows.reduce<number | null>((best, w) => {
+        const m = minutesUntilOpen(w);
+        return best == null || m < best ? m : best;
+      }, null);
+
+  const hookOk = hook.data?.ok === true;
+  const hookLoading = hook.isPending;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Activity className="h-4 w-4" /> Tick status
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Last tick</div>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${tickFresh ? "bg-emerald-500" : tickStale ? "bg-destructive" : "bg-amber-500"}`} />
+              <span className="text-sm font-medium">
+                {ageMin == null ? "Never" : ageMin < 1 ? "just now" : `${ageMin}m ago`}
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {lastTickMs ? new Date(lastTickMs).toLocaleString() : "—"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Cron hook</div>
+            <div className="flex items-center gap-2">
+              {hookLoading ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-muted animate-pulse" />
+                  <span className="text-sm font-medium text-muted-foreground">Checking…</span>
+                </>
+              ) : hookOk ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <span className="text-sm font-medium text-emerald-500">Reachable</span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm font-medium text-destructive">Unreachable</span>
+                </>
+              )}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {hook.data ? `HTTP ${hook.data.status} · ${hook.data.ms}ms` : "GET /api/public/hooks/live-tick"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Entry window</div>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${anyActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
+              <span className="text-sm font-medium">
+                {allWindows.length === 0
+                  ? "—"
+                  : anyActive
+                    ? "Open now"
+                    : nextOpenMin != null ? `Opens in ${fmtDuration(nextOpenMin)}` : "Closed"}
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {active.length
+                ? `${active.length} running runner${active.length > 1 ? "s" : ""}`
+                : runners.length
+                  ? "No runners started"
+                  : "No runners"}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 
 function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id: string) => void }) {

@@ -15,6 +15,7 @@ export function applyQuery(
   if (spec.snapshotName) q = q.eq("snapshot_name", spec.snapshotName);
   if (spec.strategyId) q = q.eq("strategy_id", spec.strategyId);
   if (spec.symbol) q = q.eq("symbol", spec.symbol);
+  if (spec.timeframe) q = q.eq("timeframe", spec.timeframe);
   if (spec.direction) q = q.eq("direction", spec.direction);
   if (spec.session) q = q.eq("session", spec.session);
   if (spec.weekday != null) q = q.eq("weekday", spec.weekday);

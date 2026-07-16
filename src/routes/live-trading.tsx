@@ -100,12 +100,23 @@ function LiveTradingPage() {
         </div>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>Live runners</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
-              Tick now
-            </Button>
+            <div className="flex items-center gap-2">
+              {connMsg && (
+                <span className={`text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} max-w-[280px] truncate`} title={connMsg.text}>
+                  {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
+                </span>
+              )}
+              <Button size="sm" variant="outline" onClick={() => testMut.mutate()} disabled={testMut.isPending}>
+                <Plug className={`h-4 w-4 mr-1 ${testMut.isPending ? "animate-pulse" : ""}`} />
+                Test connection
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
+                Tick now
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <RunnersTable

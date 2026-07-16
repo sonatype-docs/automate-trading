@@ -107,7 +107,7 @@ export function LiveChartCard() {
 
   // Fallback: no live trades yet — show last 10 backtest trades for this symbol+timeframe.
   const symbol = chartQ.data?.symbol;
-  const btTf = runnerTf ?? undefined;
+  const btTf = chartQ.data?.runnerTimeframe ?? undefined;
   const btFn = useServerFn(queryTrades);
   const btQ = useQuery({
     queryKey: ["bt-trades-recent", symbol, btTf],

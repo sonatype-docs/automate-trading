@@ -126,6 +126,10 @@ function LiveTradingPage() {
                 <Plug className={`h-4 w-4 mr-1 ${testMut.isPending ? "animate-pulse" : ""}`} />
                 Test connection
               </Button>
+              <Button size="sm" variant="outline" onClick={() => importMut.mutate()} disabled={importMut.isPending}>
+                <Download className={`h-4 w-4 mr-1 ${importMut.isPending ? "animate-pulse" : ""}`} />
+                Import top 10 from Paper
+              </Button>
               <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
                 Tick now
@@ -138,6 +142,9 @@ function LiveTradingPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => testMut.mutate()} disabled={testMut.isPending}>
                   <Plug className="h-4 w-4 mr-2" /> Test connection
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => importMut.mutate()} disabled={importMut.isPending}>
+                  <Download className="h-4 w-4 mr-2" /> Import top 10 from Paper
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => tick.mutate()} disabled={tick.isPending}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Tick now

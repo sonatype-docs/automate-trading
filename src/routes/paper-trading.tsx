@@ -131,7 +131,11 @@ function PaperTradingPage() {
             <TradesTable runners={runnersList} trades={tradesList} />
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+        <TabsContent value="performance">
+          <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+        </TabsContent>
+      </Tabs>
     </AppShell>
   );
 }

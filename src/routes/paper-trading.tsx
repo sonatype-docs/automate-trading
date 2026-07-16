@@ -74,7 +74,12 @@ function PaperTradingPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="performance">Strategy performance</TabsTrigger>
+        </TabsList>
+        <TabsContent value="dashboard" className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Runners</CardTitle>

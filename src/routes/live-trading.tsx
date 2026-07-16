@@ -39,6 +39,13 @@ function LiveTradingPage() {
   const tickNow = useServerFn(runLiveTickNow);
   const update = useServerFn(updateLiveRunner);
   const cancel = useServerFn(cancelLiveOrder);
+  const testConn = useServerFn(testLiveConnection);
+  const [connMsg, setConnMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const testMut = useMutation({
+    mutationFn: () => testConn(),
+    onSuccess: (r) => setConnMsg({ ok: r.ok, text: `[${r.status}] ${r.message}` }),
+    onError: (e: unknown) => setConnMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }),
+  });
 
   const runners = useQuery({
     queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,

@@ -23,7 +23,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   getLiveChartData, getLastPrice, listLiveRunners, listLiveTrades,
-  type LiveChartDataDTO, type LiveTradeDTO, type LiveRunnerDTO,
+  getRunnersStatusSummary,
+  type LiveChartDataDTO, type LiveTradeDTO, type LiveRunnerDTO, type RunnerStatusDTO,
 } from "@/lib/live-trading.functions";
 import { queryTrades } from "@/lib/trade-intelligence.functions";
 

@@ -15,6 +15,8 @@ import { walkForwardInsights } from "./walk-forward";
 import { monteCarloInsights } from "./monte-carlo";
 import { anomalyInsights } from "./anomaly";
 import { comparisonInsights } from "./comparison";
+import { sweetSpotInsights, sweetSpotAnalyses } from "./sweet-spot";
+import { dayOfWeekInsights, dayOfWeekBreakdown, weekendComparison } from "./day-of-week";
 import type { Insight, Recommendation } from "./types";
 import type { ResearchReport } from "./report";
 
@@ -50,6 +52,8 @@ export function generateResearch(trades: TradeRecord[]): ResearchReport {
     monteCarlo: monteCarloInsights(features),
     anomalies: anomalyInsights(features, chrono),
     comparison: comparisonInsights(byStrategy(features)),
+    sweetSpot: sweetSpotInsights(features),
+    dayOfWeek: dayOfWeekInsights(features),
   };
 
   // Executive = top by severity + evidence.
@@ -58,6 +62,7 @@ export function generateResearch(trades: TradeRecord[]): ResearchReport {
     ...sections.edges, ...sections.performance, ...sections.failure,
     ...sections.filters, ...sections.regime, ...sections.walkForward,
     ...sections.monteCarlo, ...sections.comparison,
+    ...sections.sweetSpot, ...sections.dayOfWeek,
   ];
   sections.executive = all
     .sort((a, b) => (rank[b.severity] - rank[a.severity]) || ((b.evidence.confidence ?? 0) - (a.evidence.confidence ?? 0)))
@@ -67,5 +72,11 @@ export function generateResearch(trades: TradeRecord[]): ResearchReport {
     generatedAt: new Date().toISOString(),
     sampleSize: trades.length,
     sections,
+    analytics: {
+      sweetSpot: sweetSpotAnalyses(features),
+      dayOfWeek: dayOfWeekBreakdown(features),
+      weekendCompare: weekendComparison(features),
+    },
   };
 }
+

@@ -48,6 +48,7 @@ const trading = [
   { title: "ORB Bot", url: "/bot", icon: Bot },
   { title: "Pending Orders", url: "/pending-orders", icon: ListOrdered },
   { title: "Paper Trading", url: "/paper-trading", icon: Activity },
+  { title: "Live Trading Bot", url: "/live-trading", icon: Zap },
 ];
 
 const backtest = [

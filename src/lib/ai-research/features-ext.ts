@@ -19,6 +19,7 @@ export interface DerivedFeatures {
   fillDelayMs: number;
   hourUtc: number;
   weekday: number;
+  isWeekend: 0 | 1;
   month: number;
   quarter: number;
   year: number;
@@ -31,6 +32,8 @@ export interface DerivedFeatures {
   fvgPresent: 0 | 1;
   sweepPresent: 0 | 1;
   atr: number;            // 0 if unknown
+  atrPercentile: number;  // 0 if unknown
+  adx: number;            // 0 if unknown
   volumeZ: number;        // 0 if unknown
   bodyPct: number;        // 0 if unknown
 }

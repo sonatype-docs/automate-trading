@@ -607,7 +607,7 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     } : null;
 
     // Try to fetch a fresh last price.
-    let lastPrice: number | null = window[window.length - 1]?.c ?? null;
+    let lastPrice: number | null = window[window.length - 1]?.close ?? null;
     try {
       const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
       lastPrice = await createSharkClient().getLastPrice(r.symbol);

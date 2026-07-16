@@ -1,7 +1,11 @@
 // Client-callable server functions for the Paper Trading dashboard.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+async function admin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
 
 export interface RunnerDTO {
   id: string;
@@ -56,9 +60,9 @@ export interface TradeDTO {
 }
 
 export const listPaperRunners = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<RunnerDTO[]> => {
-    const { data, error } = await context.supabase
+  .handler(async (): Promise<RunnerDTO[]> => {
+    const supabase = await admin();
+    const { data, error } = await supabase
       .from("paper_runners")
       .select("*")
       .order("timeframe", { ascending: true });
@@ -67,18 +71,18 @@ export const listPaperRunners = createServerFn({ method: "GET" })
   });
 
 export const listPaperPositions = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<PositionDTO[]> => {
-    const { data, error } = await context.supabase.from("paper_positions").select("*");
+  .handler(async (): Promise<PositionDTO[]> => {
+    const supabase = await admin();
+    const { data, error } = await supabase.from("paper_positions").select("*");
     if (error) throw new Error(error.message);
     return (data ?? []) as unknown as PositionDTO[];
   });
 
 export const listPaperTrades = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ limit: z.number().int().min(1).max(2000).default(500) }).parse(raw))
-  .handler(async ({ data, context }): Promise<TradeDTO[]> => {
-    const { data: rows, error } = await context.supabase
+  .handler(async ({ data }): Promise<TradeDTO[]> => {
+    const supabase = await admin();
+    const { data: rows, error } = await supabase
       .from("paper_trades")
       .select("*")
       .order("exit_ts", { ascending: false })
@@ -88,25 +92,25 @@ export const listPaperTrades = createServerFn({ method: "GET" })
   });
 
 export const setRunnerRunning = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid(), running: z.boolean() }).parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const supabase = await admin();
     const patch = data.running
       ? { running: true, started_at: new Date().toISOString() }
       : { running: false };
-    const { error } = await context.supabase.from("paper_runners").update(patch).eq("id", data.id);
+    const { error } = await supabase.from("paper_runners").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const setAllRunnersRunning = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ running: z.boolean() }).parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const supabase = await admin();
     const patch = data.running
       ? { running: true, started_at: new Date().toISOString() }
       : { running: false };
-    const { error } = await context.supabase
+    const { error } = await supabase
       .from("paper_runners")
       .update(patch)
       .not("id", "is", null);
@@ -116,19 +120,18 @@ export const setAllRunnersRunning = createServerFn({ method: "POST" })
 
 
 export const runPaperTickNow = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .handler(async () => {
     const { runPaperTradingTick } = await import("@/lib/paper-trading/tick.server");
     return await runPaperTradingTick();
   });
 
 export const resetPaperRunner = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid() }).parse(raw))
-  .handler(async ({ data, context }) => {
-    const { error: e1 } = await context.supabase.from("paper_trades").delete().eq("runner_id", data.id);
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const { error: e1 } = await supabase.from("paper_trades").delete().eq("runner_id", data.id);
     if (e1) throw new Error(e1.message);
-    const { error: e2 } = await context.supabase.from("paper_positions").delete().eq("runner_id", data.id);
+    const { error: e2 } = await supabase.from("paper_positions").delete().eq("runner_id", data.id);
     if (e2) throw new Error(e2.message);
     return { ok: true };
   });

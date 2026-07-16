@@ -138,8 +138,8 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { color: "transparent" },
-        textColor: getComputedStyle(document.documentElement).getPropertyValue("--foreground") || "#888",
+        background: { color: "rgba(0,0,0,0)" },
+        textColor: "#94a3b8",
       },
       grid: {
         vertLines: { color: "rgba(120,120,120,0.1)" },

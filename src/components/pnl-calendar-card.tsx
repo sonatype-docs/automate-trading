@@ -189,20 +189,29 @@ export function PnlCalendarCard({
       )}
 
       {showToday && (() => {
-        const t = byDate.get(today);
+        const t = byDate.get(activeDate);
         const realized = t?.realized ?? 0;
         const trades = t?.trades ?? 0;
         const wins = t?.wins ?? 0;
         const losses = t?.losses ?? 0;
         const best = t?.bestTrade ?? 0;
         const worst = t?.worstTrade ?? 0;
-        const unreal = data?.unrealized ?? 0;
+        const unreal = isToday ? (data?.unrealized ?? 0) : 0;
         return (
           <Card className="border-primary/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Today · {today}</div>
-                <div className="text-[10px] text-muted-foreground">resets daily (IST)</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  {isToday ? "Today" : "Selected"} · {activeDate}
+                </div>
+                <div className="flex items-center gap-2">
+                  {!isToday && (
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setSelectedDate(null)}>
+                      Back to today
+                    </Button>
+                  )}
+                  <div className="text-[10px] text-muted-foreground">IST</div>
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
@@ -211,8 +220,9 @@ export function PnlCalendarCard({
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">Unrealized</div>
-                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{fmtUsd(unreal)}</div>
+                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{isToday ? fmtUsd(unreal) : "—"}</div>
                 </div>
+
                 <div>
                   <div className="text-[11px] text-muted-foreground">Trades</div>
                   <div className="font-mono text-xl font-bold">{trades}</div>

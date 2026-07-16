@@ -540,18 +540,18 @@ function PlanPanel({ data }: { data: LiveChartDataDTO }) {
 
   return (
     <div className="rounded-md border p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-1 rounded border ${toneCls} font-medium`}>{statusText}</span>
-          <span className="text-xs text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+          <span className={`text-xs px-2 py-1 rounded border ${toneCls} font-medium self-start sm:self-auto`}>{statusText}</span>
+          <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
             Session: <span className="font-mono">{p.lastBar?.session ?? "—"}</span>
             {" · "}Window: <span className="font-mono">{p.windowActive ? "OPEN" : "CLOSED"}</span>
           </span>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-[11px] sm:text-xs text-muted-foreground">
           <span>Setups: <b className="text-foreground">{p.setupsDetected}</b></span>
           <span>Signals: <b className="text-foreground">{p.signalsCreated}</b></span>
-          <span>Invalidated: <b className="text-foreground">{p.signalsInvalidated}</b></span>
+          <span>Inv: <b className="text-foreground">{p.signalsInvalidated}</b></span>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
+import { MobileNavCarousel } from "./mobile-nav-carousel";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -52,6 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <ThemeToggle />
         </header>
+        <MobileNavCarousel />
         <main
           id="main-content"
           key={pathname}

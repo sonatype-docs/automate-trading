@@ -740,9 +740,10 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     }
 
     return {
-      runner_id: r.id, label: r.label, symbol: r.symbol, timeframe: r.timeframe,
+      runner_id: r.id, label: r.label, symbol: r.symbol,
+      timeframe: displayTf, runnerTimeframe: r.timeframe,
       strategy_preset: r.strategy_preset,
-      candles: chartCandles, markers, activeTrade, pendingSignal,
+      candles: chartCandles, series, markers, activeTrade, pendingSignal,
       lastPrice, fetchedAt: Date.now(),
       plan: {
         windowActive,

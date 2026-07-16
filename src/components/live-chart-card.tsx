@@ -417,7 +417,7 @@ function ChartCanvas({ data, livePrice, overlays }: {
     candles.update(updated);
   }, [livePrice]);
 
-  return <div ref={containerRef} className="h-[560px] w-full rounded-md border" />;
+  return <div ref={containerRef} className="h-[380px] sm:h-[560px] w-full rounded-md border" />;
 }
 
 function TradeSidePanel({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {

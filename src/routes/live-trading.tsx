@@ -369,78 +369,48 @@ function TickStatusCard({ runners }: { runners: LiveRunnerDTO[] }) {
   const hookOk = hook.data?.ok === true;
   const hookLoading = hook.isPending;
 
+  const lastTickLabel = ageMin == null ? "never" : ageMin < 1 ? "just now" : `${ageMin}m ago`;
+  const windowLabel =
+    allWindows.length === 0 ? "—"
+    : anyActive ? "open now"
+    : nextOpenMin != null ? `opens in ${fmtDuration(nextOpenMin)}`
+    : "closed";
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Activity className="h-4 w-4" /> Tick status
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Last tick</div>
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${tickFresh ? "bg-emerald-500" : tickStale ? "bg-destructive" : "bg-amber-500"}`} />
-              <span className="text-sm font-medium">
-                {ageMin == null ? "Never" : ageMin < 1 ? "just now" : `${ageMin}m ago`}
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {lastTickMs ? new Date(lastTickMs).toLocaleString() : "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Cron hook</div>
-            <div className="flex items-center gap-2">
-              {hookLoading ? (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-muted animate-pulse" />
-                  <span className="text-sm font-medium text-muted-foreground">Checking…</span>
-                </>
-              ) : hookOk ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span className="text-sm font-medium text-emerald-500">Reachable</span>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  <span className="text-sm font-medium text-destructive">Unreachable</span>
-                </>
-              )}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {hook.data ? `HTTP ${hook.data.status} · ${hook.data.ms}ms` : "GET /api/public/hooks/live-tick"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Entry window</div>
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${anyActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
-              <span className="text-sm font-medium">
-                {allWindows.length === 0
-                  ? "—"
-                  : anyActive
-                    ? "Open now"
-                    : nextOpenMin != null ? `Opens in ${fmtDuration(nextOpenMin)}` : "Closed"}
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {active.length
-                ? `${active.length} running runner${active.length > 1 ? "s" : ""}`
-                : runners.length
-                  ? "No runners started"
-                  : "No runners"}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-3 py-1.5 text-xs">
+      <div className="flex items-center gap-1.5">
+        <Activity className="h-3 w-3 text-muted-foreground" />
+        <span className="text-muted-foreground">Tick</span>
+      </div>
+      <div className="flex items-center gap-1.5" title={lastTickMs ? new Date(lastTickMs).toLocaleString() : "no ticks yet"}>
+        <span className={`h-1.5 w-1.5 rounded-full ${tickFresh ? "bg-emerald-500" : tickStale ? "bg-destructive" : "bg-amber-500"}`} />
+        <span>last {lastTickLabel}</span>
+      </div>
+      <div className="flex items-center gap-1.5" title={hook.data ? `HTTP ${hook.data.status} · ${hook.data.ms}ms` : "GET /api/public/hooks/live-tick"}>
+        {hookLoading ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-muted animate-pulse" />
+        ) : hookOk ? (
+          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+        ) : (
+          <XCircle className="h-3 w-3 text-destructive" />
+        )}
+        <span className={hookOk ? "" : "text-destructive"}>
+          hook {hookLoading ? "…" : hookOk ? "ok" : "down"}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${anyActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
+        <span>window {windowLabel}</span>
+      </div>
+      {active.length > 0 && (
+        <span className="text-muted-foreground ml-auto">
+          {active.length} running
+        </span>
+      )}
+    </div>
   );
 }
+
 
 
 

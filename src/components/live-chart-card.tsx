@@ -588,7 +588,7 @@ function AllRunnersStatusPanel({
                   <div className="mt-0.5 text-muted-foreground font-mono">
                     entry {Number(open.entry_price).toFixed(2)} · qty {Number(open.qty)}
                     {open.stop_price != null ? ` · SL ${Number(open.stop_price).toFixed(2)}` : ""}
-                    {open.take_profit_price != null ? ` · TP ${Number(open.target_price).toFixed(2)}` : ""}
+                    {open.target_price != null ? ` · TP ${Number(open.target_price).toFixed(2)}` : ""}
                   </div>
                 )}
                 {r.last_tick_error && (

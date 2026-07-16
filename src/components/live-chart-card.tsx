@@ -229,7 +229,7 @@ export function LiveChartCard() {
               <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
             </div>
             <RecentTradesStrip trades={recentTrades} loading={tradesLoading} source={usingBacktest ? "backtest" : "live"} />
-            <AllRunnersStatusPanel runners={runners.data ?? []} trades={tradesQ.data ?? []} />
+            <AllRunnersStatusPanel runners={runners.data ?? []} trades={tradesQ.data ?? []} statuses={statusQ.data ?? []} />
 
           </div>
         )}

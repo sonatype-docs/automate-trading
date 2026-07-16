@@ -100,6 +100,47 @@ function LiveTradingPage() {
   const errorTrades = tradesList.filter((t) => t.status === "error");
   const totalPnl = closedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
+  // Multi-select for bulk start / stop.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Prune ids that no longer exist (e.g. after import/refresh).
+  useEffect(() => {
+    setSelected((prev) => {
+      const known = new Set(runnersList.map((r) => r.id));
+      const next = new Set<string>();
+      for (const id of prev) if (known.has(id)) next.add(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [runnersList]);
+  const toggleSelect = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const selectAll = () => setSelected(new Set(runnersList.map((r) => r.id)));
+  const clearSelection = () => setSelected(new Set());
+  const selectedRunners = runnersList.filter((r) => selected.has(r.id));
+  const selectedStopped = selectedRunners.filter((r) => !r.running).length;
+  const selectedRunning = selectedRunners.filter((r) => r.running).length;
+
+  const bulkStart = useMutation({
+    mutationFn: async () => {
+      const targets = selectedRunners.filter((r) => !r.running);
+      await Promise.all(targets.map((r) => setRun({ data: { id: r.id, running: true } })));
+      return targets.length;
+    },
+    onSuccess: () => { clearSelection(); invalidate(); },
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
+  });
+  const bulkStop = useMutation({
+    mutationFn: async () => {
+      const targets = selectedRunners.filter((r) => r.running);
+      await Promise.all(targets.map((r) => setRun({ data: { id: r.id, running: false } })));
+      return targets.length;
+    },
+    onSuccess: () => { clearSelection(); invalidate(); },
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
+  });
+
   return (
     <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">

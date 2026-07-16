@@ -20,11 +20,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Activity, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   getLiveChartData, getLastPrice, listLiveRunners,
   type LiveChartDataDTO,
 } from "@/lib/live-trading.functions";
+
 
 function useElapsed(sinceIso: string | null | undefined) {
   const [now, setNow] = useState(() => Date.now());
@@ -112,15 +113,19 @@ export function LiveChartCard() {
           </p>
         )}
         {chartQ.data && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
-            <ChartCanvas data={chartQ.data} livePrice={livePrice} />
-            <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
+              <ChartCanvas data={chartQ.data} livePrice={livePrice} />
+              <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
+            </div>
+            <PlanPanel data={chartQ.data} />
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
+
 
 function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -353,3 +358,130 @@ function Row({ k, v, tone, bold }: {
     </div>
   );
 }
+
+function PlanPanel({ data }: { data: LiveChartDataDTO }) {
+  const p = data.plan;
+  const hasActive = !!data.activeTrade;
+  const hasPending = !!data.pendingSignal;
+  const lastSetup = p.recentSetups[p.recentSetups.length - 1] ?? null;
+
+  let statusText = "Scanning for setup";
+  let statusTone: "ok" | "warn" | "block" = "warn";
+  if (hasActive) { statusText = "Trade open — managing"; statusTone = "ok"; }
+  else if (hasPending) { statusText = "Setup ready — waiting for entry trigger"; statusTone = "ok"; }
+  else if (!p.windowActive) { statusText = `Session closed${p.nextOpenMinutes != null ? ` · opens in ${p.nextOpenMinutes}m` : ""}`; statusTone = "block"; }
+  else if (p.failCount > 0) { statusText = `${p.failCount} filter${p.failCount === 1 ? "" : "s"} blocking a new entry`; statusTone = "block"; }
+  else if (p.setupsDetected === 0) { statusText = "Filters clear — no setup pattern on recent bars"; statusTone = "warn"; }
+  else { statusText = "Filters clear — waiting for next setup"; statusTone = "warn"; }
+
+  const toneCls = statusTone === "ok"
+    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+    : statusTone === "block"
+      ? "border-destructive/40 bg-destructive/10 text-destructive"
+      : "border-amber-500/40 bg-amber-500/10 text-amber-500";
+
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs px-2 py-1 rounded border ${toneCls} font-medium`}>{statusText}</span>
+          <span className="text-xs text-muted-foreground">
+            Session: <span className="font-mono">{p.lastBar?.session ?? "—"}</span>
+            {" · "}Window: <span className="font-mono">{p.windowActive ? "OPEN" : "CLOSED"}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Setups: <b className="text-foreground">{p.setupsDetected}</b></span>
+          <span>Signals: <b className="text-foreground">{p.signalsCreated}</b></span>
+          <span>Invalidated: <b className="text-foreground">{p.signalsInvalidated}</b></span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs font-medium mb-1.5">Entry filters (last bar)</div>
+          {p.rules.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No filters configured.</p>
+          ) : (
+            <div className="space-y-1">
+              {p.rules.map((r, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  {r.pass
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                    : <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{r.label}</div>
+                    <div className="text-muted-foreground truncate" title={r.actual}>{r.actual}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" /> What we're waiting for
+          </div>
+          {hasActive ? (
+            <p className="text-xs text-muted-foreground">Trade is live. Watching SL / TP / trail; no new entry until it closes.</p>
+          ) : hasPending && data.pendingSignal ? (
+            <div className="text-xs space-y-1">
+              <div>Setup detected — waiting for price to reach entry.</div>
+              <div className="font-mono">
+                {data.pendingSignal.direction.toUpperCase()} @ {data.pendingSignal.entryPrice.toFixed(2)}
+                {" · "}SL {data.pendingSignal.stop.toFixed(2)}
+                {" · "}TP {data.pendingSignal.target.toFixed(2)}
+              </div>
+              {data.lastPrice != null && (
+                <div className="text-muted-foreground">
+                  Distance to entry: {(Math.abs(data.lastPrice - data.pendingSignal.entryPrice)).toFixed(2)}
+                </div>
+              )}
+            </div>
+          ) : !p.windowActive ? (
+            <p className="text-xs text-muted-foreground">
+              Strategy session is closed. New entries resume when the trading window opens
+              {p.nextOpenMinutes != null ? ` (~${p.nextOpenMinutes} min).` : "."}
+            </p>
+          ) : p.blockingReasons.length ? (
+            <ul className="text-xs list-disc pl-4 space-y-0.5 text-muted-foreground">
+              {p.blockingReasons.map((b, i) => <li key={i}>{b}</li>)}
+            </ul>
+          ) : lastSetup ? (
+            <div className="text-xs space-y-1">
+              <div>Filters clear. Last setup detected:</div>
+              <div className="font-mono">
+                {lastSetup.kind} · {lastSetup.direction.toUpperCase()}
+                {lastSetup.level != null ? ` @ ${lastSetup.level.toFixed(2)}` : ""}
+              </div>
+              <div className="text-muted-foreground">
+                {new Date(lastSetup.ts).toLocaleString()}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              All filters pass, but no setup pattern has printed on the recent bars yet. Waiting for the next qualifying candle.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {p.recentSetups.length > 0 && (
+        <div>
+          <div className="text-xs font-medium mb-1.5">Recent setups on chart</div>
+          <div className="flex flex-wrap gap-1.5">
+            {p.recentSetups.slice(-8).reverse().map((s, i) => (
+              <span key={i} className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-muted/40">
+                {new Date(s.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {" · "}{s.kind}
+                {" · "}{s.direction}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

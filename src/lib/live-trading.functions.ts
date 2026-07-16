@@ -502,6 +502,19 @@ export interface ActiveTradeDTO {
   entry_ts: string;
   status: string;
 }
+export interface PlanRuleDTO {
+  group: string;
+  label: string;
+  requirement: string;
+  actual: string;
+  pass: boolean;
+}
+export interface RecentSetupDTO {
+  ts: number;
+  kind: string;
+  direction: string;
+  level: number | null;
+}
 export interface LiveChartDataDTO {
   runner_id: string;
   label: string;
@@ -520,7 +533,21 @@ export interface LiveChartDataDTO {
   } | null;
   lastPrice: number | null;
   fetchedAt: number;
+  plan: {
+    windowActive: boolean;
+    nextOpenMinutes: number | null;
+    rules: PlanRuleDTO[];
+    passCount: number;
+    failCount: number;
+    blockingReasons: string[];
+    recentSetups: RecentSetupDTO[];
+    setupsDetected: number;
+    signalsCreated: number;
+    signalsInvalidated: number;
+    lastBar: { ts: number; close: number; session: string } | null;
+  };
 }
+
 
 export const getLiveChartData = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({
@@ -539,13 +566,18 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     const [
       { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
       { runStrategy }, { STRATEGY_PRESETS },
+      { evalSessionFilter, evalTrendFilter, evalVolatilityFilter },
+      { windowsForPreset, isWindowActive, minutesUntilOpen },
     ] = await Promise.all([
       import("@/lib/market-data/loader.server"),
       import("@/lib/market-data/enrich"),
       import("@/lib/market-data/types"),
       import("@/lib/strategy-engine/engine"),
       import("@/lib/strategy-engine/presets"),
+      import("@/lib/strategy-engine/filters"),
+      import("@/lib/session-windows"),
     ]);
+
 
     const scfg = STRATEGY_PRESETS[r.strategy_preset as keyof typeof STRATEGY_PRESETS];
     if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
@@ -613,13 +645,84 @@ export const getLiveChartData = createServerFn({ method: "POST" })
       lastPrice = await createSharkClient().getLastPrice(r.symbol);
     } catch { /* keep close */ }
 
+    // Recent setup detections from strategy engine events.
+    const setupEvents = sres.events.filter((e) => e.name === "OnSetupDetected");
+    const recentSetups: RecentSetupDTO[] = setupEvents
+      .slice(-20)
+      .map((e) => ({
+        ts: Number(e.ts),
+        kind: String(e.data.kind ?? "setup"),
+        direction: String(e.data.direction ?? "—"),
+        level: e.data.level != null ? Number(e.data.level) : null,
+      }));
+    for (const su of recentSetups) {
+      if (su.ts < windowStart) continue;
+      markers.push({
+        time: Math.floor(su.ts / 1000),
+        kind: "setup",
+        label: su.kind,
+      });
+    }
+
+    // Build the rule table for the latest bar so the UI can show what's
+    // currently blocking a trade.
+    const lastBar = enriched[enriched.length - 1] ?? null;
+    const prevBar = enriched[enriched.length - 2] ?? null;
+    const rules: PlanRuleDTO[] = [];
+    let blockingReasons: string[] = [];
+    let windowActive = true;
+    let nextOpenMinutes: number | null = null;
+    if (lastBar) {
+      const windows = windowsForPreset(r.strategy_preset);
+      windowActive = windows.length === 0 || windows.some(isWindowActive);
+      if (!windowActive && windows.length > 0) {
+        const m = windows.reduce<number>(
+          (acc, w) => Math.min(acc, minutesUntilOpen(w)),
+          Number.POSITIVE_INFINITY,
+        );
+        nextOpenMinutes = Number.isFinite(m) ? m : null;
+      }
+      const idx = enriched.length - 1;
+      const checks = [
+        evalSessionFilter(lastBar, scfg.session),
+        evalTrendFilter(lastBar, enriched, idx, scfg.trend),
+        evalVolatilityFilter(lastBar, prevBar, scfg.volatility),
+      ];
+      for (const c of checks) {
+        rules.push({
+          group: "filter",
+          label: c.label,
+          requirement: c.label,
+          actual: c.reason ?? (c.pass ? "ok" : "blocked"),
+          pass: c.pass,
+        });
+      }
+      blockingReasons = checks.filter((c) => !c.pass).map((c) => `${c.label}: ${c.reason ?? "blocked"}`);
+    }
+
     return {
       runner_id: r.id, label: r.label, symbol: r.symbol, timeframe: r.timeframe,
       strategy_preset: r.strategy_preset,
       candles: chartCandles, markers, activeTrade, pendingSignal,
       lastPrice, fetchedAt: Date.now(),
+      plan: {
+        windowActive,
+        nextOpenMinutes,
+        rules,
+        passCount: rules.filter((x) => x.pass).length,
+        failCount: rules.filter((x) => !x.pass).length,
+        blockingReasons,
+        recentSetups,
+        setupsDetected: sres.stats.setupsDetected,
+        signalsCreated: sres.stats.signalsCreated,
+        signalsInvalidated: sres.stats.signalsInvalidated,
+        lastBar: lastBar
+          ? { ts: lastBar.ts, close: lastBar.close, session: lastBar.session }
+          : null,
+      },
     };
   });
+
 
 export const getLastPrice = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ symbol: z.string() }).parse(raw))

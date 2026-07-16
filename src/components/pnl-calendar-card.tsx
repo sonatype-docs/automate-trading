@@ -222,7 +222,11 @@ export function PnlCalendarCard({
                   <div className="text-[11px] text-muted-foreground">Unrealized</div>
                   <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{isToday ? fmtUsd(unreal) : "—"}</div>
                 </div>
-
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Month P&L</div>
+                  <div className={`font-mono text-xl font-bold ${(data?.summary.monthTotal ?? 0) > 0 ? "text-long" : (data?.summary.monthTotal ?? 0) < 0 ? "text-short" : ""}`}>{fmtUsd(data?.summary.monthTotal ?? 0)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{fmtMonthLabel(month)}</div>
+                </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">Trades</div>
                   <div className="font-mono text-xl font-bold">{trades}</div>
@@ -235,11 +239,11 @@ export function PnlCalendarCard({
                     <span className="text-short">{losses}</span>
                   </div>
                 </div>
-                <div className="col-span-1 sm:col-span-2">
+                <div>
                   <div className="text-[11px] text-muted-foreground">Best trade</div>
                   <div className="font-mono text-xl font-bold text-long">{trades > 0 ? fmtUsd(best) : "—"}</div>
                 </div>
-                <div className="col-span-1 sm:col-span-2">
+                <div>
                   <div className="text-[11px] text-muted-foreground">Worst trade</div>
                   <div className="font-mono text-xl font-bold text-short">{trades > 0 ? fmtUsd(worst) : "—"}</div>
                 </div>

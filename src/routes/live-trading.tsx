@@ -500,3 +500,132 @@ function ErrorsTable({ trades }: { trades: LiveTradeDTO[] }) {
     </Table>
   );
 }
+
+function DiagnosticsCard() {
+  const diagnoseFn = useServerFn(diagnoseLiveRunners);
+  const q = useQuery({
+    queryKey: ["live-diagnostics"],
+    queryFn: () => diagnoseFn(),
+    refetchInterval: 15_000,
+  });
+  const rows = q.data ?? [];
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Why isn&apos;t a trade triggering?
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Live view of each runner&apos;s strategy pipeline: what conditions are met on
+            the latest bar, what&apos;s failing, pending signals, and rejection counts.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => q.refetch()} disabled={q.isFetching}>
+          <RefreshCw className={`h-4 w-4 mr-1 ${q.isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {q.isPending && <p className="text-sm text-muted-foreground">Loading diagnostics…</p>}
+        {!q.isPending && rows.length === 0 && (
+          <p className="text-sm text-muted-foreground">No runners configured.</p>
+        )}
+        {rows.map((d) => <RunnerDiagnostics key={d.runner_id} d={d} />)}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
+  const gates = [
+    { label: "Runner running", pass: d.running },
+    { label: "Entry window open", pass: d.windowActive, hint: d.windowActive
+        ? null
+        : d.nextOpenMinutes != null ? `opens in ${fmtDuration(d.nextOpenMinutes)}` : null },
+    ...(d.lastBar?.checks.map((c) => ({
+      label: c.label, pass: c.pass, hint: c.reason ?? null,
+    })) ?? []),
+    { label: `Setup detected (${d.setupsDetected} in lookback)`, pass: d.setupsDetected > 0 },
+    { label: `Signal created (${d.signalsCreated})`, pass: d.signalsCreated > 0 },
+  ];
+  const allPass = gates.every((g) => g.pass);
+
+  return (
+    <div className="rounded-lg border p-3 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-medium">
+            {d.label} <span className="text-xs text-muted-foreground">· {d.symbol} · {d.timeframe} · {d.strategy_preset}</span>
+          </div>
+          {d.lastBar && (
+            <div className="text-xs text-muted-foreground">
+              Last bar: {new Date(d.lastBar.ts).toLocaleTimeString()} · close {d.lastBar.close.toFixed(2)} · session {d.lastBar.session} · {d.barsProcessed} bars analyzed
+            </div>
+          )}
+        </div>
+        <Badge variant={allPass ? "default" : "outline"} className={allPass ? "" : "text-muted-foreground"}>
+          {allPass ? "All gates open — waiting for setup" : "Blocked"}
+        </Badge>
+      </div>
+
+      {d.error && (
+        <div className="text-xs text-destructive">Error: {d.error}</div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+        {gates.map((g, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            {g.pass
+              ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              : <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+            <span className={g.pass ? "" : "text-muted-foreground"}>{g.label}</span>
+            {"hint" in g && g.hint && (
+              <span className="text-muted-foreground/70">— {g.hint}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {d.pending && (
+        <div className="rounded-md bg-amber-500/10 border border-amber-500/40 p-2 text-xs">
+          <div className="font-medium">Pending order (waiting to fill)</div>
+          <div className="text-muted-foreground">
+            {d.pending.direction.toUpperCase()} @ {d.pending.entryPrice.toFixed(2)} ·
+            SL {d.pending.stop.toFixed(2)} · TP {d.pending.target.toFixed(2)} ·
+            age {d.pending.ageBars} bars
+          </div>
+        </div>
+      )}
+
+      {d.lastSignal && (
+        <div className="text-xs">
+          <span className="text-muted-foreground">Last signal: </span>
+          <span className="font-mono">
+            {new Date(d.lastSignal.ts).toLocaleString()} · {d.lastSignal.type} @ {d.lastSignal.entryPrice.toFixed(2)} · SL {d.lastSignal.stop.toFixed(2)} · TP {d.lastSignal.target.toFixed(2)} · strength {d.lastSignal.strength.toFixed(2)}
+          </span>
+        </div>
+      )}
+
+      {d.filterRejects.length > 0 && (
+        <div>
+          <div className="text-xs text-muted-foreground mb-1">
+            Top reasons bars were skipped (lookback stats):
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {d.filterRejects.map((f) => (
+              <Badge key={f.label} variant="outline" className="font-mono text-[10px]">
+                {f.label} · {f.count}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="text-[10px] text-muted-foreground">
+        Setups: {d.setupsDetected} · Signals: {d.signalsCreated} · Invalidated: {d.signalsInvalidated}
+      </div>
+    </div>
+  );
+}

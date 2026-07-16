@@ -92,12 +92,19 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
       if (!t.exit_ts) continue;
       const key = istDateKey(t.exit_ts);
       const pnl = Number(t.net_pnl ?? 0);
-      const cell = byDay.get(key) ?? { date: key, realized: 0, trades: 0, wins: 0, losses: 0 };
+      const cell = byDay.get(key) ?? { date: key, realized: 0, trades: 0, wins: 0, losses: 0, bestTrade: -Infinity, worstTrade: Infinity };
       cell.realized += pnl;
       cell.trades += 1;
       if (pnl > 0) cell.wins += 1;
       else if (pnl < 0) cell.losses += 1;
+      if (pnl > cell.bestTrade) cell.bestTrade = pnl;
+      if (pnl < cell.worstTrade) cell.worstTrade = pnl;
       byDay.set(key, cell);
+    }
+
+    for (const c of byDay.values()) {
+      if (!Number.isFinite(c.bestTrade)) c.bestTrade = 0;
+      if (!Number.isFinite(c.worstTrade)) c.worstTrade = 0;
     }
 
     // Symbol filter list: distinct symbols across the relevant table(s).

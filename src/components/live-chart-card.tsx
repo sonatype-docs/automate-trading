@@ -708,37 +708,29 @@ function RecentTradesStrip({ trades, loading, source }: { trades: RecentTradeIte
         <div className="flex gap-2 overflow-x-auto pb-1">
           {trades.map((t) => {
             const pnl = t.netPnl;
-            const rr = t.rr;
             const win = pnl > 0;
             const long = t.direction === "long";
+            const ts = new Date(t.exitTs ?? t.entryTs);
             return (
               <div
                 key={t.id}
-                className={`shrink-0 min-w-[150px] rounded-md border px-2.5 py-1.5 text-xs
+                className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs flex items-center gap-2
                   ${win ? "border-emerald-500/40 bg-emerald-500/10" : "border-destructive/40 bg-destructive/10"}`}
-                title={new Date(t.entryTs).toLocaleString()}
               >
-                <div className="flex items-center justify-between gap-1">
-                  <span className={`font-mono text-[10px] px-1 py-0.5 rounded ${long ? "bg-emerald-500/20 text-emerald-500" : "bg-destructive/20 text-destructive"}`}>
-                    {long ? <TrendingUp className="inline h-3 w-3 mr-0.5" /> : <TrendingDown className="inline h-3 w-3 mr-0.5" />}
-                    {t.direction.toUpperCase()}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(t.exitTs ?? t.entryTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-                <div className={`font-mono font-semibold mt-1 ${win ? "text-emerald-500" : "text-destructive"}`}>
+                <span className={`font-mono text-[10px] px-1 py-0.5 rounded inline-flex items-center ${long ? "bg-emerald-500/20 text-emerald-500" : "bg-destructive/20 text-destructive"}`}>
+                  {long ? <TrendingUp className="h-3 w-3 mr-0.5" /> : <TrendingDown className="h-3 w-3 mr-0.5" />}
+                  {long ? "LONG" : "SHORT"}
+                </span>
+                <span className={`font-mono font-semibold ${win ? "text-emerald-500" : "text-destructive"}`}>
                   {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>{rr != null ? `${rr >= 0 ? "+" : ""}${rr.toFixed(2)}R` : "—"}</span>
-                  <span className="truncate max-w-[80px]" title={t.exitReason ?? ""}>
-                    {t.exitReason ?? t.status}
-                  </span>
-                </div>
+                </span>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {ts.toLocaleDateString([], { month: "short", day: "2-digit" })} {ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
             );
           })}
+
         </div>
       )}
     </div>

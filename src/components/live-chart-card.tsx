@@ -363,7 +363,7 @@ function ChartCanvas({ data, livePrice, overlays }: {
     }
 
     chartRef.current?.timeScale().fitContent();
-  }, [data]);
+  }, [data, overlays]);
 
   // Tick — update the last candle with the polled price.
   useEffect(() => {

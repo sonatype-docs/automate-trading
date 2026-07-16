@@ -40,25 +40,56 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
     const supabase = await admin();
     const { startUtc, endUtc } = istRangeForMonth(data.month);
 
-    // Realized: closed trades within the month (by closed_at, IST bucket).
-    let q = supabase
-      .from("trades")
-      .select("symbol, pnl_usd, paper, closed_at")
-      .not("closed_at", "is", null)
-      .gte("closed_at", startUtc)
-      .lt("closed_at", endUtc);
-    if (data.symbol) q = q.eq("symbol", data.symbol);
-    if (data.mode === "paper") q = q.eq("paper", true);
-    if (data.mode === "live") q = q.eq("paper", false);
+    // Realized: pull from paper_trades / live_trades so the calendar matches
+    // the Strategy Performance table (which reads the same tables).
+    type ClosedRow = { symbol: string; net_pnl: number | null; exit_ts: string | null; source: "paper" | "live" };
+    const closed: ClosedRow[] = [];
 
-    const { data: trades, error } = await q;
-    if (error) throw new Error(error.message);
+    if (data.mode !== "live") {
+      let q = supabase
+        .from("paper_trades")
+        .select("symbol, net_pnl, exit_ts")
+        .not("exit_ts", "is", null)
+        .gte("exit_ts", startUtc)
+        .lt("exit_ts", endUtc);
+      if (data.symbol) q = q.eq("symbol", data.symbol);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      for (const r of rows ?? []) {
+        closed.push({
+          symbol: r.symbol as string,
+          net_pnl: r.net_pnl as number | null,
+          exit_ts: r.exit_ts as string | null,
+          source: "paper",
+        });
+      }
+    }
+
+    if (data.mode !== "paper") {
+      let q = supabase
+        .from("live_trades")
+        .select("symbol, net_pnl, exit_ts")
+        .not("exit_ts", "is", null)
+        .gte("exit_ts", startUtc)
+        .lt("exit_ts", endUtc);
+      if (data.symbol) q = q.eq("symbol", data.symbol);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      for (const r of rows ?? []) {
+        closed.push({
+          symbol: r.symbol as string,
+          net_pnl: r.net_pnl as number | null,
+          exit_ts: r.exit_ts as string | null,
+          source: "live",
+        });
+      }
+    }
 
     const byDay = new Map<string, DayCell>();
-    for (const t of trades ?? []) {
-      if (!t.closed_at) continue;
-      const key = istDateKey(t.closed_at as string);
-      const pnl = Number(t.pnl_usd ?? 0);
+    for (const t of closed) {
+      if (!t.exit_ts) continue;
+      const key = istDateKey(t.exit_ts);
+      const pnl = Number(t.net_pnl ?? 0);
       const cell = byDay.get(key) ?? { date: key, realized: 0, trades: 0, wins: 0, losses: 0 };
       cell.realized += pnl;
       cell.trades += 1;
@@ -67,9 +98,17 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
       byDay.set(key, cell);
     }
 
-    // Available symbols for the strategy filter (distinct across all trades).
-    const { data: symRows } = await supabase.from("trades").select("symbol");
-    const symbols = Array.from(new Set((symRows ?? []).map((r) => r.symbol as string))).sort();
+    // Symbol filter list: distinct symbols across the relevant table(s).
+    const symbolSet = new Set<string>();
+    if (data.mode !== "live") {
+      const { data: s } = await supabase.from("paper_trades").select("symbol");
+      (s ?? []).forEach((r) => r.symbol && symbolSet.add(r.symbol as string));
+    }
+    if (data.mode !== "paper") {
+      const { data: s } = await supabase.from("live_trades").select("symbol");
+      (s ?? []).forEach((r) => r.symbol && symbolSet.add(r.symbol as string));
+    }
+    const symbols = Array.from(symbolSet).sort();
 
     // Unrealized (today, IST): mark-to-market open positions.
     let posQ = supabase.from("positions").select("symbol, qty, avg_entry_price, paper");
@@ -99,7 +138,7 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
         const entry = Number(p.avg_entry_price ?? 0);
         const last = prices.get(p.symbol as string);
         if (!last || !Number.isFinite(qty) || !Number.isFinite(entry) || qty === 0) continue;
-        const upnl = (last - entry) * qty; // qty carries sign for shorts if stored as negative
+        const upnl = (last - entry) * qty;
         unrealized += upnl;
         openPositions.push({ symbol: p.symbol as string, qty, entry, last, upnl });
       }
@@ -120,6 +159,7 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
       summary: { monthTotal, trades: totalTrades, wins, losses },
     };
   });
+
 
 // ---------- Strategy performance breakdown ----------
 

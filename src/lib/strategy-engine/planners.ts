@@ -43,11 +43,17 @@ export function planEntry(
   };
 }
 
+export interface PlanExtras {
+  /** Sweep bar extreme (swept low for long, swept high for short). */
+  sweepExtreme?: number;
+}
+
 export function planStop(
   bar: EnrichedCandle,
   direction: SignalDirection,
   entryPrice: number,
   cfg: StopModel,
+  extras: PlanExtras = {},
 ): number {
   const side = direction === "long" ? 1 : -1;
   switch (cfg.kind) {
@@ -73,6 +79,14 @@ export function planStop(
     case "fib": {
       const range = bar.swingHigh !== null && bar.swingLow !== null ? bar.swingHigh - bar.swingLow : bar.atr ?? 0;
       return direction === "long" ? entryPrice - range * cfg.ratio : entryPrice + range * cfg.ratio;
+    }
+    case "sweep_extreme": {
+      const buf = (cfg.bufferPct ?? 0) / 100;
+      const ext = extras.sweepExtreme;
+      if (ext == null || !Number.isFinite(ext)) {
+        return entryPrice - side * (bar.atr ?? entryPrice * 0.005);
+      }
+      return direction === "long" ? ext * (1 - buf) : ext * (1 + buf);
     }
   }
 }
@@ -100,6 +114,11 @@ export function planTargets(
         price = direction === "long"
           ? bar.prevDayHigh ?? bar.swingHigh ?? entryPrice + side * rDist * 2
           : bar.prevDayLow ?? bar.swingLow ?? entryPrice + side * rDist * 2;
+        break;
+      case "opposite_pdx":
+        price = direction === "long"
+          ? bar.prevDayHigh ?? entryPrice + side * rDist * 5
+          : bar.prevDayLow ?? entryPrice + side * rDist * 5;
         break;
       case "opposite_range": {
         const half = bar.openingRangeSize ? bar.openingRangeSize / 2 : rDist;

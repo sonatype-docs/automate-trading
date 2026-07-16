@@ -65,6 +65,28 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     invalidation: { maxDelayBars: 4 },
     risk: { riskPerTradeUsd: 100 },
   },
+  pdh_pdl_sweep_1m: {
+    strategyId: "pdh-pdl-sweep-1m",
+    strategyName: "PDH/PDL Sweep → 1m Trigger",
+    direction: "both",
+    session: { blockWeekend: true },
+    trend: {},
+    volatility: {},
+    setup: { kind: "pdh_pdl_sweep" },
+    confirmation: {},
+    entry: { model: { kind: "stop", breakoutBufferPct: 0.01 }, expiryBars: 30 },
+    stop: { kind: "sweep_extreme", bufferPct: 0.02 },
+    targets: {
+      legs: [
+        { kind: "rr", value: 5, sizePct: 50 },
+        { kind: "opposite_pdx", sizePct: 50 },
+      ],
+      moveToBreakEvenAtR: 1,
+    },
+    management: { maxAttemptsPerSweep: 3 },
+    invalidation: { invalidateOnStructureFlip: false },
+    risk: { riskPerTradeUsd: 100 },
+  },
 };
 
 export type StrategyPresetId = keyof typeof STRATEGY_PRESETS;

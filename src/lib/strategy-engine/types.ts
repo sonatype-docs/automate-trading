@@ -58,7 +58,8 @@ export type SetupKind =
   | "bos" | "choch" | "mss"
   | "prev_day_high_sweep" | "prev_day_low_sweep"
   | "equal_high_sweep" | "equal_low_sweep"
-  | "vwap_cross" | "poc_rejection" | "vah_break" | "val_break";
+  | "vwap_cross" | "poc_rejection" | "vah_break" | "val_break"
+  | "pdh_pdl_sweep";
 
 export interface SetupConfig {
   kind: SetupKind;
@@ -104,12 +105,14 @@ export type StopModel =
   | { kind: "previous_candle" }
   | { kind: "opposite_range" }
   | { kind: "percentage"; pct: number }
-  | { kind: "fib"; ratio: number };
+  | { kind: "fib"; ratio: number }
+  | { kind: "sweep_extreme"; bufferPct?: number };
 
 // ---------- Targets ----------
 export type TargetKind =
   | "rr" | "swing" | "liquidity" | "opposite_range"
-  | "vwap" | "poc" | "vah" | "val" | "atr_multiple";
+  | "vwap" | "poc" | "vah" | "val" | "atr_multiple"
+  | "opposite_pdx";
 
 export interface TargetLeg {
   kind: TargetKind;
@@ -131,6 +134,8 @@ export interface ManagementConfig {
   maxOpenPositions?: number;
   maxDailyTrades?: number;
   maxWeeklyTrades?: number;
+  /** For sweep-family setups: max # of fills per single armed sweep event. */
+  maxAttemptsPerSweep?: number;
 }
 
 // ---------- Invalidation ----------

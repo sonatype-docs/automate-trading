@@ -108,6 +108,9 @@ export function detectSetup(
       if (cfg.val == null) return null;
       if (prev.close >= cfg.val && bar.close < cfg.val) return t("val_break", "short", cfg.val, bar);
       return null;
+    case "pdh_pdl_sweep":
+      // Handled directly by the engine (needs multi-bar armed state).
+      return null;
   }
   return null;
 }

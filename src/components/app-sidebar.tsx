@@ -56,6 +56,7 @@ const backtest = [
   { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
   { title: "Asian Sweep", url: "/backtest/asian-sweep", icon: Sunrise },
   { title: "Multi-Session ORB", url: "/backtest/orb", icon: Target },
+  { title: "PDH/PDL Sweep", url: "/backtest/pdh-pdl-sweep", icon: Waves },
   { title: "Compare all", url: "/backtest/compare", icon: GitCompare },
 ];
 

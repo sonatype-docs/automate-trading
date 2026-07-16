@@ -35,6 +35,15 @@ export function runStrategy(
   const pendingByDir: Record<SignalDirection, PendingSignal | null> = { long: null, short: null };
   const dailyCounts = new Map<string, number>();
 
+  // ── PDH/PDL sweep state machine ──
+  // Once a sweep of PDH (short) or PDL (long) is detected, we arm that side.
+  // Up to `maxAttemptsPerSweep` filled entries are allowed on the same armed
+  // event; a new sweep on the same side resets it.
+  interface ArmedSweep { level: number; sweepExtreme: number; sweepTs: number; attempts: number }
+  const armedByDir: Record<SignalDirection, ArmedSweep | null> = { long: null, short: null };
+  const isPdhPdl = cfg.setup.kind === "pdh_pdl_sweep";
+  const maxAttempts = cfg.management?.maxAttemptsPerSweep ?? 3;
+
   const bump = (r: FilterResult) => {
     if (!r.pass) filterRejects[r.label] = (filterRejects[r.label] ?? 0) + 1;
   };
@@ -65,6 +74,10 @@ export function runStrategy(
       if (filled) {
         emit("OnTradeFilled", bar.ts, { signalId: p.signal.signalId, price: p.entry.price });
         pendingByDir[dir] = null;
+        if (isPdhPdl && armedByDir[dir]) {
+          armedByDir[dir].attempts += 1;
+          if (armedByDir[dir].attempts >= maxAttempts) armedByDir[dir] = null;
+        }
         continue;
       }
       if (reasons.length) {
@@ -94,7 +107,46 @@ export function runStrategy(
     }
 
     // 4) Setup detection.
-    const trig = detectSetup(bars, i, cfg.setup);
+    let trig = detectSetup(bars, i, cfg.setup);
+
+    if (isPdhPdl) {
+      const prev = bars[i - 1];
+      // Arm on prev-bar wick beyond PDH/PDL (fresh sweep resets attempts).
+      if (prev && prev.prevDayLow != null && prev.low < prev.prevDayLow) {
+        if (!armedByDir.long || armedByDir.long.sweepTs !== prev.ts) {
+          armedByDir.long = { level: prev.prevDayLow, sweepExtreme: prev.low, sweepTs: prev.ts, attempts: 0 };
+        }
+      }
+      if (prev && prev.prevDayHigh != null && prev.high > prev.prevDayHigh) {
+        if (!armedByDir.short || armedByDir.short.sweepTs !== prev.ts) {
+          armedByDir.short = { level: prev.prevDayHigh, sweepExtreme: prev.high, sweepTs: prev.ts, attempts: 0 };
+        }
+      }
+      // Emit trigger on green/red trigger candle while armed.
+      trig = null;
+      const green = bar.close > bar.open;
+      const red = bar.close < bar.open;
+      if (armedByDir.long && green && !pendingByDir.long && armedByDir.long.attempts < maxAttempts) {
+        trig = {
+          kind: "pdh_pdl_sweep", direction: "long",
+          level: bar.high,
+          swingHigh: bar.swingHigh, swingLow: bar.swingLow,
+          meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
+                  sweepExtreme: armedByDir.long.sweepExtreme, sweepLevel: armedByDir.long.level,
+                  attempt: armedByDir.long.attempts + 1 },
+        };
+      } else if (armedByDir.short && red && !pendingByDir.short && armedByDir.short.attempts < maxAttempts) {
+        trig = {
+          kind: "pdh_pdl_sweep", direction: "short",
+          level: bar.low,
+          swingHigh: bar.swingHigh, swingLow: bar.swingLow,
+          meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
+                  sweepExtreme: armedByDir.short.sweepExtreme, sweepLevel: armedByDir.short.level,
+                  attempt: armedByDir.short.attempts + 1 },
+        };
+      }
+    }
+
     if (!trig) continue;
     if (cfg.direction && cfg.direction !== "both" && cfg.direction !== trig.direction) continue;
     setupsDetected++;
@@ -111,7 +163,8 @@ export function runStrategy(
 
     // 6) Plan entry / stop / targets.
     const entry = planEntry(bar, trig.direction, trig.level, cfg.entry, i);
-    const stop = planStop(bar, trig.direction, entry.price, cfg.stop);
+    const sweepExtreme = typeof trig.meta.sweepExtreme === "number" ? trig.meta.sweepExtreme : undefined;
+    const stop = planStop(bar, trig.direction, entry.price, cfg.stop, { sweepExtreme });
     const legs = planTargets(bar, trig.direction, entry.price, stop, cfg.targets);
     const rDist = Math.abs(entry.price - stop);
     if (rDist <= 0 || !Number.isFinite(rDist)) continue;

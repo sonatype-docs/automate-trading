@@ -184,6 +184,48 @@ export function PnlCalendarCard({
         </div>
       )}
 
+      {showToday && (() => {
+        const t = byDate.get(today);
+        const realized = t?.realized ?? 0;
+        const trades = t?.trades ?? 0;
+        const wins = t?.wins ?? 0;
+        const losses = t?.losses ?? 0;
+        const unreal = data?.unrealized ?? 0;
+        return (
+          <Card className="border-primary/40">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Today · {today}</div>
+                <div className="text-[10px] text-muted-foreground">resets daily (IST)</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Realized P&L</div>
+                  <div className={`font-mono text-xl font-bold ${realized > 0 ? "text-long" : realized < 0 ? "text-short" : ""}`}>{fmtUsd(realized)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Unrealized</div>
+                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{fmtUsd(unreal)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Trades</div>
+                  <div className="font-mono text-xl font-bold">{trades}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">W · L</div>
+                  <div className="font-mono text-xl font-bold">
+                    <span className="text-long">{wins}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="text-short">{losses}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">

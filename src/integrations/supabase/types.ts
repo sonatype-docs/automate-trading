@@ -38,6 +38,158 @@ export type Database = {
         }
         Relationships: []
       }
+      live_runners: {
+        Row: {
+          created_at: string
+          exec_preset: string
+          id: string
+          label: string
+          last_tick_at: string | null
+          last_tick_error: string | null
+          leverage: number
+          lookback_days: number
+          risk_usd: number
+          running: boolean
+          source: string
+          started_at: string | null
+          strategy_preset: string
+          symbol: string
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          exec_preset: string
+          id?: string
+          label: string
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          leverage?: number
+          lookback_days?: number
+          risk_usd?: number
+          running?: boolean
+          source?: string
+          started_at?: string | null
+          strategy_preset: string
+          symbol: string
+          timeframe: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          exec_preset?: string
+          id?: string
+          label?: string
+          last_tick_at?: string | null
+          last_tick_error?: string | null
+          leverage?: number
+          lookback_days?: number
+          risk_usd?: number
+          running?: boolean
+          source?: string
+          started_at?: string | null
+          strategy_preset?: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      live_trades: {
+        Row: {
+          client_order_id: string | null
+          created_at: string
+          dedup_key: string
+          direction: string
+          entry_price: number
+          entry_ts: string
+          error: string | null
+          exit_price: number | null
+          exit_reason: string | null
+          exit_ts: string | null
+          fees: number | null
+          fill_price: number | null
+          gross_pnl: number | null
+          id: string
+          net_pnl: number | null
+          qty: number
+          raw_place: Json | null
+          rr: number | null
+          runner_id: string
+          status: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          client_order_id?: string | null
+          created_at?: string
+          dedup_key: string
+          direction: string
+          entry_price: number
+          entry_ts: string
+          error?: string | null
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_ts?: string | null
+          fees?: number | null
+          fill_price?: number | null
+          gross_pnl?: number | null
+          id?: string
+          net_pnl?: number | null
+          qty: number
+          raw_place?: Json | null
+          rr?: number | null
+          runner_id: string
+          status?: string
+          stop_price: number
+          strategy_preset: string
+          symbol: string
+          target_price: number
+          timeframe: string
+          updated_at?: string
+        }
+        Update: {
+          client_order_id?: string | null
+          created_at?: string
+          dedup_key?: string
+          direction?: string
+          entry_price?: number
+          entry_ts?: string
+          error?: string | null
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_ts?: string | null
+          fees?: number | null
+          fill_price?: number | null
+          gross_pnl?: number | null
+          id?: string
+          net_pnl?: number | null
+          qty?: number
+          raw_place?: Json | null
+          rr?: number | null
+          runner_id?: string
+          status?: string
+          stop_price?: number
+          strategy_preset?: string
+          symbol?: string
+          target_price?: number
+          timeframe?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_trades_runner_id_fkey"
+            columns: ["runner_id"]
+            isOneToOne: false
+            referencedRelation: "live_runners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string

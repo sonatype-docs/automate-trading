@@ -113,15 +113,19 @@ export function LiveChartCard() {
           </p>
         )}
         {chartQ.data && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
-            <ChartCanvas data={chartQ.data} livePrice={livePrice} />
-            <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
+              <ChartCanvas data={chartQ.data} livePrice={livePrice} />
+              <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
+            </div>
+            <PlanPanel data={chartQ.data} />
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
+
 
 function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {
   const containerRef = useRef<HTMLDivElement>(null);

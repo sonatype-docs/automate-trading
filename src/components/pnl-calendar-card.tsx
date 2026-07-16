@@ -12,7 +12,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity } from "l
 import { getPnlCalendar } from "@/lib/analytics.functions";
 
 type Mode = "all" | "paper" | "live";
-type Cell = { date: string; realized: number; trades: number; wins: number; losses: number };
+type Cell = { date: string; realized: number; trades: number; wins: number; losses: number; bestTrade: number; worstTrade: number };
 
 interface Props {
   defaultMode?: Mode;

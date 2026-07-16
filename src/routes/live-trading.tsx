@@ -659,31 +659,37 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
     { key: "risk", label: "Risk" },
   ];
 
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border p-3 space-y-3">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="font-medium">
-            {d.label} <span className="text-xs text-muted-foreground">· {d.symbol} · {d.timeframe} · {d.strategy_preset}</span>
-          </div>
-          {d.lastBar && (
-            <div className="text-xs text-muted-foreground">
-              Last bar: {new Date(d.lastBar.ts).toLocaleTimeString()} · close {d.lastBar.close.toFixed(2)} · session {d.lastBar.session} · {d.barsProcessed} bars analyzed
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
+      <CollapsibleTrigger asChild>
+        <button className="w-full text-left p-3 flex items-start justify-between gap-2 hover:bg-muted/30 transition-colors">
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate">
+              {d.label} <span className="text-xs text-muted-foreground">· {d.symbol} · {d.timeframe}</span>
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {rulesPassed}/{d.rules.length} rules pass
-          </span>
-          <Badge variant={gatesOk ? "default" : "outline"} className={gatesOk ? "" : "text-muted-foreground"}>
-            {!d.running ? "Stopped"
-              : !d.windowActive ? "Outside entry window"
-              : rulesFailed.length > 0 ? `Blocked by ${rulesFailed.length} rule${rulesFailed.length > 1 ? "s" : ""}`
-              : "All rules pass — waiting for setup"}
-          </Badge>
-        </div>
-      </div>
+            {d.lastBar && (
+              <div className="text-[11px] text-muted-foreground truncate">
+                {new Date(d.lastBar.ts).toLocaleTimeString()} · close {d.lastBar.close.toFixed(2)} · {d.barsProcessed} bars
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">
+              {rulesPassed}/{d.rules.length} pass
+            </span>
+            <Badge variant={gatesOk ? "default" : "outline"} className={`text-[10px] ${gatesOk ? "" : "text-muted-foreground"}`}>
+              {!d.running ? "Stopped"
+                : !d.windowActive ? "Closed"
+                : rulesFailed.length > 0 ? `${rulesFailed.length} block`
+                : "Ready"}
+            </Badge>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-3 space-y-3 border-t pt-3">
+
 
       {d.error && <div className="text-xs text-destructive">Error: {d.error}</div>}
 

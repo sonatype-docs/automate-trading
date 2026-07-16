@@ -153,6 +153,8 @@ function RunnersTable({ runners, onToggle, onReset }: {
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead>#</TableHead>
+          <TableHead>Score</TableHead>
           <TableHead>Label</TableHead>
           <TableHead>Symbol</TableHead>
           <TableHead>TF</TableHead>
@@ -164,8 +166,18 @@ function RunnersTable({ runners, onToggle, onReset }: {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {runners.map((r) => (
+        {runners.map((r, i) => (
           <TableRow key={r.id}>
+            <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+            <TableCell>
+              {r.score != null ? (
+                <Badge variant={r.score >= 90 ? "default" : r.score >= 75 ? "secondary" : "outline"}>
+                  {Number(r.score).toFixed(1)}
+                </Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
+            </TableCell>
             <TableCell className="font-medium">{r.label}</TableCell>
             <TableCell>{r.symbol}</TableCell>
             <TableCell>{r.timeframe}</TableCell>

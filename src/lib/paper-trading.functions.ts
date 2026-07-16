@@ -18,6 +18,7 @@ export interface RunnerDTO {
   risk_usd: number;
   lookback_days: number;
   running: boolean;
+  score: number | null;
   started_at: string | null;
   last_tick_at: string | null;
   last_tick_error: string | null;
@@ -65,7 +66,7 @@ export const listPaperRunners = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("paper_runners")
       .select("*")
-      .order("timeframe", { ascending: true });
+      .order("score", { ascending: false, nullsFirst: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as unknown as RunnerDTO[];
   });

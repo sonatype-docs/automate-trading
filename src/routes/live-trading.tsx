@@ -303,11 +303,17 @@ function LiveTradingPage() {
   );
 }
 
-function RunnersTable({ runners, onToggle, onSave }: {
+function RunnersTable({ runners, selected, onSelectToggle, onSelectAll, onClearSelection, onToggle, onSave }: {
   runners: LiveRunnerDTO[];
+  selected: Set<string>;
+  onSelectToggle: (id: string) => void;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
+  const allSelected = runners.length > 0 && runners.every((r) => selected.has(r.id));
+  const someSelected = runners.some((r) => selected.has(r.id));
   return (
     <>
       {/* Desktop table */}
@@ -315,6 +321,13 @@ function RunnersTable({ runners, onToggle, onSave }: {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={(v) => (v ? onSelectAll() : onClearSelection())}
+                  aria-label="Select all runners"
+                />
+              </TableHead>
               <TableHead>Label</TableHead>
               <TableHead>Symbol / TF</TableHead>
               <TableHead>Strategy</TableHead>
@@ -327,9 +340,18 @@ function RunnersTable({ runners, onToggle, onSave }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+            {runners.map((r) => (
+              <RunnerRow
+                key={r.id}
+                r={r}
+                selected={selected.has(r.id)}
+                onSelectToggle={onSelectToggle}
+                onToggle={onToggle}
+                onSave={onSave}
+              />
+            ))}
             {runners.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -341,7 +363,14 @@ function RunnersTable({ runners, onToggle, onSave }: {
           <div className="text-center text-sm text-muted-foreground py-4">No live runners</div>
         )}
         {runners.map((r) => (
-          <RunnerCardMobile key={r.id} r={r} onToggle={onToggle} onSave={onSave} />
+          <RunnerCardMobile
+            key={r.id}
+            r={r}
+            selected={selected.has(r.id)}
+            onSelectToggle={onSelectToggle}
+            onToggle={onToggle}
+            onSave={onSave}
+          />
         ))}
       </div>
     </>

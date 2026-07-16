@@ -19,8 +19,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge } from "lucide-react";
-import { queryTrades } from "@/lib/trade-intelligence.functions";
+import { queryTrades, listSnapshots } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
+import { useDataset } from "@/hooks/use-dataset";
 import {
   computeKpis, equityCurve, rolledPnl, groupBy, num, sortByExit,
   type EquityBucket,
@@ -148,10 +149,17 @@ function ResearchPage() {
     return next;
   });
   const queryFn = useServerFn(queryTrades);
+  const snapshotsFn = useServerFn(listSnapshots);
+  const [dataset, setDataset] = useDataset();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["research", "all-trades"],
-    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc" } }),
+    queryKey: ["research", "all-trades", dataset],
+    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset } }),
+  });
+  const snapshotList = useQuery({
+    queryKey: ["trade-intel", "snapshots"],
+    queryFn: () => snapshotsFn(),
+    staleTime: 60_000,
   });
   const allTrades: TradeRecord[] = data?.rows ?? [];
 
@@ -230,6 +238,17 @@ function ResearchPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
+            <Select value={dataset} onValueChange={setDataset}>
+              <SelectTrigger className="h-8 w-56 text-xs"><SelectValue placeholder="Dataset" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live (current)</SelectItem>
+                {(snapshotList.data?.snapshots ?? []).map((s) => (
+                  <SelectItem key={s.name} value={s.name}>
+                    Snapshot · {s.name} ({s.count.toLocaleString()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>
               <SelectContent>

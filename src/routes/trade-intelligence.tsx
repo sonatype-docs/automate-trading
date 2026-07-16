@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Download, Database, Layers } from "lucide-react";
 import { MatrixGroup } from "@/components/matrix-picker";
+import { useDataset } from "@/hooks/use-dataset";
 
 const BATCH_TFS = ["1m", "3m", "5m", "15m", "30m", "1h"] as const;
 const BATCH_SYMBOLS = ["XAUUSDT", "BTCUSDT"] as const;
@@ -92,7 +93,8 @@ function TradeIntelligencePage() {
 
   // "live" = current writable trade_intelligence table (still being appended
   // to by any running pipeline). Anything else = an archived snapshot label.
-  const [dataset, setDataset] = useState<string>("live");
+  // Shared with /research via useDataset (localStorage-backed).
+  const [dataset, setDataset] = useDataset();
 
   const [form, setForm] = useState({
     strategyPresetId: strategyIds[0] ?? "",

@@ -128,6 +128,8 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<UTCTimestamp> | null>(null);
+   
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const linesRef = useRef<IPriceLine[]>([]);
   const lastCandleRef = useRef<{ t: UTCTimestamp; o: number; h: number; l: number; c: number } | null>(null);
 

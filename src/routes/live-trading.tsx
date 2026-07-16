@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
-  type LiveRunnerDTO, type LiveTradeDTO,
+  diagnoseLiveRunners,
+  type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";

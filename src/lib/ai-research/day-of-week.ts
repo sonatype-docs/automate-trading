@@ -112,7 +112,7 @@ export function weekendComparison(features: DerivedFeatures[]): WeekendCompariso
 
   let verdict: WeekendComparison["verdict"] = "neutral";
   let reason = "Not enough weekend samples to draw a conclusion.";
-  if (weekend.count >= 5) {
+  if (weekend.length >= 5) {
     if (weekendOnly.expectancy < 0 && weekdaysOnly.expectancy > weekendOnly.expectancy) {
       verdict = "skip_weekends";
       reason = `Weekend expectancy ${weekendOnly.expectancy.toFixed(2)} is negative; skipping lifts overall expectancy by ${deltaExpectancy.toFixed(2)}.`;

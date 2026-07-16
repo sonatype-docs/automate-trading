@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { AppShell } from "@/components/app-shell";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,7 +82,7 @@ function LiveTradingPage() {
   const totalPnl = closedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
   return (
-    <AppShell>
+    <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -174,7 +174,7 @@ function LiveTradingPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </AppShell>
+    </div>
   );
 }
 

@@ -20,6 +20,7 @@ import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as PaperTradingRouteImport } from './routes/paper-trading'
 import { Route as OptimizerRouteImport } from './routes/optimizer'
 import { Route as MarketDataRouteImport } from './routes/market-data'
+import { Route as LiveTradingRouteImport } from './routes/live-trading'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as ExecutionEngineRouteImport } from './routes/execution-engine'
@@ -95,6 +96,11 @@ const OptimizerRoute = OptimizerRouteImport.update({
 const MarketDataRoute = MarketDataRouteImport.update({
   id: '/market-data',
   path: '/market-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveTradingRoute = LiveTradingRouteImport.update({
+  id: '/live-trading',
+  path: '/live-trading',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JournalRoute = JournalRouteImport.update({
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/execution-engine': typeof ExecutionEngineRoute
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/execution-engine'
     | '/handbook'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/execution-engine'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/execution-engine'
     | '/handbook'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -418,6 +430,7 @@ export interface RootRouteChildren {
   ExecutionEngineRoute: typeof ExecutionEngineRoute
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
+  LiveTradingRoute: typeof LiveTradingRoute
   MarketDataRoute: typeof MarketDataRoute
   OptimizerRoute: typeof OptimizerRoute
   PaperTradingRoute: typeof PaperTradingRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/market-data'
       fullPath: '/market-data'
       preLoaderRoute: typeof MarketDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live-trading': {
+      id: '/live-trading'
+      path: '/live-trading'
+      fullPath: '/live-trading'
+      preLoaderRoute: typeof LiveTradingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/journal': {
@@ -706,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExecutionEngineRoute: ExecutionEngineRoute,
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
+  LiveTradingRoute: LiveTradingRoute,
   MarketDataRoute: MarketDataRoute,
   OptimizerRoute: OptimizerRoute,
   PaperTradingRoute: PaperTradingRoute,

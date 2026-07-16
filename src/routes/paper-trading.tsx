@@ -16,6 +16,8 @@ import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity } from "lucide-reac
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 
 export const Route = createFileRoute("/paper-trading")({
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),
@@ -72,7 +74,12 @@ function PaperTradingPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="performance">Strategy performance</TabsTrigger>
+        </TabsList>
+        <TabsContent value="dashboard" className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Runners</CardTitle>
@@ -124,7 +131,11 @@ function PaperTradingPage() {
             <TradesTable runners={runnersList} trades={tradesList} />
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+        <TabsContent value="performance">
+          <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+        </TabsContent>
+      </Tabs>
     </AppShell>
   );
 }

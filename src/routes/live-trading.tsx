@@ -14,6 +14,8 @@ import {
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -73,7 +75,12 @@ function LiveTradingPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="performance">Strategy performance</TabsTrigger>
+        </TabsList>
+        <TabsContent value="dashboard" className="space-y-6">
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div className="text-sm">
@@ -140,7 +147,11 @@ function LiveTradingPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </TabsContent>
+        <TabsContent value="performance">
+          <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+        </TabsContent>
+      </Tabs>
     </AppShell>
   );
 }

@@ -14,6 +14,8 @@ import {
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({

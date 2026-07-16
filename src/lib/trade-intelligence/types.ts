@@ -83,6 +83,7 @@ export interface TradeRecord extends TradeRecordCore {
 export interface TradeQuerySpec {
   strategyId?: string;
   symbol?: string;
+  timeframe?: string;
   direction?: TradeDirection;
   session?: string;
   weekday?: number;

@@ -103,7 +103,7 @@ function LiveTradingPage() {
 
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Live runners</CardTitle>
             <div className="flex items-center gap-2">
               {connMsg && (
@@ -152,7 +152,7 @@ function LiveTradingPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Closed live trades</CardTitle>
             <span className={`text-sm font-medium ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
               Total realised: {fmtUsd(totalPnl)}
@@ -505,7 +505,7 @@ function DiagnosticsCard() {
   const rows = q.data ?? [];
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
             <Search className="h-4 w-4" />

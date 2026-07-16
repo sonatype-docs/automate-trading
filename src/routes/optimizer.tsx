@@ -96,22 +96,23 @@ function OptimizerPage() {
   const baseMetrics = useMemo(() => computeMetrics(rows), [rows]);
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Universal Research Optimizer</h1>
+    <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6">
+      <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-xl sm:text-2xl font-semibold tracking-tight">Universal Research Optimizer</h1>
           <p className="text-sm text-muted-foreground">
             Discover when / where / why the strategy performs best. Operates on the Trade Intelligence Database.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Label className="text-xs text-muted-foreground">Strategy</Label>
-          <Input placeholder="all" className="h-8 w-40" value={strategyId} onChange={(e) => setStrategyId(e.target.value)} />
+          <Input placeholder="all" className="h-8 w-32 sm:w-40" value={strategyId} onChange={(e) => setStrategyId(e.target.value)} />
           <Label className="text-xs text-muted-foreground">Limit</Label>
-          <Input type="number" className="h-8 w-24" value={limit} onChange={(e) => setLimit(Number(e.target.value) || 500)} />
+          <Input type="number" className="h-8 w-20 sm:w-24" value={limit} onChange={(e) => setLimit(Number(e.target.value) || 500)} />
           <Button size="sm" onClick={() => refetch()}>Reload</Button>
         </div>
       </header>
+
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <StatCard label="Loaded" value={String(rows.length)} sub={`of ${total}`} />

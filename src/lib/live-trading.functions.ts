@@ -566,13 +566,18 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     const [
       { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
       { runStrategy }, { STRATEGY_PRESETS },
+      { evalSessionFilter, evalTrendFilter, evalVolatilityFilter },
+      { windowsForPreset, isWindowActive, minutesUntilOpen },
     ] = await Promise.all([
       import("@/lib/market-data/loader.server"),
       import("@/lib/market-data/enrich"),
       import("@/lib/market-data/types"),
       import("@/lib/strategy-engine/engine"),
       import("@/lib/strategy-engine/presets"),
+      import("@/lib/strategy-engine/filters"),
+      import("@/lib/session-windows"),
     ]);
+
 
     const scfg = STRATEGY_PRESETS[r.strategy_preset as keyof typeof STRATEGY_PRESETS];
     if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);

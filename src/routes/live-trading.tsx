@@ -195,7 +195,7 @@ function LiveTradingPage() {
         <TabsContent value="performance">
           <div className="space-y-6">
             <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
-            <PnlCalendarCard defaultMode="live" lockMode />
+            <PnlCalendarCard defaultMode="live" lockMode showStrategyFilter={false} showToday />
           </div>
         </TabsContent>
       </Tabs>

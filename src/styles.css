@@ -284,7 +284,7 @@
   [data-slot="badge"] { padding: 0.05rem 0.4rem; font-size: 0.68rem; }
 
   /* Mobile-friendly defaults */
-  html, body { overflow-x: hidden; }
+  html, body { overflow-x: clip; }
   main { min-width: 0; }
   @media (max-width: 767px) {
     main table {

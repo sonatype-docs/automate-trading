@@ -164,6 +164,8 @@ function AiResearchPage() {
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="executive" className="text-xs">Executive</TabsTrigger>
             <TabsTrigger value="performance" className="text-xs">Performance</TabsTrigger>
+            <TabsTrigger value="sweet" className="text-xs">Sweet Spot</TabsTrigger>
+            <TabsTrigger value="dow" className="text-xs">Day of Week</TabsTrigger>
             <TabsTrigger value="failure" className="text-xs">Failure</TabsTrigger>
             <TabsTrigger value="edges" className="text-xs">Edges</TabsTrigger>
             <TabsTrigger value="filters" className="text-xs">Filters</TabsTrigger>
@@ -185,6 +187,16 @@ function AiResearchPage() {
             <InsightList items={s.executive} />
           </TabsContent>
           <TabsContent value="performance" className="mt-3"><InsightList items={s.performance} /></TabsContent>
+          <TabsContent value="sweet" className="mt-3">
+            <SweetSpotPanel analyses={report.report?.analytics?.sweetSpot ?? []} insights={s.sweetSpot} />
+          </TabsContent>
+          <TabsContent value="dow" className="mt-3">
+            <DayOfWeekPanel
+              rows={report.report?.analytics?.dayOfWeek ?? []}
+              compare={report.report?.analytics?.weekendCompare}
+              insights={s.dayOfWeek}
+            />
+          </TabsContent>
           <TabsContent value="failure" className="mt-3"><InsightList items={s.failure} /></TabsContent>
           <TabsContent value="edges" className="mt-3"><InsightList items={s.edges} /></TabsContent>
           <TabsContent value="filters" className="mt-3">
@@ -201,6 +213,7 @@ function AiResearchPage() {
           <TabsContent value="mc" className="mt-3"><InsightList items={s.monteCarlo} /></TabsContent>
           <TabsContent value="anom" className="mt-3"><InsightList items={s.anomalies} /></TabsContent>
           <TabsContent value="cmp" className="mt-3"><InsightList items={s.comparison} /></TabsContent>
+
 
           <TabsContent value="ask" className="mt-3">
             <Card>

@@ -13,6 +13,8 @@ import { Sparkles, Loader2, Download, Send, RefreshCw } from "lucide-react";
 import { askResearch, runResearch, reviewOneTrade } from "@/lib/ai-research.functions";
 import type { Insight, Recommendation } from "@/lib/ai-research/types";
 import type { ResearchReport } from "@/lib/ai-research/report";
+import type { SweetSpotAnalysis, Bucket } from "@/lib/ai-research/sweet-spot";
+import type { DayRow, WeekendComparison } from "@/lib/ai-research/day-of-week";
 
 export const Route = createFileRoute("/ai-research")({
   head: () => ({
@@ -72,6 +74,222 @@ function RecommendationCard({ r }: { r: Recommendation }) {
       <div className="text-[10px] font-mono text-muted-foreground">
         n={r.evidence.sampleSize} · p={r.evidence.pValue?.toFixed(3) ?? "—"} · conf={((r.evidence.confidence ?? 0) * 100).toFixed(0)}%
       </div>
+    </div>
+  );
+}
+
+function pnlClass(n: number): string {
+  if (n > 0) return "text-emerald-400";
+  if (n < 0) return "text-red-400";
+  return "text-muted-foreground";
+}
+function fmtNum(n: number, d = 2): string { return Number.isFinite(n) ? n.toFixed(d) : "—"; }
+function fmtPct(n: number, d = 1): string { return Number.isFinite(n) ? `${(n * 100).toFixed(d)}%` : "—"; }
+function fmtPf(n: number): string { return n >= 999 ? "∞" : fmtNum(n, 2); }
+
+function SweetSpotPanel({ analyses, insights }: { analyses: SweetSpotAnalysis[]; insights: Insight[] }) {
+  if (!analyses.length) {
+    return <div className="text-xs text-muted-foreground italic p-3">Not enough trades to build sweet-spot buckets (need ≥ 10 with the feature present).</div>;
+  }
+  return (
+    <div className="space-y-4">
+      {insights.length > 0 && <InsightList items={insights} />}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {analyses.map((a) => <SweetSpotCard key={a.id} a={a} />)}
+      </div>
+    </div>
+  );
+}
+
+function SweetSpotCard({ a }: { a: SweetSpotAnalysis }) {
+  const hasBuckets = a.buckets.length > 0;
+  const maxAbsNet = Math.max(1, ...a.buckets.map((b) => Math.abs(b.netPnl)));
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <CardTitle className="text-sm">{a.label}</CardTitle>
+          <span className="text-[10px] text-muted-foreground font-mono">n={a.totalSamples} · baseline exp {a.baselineExpectancy.toFixed(2)}</span>
+        </div>
+        {a.sweetSpot && (
+          <div className="text-[11px] text-emerald-400">
+            Sweet spot: <span className="font-mono">{a.sweetSpot.label}</span> — expectancy <span className="font-mono">{a.sweetSpot.expectancy.toFixed(2)}</span> ({a.sweetSpot.count} trades, {(a.sweetSpot.winRate * 100).toFixed(0)}% win)
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="pt-0">
+        {!hasBuckets ? (
+          <div className="text-xs text-muted-foreground italic">Not enough distinct values.</div>
+        ) : (
+          <div className="rounded border border-border overflow-x-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="text-muted-foreground bg-muted/40">
+                <tr>
+                  <th className="text-left py-1.5 px-2">Bucket</th>
+                  <th className="text-right py-1.5 px-2">n</th>
+                  <th className="text-right py-1.5 px-2">Win%</th>
+                  <th className="text-right py-1.5 px-2">Exp</th>
+                  <th className="text-right py-1.5 px-2">Net</th>
+                  <th className="text-right py-1.5 px-2">PF</th>
+                  <th className="text-right py-1.5 px-2">Avg R</th>
+                  <th className="text-left py-1.5 px-2 w-32">Net bar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.buckets.map((b: Bucket) => (
+                  <tr key={b.key} className={`border-t border-border ${b.isSweetSpot ? "bg-emerald-500/10" : ""}`}>
+                    <td className="py-1.5 px-2">{b.isSweetSpot && <span className="text-emerald-400 mr-1">★</span>}{b.label}</td>
+                    <td className="text-right py-1.5 px-2">{b.count}</td>
+                    <td className="text-right py-1.5 px-2">{fmtPct(b.winRate, 0)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(b.expectancy)}`}>{fmtNum(b.expectancy, 2)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(b.netPnl)}`}>{fmtNum(b.netPnl, 0)}</td>
+                    <td className="text-right py-1.5 px-2">{fmtPf(b.profitFactor)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(b.avgR)}`}>{fmtNum(b.avgR, 2)}</td>
+                    <td className="py-1.5 px-2">
+                      <div className="h-2 w-full bg-muted/40 rounded overflow-hidden relative">
+                        <div
+                          className={`h-full ${b.netPnl >= 0 ? "bg-emerald-500/70" : "bg-red-500/70"}`}
+                          style={{ width: `${(Math.abs(b.netPnl) / maxAbsNet) * 100}%` }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatBlockRow({ label, count, winRate, netPnl, expectancy, avgR, profitFactor, maxDrawdown, highlight }:
+  { label: string; count: number; winRate: number; netPnl: number; expectancy: number; avgR: number; profitFactor: number; maxDrawdown: number; highlight?: boolean }) {
+  return (
+    <tr className={`border-t border-border ${highlight ? "bg-emerald-500/10" : ""}`}>
+      <td className="py-1.5 px-2">{label}</td>
+      <td className="text-right py-1.5 px-2">{count}</td>
+      <td className="text-right py-1.5 px-2">{fmtPct(winRate, 1)}</td>
+      <td className={`text-right py-1.5 px-2 ${pnlClass(netPnl)}`}>{fmtNum(netPnl, 0)}</td>
+      <td className={`text-right py-1.5 px-2 ${pnlClass(expectancy)}`}>{fmtNum(expectancy, 2)}</td>
+      <td className={`text-right py-1.5 px-2 ${pnlClass(avgR)}`}>{fmtNum(avgR, 2)}</td>
+      <td className="text-right py-1.5 px-2">{fmtPf(profitFactor)}</td>
+      <td className="text-right py-1.5 px-2 text-red-400">{fmtNum(-maxDrawdown, 0)}</td>
+    </tr>
+  );
+}
+
+function DayOfWeekPanel({ rows, compare, insights }: { rows: DayRow[]; compare?: WeekendComparison; insights: Insight[] }) {
+  if (!rows.length) return <div className="text-xs text-muted-foreground italic p-3">No trades to break down.</div>;
+  const maxAbsNet = Math.max(1, ...rows.map((r) => Math.abs(r.netPnl)));
+  return (
+    <div className="space-y-4">
+      {insights.length > 0 && <InsightList items={insights} />}
+
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Per-weekday performance</CardTitle></CardHeader>
+        <CardContent className="pt-0 space-y-3">
+          <div className="rounded border border-border overflow-x-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="text-muted-foreground bg-muted/40">
+                <tr>
+                  <th className="text-left py-1.5 px-2">Day</th>
+                  <th className="text-right py-1.5 px-2">n</th>
+                  <th className="text-right py-1.5 px-2">W</th>
+                  <th className="text-right py-1.5 px-2">L</th>
+                  <th className="text-right py-1.5 px-2">Win%</th>
+                  <th className="text-right py-1.5 px-2">Net</th>
+                  <th className="text-right py-1.5 px-2">Exp</th>
+                  <th className="text-right py-1.5 px-2">Avg R</th>
+                  <th className="text-right py-1.5 px-2">PF</th>
+                  <th className="text-right py-1.5 px-2">Max DD</th>
+                  <th className="text-left py-1.5 px-2 w-40">Net bar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.weekday} className={`border-t border-border ${r.weekday === 0 || r.weekday === 6 ? "bg-muted/30" : ""}`}>
+                    <td className="py-1.5 px-2">{r.name}{(r.weekday === 0 || r.weekday === 6) && <span className="ml-1 text-[9px] text-muted-foreground">(weekend)</span>}</td>
+                    <td className="text-right py-1.5 px-2">{r.count}</td>
+                    <td className="text-right py-1.5 px-2 text-emerald-400">{r.wins}</td>
+                    <td className="text-right py-1.5 px-2 text-red-400">{r.losses}</td>
+                    <td className="text-right py-1.5 px-2">{fmtPct(r.winRate, 0)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(r.netPnl)}`}>{fmtNum(r.netPnl, 0)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(r.expectancy)}`}>{fmtNum(r.expectancy, 2)}</td>
+                    <td className={`text-right py-1.5 px-2 ${pnlClass(r.avgR)}`}>{fmtNum(r.avgR, 2)}</td>
+                    <td className="text-right py-1.5 px-2">{fmtPf(r.profitFactor)}</td>
+                    <td className="text-right py-1.5 px-2 text-red-400">{fmtNum(-r.maxDrawdown, 0)}</td>
+                    <td className="py-1.5 px-2">
+                      <div className="h-2 w-full bg-muted/40 rounded overflow-hidden">
+                        <div
+                          className={`h-full ${r.netPnl >= 0 ? "bg-emerald-500/70" : "bg-red-500/70"}`}
+                          style={{ width: `${(Math.abs(r.netPnl) / maxAbsNet) * 100}%` }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {compare && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+              <CardTitle className="text-sm">Weekend-skip comparison</CardTitle>
+              <Badge variant="outline" className={`text-[10px] ${
+                compare.verdict === "skip_weekends" ? "bg-amber-500/15 text-amber-400 border-amber-500/40"
+                : compare.verdict === "keep_weekends" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
+                : "bg-muted text-muted-foreground border-border"
+              }`}>
+                {compare.verdict === "skip_weekends" ? "Skip weekends" : compare.verdict === "keep_weekends" ? "Keep weekends" : "Neutral"}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{compare.reason}</p>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2">
+            <div className="rounded border border-border overflow-x-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="text-muted-foreground bg-muted/40">
+                  <tr>
+                    <th className="text-left py-1.5 px-2">Segment</th>
+                    <th className="text-right py-1.5 px-2">n</th>
+                    <th className="text-right py-1.5 px-2">Win%</th>
+                    <th className="text-right py-1.5 px-2">Net</th>
+                    <th className="text-right py-1.5 px-2">Exp</th>
+                    <th className="text-right py-1.5 px-2">Avg R</th>
+                    <th className="text-right py-1.5 px-2">PF</th>
+                    <th className="text-right py-1.5 px-2">Max DD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <StatBlockRow {...compare.all} />
+                  <StatBlockRow {...compare.weekdaysOnly} highlight={compare.verdict === "skip_weekends"} />
+                  <StatBlockRow {...compare.weekendOnly} />
+                </tbody>
+              </table>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+              <div className="rounded border border-border p-2">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Δ Net (skip weekends)</div>
+                <div className={`font-mono ${pnlClass(compare.deltaNet)}`}>{compare.deltaNet >= 0 ? "+" : ""}{fmtNum(compare.deltaNet, 0)}</div>
+              </div>
+              <div className="rounded border border-border p-2">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Δ Win rate</div>
+                <div className={`font-mono ${pnlClass(compare.deltaWinRate)}`}>{compare.deltaWinRate >= 0 ? "+" : ""}{(compare.deltaWinRate * 100).toFixed(1)}%</div>
+              </div>
+              <div className="rounded border border-border p-2">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Δ Expectancy</div>
+                <div className={`font-mono ${pnlClass(compare.deltaExpectancy)}`}>{compare.deltaExpectancy >= 0 ? "+" : ""}{fmtNum(compare.deltaExpectancy, 2)}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

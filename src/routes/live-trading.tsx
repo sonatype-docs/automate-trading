@@ -209,26 +209,6 @@ function RunnersTable({ runners, onToggle, onSave }: {
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Label</TableHead>
-          <TableHead>Symbol / TF</TableHead>
-          <TableHead>Strategy</TableHead>
-          <TableHead>Entry window (IST)</TableHead>
-          <TableHead>Risk $</TableHead>
-          <TableHead>Leverage</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Last tick</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-function RunnersTable({ runners, onToggle, onSave }: {
-  runners: LiveRunnerDTO[];
-  onToggle: (r: LiveRunnerDTO) => void;
-  onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
-}) {
-  return (
     <>
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">

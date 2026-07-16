@@ -20,11 +20,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Activity, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   getLiveChartData, getLastPrice, listLiveRunners,
   type LiveChartDataDTO,
 } from "@/lib/live-trading.functions";
+
 
 function useElapsed(sinceIso: string | null | undefined) {
   const [now, setNow] = useState(() => Date.now());

@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
 export const Route = createFileRoute("/paper-trading")({
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),
@@ -85,6 +86,9 @@ function PaperTradingPage() {
   const runnersList = runners.data ?? [];
   const positionsList = positions.data ?? [];
   const tradesList = trades.data ?? [];
+  useNewTradeToasts(positionsList, "Paper", {
+    keyFn: (p) => `${p.runner_id}:${p.symbol}:${p.entry_ts}`,
+  });
   const anyRunning = runnersList.some((r) => r.running);
 
   return (

@@ -27,6 +27,7 @@ import {
   type IstWindow,
 } from "@/lib/session-windows";
 import { LiveChartCard } from "@/components/live-chart-card";
+import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -95,6 +96,7 @@ function LiveTradingPage() {
 
   const runnersList = runners.data ?? [];
   const tradesList = trades.data ?? [];
+  useNewTradeToasts(tradesList, "Live");
   const openTrades = tradesList.filter((t) => t.status === "open" || t.status === "pending");
   const closedTrades = tradesList.filter((t) => t.status === "closed" || t.status === "cancelled");
   const errorTrades = tradesList.filter((t) => t.status === "error");

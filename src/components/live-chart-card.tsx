@@ -130,7 +130,7 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any>(null);
   const linesRef = useRef<IPriceLine[]>([]);
-  const lastCandleRef = useRef<{ t: UTCTimestamp; o: number; h: number; l: number; c: number } | null>(null);
+  const lastCandleRef = useRef<{ time: UTCTimestamp; open: number; high: number; low: number; close: number } | null>(null);
 
   // Build chart once.
   useEffect(() => {

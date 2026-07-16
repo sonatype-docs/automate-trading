@@ -43,12 +43,28 @@ function useElapsed(sinceIso: string | null | undefined) {
   return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
+const DISPLAY_TFS = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"] as const;
+type DisplayTf = typeof DISPLAY_TFS[number];
+
+export interface OverlayFlags {
+  vwap: boolean;
+  ema20: boolean;
+  ema50: boolean;
+  ema200: boolean;
+  adx: boolean;
+  atr: boolean;
+}
+
 export function LiveChartCard() {
   const runnersFn = useServerFn(listLiveRunners);
   const runners = useQuery({
     queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 10_000,
   });
   const [runnerId, setRunnerId] = useState<string | null>(null);
+  const [tf, setTf] = useState<DisplayTf | null>(null);
+  const [overlays, setOverlays] = useState<OverlayFlags>({
+    vwap: true, ema20: false, ema50: true, ema200: true, adx: true, atr: false,
+  });
 
   // Default to first running runner, else first runner.
   useEffect(() => {
@@ -59,8 +75,11 @@ export function LiveChartCard() {
 
   const dataFn = useServerFn(getLiveChartData);
   const chartQ = useQuery({
-    queryKey: ["live-chart", runnerId],
-    queryFn: () => dataFn({ data: { runner_id: runnerId!, bars: 200 } }),
+    queryKey: ["live-chart", runnerId, tf],
+    queryFn: () => dataFn({ data: {
+      runner_id: runnerId!, bars: 200,
+      ...(tf ? { timeframe: tf } : {}),
+    } }),
     enabled: !!runnerId,
     refetchInterval: 30_000,
   });
@@ -74,6 +93,20 @@ export function LiveChartCard() {
   });
 
   const livePrice = priceQ.data?.price ?? chartQ.data?.lastPrice ?? null;
+  const runnerTf = chartQ.data?.runnerTimeframe;
+  const activeTf = (tf ?? runnerTf ?? null) as DisplayTf | null;
+
+  const overlayToggle = (key: keyof OverlayFlags, label: string) => (
+    <Toggle
+      key={key}
+      size="sm"
+      pressed={overlays[key]}
+      onPressedChange={(v) => setOverlays((o) => ({ ...o, [key]: v }))}
+      className="h-7 px-2 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+    >
+      {label}
+    </Toggle>
+  );
 
   return (
     <Card>
@@ -114,8 +147,43 @@ export function LiveChartCard() {
         )}
         {chartQ.data && (
           <div className="space-y-4">
+            {/* Toolbar: TF toggle + overlay toggles */}
+            <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/20 px-2 py-1.5">
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-muted-foreground mr-1">TF</span>
+                {DISPLAY_TFS.map((t) => (
+                  <Button
+                    key={t} size="sm"
+                    variant={activeTf === t ? "default" : "outline"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setTf(t)}
+                  >
+                    {t}{runnerTf === t ? "*" : ""}
+                  </Button>
+                ))}
+                {tf && tf !== runnerTf && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                    onClick={() => setTf(null)}>reset</Button>
+                )}
+                {runnerTf && (
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    strategy runs on <b>{runnerTf}</b>
+                  </span>
+                )}
+              </div>
+              <div className="h-5 w-px bg-border" />
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[11px] text-muted-foreground mr-1">Overlays</span>
+                {overlayToggle("vwap", "VWAP")}
+                {overlayToggle("ema20", "EMA20")}
+                {overlayToggle("ema50", "EMA50")}
+                {overlayToggle("ema200", "EMA200")}
+                {overlayToggle("adx", "ADX")}
+                {overlayToggle("atr", "ATR")}
+              </div>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
-              <ChartCanvas data={chartQ.data} livePrice={livePrice} />
+              <ChartCanvas data={chartQ.data} livePrice={livePrice} overlays={overlays} />
               <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
             </div>
             <PlanPanel data={chartQ.data} />
@@ -125,6 +193,7 @@ export function LiveChartCard() {
     </Card>
   );
 }
+
 
 
 function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {

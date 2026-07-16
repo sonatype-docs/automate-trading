@@ -959,6 +959,14 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
               direction: null,
             };
           }
+          // All gates pass and window is active — treat as Ready even if the
+          // strategy hasn't produced a pending signal on the very last bar yet.
+          // Matches the pipeline diagnostics "Ready" definition.
+          return {
+            runner_id: rr.id, state: "setup_ready",
+            detail: `all gates pass · close ${lastBar.close.toFixed(2)}`,
+            direction: null,
+          };
         }
         return { runner_id: rr.id, state: "scanning", detail: null, direction: null };
       } catch (e) {

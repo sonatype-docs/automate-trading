@@ -94,6 +94,16 @@ export const updateLiveRunner = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const testLiveConnection = createServerFn({ method: "POST" }).handler(async () => {
+  const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+  const client = createSharkClient();
+  try {
+    return await client.testConnection();
+  } catch (e) {
+    return { ok: false, status: 0, message: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 export const runLiveTickNow = createServerFn({ method: "POST" }).handler(async () => {
   const { runLiveTradingTick } = await import("@/lib/live-trading/tick.server");
   return await runLiveTradingTick();

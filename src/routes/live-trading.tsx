@@ -257,6 +257,64 @@ function RunnerRow({ r, onToggle, onSave }: {
   );
 }
 
+function EntryWindowCell({ preset }: { preset: string }) {
+  const windows = windowsForPreset(preset);
+  // Re-render every minute so active/next-open indicators stay accurate.
+  const [, setTick] = useState(0);
+  useEffectMinute(() => setTick((n) => n + 1));
+
+  if (!windows.length) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const anyActive = windows.some((w) => isWindowActive(w));
+  const nextOpen = anyActive
+    ? null
+    : windows.reduce<{ w: IstWindow; m: number } | null>((best, w) => {
+        const m = minutesUntilOpen(w);
+        if (!best || m < best.m) return { w, m };
+        return best;
+      }, null);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap gap-1">
+        {windows.map((w) => {
+          const active = isWindowActive(w);
+          return (
+            <Badge
+              key={w.session}
+              variant={active ? "default" : "outline"}
+              className={`gap-1 font-mono text-[10px] ${active ? "" : "text-muted-foreground"}`}
+              title={`${w.session.replace(/_/g, " ")} · ${w.label}`}
+            >
+              {active && <Clock className="h-3 w-3" />}
+              {w.label.replace(" IST", "")}
+            </Badge>
+          );
+        })}
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {anyActive
+          ? "✓ Entry window open now"
+          : nextOpen
+            ? `Next open in ${fmtDuration(nextOpen.m)}`
+            : ""}
+      </span>
+    </div>
+  );
+}
+
+function useEffectMinute(fn: () => void) {
+  // Small inline hook to avoid a separate file — ticks on the wall-clock minute.
+  const [ref] = useState({ fn });
+  ref.fn = fn;
+  useState(() => {
+    if (typeof window === "undefined") return 0;
+    const id = window.setInterval(() => ref.fn(), 30_000);
+    return id;
+  });
+}
+
 function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id: string) => void }) {
   if (!trades.length) return <p className="text-sm text-muted-foreground">No open live orders.</p>;
   return (

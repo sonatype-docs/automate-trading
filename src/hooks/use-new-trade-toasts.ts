@@ -1,11 +1,34 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 type MinItem = Record<string, any>;
 
+async function ensurePermission(): Promise<NotificationPermission> {
+  if (typeof window === "undefined" || !("Notification" in window)) return "denied";
+  if (Notification.permission === "granted" || Notification.permission === "denied") {
+    return Notification.permission;
+  }
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return "denied";
+  }
+}
+
+function notify(title: string, body: string, tag?: string) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, { body, tag, icon: "/favicon.ico" });
+    // auto-close after 8s
+    setTimeout(() => n.close(), 8000);
+  } catch {
+    // ignore
+  }
+}
+
 /**
- * Toasts once whenever a new item (by key) appears in `items`.
- * Seeds silently on first load so history doesn't spam toasts.
+ * Fires a native browser Notification whenever a new item (by key) appears.
+ * Seeds silently on first load and requests permission once.
  */
 export function useNewTradeToasts<T extends MinItem>(
   items: T[] | undefined,
@@ -25,6 +48,10 @@ export function useNewTradeToasts<T extends MinItem>(
     });
 
   useEffect(() => {
+    void ensurePermission();
+  }, []);
+
+  useEffect(() => {
     if (!items) return;
     if (seenRef.current === null) {
       seenRef.current = new Set(items.map(keyFn));
@@ -34,8 +61,9 @@ export function useNewTradeToasts<T extends MinItem>(
     const fresh = items.filter((t) => !seen.has(keyFn(t)));
     if (!fresh.length) return;
     for (const t of fresh) {
-      seen.add(keyFn(t));
-      toast.success(`${label} order placed`, { description: describe(t) });
+      const k = keyFn(t);
+      seen.add(k);
+      notify(`${label} order placed`, describe(t), `${label}:${k}`);
     }
   }, [items, label, keyFn, describe]);
 }

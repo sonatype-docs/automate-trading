@@ -35,6 +35,15 @@ export function runStrategy(
   const pendingByDir: Record<SignalDirection, PendingSignal | null> = { long: null, short: null };
   const dailyCounts = new Map<string, number>();
 
+  // ── PDH/PDL sweep state machine ──
+  // Once a sweep of PDH (short) or PDL (long) is detected, we arm that side.
+  // Up to `maxAttemptsPerSweep` filled entries are allowed on the same armed
+  // event; a new sweep on the same side resets it.
+  interface ArmedSweep { level: number; sweepExtreme: number; sweepTs: number; attempts: number }
+  const armedByDir: Record<SignalDirection, ArmedSweep | null> = { long: null, short: null };
+  const isPdhPdl = cfg.setup.kind === "pdh_pdl_sweep";
+  const maxAttempts = cfg.management?.maxAttemptsPerSweep ?? 3;
+
   const bump = (r: FilterResult) => {
     if (!r.pass) filterRejects[r.label] = (filterRejects[r.label] ?? 0) + 1;
   };

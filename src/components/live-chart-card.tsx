@@ -711,10 +711,17 @@ function RecentTradesStrip({ trades, loading, source }: { trades: RecentTradeIte
             const pnl = t.netPnl;
             const win = pnl > 0;
             const long = t.direction === "long";
-            const ts = new Date(t.exitTs ?? t.entryTs);
+            const entry = new Date(t.entryTs);
+            const exit = t.exitTs ? new Date(t.exitTs) : null;
+            const sameDay = exit && entry.toDateString() === exit.toDateString();
+            const dateStr = entry.toLocaleDateString([], { month: "short", day: "2-digit" });
+            const entryTime = entry.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+            const exitTime = exit ? exit.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : null;
+            const exitDate = exit && !sameDay ? exit.toLocaleDateString([], { month: "short", day: "2-digit" }) : null;
             return (
               <div
                 key={t.id}
+                title={`Entry: ${entry.toLocaleString()}${exit ? `\nExit:  ${exit.toLocaleString()}` : ""}`}
                 className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs flex items-center gap-2
                   ${win ? "border-emerald-500/40 bg-emerald-500/10" : "border-destructive/40 bg-destructive/10"}`}
               >
@@ -725,8 +732,9 @@ function RecentTradesStrip({ trades, loading, source }: { trades: RecentTradeIte
                 <span className={`font-mono font-semibold ${win ? "text-emerald-500" : "text-destructive"}`}>
                   {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                 </span>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                  {ts.toLocaleDateString([], { month: "short", day: "2-digit" })} {ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap font-mono">
+                  {dateStr} {entryTime}
+                  {exitTime ? <span className="opacity-70"> → {exitDate ? `${exitDate} ` : ""}{exitTime}</span> : null}
                 </span>
               </div>
             );

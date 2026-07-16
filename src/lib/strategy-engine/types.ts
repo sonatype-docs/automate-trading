@@ -105,12 +105,14 @@ export type StopModel =
   | { kind: "previous_candle" }
   | { kind: "opposite_range" }
   | { kind: "percentage"; pct: number }
-  | { kind: "fib"; ratio: number };
+  | { kind: "fib"; ratio: number }
+  | { kind: "sweep_extreme"; bufferPct?: number };
 
 // ---------- Targets ----------
 export type TargetKind =
   | "rr" | "swing" | "liquidity" | "opposite_range"
-  | "vwap" | "poc" | "vah" | "val" | "atr_multiple";
+  | "vwap" | "poc" | "vah" | "val" | "atr_multiple"
+  | "opposite_pdx";
 
 export interface TargetLeg {
   kind: TargetKind;

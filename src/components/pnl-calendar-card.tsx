@@ -128,6 +128,7 @@ export function PnlCalendarCard({
   lockMode = false,
   showStrategyFilter = true,
   showKpis = true,
+  showToday = false,
 }: Props) {
   const [month, setMonth] = useState<string>(currentIstMonth());
   const [symbol, setSymbol] = useState<string>("all");

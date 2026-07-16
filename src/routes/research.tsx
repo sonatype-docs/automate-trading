@@ -238,6 +238,17 @@ function ResearchPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
+            <Select value={dataset} onValueChange={setDataset}>
+              <SelectTrigger className="h-8 w-56 text-xs"><SelectValue placeholder="Dataset" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live (current)</SelectItem>
+                {(snapshotList.data?.snapshots ?? []).map((s) => (
+                  <SelectItem key={s.name} value={s.name}>
+                    Snapshot · {s.name} ({s.count.toLocaleString()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>
               <SelectContent>

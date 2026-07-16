@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   listPaperRunners, listPaperPositions, listPaperTrades,
   setRunnerRunning, setAllRunnersRunning, runPaperTickNow, resetPaperRunner,
+  backfillPaperTradesFromBacktest,
   type RunnerDTO, type PositionDTO, type TradeDTO,
 } from "@/lib/paper-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity, History } from "lucide-react";
+
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
@@ -37,6 +39,8 @@ function PaperTradingPage() {
   const setAll = useServerFn(setAllRunnersRunning);
   const tickNow = useServerFn(runPaperTickNow);
   const reset = useServerFn(resetPaperRunner);
+  const backfill = useServerFn(backfillPaperTradesFromBacktest);
+
 
   const runners = useQuery({
     queryKey: ["paper-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,
@@ -67,6 +71,16 @@ function PaperTradingPage() {
     mutationFn: (id: string) => reset({ data: { id } }),
     onSuccess: invalidate,
   });
+  const backfillMut = useMutation({
+    mutationFn: () => backfill({ data: { topN: 10, days: 180 } }),
+    onSuccess: (res) => {
+      invalidate();
+      const inserted = (res as { totalInserted?: number })?.totalInserted ?? 0;
+      alert(`Backfill complete — inserted ${inserted} historical trades across top 10 runners.`);
+    },
+    onError: (e) => alert(e instanceof Error ? e.message : String(e)),
+  });
+
 
   const runnersList = runners.data ?? [];
   const positionsList = positions.data ?? [];
@@ -85,11 +99,16 @@ function PaperTradingPage() {
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Runners</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
                 Tick now
               </Button>
+              <Button size="sm" variant="outline" onClick={() => backfillMut.mutate()} disabled={backfillMut.isPending}>
+                <History className={`h-4 w-4 mr-1 ${backfillMut.isPending ? "animate-spin" : ""}`} />
+                {backfillMut.isPending ? "Backfilling…" : "Backfill top 10 (180d)"}
+              </Button>
+
               {anyRunning ? (
                 <Button size="sm" variant="destructive" onClick={() => toggleAll.mutate(false)}>
                   <StopCircle className="h-4 w-4 mr-1" /> Stop all

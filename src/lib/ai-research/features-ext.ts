@@ -19,6 +19,7 @@ export interface DerivedFeatures {
   fillDelayMs: number;
   hourUtc: number;
   weekday: number;
+  isWeekend: 0 | 1;
   month: number;
   quarter: number;
   year: number;
@@ -31,6 +32,8 @@ export interface DerivedFeatures {
   fvgPresent: 0 | 1;
   sweepPresent: 0 | 1;
   atr: number;            // 0 if unknown
+  atrPercentile: number;  // 0 if unknown
+  adx: number;            // 0 if unknown
   volumeZ: number;        // 0 if unknown
   bodyPct: number;        // 0 if unknown
 }
@@ -76,6 +79,7 @@ export function derive(t: TradeRecord): DerivedFeatures {
   const entry = t.entryTime ?? 0;
   const d = new Date(entry);
   const hour = d.getUTCHours();
+  const weekday = t.weekday ?? d.getUTCDay();
   return {
     tradeId: t.tradeId,
     strategyId: t.strategyId,
@@ -89,7 +93,8 @@ export function derive(t: TradeRecord): DerivedFeatures {
     holdingMs: t.durationMs ?? 0,
     fillDelayMs: t.fillTime && t.orderTime ? t.fillTime - t.orderTime : 0,
     hourUtc: hour,
-    weekday: t.weekday ?? d.getUTCDay(),
+    weekday,
+    isWeekend: weekday === 0 || weekday === 6 ? 1 : 0,
     month: t.month ?? d.getUTCMonth() + 1,
     quarter: t.quarter ?? Math.floor(d.getUTCMonth() / 3) + 1,
     year: t.year ?? d.getUTCFullYear(),
@@ -102,6 +107,8 @@ export function derive(t: TradeRecord): DerivedFeatures {
     fvgPresent: readBool(t, ["smartMoney", "fvg_present"]),
     sweepPresent: readBool(t, ["liquidity", "sweep_present"]) || readBool(t, ["smartMoney", "sweep_present"]),
     atr: readNum(t, ["volatility", "atr"]) || readNum(t, ["volatility", "daily_atr"]),
+    atrPercentile: readNum(t, ["volatility", "atrPercentile"]) || readNum(t, ["volatility", "atr_percentile"]),
+    adx: readNum(t, ["trend", "adx"]) || readNum(t, ["trend", "adx14"]),
     volumeZ: readNum(t, ["volumeProfile", "z"]),
     bodyPct: readNum(t, ["structure", "body_pct"]) || readNum(t, ["breakout", "body_pct"]),
   };

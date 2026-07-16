@@ -134,7 +134,10 @@ function PaperTradingPage() {
         </Card>
         </TabsContent>
         <TabsContent value="performance">
-          <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+          <div className="space-y-6">
+            <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+            <PnlCalendarCard defaultMode="paper" lockMode />
+          </div>
         </TabsContent>
       </Tabs>
     </AppShell>

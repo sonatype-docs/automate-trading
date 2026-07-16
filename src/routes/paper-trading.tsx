@@ -39,6 +39,8 @@ function PaperTradingPage() {
   const setAll = useServerFn(setAllRunnersRunning);
   const tickNow = useServerFn(runPaperTickNow);
   const reset = useServerFn(resetPaperRunner);
+  const backfill = useServerFn(backfillPaperTradesFromBacktest);
+
 
   const runners = useQuery({
     queryKey: ["paper-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,

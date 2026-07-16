@@ -1,22 +1,21 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import "@fontsource/sora/500.css";
-@import "@fontsource/sora/600.css";
-@import "@fontsource/sora/700.css";
-@import "@fontsource/sora/800.css";
-@import "@fontsource/manrope/400.css";
-@import "@fontsource/manrope/500.css";
-@import "@fontsource/manrope/600.css";
-@import "@fontsource/manrope/700.css";
+@import "@fontsource/work-sans/400.css";
+@import "@fontsource/work-sans/500.css";
+@import "@fontsource/work-sans/600.css";
+@import "@fontsource/work-sans/700.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@fontsource/jetbrains-mono/700.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Shark Auto-Trader — Midnight Indigo terminal, revamped.
- * Sleeker surfaces, quieter borders, richer ambient light, smoother motion.
+ * Shark Auto-Trader — Charcoal & Ember terminal.
+ * Deep neutral surfaces, warm ember accent, bento-grid geometry,
+ * JetBrains Mono display + Work Sans body.
  */
 
 @theme inline {
@@ -57,100 +56,100 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", "Manrope", ui-sans-serif, sans-serif;
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --color-brand-orange: var(--brand-orange);
-  --color-brand-amber: var(--brand-amber);
-  --color-brand-pink: var(--brand-pink);
-  --color-brand-violet: var(--brand-violet);
+  --color-brand-ember:   var(--brand-ember);
+  --color-brand-flame:   var(--brand-flame);
+  --color-brand-copper:  var(--brand-copper);
+  --color-brand-charcoal: var(--brand-charcoal);
 }
 
-/* Light theme — Sunset Blaze on warm paper */
+/* Light theme — Warm paper on charcoal ink */
 :root {
-  --radius: 0.9rem;
-  --brand-orange: oklch(0.72 0.19 45);
-  --brand-amber:  oklch(0.78 0.16 65);
-  --brand-pink:   oklch(0.65 0.22 355);
-  --brand-violet: oklch(0.58 0.20 285);
+  --radius: 0.75rem;
+  --brand-ember:    oklch(0.66 0.19 38);   /* #e85d3a */
+  --brand-flame:    oklch(0.72 0.17 50);
+  --brand-copper:   oklch(0.58 0.14 45);
+  --brand-charcoal: oklch(0.28 0.01 60);
 
-  --background: oklch(0.995 0.008 60);
-  --foreground: oklch(0.18 0.03 300);
+  --background: oklch(0.985 0.003 60);
+  --foreground: oklch(0.18 0.005 60);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.03 300);
+  --card-foreground: oklch(0.18 0.005 60);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.03 300);
-  --primary: var(--brand-orange);
-  --primary-foreground: oklch(0.16 0.02 40);
-  --secondary: oklch(0.965 0.020 40);
-  --secondary-foreground: oklch(0.24 0.05 40);
-  --muted: oklch(0.965 0.015 40);
-  --muted-foreground: oklch(0.48 0.03 300);
-  --accent: oklch(0.94 0.05 355);
-  --accent-foreground: oklch(0.35 0.20 355);
-  --destructive: oklch(0.62 0.24 25);
+  --popover-foreground: oklch(0.18 0.005 60);
+  --primary: var(--brand-ember);
+  --primary-foreground: oklch(0.98 0.002 60);
+  --secondary: oklch(0.955 0.005 60);
+  --secondary-foreground: oklch(0.22 0.005 60);
+  --muted: oklch(0.955 0.005 60);
+  --muted-foreground: oklch(0.48 0.008 60);
+  --accent: oklch(0.94 0.03 40);
+  --accent-foreground: oklch(0.32 0.14 40);
+  --destructive: oklch(0.60 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.68 0.18 150);
+  --success: oklch(0.66 0.16 150);
   --success-foreground: oklch(0.14 0.02 150);
-  --warning: var(--brand-amber);
+  --warning: oklch(0.78 0.15 70);
   --warning-foreground: oklch(0.18 0.02 60);
-  --long: oklch(0.62 0.18 150);
-  --short: oklch(0.62 0.24 25);
-  --border: oklch(0.920 0.020 40);
-  --input: oklch(0.955 0.015 40);
-  --ring: var(--brand-orange);
+  --long: oklch(0.62 0.16 150);
+  --short: oklch(0.60 0.22 25);
+  --border: oklch(0.905 0.005 60);
+  --input: oklch(0.955 0.004 60);
+  --ring: var(--brand-ember);
 
-  --sidebar: oklch(0.985 0.015 40);
-  --sidebar-foreground: oklch(0.22 0.04 300);
-  --sidebar-primary: var(--brand-orange);
-  --sidebar-primary-foreground: oklch(0.16 0.02 40);
-  --sidebar-accent: oklch(0.945 0.035 355);
-  --sidebar-accent-foreground: oklch(0.32 0.18 355);
-  --sidebar-border: oklch(0.920 0.020 40);
-  --sidebar-ring: var(--brand-orange);
+  --sidebar: oklch(0.975 0.004 60);
+  --sidebar-foreground: oklch(0.22 0.005 60);
+  --sidebar-primary: var(--brand-ember);
+  --sidebar-primary-foreground: oklch(0.98 0.002 60);
+  --sidebar-accent: oklch(0.94 0.02 40);
+  --sidebar-accent-foreground: oklch(0.28 0.12 40);
+  --sidebar-border: oklch(0.905 0.005 60);
+  --sidebar-ring: var(--brand-ember);
 }
 
-/* Dark theme — Sunset Blaze on midnight violet */
+/* Dark theme — Charcoal graphite with ember accent */
 .dark {
-  --brand-orange: oklch(0.76 0.20 45);
-  --brand-amber:  oklch(0.82 0.17 65);
-  --brand-pink:   oklch(0.70 0.24 355);
-  --brand-violet: oklch(0.68 0.22 285);
+  --brand-ember:    oklch(0.72 0.19 38);
+  --brand-flame:    oklch(0.78 0.17 52);
+  --brand-copper:   oklch(0.62 0.15 45);
+  --brand-charcoal: oklch(0.24 0.003 60);
 
-  --background: oklch(0.135 0.045 295);
-  --foreground: oklch(0.975 0.010 60);
-  --card: oklch(0.195 0.055 295);
-  --card-foreground: oklch(0.975 0.010 60);
-  --popover: oklch(0.200 0.060 295);
-  --popover-foreground: oklch(0.975 0.010 60);
-  --primary: var(--brand-orange);
-  --primary-foreground: oklch(0.15 0.03 40);
-  --secondary: oklch(0.245 0.075 295);
-  --secondary-foreground: oklch(0.97 0.010 60);
-  --muted: oklch(0.215 0.050 295);
-  --muted-foreground: oklch(0.78 0.025 60);
-  --accent: oklch(0.34 0.14 355);
-  --accent-foreground: oklch(0.96 0.06 355);
-  --destructive: oklch(0.68 0.24 25);
+  --background: oklch(0.155 0.003 60);   /* deep charcoal */
+  --foreground: oklch(0.965 0.004 60);
+  --card: oklch(0.205 0.004 60);          /* elevated surface */
+  --card-foreground: oklch(0.965 0.004 60);
+  --popover: oklch(0.215 0.004 60);
+  --popover-foreground: oklch(0.965 0.004 60);
+  --primary: var(--brand-ember);
+  --primary-foreground: oklch(0.14 0.02 40);
+  --secondary: oklch(0.245 0.004 60);
+  --secondary-foreground: oklch(0.965 0.004 60);
+  --muted: oklch(0.225 0.004 60);
+  --muted-foreground: oklch(0.72 0.006 60);
+  --accent: oklch(0.32 0.10 42);
+  --accent-foreground: oklch(0.96 0.05 42);
+  --destructive: oklch(0.66 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.74 0.18 150);
-  --success-foreground: oklch(0.14 0.02 150);
-  --warning: var(--brand-amber);
+  --success: oklch(0.74 0.17 150);
+  --success-foreground: oklch(0.12 0.02 150);
+  --warning: oklch(0.80 0.16 68);
   --warning-foreground: oklch(0.18 0.02 60);
-  --long: oklch(0.76 0.19 150);
-  --short: oklch(0.72 0.24 20);
-  --border: oklch(0.285 0.060 295);
-  --input: oklch(0.245 0.065 295);
-  --ring: var(--brand-orange);
+  --long: oklch(0.76 0.18 150);
+  --short: oklch(0.70 0.22 22);
+  --border: oklch(0.285 0.004 60);        /* graphite hairline */
+  --input: oklch(0.235 0.004 60);
+  --ring: var(--brand-ember);
 
-  --sidebar: oklch(0.115 0.040 295);
-  --sidebar-foreground: oklch(0.94 0.012 60);
-  --sidebar-primary: var(--brand-orange);
-  --sidebar-primary-foreground: oklch(0.15 0.03 40);
-  --sidebar-accent: oklch(0.28 0.11 355);
-  --sidebar-accent-foreground: oklch(0.97 0.06 355);
-  --sidebar-border: oklch(0.245 0.060 295);
-  --sidebar-ring: var(--brand-orange);
+  --sidebar: oklch(0.135 0.003 60);       /* darker rail */
+  --sidebar-foreground: oklch(0.94 0.005 60);
+  --sidebar-primary: var(--brand-ember);
+  --sidebar-primary-foreground: oklch(0.14 0.02 40);
+  --sidebar-accent: oklch(0.26 0.08 40);
+  --sidebar-accent-foreground: oklch(0.98 0.05 40);
+  --sidebar-border: oklch(0.235 0.003 60);
+  --sidebar-ring: var(--brand-ember);
 }
 
 @layer base {
@@ -168,7 +167,8 @@
   }
   h1, h2, h3, h4, h5, h6, .font-display {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
+    font-weight: 600;
   }
   code, kbd, pre, samp, .font-mono {
     font-family: var(--font-mono);
@@ -188,72 +188,77 @@
     border-radius: var(--radius-sm);
   }
   ::selection {
-    background: color-mix(in oklch, var(--color-primary) 35%, transparent);
+    background: color-mix(in oklch, var(--color-primary) 40%, transparent);
     color: var(--color-foreground);
   }
 
-  /* Ambient light — Sunset Blaze aurora */
+  /* Ambient light — subtle ember glow, mostly restrained */
   body {
     background-image:
-      radial-gradient(1100px 620px at 4% -14%, color-mix(in oklch, var(--brand-orange) 18%, transparent), transparent 60%),
-      radial-gradient(900px 560px at 100% 4%, color-mix(in oklch, var(--brand-pink) 14%, transparent), transparent 55%),
-      radial-gradient(800px 520px at 50% 120%, color-mix(in oklch, var(--brand-violet) 12%, transparent), transparent 60%);
+      radial-gradient(900px 520px at 6% -12%, color-mix(in oklch, var(--brand-ember) 10%, transparent), transparent 60%),
+      radial-gradient(800px 480px at 100% 6%, color-mix(in oklch, var(--brand-flame) 7%, transparent), transparent 55%);
     background-attachment: fixed;
   }
   .dark body {
     background-image:
-      radial-gradient(1200px 720px at 6% -12%, color-mix(in oklch, var(--brand-orange) 32%, transparent), transparent 60%),
-      radial-gradient(1000px 640px at 100% 0%, color-mix(in oklch, var(--brand-pink) 26%, transparent), transparent 55%),
-      radial-gradient(900px 620px at 50% 118%, color-mix(in oklch, var(--brand-violet) 24%, transparent), transparent 65%);
+      radial-gradient(1100px 640px at 4% -14%, color-mix(in oklch, var(--brand-ember) 16%, transparent), transparent 60%),
+      radial-gradient(900px 560px at 100% 4%, color-mix(in oklch, var(--brand-flame) 10%, transparent), transparent 55%),
+      linear-gradient(180deg, transparent, color-mix(in oklch, var(--brand-charcoal) 30%, transparent));
     background-attachment: fixed;
   }
 
-  /* Vibrant card — gradient rim + warm glow */
+  /* Bento card — flat graphite surface, subtle inner rim, warm shadow only on hover */
   [data-slot="card"] {
     position: relative;
-    background: linear-gradient(180deg,
-      color-mix(in oklch, var(--color-card) 96%, transparent),
-      color-mix(in oklch, var(--color-card) 82%, transparent));
+    background: color-mix(in oklch, var(--color-card) 96%, transparent);
+    border-color: color-mix(in oklch, var(--color-border) 90%, transparent);
+    border-radius: var(--radius-lg);
     box-shadow:
-      0 1px 0 0 color-mix(in oklch, var(--brand-amber) 18%, transparent) inset,
-      0 14px 44px -22px color-mix(in oklch, var(--brand-orange) 55%, transparent),
-      0 24px 64px -32px color-mix(in oklch, var(--brand-pink) 35%, transparent);
-    border-color: color-mix(in oklch, var(--brand-orange) 22%, var(--color-border));
+      0 1px 0 0 color-mix(in oklch, white 4%, transparent) inset,
+      0 1px 2px 0 color-mix(in oklch, black 20%, transparent);
   }
   .dark [data-slot="card"] {
     background: linear-gradient(180deg,
-      color-mix(in oklch, var(--color-card) 94%, transparent),
-      color-mix(in oklch, var(--color-card) 78%, transparent));
+      color-mix(in oklch, var(--color-card) 100%, transparent),
+      color-mix(in oklch, var(--color-card) 88%, transparent));
+    border-color: color-mix(in oklch, var(--color-border) 100%, transparent);
     box-shadow:
-      0 1px 0 0 color-mix(in oklch, var(--brand-amber) 22%, transparent) inset,
-      0 22px 60px -26px color-mix(in oklch, var(--brand-orange) 65%, transparent),
-      0 32px 80px -36px color-mix(in oklch, var(--brand-violet) 55%, transparent);
-    border-color: color-mix(in oklch, var(--brand-pink) 22%, var(--color-border));
+      0 1px 0 0 color-mix(in oklch, white 5%, transparent) inset,
+      0 8px 24px -14px color-mix(in oklch, black 90%, transparent);
   }
 
-  /* Inputs — subtle depth */
+  /* Inputs — flat with focus ember */
   [data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"] {
-    background: color-mix(in oklch, var(--color-input) 55%, transparent);
-    border-color: color-mix(in oklch, var(--color-border) 90%, transparent);
-    backdrop-filter: blur(6px);
+    background: color-mix(in oklch, var(--color-input) 90%, transparent);
+    border-color: color-mix(in oklch, var(--color-border) 100%, transparent);
   }
   [data-slot="input"]:focus, [data-slot="textarea"]:focus,
   [data-slot="input"]:focus-visible, [data-slot="textarea"]:focus-visible,
   [data-slot="select-trigger"]:focus {
-    border-color: color-mix(in oklch, var(--color-primary) 55%, var(--color-border));
-    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 18%, transparent);
+    border-color: color-mix(in oklch, var(--color-primary) 60%, var(--color-border));
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 20%, transparent);
   }
 
   /* Buttons — subtle hover lift */
   [data-slot="button"]:not(:disabled):hover {
-    box-shadow: 0 8px 22px -14px color-mix(in oklch, var(--color-primary) 60%, transparent);
+    box-shadow: 0 8px 20px -12px color-mix(in oklch, var(--color-primary) 55%, transparent);
   }
 
-  /* Tables — quiet dividers */
+  /* Tables — mono column headers, ember hover */
   table { border-collapse: separate; border-spacing: 0; }
-  th { font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; font-size: 0.72rem; color: var(--color-muted-foreground); }
+  th {
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    color: var(--color-muted-foreground);
+    font-family: var(--font-mono);
+  }
   tbody tr { transition: background-color 180ms ease; }
-  tbody tr:hover { background: color-mix(in oklch, var(--color-primary) 5%, transparent); }
+  tbody tr:hover { background: color-mix(in oklch, var(--color-primary) 6%, transparent); }
+
+  /* Numeric-heavy cells look right in mono */
+  td.tabular, td[data-tabular="true"], .tabular-nums { font-variant-numeric: tabular-nums; }
 
   /* Mobile-friendly defaults */
   html, body { overflow-x: hidden; }
@@ -272,21 +277,21 @@
     main p, main li, main dd, main dt { overflow-wrap: anywhere; }
   }
 
-  /* Custom scrollbar — thinner and quieter */
+  /* Custom scrollbar */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--color-primary) 35%, transparent) transparent;
+    scrollbar-color: color-mix(in oklch, var(--color-primary) 40%, transparent) transparent;
   }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-thumb {
-    background: color-mix(in oklch, var(--color-primary) 30%, transparent);
+    background: color-mix(in oklch, var(--color-primary) 32%, transparent);
     border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklch, var(--color-primary) 55%, transparent);
   }
 
-  /* Route transitions — quicker, gentler */
+  /* Route transitions */
   @keyframes shark-fade-in {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
@@ -317,38 +322,38 @@
   }
 }
 @utility glass-panel {
-  background: color-mix(in oklch, var(--color-card) 78%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  border: 1px solid color-mix(in oklch, var(--color-primary) 16%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 14%, var(--color-border));
   box-shadow:
-    0 1px 0 0 color-mix(in oklch, white 6%, transparent) inset,
-    0 24px 60px -32px color-mix(in oklch, var(--color-primary) 55%, transparent);
+    0 1px 0 0 color-mix(in oklch, white 5%, transparent) inset,
+    0 20px 50px -28px color-mix(in oklch, var(--color-primary) 50%, transparent);
 }
 @utility text-gradient-primary {
-  background: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
+  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 55%, var(--brand-copper));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 @utility text-gradient-sunset {
-  background: linear-gradient(120deg, var(--brand-amber), var(--brand-orange) 40%, var(--brand-pink) 75%, var(--brand-violet));
+  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 60%, var(--brand-copper));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 @utility bg-gradient-sunset {
-  background-image: linear-gradient(120deg, var(--brand-orange), var(--brand-pink) 55%, var(--brand-violet));
+  background-image: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 55%, var(--brand-copper));
 }
 @utility bg-gradient-sunset-soft {
   background-image: linear-gradient(120deg,
-    color-mix(in oklch, var(--brand-orange) 18%, transparent),
-    color-mix(in oklch, var(--brand-pink) 16%, transparent) 55%,
-    color-mix(in oklch, var(--brand-violet) 18%, transparent));
+    color-mix(in oklch, var(--brand-flame) 16%, transparent),
+    color-mix(in oklch, var(--brand-ember) 18%, transparent) 55%,
+    color-mix(in oklch, var(--brand-copper) 14%, transparent));
 }
 @utility ring-sunset {
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--brand-orange) 45%, transparent),
-    0 12px 34px -18px color-mix(in oklch, var(--brand-pink) 55%, transparent);
+    0 0 0 1px color-mix(in oklch, var(--brand-ember) 45%, transparent),
+    0 12px 34px -18px color-mix(in oklch, var(--brand-ember) 55%, transparent);
 }
 @utility hairline {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
@@ -360,8 +365,8 @@
 @utility shimmer {
   background: linear-gradient(90deg,
     transparent 0%,
-    color-mix(in oklch, var(--brand-orange) 22%, transparent) 40%,
-    color-mix(in oklch, var(--brand-pink) 22%, transparent) 60%,
+    color-mix(in oklch, var(--brand-flame) 22%, transparent) 40%,
+    color-mix(in oklch, var(--brand-ember) 22%, transparent) 60%,
     transparent 100%);
   background-size: 200% 100%;
   animation: shark-shimmer 2.4s linear infinite;

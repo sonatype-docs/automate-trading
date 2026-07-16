@@ -11,6 +11,7 @@
         "@fontsource/manrope": "^5.2.8",
         "@fontsource/sora": "^5.2.8",
         "@fontsource/space-grotesk": "^5.2.10",
+        "@fontsource/work-sans": "^5.2.8",
         "@hookform/resolvers": "^5.2.2",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -225,6 +226,8 @@
     "@fontsource/sora": ["@fontsource/sora@5.2.8", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@fontsource/sora/-/sora-5.2.8.tgz", {}, "sha512-1G6iTXUx8rcCKzi3mjaTQ1DE8PQz0OmW3Qnku+64S+bqRr1o/gGeiw8fxIQhhBU9ZP8ZofIqai7o00DNOPnlDw=="],
 
     "@fontsource/space-grotesk": ["@fontsource/space-grotesk@5.2.10", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@fontsource/space-grotesk/-/space-grotesk-5.2.10.tgz", {}, "sha512-XNXEbT74OIITPqw2H6HXwPDp85fy43uxfBwFR5PU+9sLnjuLj12KlhVM9nZVN6q6dlKjkuN8JisW/OBxwxgUew=="],
+
+    "@fontsource/work-sans": ["@fontsource/work-sans@5.2.8", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@fontsource/work-sans/-/work-sans-5.2.8.tgz", {}, "sha512-6LaHjVVgts+rnrcqvEkP2+iUB/jw1oDSYsGO0+TltAhnWki9Hnf/UGpgMQh2jcm0GEH8VqCPnq4PpmHLFzxXtQ=="],
 
     "@hookform/resolvers": ["@hookform/resolvers@5.2.2", "", { "dependencies": { "@standard-schema/utils": "^0.3.0" }, "peerDependencies": { "react-hook-form": "^7.55.0" } }, "sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA=="],
 

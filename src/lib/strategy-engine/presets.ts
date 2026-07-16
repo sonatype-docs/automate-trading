@@ -79,9 +79,9 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     targets: {
       legs: [
         { kind: "rr", value: 5, sizePct: 50 },
-        { kind: "opposite_pdx", sizePct: 50 },
+        { kind: "rr", value: 1000, sizePct: 50 },
       ],
-      moveToBreakEvenAtR: 1,
+      moveToBreakEvenAtR: 5,
     },
     management: { maxAttemptsPerSweep: 3 },
     invalidation: { invalidateOnStructureFlip: false },

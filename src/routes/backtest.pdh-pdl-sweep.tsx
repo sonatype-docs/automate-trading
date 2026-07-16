@@ -133,7 +133,7 @@ function PdhPdlSweepPage() {
             </ul>
             <ul className="space-y-1 list-disc pl-4">
               <li>Stop-loss: swept extreme + 0.02% buffer.</li>
-              <li>Targets: 50% at 5R, 50% runner to opposite PDx. Move to break-even at 1R.</li>
+              <li>Targets: 50% off at 5R, remaining 50% stop moves to break-even and rides.</li>
               <li>Up to 3 attempts per armed sweep; then wait for a fresh sweep.</li>
             </ul>
           </CardContent>
@@ -171,7 +171,7 @@ function PdhPdlSweepPage() {
               </Select>
             </Field>
             <Field label="Lookback (days)">
-              <Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1)))} />
+              <Input type="number" min={1} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))} />
             </Field>
             <Field label="Execution preset">
               <Select value={execPresetId} onValueChange={setExecPresetId}>

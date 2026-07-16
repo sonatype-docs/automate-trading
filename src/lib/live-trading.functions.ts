@@ -238,6 +238,7 @@ export const diagnoseLiveRunners = createServerFn({ method: "POST" }).handler(
             evalTrendFilter(last, enriched, idx, scfg.trend),
             evalVolatilityFilter(last, prev, scfg.volatility),
           ].map((c) => ({ label: c.label, pass: c.pass, reason: c.reason }));
+          base.lastBar = { ts: last.ts, close: last.close, session: last.session, checks };
           base.rules = buildRuleChecks(scfg, last, prev);
 
           const ls = sres.signals[sres.signals.length - 1];

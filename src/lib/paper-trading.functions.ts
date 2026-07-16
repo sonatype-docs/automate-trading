@@ -126,6 +126,17 @@ export const runPaperTickNow = createServerFn({ method: "POST" })
     return await runPaperTradingTick();
   });
 
+export const backfillPaperTradesFromBacktest = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({
+    topN: z.number().int().min(1).max(50).default(10),
+    days: z.number().int().min(7).max(365).default(180),
+  }).parse(raw))
+  .handler(async ({ data }) => {
+    const { backfillTopRunners } = await import("@/lib/paper-trading/backfill.server");
+    return await backfillTopRunners({ topN: data.topN, days: data.days });
+  });
+
+
 export const resetPaperRunner = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ data }) => {

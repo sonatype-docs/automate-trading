@@ -46,9 +46,37 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
     .eq("running", true);
   if (error) throw new Error(error.message);
 
+  const { windowsForPreset, isWindowActive, minutesUntilOpen } = await import(
+    "@/lib/session-windows"
+  );
+
   const out: LiveTickReport["results"] = [];
   for (const r of (runners ?? []) as RunnerRow[]) {
     try {
+      // Session-window guard: skip runners that are far outside their entry
+      // window AND have no open orders to reconcile. Enter the window 5 min
+      // early so the first bar of the session is not missed.
+      const windows = windowsForPreset(r.strategy_preset);
+      const inWindow =
+        windows.length === 0 || // unknown preset → always tick
+        windows.some((w) => isWindowActive(w) || minutesUntilOpen(w) <= 5);
+
+      if (!inWindow) {
+        const { count } = await supabaseAdmin
+          .from("live_trades")
+          .select("id", { count: "exact", head: true })
+          .eq("runner_id", r.id)
+          .in("status", ["open", "pending"]);
+        if ((count ?? 0) === 0) {
+          out.push({ runner_id: r.id, label: r.label, placed: 0, reconciled: 0, error: null });
+          await supabaseAdmin.from("live_runners")
+            .update({ last_tick_at: new Date().toISOString(), last_tick_error: null })
+            .eq("id", r.id);
+          continue;
+        }
+        // Fall through — we still need to reconcile open orders even off-window.
+      }
+
       const res = await tickOne(r);
       out.push({ runner_id: r.id, label: r.label, ...res });
       await supabaseAdmin.from("live_runners")

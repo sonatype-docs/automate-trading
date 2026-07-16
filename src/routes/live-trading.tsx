@@ -539,18 +539,19 @@ function DiagnosticsCard() {
 }
 
 function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
-  const gates = [
-    { label: "Runner running", pass: d.running },
-    { label: "Entry window open", pass: d.windowActive, hint: d.windowActive
-        ? null
-        : d.nextOpenMinutes != null ? `opens in ${fmtDuration(d.nextOpenMinutes)}` : null },
-    ...(d.lastBar?.checks.map((c) => ({
-      label: c.label, pass: c.pass, hint: c.reason ?? null,
-    })) ?? []),
-    { label: `Setup detected (${d.setupsDetected} in lookback)`, pass: d.setupsDetected > 0 },
-    { label: `Signal created (${d.signalsCreated})`, pass: d.signalsCreated > 0 },
+  const rulesPassed = d.rules.filter((r) => r.pass).length;
+  const rulesFailed = d.rules.filter((r) => !r.pass);
+  const gatesOk = d.running && d.windowActive && rulesFailed.length === 0;
+
+  // Group rules by category for a clearer layout.
+  const groups: Array<{ key: string; label: string }> = [
+    { key: "session", label: "Session" },
+    { key: "trend", label: "Trend" },
+    { key: "volatility", label: "Volatility" },
+    { key: "setup", label: "Setup" },
+    { key: "entry", label: "Entry" },
+    { key: "risk", label: "Risk" },
   ];
-  const allPass = gates.every((g) => g.pass);
 
   return (
     <div className="rounded-lg border p-3 space-y-3">
@@ -565,27 +566,61 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
             </div>
           )}
         </div>
-        <Badge variant={allPass ? "default" : "outline"} className={allPass ? "" : "text-muted-foreground"}>
-          {allPass ? "All gates open — waiting for setup" : "Blocked"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {rulesPassed}/{d.rules.length} rules pass
+          </span>
+          <Badge variant={gatesOk ? "default" : "outline"} className={gatesOk ? "" : "text-muted-foreground"}>
+            {!d.running ? "Stopped"
+              : !d.windowActive ? "Outside entry window"
+              : rulesFailed.length > 0 ? `Blocked by ${rulesFailed.length} rule${rulesFailed.length > 1 ? "s" : ""}`
+              : "All rules pass — waiting for setup"}
+          </Badge>
+        </div>
       </div>
 
-      {d.error && (
-        <div className="text-xs text-destructive">Error: {d.error}</div>
-      )}
+      {d.error && <div className="text-xs text-destructive">Error: {d.error}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-        {gates.map((g, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            {g.pass
-              ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-              : <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
-            <span className={g.pass ? "" : "text-muted-foreground"}>{g.label}</span>
-            {"hint" in g && g.hint && (
-              <span className="text-muted-foreground/70">— {g.hint}</span>
-            )}
-          </div>
-        ))}
+      {/* Top-level gates */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        <GateChip label="Runner running" pass={d.running} />
+        <GateChip label="Entry window open" pass={d.windowActive}
+          hint={!d.windowActive && d.nextOpenMinutes != null ? `opens in ${fmtDuration(d.nextOpenMinutes)}` : undefined} />
+        <GateChip label={`Setup detected (${d.setupsDetected} in lookback)`} pass={d.setupsDetected > 0} />
+        <GateChip label={`Signal created (${d.signalsCreated})`} pass={d.signalsCreated > 0} />
+      </div>
+
+      {/* Rules table grouped by category */}
+      <div className="space-y-2">
+        {groups.map((g) => {
+          const rs = d.rules.filter((r) => r.group === g.key);
+          if (!rs.length) return null;
+          return (
+            <div key={g.key} className="rounded-md border bg-muted/20">
+              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                {g.label}
+              </div>
+              <div className="divide-y">
+                {rs.map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                    {r.pass
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      : <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                    <span className={`flex-1 min-w-0 truncate ${r.pass ? "" : "font-medium"}`}>
+                      {r.label}
+                    </span>
+                    <span className="text-muted-foreground font-mono hidden sm:inline shrink-0">
+                      need: {r.requirement}
+                    </span>
+                    <span className={`font-mono shrink-0 ${r.pass ? "text-emerald-500" : "text-destructive"}`}>
+                      now: {r.actual}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {d.pending && (
@@ -611,7 +646,7 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
       {d.filterRejects.length > 0 && (
         <div>
           <div className="text-xs text-muted-foreground mb-1">
-            Top reasons bars were skipped (lookback stats):
+            Top reasons bars were skipped across the lookback:
           </div>
           <div className="flex flex-wrap gap-1">
             {d.filterRejects.map((f) => (
@@ -626,6 +661,18 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
       <div className="text-[10px] text-muted-foreground">
         Setups: {d.setupsDetected} · Signals: {d.signalsCreated} · Invalidated: {d.signalsInvalidated}
       </div>
+    </div>
+  );
+}
+
+function GateChip({ label, pass, hint }: { label: string; pass: boolean; hint?: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {pass
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+        : <XCircle className="h-3.5 w-3.5 text-destructive" />}
+      <span className={pass ? "" : "text-muted-foreground"}>{label}</span>
+      {hint && <span className="text-muted-foreground/70">— {hint}</span>}
     </div>
   );
 }

@@ -22,6 +22,10 @@ const RunAndRecordInput = z.object({
   tags: z.array(z.string()).optional(),
   /** Fixed USD risk per trade. Applied by cloning the exec preset's sizing. */
   riskUsdOverride: z.number().positive().optional(),
+  /** When set, insert into trade_intelligence_archive under this snapshot
+   *  (surfaces as a separate Dataset in the UI). When omitted, writes to
+   *  the live trade_intelligence table. */
+  snapshotName: z.string().min(1).max(120).optional(),
 });
 
 // Mapping helpers live in ./trade-intelligence/mapper (client-safe, shared

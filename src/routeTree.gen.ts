@@ -40,6 +40,7 @@ import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$v
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
+import { Route as ApiPublicHooksLiveTickRouteImport } from './routes/api/public/hooks/live-tick'
 
 const TradeIntelligenceRoute = TradeIntelligenceRouteImport.update({
   id: '/trade-intelligence',
@@ -198,6 +199,11 @@ const ApiPublicHooksPaperTickRoute = ApiPublicHooksPaperTickRouteImport.update({
   path: '/api/public/hooks/paper-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksLiveTickRoute = ApiPublicHooksLiveTickRouteImport.update({
+  id: '/api/public/hooks/live-tick',
+  path: '/api/public/hooks/live-tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/handbook/': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/handbook': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/handbook/': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/handbook/'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -392,6 +403,7 @@ export interface FileRouteTypes {
     | '/handbook/'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   BacktestOrbRoute: typeof BacktestOrbRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
+  ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksPaperTickRoute: typeof ApiPublicHooksPaperTickRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
@@ -646,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPaperTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/live-tick': {
+      id: '/api/public/hooks/live-tick'
+      path: '/api/public/hooks/live-tick'
+      fullPath: '/api/public/hooks/live-tick'
+      preLoaderRoute: typeof ApiPublicHooksLiveTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -702,6 +722,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestOrbRoute: BacktestOrbRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
+  ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksPaperTickRoute: ApiPublicHooksPaperTickRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,

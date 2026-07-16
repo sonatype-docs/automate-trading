@@ -10,10 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
-  runLiveTickNow, updateLiveRunner, cancelLiveOrder,
+  runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 

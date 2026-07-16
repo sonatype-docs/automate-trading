@@ -19,6 +19,7 @@ interface Props {
   lockMode?: boolean;
   showStrategyFilter?: boolean;
   showKpis?: boolean;
+  showToday?: boolean;
 }
 
 function monthKeyFromDate(d: Date) {

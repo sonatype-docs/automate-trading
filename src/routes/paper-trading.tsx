@@ -71,6 +71,16 @@ function PaperTradingPage() {
     mutationFn: (id: string) => reset({ data: { id } }),
     onSuccess: invalidate,
   });
+  const backfillMut = useMutation({
+    mutationFn: () => backfill({ data: { topN: 10, days: 180 } }),
+    onSuccess: (res) => {
+      invalidate();
+      const inserted = (res as { totalInserted?: number })?.totalInserted ?? 0;
+      alert(`Backfill complete — inserted ${inserted} historical trades across top 10 runners.`);
+    },
+    onError: (e) => alert(e instanceof Error ? e.message : String(e)),
+  });
+
 
   const runnersList = runners.data ?? [];
   const positionsList = positions.data ?? [];

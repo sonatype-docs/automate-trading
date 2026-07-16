@@ -13,10 +13,14 @@ import {
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import {
+  windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
+  type IstWindow,
+} from "@/lib/session-windows";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -190,6 +194,7 @@ function RunnersTable({ runners, onToggle, onSave }: {
           <TableHead>Label</TableHead>
           <TableHead>Symbol / TF</TableHead>
           <TableHead>Strategy</TableHead>
+          <TableHead>Entry window (IST)</TableHead>
           <TableHead>Risk $</TableHead>
           <TableHead>Leverage</TableHead>
           <TableHead>Status</TableHead>
@@ -200,7 +205,7 @@ function RunnersTable({ runners, onToggle, onSave }: {
       <TableBody>
         {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
         {runners.length === 0 && (
-          <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+          <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
         )}
       </TableBody>
     </Table>
@@ -220,6 +225,7 @@ function RunnerRow({ r, onToggle, onSave }: {
       <TableCell className="font-medium">{r.label}</TableCell>
       <TableCell>{r.symbol} · {r.timeframe}</TableCell>
       <TableCell className="text-xs text-muted-foreground">{r.strategy_preset}</TableCell>
+      <TableCell><EntryWindowCell preset={r.strategy_preset} /></TableCell>
       <TableCell>
         <Input value={risk} onChange={(e) => setRisk(e.target.value)}
           disabled={r.running} className="h-8 w-20" inputMode="decimal" />

@@ -25,6 +25,7 @@ import {
   getLiveChartData, getLastPrice, listLiveRunners, listLiveTrades,
   type LiveChartDataDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
+import { queryTrades } from "@/lib/trade-intelligence.functions";
 
 
 function useElapsed(sinceIso: string | null | undefined) {

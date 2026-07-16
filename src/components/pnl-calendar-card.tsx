@@ -19,6 +19,7 @@ interface Props {
   lockMode?: boolean;
   showStrategyFilter?: boolean;
   showKpis?: boolean;
+  showToday?: boolean;
 }
 
 function monthKeyFromDate(d: Date) {
@@ -127,6 +128,7 @@ export function PnlCalendarCard({
   lockMode = false,
   showStrategyFilter = true,
   showKpis = true,
+  showToday = false,
 }: Props) {
   const [month, setMonth] = useState<string>(currentIstMonth());
   const [symbol, setSymbol] = useState<string>("all");
@@ -182,6 +184,48 @@ export function PnlCalendarCard({
         </div>
       )}
 
+      {showToday && (() => {
+        const t = byDate.get(today);
+        const realized = t?.realized ?? 0;
+        const trades = t?.trades ?? 0;
+        const wins = t?.wins ?? 0;
+        const losses = t?.losses ?? 0;
+        const unreal = data?.unrealized ?? 0;
+        return (
+          <Card className="border-primary/40">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Today · {today}</div>
+                <div className="text-[10px] text-muted-foreground">resets daily (IST)</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Realized P&L</div>
+                  <div className={`font-mono text-xl font-bold ${realized > 0 ? "text-long" : realized < 0 ? "text-short" : ""}`}>{fmtUsd(realized)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Unrealized</div>
+                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{fmtUsd(unreal)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Trades</div>
+                  <div className="font-mono text-xl font-bold">{trades}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">W · L</div>
+                  <div className="font-mono text-xl font-bold">
+                    <span className="text-long">{wins}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="text-short">{losses}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">
@@ -210,9 +254,9 @@ export function PnlCalendarCard({
                   <div key={d} className="px-1">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                 {weeks.map((day, i) => {
-                  if (!day) return <div key={i} className="h-20 rounded-md bg-muted/30" />;
+                  if (!day) return <div key={i} className="h-14 sm:h-20 rounded-md bg-muted/30" />;
                   const cell = byDate.get(day.date);
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);
@@ -223,20 +267,20 @@ export function PnlCalendarCard({
                       <TooltipTrigger asChild>
                         <div
                           className={[
-                            "h-20 rounded-md border p-2 flex flex-col justify-between transition-all cursor-default",
+                            "h-14 sm:h-20 rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-default overflow-hidden",
                             isCurrentMonth ? bg : "bg-muted/30 opacity-50",
                             isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
                             isLoading ? "animate-pulse" : "hover:scale-[1.02] hover:shadow-sm",
                           ].join(" ")}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold">{day.dayNum}</span>
+                          <div className="flex items-center justify-between gap-0.5 leading-none">
+                            <span className="text-[10px] sm:text-[11px] font-semibold">{day.dayNum}</span>
                             {cell && cell.trades > 0 && (
-                              <span className="text-[10px] text-muted-foreground">{cell.trades}t</span>
+                              <span className="text-[9px] sm:text-[10px] text-muted-foreground">{cell.trades}t</span>
                             )}
                           </div>
                           {cell && cell.trades > 0 ? (
-                            <div className={`font-mono text-sm font-semibold ${pnl > 0 ? "text-long" : pnl < 0 ? "text-short" : ""}`}>
+                            <div className={`font-mono text-[10px] sm:text-sm font-semibold truncate ${pnl > 0 ? "text-long" : pnl < 0 ? "text-short" : ""}`}>
                               {fmtUsd(pnl)}
                             </div>
                           ) : (

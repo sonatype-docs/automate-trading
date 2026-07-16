@@ -141,18 +141,18 @@ export function LiveChartCard() {
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
+            <Activity className="h-4 w-4 shrink-0" />
             Live chart
           </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="hidden sm:block text-xs text-muted-foreground mt-1">
             Candlestick view with setup markings, live price ticks, and open-trade levels overlaid.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Select value={runnerId ?? undefined} onValueChange={setRunnerId}>
-            <SelectTrigger className="h-8 w-full sm:w-[260px]"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
+            <SelectTrigger className="h-8 flex-1 sm:w-[260px] sm:flex-none min-w-0"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
             <SelectContent>
               {(runners.data ?? []).map((r) => (
                 <SelectItem key={r.id} value={r.id}>
@@ -161,7 +161,10 @@ export function LiveChartCard() {
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching}>
+          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0 sm:hidden" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching} aria-label="Refresh">
+            <RefreshCw className={`h-4 w-4 ${chartQ.isFetching ? "animate-spin" : ""}`} />
+          </Button>
+          <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching}>
             <RefreshCw className={`h-4 w-4 mr-1 ${chartQ.isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -179,8 +182,8 @@ export function LiveChartCard() {
         {chartQ.data && (
           <div className="space-y-4">
             {/* Toolbar: TF toggle + overlay toggles */}
-            <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/20 px-2 py-1.5">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-md border bg-muted/20 px-2 py-2">
+              <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-[11px] text-muted-foreground mr-1">TF</span>
                 {DISPLAY_TFS.map((t) => (
                   <Button
@@ -197,12 +200,13 @@ export function LiveChartCard() {
                     onClick={() => setTf(null)}>reset</Button>
                 )}
                 {runnerTf && (
-                  <span className="text-[10px] text-muted-foreground ml-1">
-                    strategy runs on <b>{runnerTf}</b>
+                  <span className="text-[10px] text-muted-foreground ml-1 whitespace-nowrap">
+                    on <b>{runnerTf}</b>
                   </span>
                 )}
               </div>
-              <div className="h-5 w-px bg-border" />
+              <div className="hidden sm:block h-5 w-px bg-border" />
+              <div className="h-px w-full bg-border sm:hidden" />
               <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[11px] text-muted-foreground mr-1">Overlays</span>
                 {overlayToggle("vwap", "VWAP")}
@@ -413,7 +417,7 @@ function ChartCanvas({ data, livePrice, overlays }: {
     candles.update(updated);
   }, [livePrice]);
 
-  return <div ref={containerRef} className="h-[560px] w-full rounded-md border" />;
+  return <div ref={containerRef} className="h-[380px] sm:h-[560px] w-full rounded-md border" />;
 }
 
 function TradeSidePanel({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {
@@ -536,18 +540,18 @@ function PlanPanel({ data }: { data: LiveChartDataDTO }) {
 
   return (
     <div className="rounded-md border p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-1 rounded border ${toneCls} font-medium`}>{statusText}</span>
-          <span className="text-xs text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+          <span className={`text-xs px-2 py-1 rounded border ${toneCls} font-medium self-start sm:self-auto`}>{statusText}</span>
+          <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
             Session: <span className="font-mono">{p.lastBar?.session ?? "—"}</span>
             {" · "}Window: <span className="font-mono">{p.windowActive ? "OPEN" : "CLOSED"}</span>
           </span>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-[11px] sm:text-xs text-muted-foreground">
           <span>Setups: <b className="text-foreground">{p.setupsDetected}</b></span>
           <span>Signals: <b className="text-foreground">{p.signalsCreated}</b></span>
-          <span>Invalidated: <b className="text-foreground">{p.signalsInvalidated}</b></span>
+          <span>Inv: <b className="text-foreground">{p.signalsInvalidated}</b></span>
         </div>
       </div>
 

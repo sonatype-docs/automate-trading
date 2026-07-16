@@ -32,6 +32,8 @@ type DayCell = {
   trades: number;
   wins: number;
   losses: number;
+  bestTrade: number;  // max single-trade net_pnl on that day
+  worstTrade: number; // min single-trade net_pnl on that day
 };
 
 export const getPnlCalendar = createServerFn({ method: "GET" })

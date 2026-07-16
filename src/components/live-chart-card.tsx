@@ -22,8 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle";
 import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
-  getLiveChartData, getLastPrice, listLiveRunners,
-  type LiveChartDataDTO,
+  getLiveChartData, getLastPrice, listLiveRunners, listLiveTrades,
+  type LiveChartDataDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
 
 
@@ -91,6 +91,18 @@ export function LiveChartCard() {
     enabled: !!chartQ.data?.symbol,
     refetchInterval: 2_000,
   });
+
+  const tradesFn = useServerFn(listLiveTrades);
+  const tradesQ = useQuery({
+    queryKey: ["live-trades-recent"],
+    queryFn: () => tradesFn({ data: { limit: 50 } }),
+    refetchInterval: 15_000,
+  });
+  const recentTrades = useMemo(() => {
+    const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
+    if (!runnerId) return rows.slice(0, 10);
+    return rows.filter((t) => t.runner_id === runnerId).slice(0, 10);
+  }, [tradesQ.data, runnerId]);
 
   const livePrice = priceQ.data?.price ?? chartQ.data?.lastPrice ?? null;
   const runnerTf = chartQ.data?.runnerTimeframe;
@@ -186,6 +198,7 @@ export function LiveChartCard() {
               <ChartCanvas data={chartQ.data} livePrice={livePrice} overlays={overlays} />
               <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
             </div>
+            <RecentTradesStrip trades={recentTrades} loading={tradesQ.isPending} />
             <PlanPanel data={chartQ.data} />
           </div>
         )}
@@ -606,4 +619,71 @@ function PlanPanel({ data }: { data: LiveChartDataDTO }) {
     </div>
   );
 }
+
+function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loading: boolean }) {
+  const totalPnl = trades.reduce((a, t) => a + (Number(t.net_pnl) || 0), 0);
+  const wins = trades.filter((t) => (Number(t.net_pnl) || 0) > 0).length;
+  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
+
+  return (
+    <div className="rounded-md border p-3 space-y-2">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-xs font-medium">Last {trades.length || 10} closed trades</div>
+        {trades.length > 0 && (
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span>Win rate: <b className="text-foreground">{winRate.toFixed(0)}%</b> ({wins}/{trades.length})</span>
+            <span>
+              Net P&amp;L:{" "}
+              <b className={totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}>
+                {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+              </b>
+            </span>
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Loading trades…</p>
+      ) : trades.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No closed trades yet.</p>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {trades.map((t) => {
+            const pnl = Number(t.net_pnl) || 0;
+            const rr = t.rr != null ? Number(t.rr) : null;
+            const win = pnl > 0;
+            const long = t.direction === "long";
+            return (
+              <div
+                key={t.id}
+                className={`shrink-0 min-w-[150px] rounded-md border px-2.5 py-1.5 text-xs
+                  ${win ? "border-emerald-500/40 bg-emerald-500/10" : "border-destructive/40 bg-destructive/10"}`}
+                title={new Date(t.entry_ts).toLocaleString()}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`font-mono text-[10px] px-1 py-0.5 rounded ${long ? "bg-emerald-500/20 text-emerald-500" : "bg-destructive/20 text-destructive"}`}>
+                    {long ? <TrendingUp className="inline h-3 w-3 mr-0.5" /> : <TrendingDown className="inline h-3 w-3 mr-0.5" />}
+                    {t.direction.toUpperCase()}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(t.exit_ts ?? t.entry_ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <div className={`font-mono font-semibold mt-1 ${win ? "text-emerald-500" : "text-destructive"}`}>
+                  {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
+                  <span>{rr != null ? `${rr >= 0 ? "+" : ""}${rr.toFixed(2)}R` : "—"}</span>
+                  <span className="truncate max-w-[80px]" title={t.exit_reason ?? ""}>
+                    {t.exit_reason ?? t.status}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 

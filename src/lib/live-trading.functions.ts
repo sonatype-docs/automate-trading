@@ -486,6 +486,15 @@ function buildRuleChecks(
 
 // ---------- Live chart data ----------
 export interface ChartCandleDTO { t: number; o: number; h: number; l: number; c: number; v: number }
+export interface ChartSeriesPointDTO { t: number; v: number | null }
+export interface ChartSeriesDTO {
+  vwap: ChartSeriesPointDTO[];
+  ema20: ChartSeriesPointDTO[];
+  ema50: ChartSeriesPointDTO[];
+  ema200: ChartSeriesPointDTO[];
+  adx: ChartSeriesPointDTO[];
+  atr: ChartSeriesPointDTO[];
+}
 export interface ChartMarkerDTO {
   time: number;
   kind: "setup" | "signal_long" | "signal_short" | "invalidated";
@@ -519,9 +528,11 @@ export interface LiveChartDataDTO {
   runner_id: string;
   label: string;
   symbol: string;
-  timeframe: string;
+  timeframe: string;         // display TF (may differ from runner TF)
+  runnerTimeframe: string;   // strategy's native TF
   strategy_preset: string;
   candles: ChartCandleDTO[];
+  series: ChartSeriesDTO;
   markers: ChartMarkerDTO[];
   activeTrade: ActiveTradeDTO | null;
   pendingSignal: {
@@ -549,10 +560,13 @@ export interface LiveChartDataDTO {
 }
 
 
+const DISPLAY_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"] as const;
+
 export const getLiveChartData = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({
     runner_id: z.string().uuid(),
     bars: z.number().int().min(50).max(500).default(200),
+    timeframe: z.enum(DISPLAY_TIMEFRAMES).optional(),
   }).parse(raw))
   .handler(async ({ data }): Promise<LiveChartDataDTO> => {
     const s = await admin();
@@ -595,12 +609,37 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     });
     const sres = runStrategy(enriched, scfg, { mode: "live", symbol: r.symbol });
 
+    // Pick display bars — either the runner's native TF or a user-selected override.
+    const displayTf = (data.timeframe ?? r.timeframe) as string;
+    let displayEnriched = enriched;
+    if (data.timeframe && data.timeframe !== r.timeframe) {
+      const { candles: dCandles } = await loadRawCandles({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        source: r.source as any, symbol: r.symbol,
+        timeframe: data.timeframe as never, fromMs, toMs,
+      });
+      displayEnriched = enrichCandles(dCandles, {
+        ...DEFAULT_CONFIG, symbol: r.symbol, timeframe: data.timeframe as never,
+      });
+    }
+
     // Trim to last N bars for wire size.
-    const window = enriched.slice(-data.bars);
+    const window = displayEnriched.slice(-data.bars);
     const windowStart = window[0]?.ts ?? 0;
     const chartCandles: ChartCandleDTO[] = window.map((b) => ({
       t: Math.floor(b.ts / 1000), o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume,
     }));
+    const mkSeries = (pick: (b: typeof window[number]) => number | null): ChartSeriesPointDTO[] =>
+      window.map((b) => ({ t: Math.floor(b.ts / 1000), v: pick(b) }));
+    const series: ChartSeriesDTO = {
+      vwap: mkSeries((b) => b.vwapDaily),
+      ema20: mkSeries((b) => b.ema20),
+      ema50: mkSeries((b) => b.ema50),
+      ema200: mkSeries((b) => b.ema200),
+      adx: mkSeries((b) => b.adx),
+      atr: mkSeries((b) => b.atr),
+    };
+
 
     const markers: ChartMarkerDTO[] = [];
     for (const sig of sres.signals) {
@@ -701,9 +740,10 @@ export const getLiveChartData = createServerFn({ method: "POST" })
     }
 
     return {
-      runner_id: r.id, label: r.label, symbol: r.symbol, timeframe: r.timeframe,
+      runner_id: r.id, label: r.label, symbol: r.symbol,
+      timeframe: displayTf, runnerTimeframe: r.timeframe,
       strategy_preset: r.strategy_preset,
-      candles: chartCandles, markers, activeTrade, pendingSignal,
+      candles: chartCandles, series, markers, activeTrade, pendingSignal,
       lastPrice, fetchedAt: Date.now(),
       plan: {
         windowActive,

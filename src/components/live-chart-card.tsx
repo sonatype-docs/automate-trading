@@ -141,18 +141,18 @@ export function LiveChartCard() {
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
+            <Activity className="h-4 w-4 shrink-0" />
             Live chart
           </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="hidden sm:block text-xs text-muted-foreground mt-1">
             Candlestick view with setup markings, live price ticks, and open-trade levels overlaid.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Select value={runnerId ?? undefined} onValueChange={setRunnerId}>
-            <SelectTrigger className="h-8 w-full sm:w-[260px]"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
+            <SelectTrigger className="h-8 flex-1 sm:w-[260px] sm:flex-none min-w-0"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
             <SelectContent>
               {(runners.data ?? []).map((r) => (
                 <SelectItem key={r.id} value={r.id}>
@@ -161,7 +161,10 @@ export function LiveChartCard() {
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching}>
+          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0 sm:hidden" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching} aria-label="Refresh">
+            <RefreshCw className={`h-4 w-4 ${chartQ.isFetching ? "animate-spin" : ""}`} />
+          </Button>
+          <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => chartQ.refetch()} disabled={chartQ.isFetching}>
             <RefreshCw className={`h-4 w-4 mr-1 ${chartQ.isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>

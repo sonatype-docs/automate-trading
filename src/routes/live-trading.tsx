@@ -23,6 +23,7 @@ import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
   type IstWindow,
 } from "@/lib/session-windows";
+import { LiveChartCard } from "@/components/live-chart-card";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -107,6 +108,9 @@ function LiveTradingPage() {
         </div>
 
         <TickStatusCard runners={runnersList} />
+
+        <LiveChartCard />
+
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">

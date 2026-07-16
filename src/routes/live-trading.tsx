@@ -147,7 +147,11 @@ function LiveTradingPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </TabsContent>
+        <TabsContent value="performance">
+          <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+        </TabsContent>
+      </Tabs>
     </AppShell>
   );
 }

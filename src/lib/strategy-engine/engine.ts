@@ -207,6 +207,12 @@ export function runStrategy(
     dailyCounts.set(dayKey, (dailyCounts.get(dayKey) ?? 0) + 1);
     emit("OnSignalCreated", bar.ts, { signalId: signal.signalId, type: signal.type, direction: signal.direction, strength: signal.signalStrength });
 
+    // PDH/PDL: each placed entry counts as one attempt. Disarm at cap.
+    if (isPdhPdl && armedByDir[trig.direction]) {
+      armedByDir[trig.direction]!.attempts += 1;
+      if (armedByDir[trig.direction]!.attempts >= maxAttempts) armedByDir[trig.direction] = null;
+    }
+
     // Market orders are considered filled immediately; others become pending.
     if (entry.type === "market") {
       emit("OnTradeFilled", bar.ts, { signalId: signal.signalId, price: entry.price });

@@ -223,13 +223,125 @@ function RunnersTable({ runners, onToggle, onSave }: {
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
-        {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+function RunnersTable({ runners, onToggle, onSave }: {
+  runners: LiveRunnerDTO[];
+  onToggle: (r: LiveRunnerDTO) => void;
+  onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
+}) {
+  return (
+    <>
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Label</TableHead>
+              <TableHead>Symbol / TF</TableHead>
+              <TableHead>Strategy</TableHead>
+              <TableHead>Entry window (IST)</TableHead>
+              <TableHead>Risk $</TableHead>
+              <TableHead>Leverage</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last tick</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+            {runners.length === 0 && (
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
         {runners.length === 0 && (
-          <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+          <div className="text-center text-sm text-muted-foreground py-4">No live runners</div>
         )}
-      </TableBody>
-    </Table>
+        {runners.map((r) => (
+          <RunnerCardMobile key={r.id} r={r} onToggle={onToggle} onSave={onSave} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function RunnerCardMobile({ r, onToggle, onSave }: {
+  r: LiveRunnerDTO;
+  onToggle: (r: LiveRunnerDTO) => void;
+  onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [risk, setRisk] = useState(String(r.risk_usd));
+  const [lev, setLev] = useState(String(r.leverage));
+  const [showStrategy, setShowStrategy] = useState(false);
+  const dirty = Number(risk) !== Number(r.risk_usd) || Number(lev) !== Number(r.leverage);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
+      <div className="flex items-center gap-2 p-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium">{r.label}</span>
+            {r.running
+              ? <Badge className="bg-destructive text-destructive-foreground text-[10px] shrink-0">LIVE</Badge>
+              : <Badge variant="outline" className="text-[10px] shrink-0">Stopped</Badge>}
+          </div>
+          <div className="text-[11px] text-muted-foreground truncate">
+            {r.symbol} · {r.timeframe} · {r.strategy_preset}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={r.running ? "destructive" : "default"}
+          className="shrink-0 h-8 px-2"
+          onClick={() => onToggle(r)}
+        >
+          {r.running
+            ? <><StopCircle className="h-3.5 w-3.5 mr-1" />Stop</>
+            : <><PlayCircle className="h-3.5 w-3.5 mr-1" />Start</>}
+        </Button>
+        <CollapsibleTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0">
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </Button>
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent className="px-2.5 pb-2.5 space-y-2.5 border-t pt-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Risk $</span>
+            <Input value={risk} onChange={(e) => setRisk(e.target.value)}
+              disabled={r.running} className="h-8" inputMode="decimal" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Leverage</span>
+            <Input value={lev} onChange={(e) => setLev(e.target.value)}
+              disabled={r.running} className="h-8" inputMode="numeric" />
+          </label>
+        </div>
+        {dirty && !r.running && (
+          <Button size="sm" variant="secondary" className="w-full" onClick={() =>
+            onSave({ id: r.id, risk_usd: Number(risk), leverage: Number(lev) })
+          }>Save changes</Button>
+        )}
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Entry window (IST)</div>
+          <EntryWindowCell preset={r.strategy_preset} />
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Last tick: {fmtTs(r.last_tick_at)}</span>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setShowStrategy(true)}>
+            <Info className="h-3.5 w-3.5 mr-1" /> Strategy
+          </Button>
+        </div>
+        {r.last_tick_error && (
+          <div className="text-[11px] text-destructive break-words">{r.last_tick_error}</div>
+        )}
+        <StrategyDetailsDialog preset={r.strategy_preset} open={showStrategy} onOpenChange={setShowStrategy} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

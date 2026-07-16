@@ -13,10 +13,11 @@ import {
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import { StrategyDetailsDialog } from "@/components/strategy-details-dialog";
 import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
   type IstWindow,
@@ -219,12 +220,28 @@ function RunnerRow({ r, onToggle, onSave }: {
 }) {
   const [risk, setRisk] = useState(String(r.risk_usd));
   const [lev, setLev] = useState(String(r.leverage));
+  const [showStrategy, setShowStrategy] = useState(false);
   const dirty = Number(risk) !== Number(r.risk_usd) || Number(lev) !== Number(r.leverage);
   return (
     <TableRow>
       <TableCell className="font-medium">{r.label}</TableCell>
       <TableCell>{r.symbol} · {r.timeframe}</TableCell>
-      <TableCell className="text-xs text-muted-foreground">{r.strategy_preset}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">{r.strategy_preset}</span>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => setShowStrategy(true)}
+            aria-label="View strategy details"
+            title="View strategy details"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </Button>
+          <StrategyDetailsDialog preset={r.strategy_preset} open={showStrategy} onOpenChange={setShowStrategy} />
+        </div>
+      </TableCell>
       <TableCell><EntryWindowCell preset={r.strategy_preset} /></TableCell>
       <TableCell>
         <Input value={risk} onChange={(e) => setRisk(e.target.value)}

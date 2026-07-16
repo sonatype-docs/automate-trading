@@ -526,8 +526,8 @@ function Row({ k, v, tone, bold }: {
 }
 
 function AllRunnersStatusPanel({
-  runners, trades,
-}: { runners: LiveRunnerDTO[]; trades: LiveTradeDTO[] }) {
+  runners, trades, statuses,
+}: { runners: LiveRunnerDTO[]; trades: LiveTradeDTO[]; statuses: RunnerStatusDTO[] }) {
   if (!runners.length) {
     return (
       <div className="rounded-md border p-3 text-sm text-muted-foreground">
@@ -536,17 +536,20 @@ function AllRunnersStatusPanel({
     );
   }
 
-  // Latest open trade per runner (trades are ordered by entry_ts desc).
   const openByRunner = new Map<string, LiveTradeDTO>();
   for (const t of trades) {
     if ((t.status === "open" || t.status === "pending") && !openByRunner.has(t.runner_id)) {
       openByRunner.set(t.runner_id, t);
     }
   }
+  const statusByRunner = new Map<string, RunnerStatusDTO>();
+  for (const st of statuses) statusByRunner.set(st.runner_id, st);
 
   const runningCount = runners.filter((r) => r.running).length;
   const openCount = openByRunner.size;
-  const errorCount = runners.filter((r) => !!r.last_tick_error).length;
+  const errorCount = runners.filter((r) => !!r.last_tick_error).length
+    + statuses.filter((s) => s.state === "error" && !runners.find((r) => r.id === s.runner_id)?.last_tick_error).length;
+  const readyCount = statuses.filter((s) => s.state === "setup_ready").length;
   const stoppedCount = runners.length - runningCount;
 
   return (
@@ -557,6 +560,7 @@ function AllRunnersStatusPanel({
           <span>Total: <b className="text-foreground">{runners.length}</b></span>
           <span>Running: <b className="text-emerald-500">{runningCount}</b></span>
           <span>Stopped: <b className="text-foreground">{stoppedCount}</b></span>
+          <span>Ready: <b className={readyCount ? "text-emerald-500" : "text-foreground"}>{readyCount}</b></span>
           <span>Open trades: <b className="text-foreground">{openCount}</b></span>
           <span>Errors: <b className={errorCount ? "text-destructive" : "text-foreground"}>{errorCount}</b></span>
         </div>
@@ -565,20 +569,42 @@ function AllRunnersStatusPanel({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {runners.map((r) => {
           const open = openByRunner.get(r.id);
+          const st = statusByRunner.get(r.id);
+
           let statusText: string;
           let toneCls: string;
+          let subDetail: string | null = null;
+
           if (r.last_tick_error) {
             statusText = "Error";
             toneCls = "border-destructive/40 bg-destructive/10 text-destructive";
           } else if (open) {
             statusText = `Trade open · ${open.direction.toUpperCase()}`;
             toneCls = "border-emerald-500/40 bg-emerald-500/10 text-emerald-500";
-          } else if (r.running) {
-            statusText = "Scanning";
-            toneCls = "border-amber-500/40 bg-amber-500/10 text-amber-500";
-          } else {
+          } else if (!r.running) {
             statusText = "Stopped";
             toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+          } else if (st?.state === "setup_ready") {
+            statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`;
+            toneCls = "border-emerald-500/40 bg-emerald-500/10 text-emerald-500";
+            subDetail = st.detail;
+          } else if (st?.state === "session_closed") {
+            statusText = "Session closed";
+            toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+          } else if (st?.state === "blocked") {
+            statusText = "Filters blocking";
+            toneCls = "border-amber-500/40 bg-amber-500/10 text-amber-500";
+            subDetail = st.detail;
+          } else if (st?.state === "error") {
+            statusText = "Error";
+            toneCls = "border-destructive/40 bg-destructive/10 text-destructive";
+            subDetail = st.detail;
+          } else if (!st) {
+            statusText = "Loading…";
+            toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+          } else {
+            statusText = "Scanning";
+            toneCls = "border-amber-500/40 bg-amber-500/10 text-amber-500";
           }
 
           return (
@@ -598,6 +624,9 @@ function AllRunnersStatusPanel({
                     {open.target_price != null ? ` · TP ${Number(open.target_price).toFixed(2)}` : ""}
                   </div>
                 )}
+                {!open && subDetail && (
+                  <div className="mt-0.5 text-muted-foreground truncate" title={subDetail}>{subDetail}</div>
+                )}
                 {r.last_tick_error && (
                   <div className="mt-0.5 text-destructive truncate" title={r.last_tick_error}>
                     {r.last_tick_error}
@@ -615,6 +644,7 @@ function AllRunnersStatusPanel({
     </div>
   );
 }
+
 
 
 interface RecentTradeItem {

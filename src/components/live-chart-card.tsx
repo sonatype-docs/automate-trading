@@ -245,9 +245,9 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
     const last = lastCandleRef.current;
     if (!candles || !last) return;
     const updated = {
-      time: last.t, open: last.o,
-      high: Math.max(last.h, livePrice),
-      low: Math.min(last.l, livePrice),
+      time: last.time, open: last.open,
+      high: Math.max(last.high, livePrice),
+      low: Math.min(last.low, livePrice),
       close: livePrice,
     };
     lastCandleRef.current = updated;

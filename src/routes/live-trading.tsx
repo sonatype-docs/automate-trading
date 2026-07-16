@@ -10,10 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
-  runLiveTickNow, updateLiveRunner, cancelLiveOrder,
+  runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
   type LiveRunnerDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 
@@ -39,6 +39,13 @@ function LiveTradingPage() {
   const tickNow = useServerFn(runLiveTickNow);
   const update = useServerFn(updateLiveRunner);
   const cancel = useServerFn(cancelLiveOrder);
+  const testConn = useServerFn(testLiveConnection);
+  const [connMsg, setConnMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const testMut = useMutation({
+    mutationFn: () => testConn(),
+    onSuccess: (r) => setConnMsg({ ok: r.ok, text: `[${r.status}] ${r.message}` }),
+    onError: (e: unknown) => setConnMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }),
+  });
 
   const runners = useQuery({
     queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,
@@ -93,12 +100,23 @@ function LiveTradingPage() {
         </div>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle>Live runners</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
-              Tick now
-            </Button>
+            <div className="flex items-center gap-2">
+              {connMsg && (
+                <span className={`text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} max-w-[280px] truncate`} title={connMsg.text}>
+                  {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
+                </span>
+              )}
+              <Button size="sm" variant="outline" onClick={() => testMut.mutate()} disabled={testMut.isPending}>
+                <Plug className={`h-4 w-4 mr-1 ${testMut.isPending ? "animate-pulse" : ""}`} />
+                Test connection
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
+                Tick now
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <RunnersTable

@@ -201,7 +201,7 @@ function RunnersTable({ runners, onToggle, onReset }: {
           </TableRow>
         ))}
         {runners.length === 0 && (
-          <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No runners</TableCell></TableRow>
+          <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No runners</TableCell></TableRow>
         )}
       </TableBody>
     </Table>

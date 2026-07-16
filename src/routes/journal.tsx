@@ -332,7 +332,7 @@ function JournalPage() {
 
         {/* Equity curve */}
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
+          <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 gap-2 flex-wrap">
             <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
             <div className="flex items-center gap-3">
               <div className="flex gap-1">

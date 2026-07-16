@@ -82,7 +82,7 @@ function PaperTradingPage() {
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Runners</CardTitle>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>

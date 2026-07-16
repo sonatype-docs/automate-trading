@@ -140,7 +140,7 @@ export function LiveChartCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
@@ -150,9 +150,9 @@ export function LiveChartCard() {
             Candlestick view with setup markings, live price ticks, and open-trade levels overlaid.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={runnerId ?? undefined} onValueChange={setRunnerId}>
-            <SelectTrigger className="h-8 w-[260px]"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-full sm:w-[260px]"><SelectValue placeholder="Pick a runner" /></SelectTrigger>
             <SelectContent>
               {(runners.data ?? []).map((r) => (
                 <SelectItem key={r.id} value={r.id}>
@@ -166,6 +166,7 @@ export function LiveChartCard() {
             Refresh
           </Button>
         </div>
+
       </CardHeader>
       <CardContent>
         {!runnerId && <p className="text-sm text-muted-foreground">Choose a runner to load its chart.</p>}

@@ -503,7 +503,7 @@ function TradeIntelligencePage() {
       ) : null}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle>Query</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => doExport("csv")}><Download className="h-4 w-4 mr-1" />CSV</Button>

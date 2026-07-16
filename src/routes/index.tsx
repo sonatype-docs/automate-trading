@@ -417,7 +417,7 @@ function Dashboard() {
 
 
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="text-sm font-mono tracking-wide">
               EQUITY CURVE
             </CardTitle>

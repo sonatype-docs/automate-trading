@@ -187,10 +187,11 @@ function ResearchPage() {
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
       {/* Left research navigation */}
       <aside
-        className={`${navCollapsed ? "w-14" : "w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200 sticky top-0 self-start h-[calc(100vh-3.5rem)]`}
+        className={`${navCollapsed ? "w-14" : "w-14 md:w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200 sticky top-0 self-start h-[calc(100vh-3.5rem)]`}
       >
+
         {!navCollapsed && (
-          <div className="px-3 pb-3">
+          <div className="hidden md:block px-3 pb-3">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Research
             </span>
@@ -199,23 +200,25 @@ function ResearchPage() {
         <nav className="space-y-1 flex-1 overflow-y-auto">
           {SECTIONS.map(({ name, icon: Icon }) => {
             const active = section === name;
+            const showLabel = !navCollapsed;
             return (
               <button
                 key={name}
                 onClick={() => setSection(name)}
-                title={navCollapsed ? name : undefined}
-                className={`w-full flex items-center gap-3 ${navCollapsed ? "justify-center px-0" : "px-3"} py-2.5 rounded-md text-sm transition-colors ${
+                title={name}
+                className={`w-full flex items-center gap-3 ${navCollapsed ? "justify-center px-0" : "justify-center md:justify-start px-0 md:px-3"} py-2.5 rounded-md text-sm transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground font-medium"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {!navCollapsed && <span className="truncate">{name}</span>}
+                {showLabel && <span className="truncate hidden md:inline">{name}</span>}
               </button>
             );
           })}
         </nav>
+
         <div className="pt-2 mt-2 border-t border-border/60 flex">
           <button
             onClick={toggleNav}
@@ -352,7 +355,7 @@ function PerformanceSection({ trades }: { trades: TradeRecord[] }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-sm">Equity Curve</CardTitle>
         </CardHeader>
         <CardContent className="h-72">
@@ -390,7 +393,7 @@ function PerformanceSection({ trades }: { trades: TradeRecord[] }) {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-sm">Rolling PnL</CardTitle>
           <Select value={bucket} onValueChange={(v) => setBucket(v as EquityBucket)}>
             <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
@@ -1012,7 +1015,7 @@ function FiltersSection({ rules, onChange, count }: {
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <CardTitle className="text-sm flex items-center gap-2">
           <FilterIcon className="h-4 w-4" /> Custom Filter Builder
         </CardTitle>
@@ -1245,7 +1248,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <CardTitle className="text-sm">Timeframe Optimizer</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">

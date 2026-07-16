@@ -137,6 +137,86 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .maybeSingle();
   if (existing) return { placed: 0, reconciled };
 
+  // Contradictory-entry rule (LIVE, IMMEDIATE):
+  // If a still-open live_trade exists for this runner on the same symbol
+  // but the opposite direction, DON'T wait for a candle close.
+  //  - If it's currently in profit → ignore the new signal.
+  //  - If it's in loss → close it right now on the exchange (market,
+  //    reduce-only), cancel its SL/TP children, mark the DB row closed,
+  //    THEN place the reverse.
+  const { data: openOpposite } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .eq("runner_id", r.id)
+    .eq("symbol", r.symbol)
+    .in("status", ["open", "pending"])
+    .neq("direction", openFlush.direction)
+    .maybeSingle();
+  if (openOpposite) {
+    let last = 0;
+    try { last = await client.getLastPrice(r.symbol); } catch { /* keep 0 */ }
+    if (last > 0) {
+      const dir = openOpposite.direction === "long" ? 1 : -1;
+      const uPnl = (last - Number(openOpposite.entry_price)) * dir * Number(openOpposite.qty);
+      if (uPnl >= 0) {
+        // In profit → ignore this contradictory signal entirely.
+        return { placed: 0, reconciled };
+      }
+      // In loss → force-close now.
+      // 1) Cancel any child SL/TP orders still open on this symbol.
+      try {
+        const childOrders = await client.getOpenOrders(r.symbol);
+        for (const co of childOrders) {
+          if (!co.clientOrderId) continue;
+          if (openOpposite.client_order_id && co.clientOrderId === openOpposite.client_order_id) continue;
+          if (co.reduceOnly === true || co.subType === "STOP_LOSS" || co.subType === "TAKE_PROFIT") {
+            await client.cancelOrder(co.clientOrderId).catch(() => undefined);
+          }
+        }
+      } catch { /* ignore */ }
+      // 2) Reduce-only market close in the opposite side.
+      const closeSide: "buy" | "sell" = openOpposite.direction === "long" ? "sell" : "buy";
+      let exitPrice = last;
+      try {
+        const closeRes = await client.placeOrder({
+          symbol: r.symbol,
+          side: closeSide,
+          qty: Number(openOpposite.qty),
+          type: "market",
+          reduceOnly: true,
+        });
+        if (closeRes.filledPrice && closeRes.filledPrice > 0) exitPrice = closeRes.filledPrice;
+      } catch {
+        // If the reduce-only close fails, bail out — we won't place a
+        // contradictory entry while the opposite exposure is still live.
+        return { placed: 0, reconciled };
+      }
+      // 3) Also cancel the parent order id if still listed.
+      if (openOpposite.client_order_id) {
+        await client.cancelOrder(openOpposite.client_order_id).catch(() => undefined);
+      }
+      // 4) Update DB row.
+      const grossPnl = uPnl;
+      const stopDist = Math.abs(Number(openOpposite.entry_price) - Number(openOpposite.stop_price));
+      const rr = stopDist > 0
+        ? ((exitPrice - Number(openOpposite.entry_price)) * dir) / stopDist
+        : 0;
+      await supabaseAdmin.from("live_trades").update({
+        status: "closed",
+        exit_ts: new Date().toISOString(),
+        exit_price: exitPrice,
+        exit_reason: "reverse_on_loss",
+        rr,
+        gross_pnl: grossPnl,
+        net_pnl: grossPnl,
+        fees: 0,
+      }).eq("id", openOpposite.id);
+    } else {
+      // No fresh price → don't guess. Skip this tick.
+      return { placed: 0, reconciled };
+    }
+  }
+
   // 3) Size from stop distance so loss ≈ risk_usd on hit.
   const stopDist = Math.abs(openFlush.fillPrice - openFlush.stopPrice);
   if (stopDist <= 0) return { placed: 0, reconciled };

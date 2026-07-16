@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
-  diagnoseLiveRunners,
+  diagnoseLiveRunners, importTopPaperRunnersToLive,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical, Download } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,11 +50,20 @@ function LiveTradingPage() {
   const update = useServerFn(updateLiveRunner);
   const cancel = useServerFn(cancelLiveOrder);
   const testConn = useServerFn(testLiveConnection);
+  const importTop = useServerFn(importTopPaperRunnersToLive);
   const [connMsg, setConnMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const testMut = useMutation({
     mutationFn: () => testConn(),
     onSuccess: (r) => setConnMsg({ ok: r.ok, text: `[${r.status}] ${r.message}` }),
     onError: (e: unknown) => setConnMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }),
+  });
+  const importMut = useMutation({
+    mutationFn: () => importTop({ data: { topN: 10, leverage: 5 } }),
+    onSuccess: (r) => {
+      alert(`Imported ${r.imported} runner(s): ${r.inserted} new, ${r.updated} updated. Toggle each ON to start live.`);
+      qc.invalidateQueries({ queryKey: ["live-runners"] });
+    },
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
   });
 
   const runners = useQuery({
@@ -117,6 +126,10 @@ function LiveTradingPage() {
                 <Plug className={`h-4 w-4 mr-1 ${testMut.isPending ? "animate-pulse" : ""}`} />
                 Test connection
               </Button>
+              <Button size="sm" variant="outline" onClick={() => importMut.mutate()} disabled={importMut.isPending}>
+                <Download className={`h-4 w-4 mr-1 ${importMut.isPending ? "animate-pulse" : ""}`} />
+                Import top 10 from Paper
+              </Button>
               <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
                 Tick now
@@ -129,6 +142,9 @@ function LiveTradingPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => testMut.mutate()} disabled={testMut.isPending}>
                   <Plug className="h-4 w-4 mr-2" /> Test connection
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => importMut.mutate()} disabled={importMut.isPending}>
+                  <Download className="h-4 w-4 mr-2" /> Import top 10 from Paper
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => tick.mutate()} disabled={tick.isPending}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Tick now

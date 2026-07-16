@@ -377,8 +377,10 @@ function RunnersTable({ runners, selected, onSelectToggle, onSelectAll, onClearS
   );
 }
 
-function RunnerCardMobile({ r, onToggle, onSave }: {
+function RunnerCardMobile({ r, selected, onSelectToggle, onToggle, onSave }: {
   r: LiveRunnerDTO;
+  selected: boolean;
+  onSelectToggle: (id: string) => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
@@ -390,6 +392,12 @@ function RunnerCardMobile({ r, onToggle, onSave }: {
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
       <div className="flex items-center gap-2 p-2.5">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onSelectToggle(r.id)}
+          aria-label={`Select ${r.label}`}
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium">{r.label}</span>

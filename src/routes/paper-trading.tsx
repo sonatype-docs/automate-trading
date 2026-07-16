@@ -81,6 +81,7 @@ function PaperTradingPage() {
           <TabsTrigger value="performance">Strategy performance</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
+        <PnlCalendarCard defaultMode="paper" lockMode showStrategyFilter={false} />
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Runners</CardTitle>

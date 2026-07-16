@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
@@ -99,6 +100,47 @@ function LiveTradingPage() {
   const errorTrades = tradesList.filter((t) => t.status === "error");
   const totalPnl = closedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
+  // Multi-select for bulk start / stop.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Prune ids that no longer exist (e.g. after import/refresh).
+  useEffect(() => {
+    setSelected((prev) => {
+      const known = new Set(runnersList.map((r) => r.id));
+      const next = new Set<string>();
+      for (const id of prev) if (known.has(id)) next.add(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [runnersList]);
+  const toggleSelect = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const selectAll = () => setSelected(new Set(runnersList.map((r) => r.id)));
+  const clearSelection = () => setSelected(new Set());
+  const selectedRunners = runnersList.filter((r) => selected.has(r.id));
+  const selectedStopped = selectedRunners.filter((r) => !r.running).length;
+  const selectedRunning = selectedRunners.filter((r) => r.running).length;
+
+  const bulkStart = useMutation({
+    mutationFn: async () => {
+      const targets = selectedRunners.filter((r) => !r.running);
+      await Promise.all(targets.map((r) => setRun({ data: { id: r.id, running: true } })));
+      return targets.length;
+    },
+    onSuccess: () => { clearSelection(); invalidate(); },
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
+  });
+  const bulkStop = useMutation({
+    mutationFn: async () => {
+      const targets = selectedRunners.filter((r) => r.running);
+      await Promise.all(targets.map((r) => setRun({ data: { id: r.id, running: false } })));
+      return targets.length;
+    },
+    onSuccess: () => { clearSelection(); invalidate(); },
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
+  });
+
   return (
     <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">
@@ -158,8 +200,50 @@ function LiveTradingPage() {
                 {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
               </div>
             )}
+            {selected.size > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+                <span className="text-xs font-medium">
+                  {selected.size} selected
+                  {selectedStopped > 0 && ` · ${selectedStopped} stopped`}
+                  {selectedRunning > 0 && ` · ${selectedRunning} running`}
+                </span>
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={selectedStopped === 0 || bulkStart.isPending}
+                    onClick={() => {
+                      if (!confirm(`Start LIVE trading on ${selectedStopped} runner(s)? Real orders will be placed.`)) return;
+                      bulkStart.mutate();
+                    }}
+                  >
+                    <PlayCircle className={`h-4 w-4 mr-1 ${bulkStart.isPending ? "animate-pulse" : ""}`} />
+                    Start {selectedStopped || ""}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={selectedRunning === 0 || bulkStop.isPending}
+                    onClick={() => {
+                      if (!confirm(`Stop ${selectedRunning} running runner(s)?`)) return;
+                      bulkStop.mutate();
+                    }}
+                  >
+                    <StopCircle className={`h-4 w-4 mr-1 ${bulkStop.isPending ? "animate-pulse" : ""}`} />
+                    Stop {selectedRunning || ""}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={clearSelection}>
+                    <X className="h-4 w-4 mr-1" /> Clear
+                  </Button>
+                </div>
+              </div>
+            )}
             <RunnersTable
               runners={runnersList}
+              selected={selected}
+              onSelectToggle={toggleSelect}
+              onSelectAll={selectAll}
+              onClearSelection={clearSelection}
               onToggle={(r) => {
                 if (!r.running && !confirm(`Start LIVE trading for ${r.label}? Real orders will be placed.`)) return;
                 toggle.mutate({ id: r.id, running: !r.running });
@@ -219,11 +303,17 @@ function LiveTradingPage() {
   );
 }
 
-function RunnersTable({ runners, onToggle, onSave }: {
+function RunnersTable({ runners, selected, onSelectToggle, onSelectAll, onClearSelection, onToggle, onSave }: {
   runners: LiveRunnerDTO[];
+  selected: Set<string>;
+  onSelectToggle: (id: string) => void;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
+  const allSelected = runners.length > 0 && runners.every((r) => selected.has(r.id));
+  const someSelected = runners.some((r) => selected.has(r.id));
   return (
     <>
       {/* Desktop table */}
@@ -231,6 +321,13 @@ function RunnersTable({ runners, onToggle, onSave }: {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={(v) => (v ? onSelectAll() : onClearSelection())}
+                  aria-label="Select all runners"
+                />
+              </TableHead>
               <TableHead>Label</TableHead>
               <TableHead>Symbol / TF</TableHead>
               <TableHead>Strategy</TableHead>
@@ -243,9 +340,18 @@ function RunnersTable({ runners, onToggle, onSave }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+            {runners.map((r) => (
+              <RunnerRow
+                key={r.id}
+                r={r}
+                selected={selected.has(r.id)}
+                onSelectToggle={onSelectToggle}
+                onToggle={onToggle}
+                onSave={onSave}
+              />
+            ))}
             {runners.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -257,15 +363,24 @@ function RunnersTable({ runners, onToggle, onSave }: {
           <div className="text-center text-sm text-muted-foreground py-4">No live runners</div>
         )}
         {runners.map((r) => (
-          <RunnerCardMobile key={r.id} r={r} onToggle={onToggle} onSave={onSave} />
+          <RunnerCardMobile
+            key={r.id}
+            r={r}
+            selected={selected.has(r.id)}
+            onSelectToggle={onSelectToggle}
+            onToggle={onToggle}
+            onSave={onSave}
+          />
         ))}
       </div>
     </>
   );
 }
 
-function RunnerCardMobile({ r, onToggle, onSave }: {
+function RunnerCardMobile({ r, selected, onSelectToggle, onToggle, onSave }: {
   r: LiveRunnerDTO;
+  selected: boolean;
+  onSelectToggle: (id: string) => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
@@ -277,6 +392,12 @@ function RunnerCardMobile({ r, onToggle, onSave }: {
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
       <div className="flex items-center gap-2 p-2.5">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onSelectToggle(r.id)}
+          aria-label={`Select ${r.label}`}
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium">{r.label}</span>
@@ -341,8 +462,10 @@ function RunnerCardMobile({ r, onToggle, onSave }: {
   );
 }
 
-function RunnerRow({ r, onToggle, onSave }: {
+function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
   r: LiveRunnerDTO;
+  selected: boolean;
+  onSelectToggle: (id: string) => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
@@ -351,7 +474,14 @@ function RunnerRow({ r, onToggle, onSave }: {
   const [showStrategy, setShowStrategy] = useState(false);
   const dirty = Number(risk) !== Number(r.risk_usd) || Number(lev) !== Number(r.leverage);
   return (
-    <TableRow>
+    <TableRow data-state={selected ? "selected" : undefined}>
+      <TableCell className="w-8">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onSelectToggle(r.id)}
+          aria-label={`Select ${r.label}`}
+        />
+      </TableCell>
       <TableCell className="font-medium">{r.label}</TableCell>
       <TableCell>{r.symbol} · {r.timeframe}</TableCell>
       <TableCell>

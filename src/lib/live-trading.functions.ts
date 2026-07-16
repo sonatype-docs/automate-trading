@@ -483,3 +483,149 @@ function buildRuleChecks(
   }
   return rules;
 }
+
+// ---------- Live chart data ----------
+export interface ChartCandleDTO { t: number; o: number; h: number; l: number; c: number; v: number }
+export interface ChartMarkerDTO {
+  time: number;
+  kind: "setup" | "signal_long" | "signal_short" | "invalidated";
+  label: string;
+}
+export interface ActiveTradeDTO {
+  id: string;
+  direction: string;
+  qty: number;
+  entry_price: number;
+  fill_price: number | null;
+  stop_price: number;
+  target_price: number;
+  entry_ts: string;
+  status: string;
+}
+export interface LiveChartDataDTO {
+  runner_id: string;
+  label: string;
+  symbol: string;
+  timeframe: string;
+  strategy_preset: string;
+  candles: ChartCandleDTO[];
+  markers: ChartMarkerDTO[];
+  activeTrade: ActiveTradeDTO | null;
+  pendingSignal: {
+    direction: string;
+    entryPrice: number;
+    stop: number;
+    target: number;
+    ts: number;
+  } | null;
+  lastPrice: number | null;
+  fetchedAt: number;
+}
+
+export const getLiveChartData = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({
+    runner_id: z.string().uuid(),
+    bars: z.number().int().min(50).max(500).default(200),
+  }).parse(raw))
+  .handler(async ({ data }): Promise<LiveChartDataDTO> => {
+    const s = await admin();
+    const { data: r, error } = await s
+      .from("live_runners")
+      .select("id, label, source, symbol, timeframe, strategy_preset, lookback_days")
+      .eq("id", data.runner_id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!r) throw new Error("Runner not found");
+
+    const [
+      { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
+      { runStrategy }, { STRATEGY_PRESETS },
+    ] = await Promise.all([
+      import("@/lib/market-data/loader.server"),
+      import("@/lib/market-data/enrich"),
+      import("@/lib/market-data/types"),
+      import("@/lib/strategy-engine/engine"),
+      import("@/lib/strategy-engine/presets"),
+    ]);
+
+    const scfg = STRATEGY_PRESETS[r.strategy_preset as keyof typeof STRATEGY_PRESETS];
+    if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
+
+    const toMs = Date.now();
+    const fromMs = toMs - Math.max(2, Number(r.lookback_days)) * 24 * 60 * 60 * 1000;
+    const { candles } = await loadRawCandles({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      source: r.source as any, symbol: r.symbol,
+      timeframe: r.timeframe as never, fromMs, toMs,
+    });
+
+    const enriched = enrichCandles(candles, {
+      ...DEFAULT_CONFIG, symbol: r.symbol, timeframe: r.timeframe as never,
+    });
+    const sres = runStrategy(enriched, scfg, { mode: "live", symbol: r.symbol });
+
+    // Trim to last N bars for wire size.
+    const window = enriched.slice(-data.bars);
+    const windowStart = window[0]?.ts ?? 0;
+    const chartCandles: ChartCandleDTO[] = window.map((b) => ({
+      t: Math.floor(b.ts / 1000), o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume,
+    }));
+
+    const markers: ChartMarkerDTO[] = [];
+    for (const sig of sres.signals) {
+      if (sig.timestamp < windowStart) continue;
+      const t = Math.floor(sig.timestamp / 1000);
+      if (sig.direction === "long")
+        markers.push({ time: t, kind: "signal_long", label: sig.type });
+      else
+        markers.push({ time: t, kind: "signal_short", label: sig.type });
+    }
+    for (const inv of sres.invalidated) {
+      const sig = sres.signals.find((x) => x.signalId === inv.signalId);
+      if (!sig || sig.timestamp < windowStart) continue;
+      markers.push({ time: Math.floor(sig.timestamp / 1000), kind: "invalidated", label: inv.reason });
+    }
+
+    // Latest open/pending live trade for this runner.
+    const { data: trades } = await s.from("live_trades")
+      .select("id, direction, qty, entry_price, fill_price, stop_price, target_price, entry_ts, status")
+      .eq("runner_id", r.id)
+      .in("status", ["open", "pending"])
+      .order("entry_ts", { ascending: false }).limit(1);
+    const activeTrade = trades?.[0] as ActiveTradeDTO | undefined ?? null;
+
+    // Pending strategy signal not yet filled.
+    const invIds = new Set(sres.invalidated.map((x) => x.signalId));
+    const filledIds = new Set(
+      sres.events.filter((e) => e.name === "OnTradeFilled").map((e) => e.data.signalId as string),
+    );
+    const pendingSig = [...sres.signals].reverse().find(
+      (sig) => sig.type !== "BUY" && sig.type !== "SELL"
+        && !invIds.has(sig.signalId) && !filledIds.has(sig.signalId),
+    );
+    const pendingSignal = pendingSig ? {
+      direction: pendingSig.direction, entryPrice: pendingSig.entryPrice,
+      stop: pendingSig.stopLoss, target: pendingSig.takeProfit, ts: pendingSig.timestamp,
+    } : null;
+
+    // Try to fetch a fresh last price.
+    let lastPrice: number | null = window[window.length - 1]?.c ?? null;
+    try {
+      const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+      lastPrice = await createSharkClient().getLastPrice(r.symbol);
+    } catch { /* keep close */ }
+
+    return {
+      runner_id: r.id, label: r.label, symbol: r.symbol, timeframe: r.timeframe,
+      strategy_preset: r.strategy_preset,
+      candles: chartCandles, markers, activeTrade, pendingSignal,
+      lastPrice, fetchedAt: Date.now(),
+    };
+  });
+
+export const getLastPrice = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({ symbol: z.string() }).parse(raw))
+  .handler(async ({ data }): Promise<{ price: number; ts: number }> => {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const price = await createSharkClient().getLastPrice(data.symbol);
+    return { price, ts: Date.now() };
+  });

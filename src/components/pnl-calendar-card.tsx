@@ -133,6 +133,7 @@ export function PnlCalendarCard({
   const [month, setMonth] = useState<string>(currentIstMonth());
   const [symbol, setSymbol] = useState<string>("all");
   const [mode, setMode] = useState<Mode>(defaultMode);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const fetchCal = useServerFn(getPnlCalendar);
   const { data, isLoading, error } = useQuery({
@@ -149,6 +150,9 @@ export function PnlCalendarCard({
 
   const weeks = useMemo(() => buildMonthGrid(month), [month]);
   const today = todayIstKey();
+  const activeDate = selectedDate ?? today;
+  const isToday = activeDate === today;
+
 
   return (
     <div className="space-y-4">

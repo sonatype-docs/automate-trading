@@ -651,7 +651,7 @@ interface RecentTradeItem {
 function liveToItem(t: LiveTradeDTO): RecentTradeItem {
   return {
     id: t.id,
-    direction: t.direction,
+    direction: t.direction as "long" | "short",
     entryTs: t.entry_ts,
     exitTs: t.exit_ts ?? null,
     netPnl: Number(t.net_pnl) || 0,

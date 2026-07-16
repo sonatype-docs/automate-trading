@@ -189,7 +189,7 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
     candles.setData(cData);
     vol.setData(vData);
     const last = cData[cData.length - 1];
-    if (last) lastCandleRef.current = { t: last.time, o: last.open, h: last.high, l: last.low, c: last.close };
+    if (last) lastCandleRef.current = { ...last };
 
     // Markers.
     const seriesMarkers: SeriesMarker<UTCTimestamp>[] = data.markers.map((m) => {

@@ -92,6 +92,18 @@ export function LiveChartCard() {
     refetchInterval: 2_000,
   });
 
+  const tradesFn = useServerFn(listLiveTrades);
+  const tradesQ = useQuery({
+    queryKey: ["live-trades-recent"],
+    queryFn: () => tradesFn({ data: { limit: 50 } }),
+    refetchInterval: 15_000,
+  });
+  const recentTrades = useMemo(() => {
+    const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
+    if (!runnerId) return rows.slice(0, 10);
+    return rows.filter((t) => t.runner_id === runnerId).slice(0, 10);
+  }, [tradesQ.data, runnerId]);
+
   const livePrice = priceQ.data?.price ?? chartQ.data?.lastPrice ?? null;
   const runnerTf = chartQ.data?.runnerTimeframe;
   const activeTf = (tf ?? runnerTf ?? null) as DisplayTf | null;

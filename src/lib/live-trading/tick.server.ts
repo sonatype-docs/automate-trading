@@ -68,7 +68,7 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
           .eq("runner_id", r.id)
           .in("status", ["open", "pending"]);
         if ((count ?? 0) === 0) {
-          out.push({ runner_id: r.id, label: r.label, placed: 0, reconciled: 0, error: null });
+          out.push({ runner_id: r.id, label: r.label, placed: 0, reconciled: 0 });
           await supabaseAdmin.from("live_runners")
             .update({ last_tick_at: new Date().toISOString(), last_tick_error: null })
             .eq("id", r.id);

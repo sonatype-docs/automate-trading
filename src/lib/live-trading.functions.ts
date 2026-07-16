@@ -502,6 +502,19 @@ export interface ActiveTradeDTO {
   entry_ts: string;
   status: string;
 }
+export interface PlanRuleDTO {
+  group: string;
+  label: string;
+  requirement: string;
+  actual: string;
+  pass: boolean;
+}
+export interface RecentSetupDTO {
+  ts: number;
+  kind: string;
+  direction: string;
+  level: number | null;
+}
 export interface LiveChartDataDTO {
   runner_id: string;
   label: string;
@@ -520,7 +533,21 @@ export interface LiveChartDataDTO {
   } | null;
   lastPrice: number | null;
   fetchedAt: number;
+  plan: {
+    windowActive: boolean;
+    nextOpenMinutes: number | null;
+    rules: PlanRuleDTO[];
+    passCount: number;
+    failCount: number;
+    blockingReasons: string[];
+    recentSetups: RecentSetupDTO[];
+    setupsDetected: number;
+    signalsCreated: number;
+    signalsInvalidated: number;
+    lastBar: { ts: number; close: number; session: string } | null;
+  };
 }
+
 
 export const getLiveChartData = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({

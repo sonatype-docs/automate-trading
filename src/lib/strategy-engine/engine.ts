@@ -74,10 +74,6 @@ export function runStrategy(
       if (filled) {
         emit("OnTradeFilled", bar.ts, { signalId: p.signal.signalId, price: p.entry.price });
         pendingByDir[dir] = null;
-        if (isPdhPdl && armedByDir[dir]) {
-          armedByDir[dir].attempts += 1;
-          if (armedByDir[dir].attempts >= maxAttempts) armedByDir[dir] = null;
-        }
         continue;
       }
       if (reasons.length) {
@@ -210,6 +206,12 @@ export function runStrategy(
     signals.push(signal);
     dailyCounts.set(dayKey, (dailyCounts.get(dayKey) ?? 0) + 1);
     emit("OnSignalCreated", bar.ts, { signalId: signal.signalId, type: signal.type, direction: signal.direction, strength: signal.signalStrength });
+
+    // PDH/PDL: each placed entry counts as one attempt. Disarm at cap.
+    if (isPdhPdl && armedByDir[trig.direction]) {
+      armedByDir[trig.direction]!.attempts += 1;
+      if (armedByDir[trig.direction]!.attempts >= maxAttempts) armedByDir[trig.direction] = null;
+    }
 
     // Market orders are considered filled immediately; others become pending.
     if (entry.type === "market") {

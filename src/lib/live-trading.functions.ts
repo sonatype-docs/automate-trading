@@ -110,6 +110,14 @@ export const runLiveTickNow = createServerFn({ method: "POST" }).handler(async (
   return await runLiveTradingTick();
 });
 
+export interface RuleCheckDTO {
+  group: "session" | "trend" | "volatility" | "setup" | "entry" | "risk";
+  label: string;
+  requirement: string;
+  actual: string;
+  pass: boolean;
+}
+
 export interface RunnerDiagnosticsDTO {
   runner_id: string;
   label: string;
@@ -124,6 +132,7 @@ export interface RunnerDiagnosticsDTO {
   signalsCreated: number;
   signalsInvalidated: number;
   filterRejects: Array<{ label: string; count: number }>;
+  rules: RuleCheckDTO[];
   lastBar: {
     ts: number;
     close: number;

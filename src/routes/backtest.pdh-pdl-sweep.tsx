@@ -171,7 +171,7 @@ function PdhPdlSweepPage() {
               </Select>
             </Field>
             <Field label="Lookback (days)">
-              <Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1)))} />
+              <Input type="number" min={1} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))} />
             </Field>
             <Field label="Execution preset">
               <Select value={execPresetId} onValueChange={setExecPresetId}>

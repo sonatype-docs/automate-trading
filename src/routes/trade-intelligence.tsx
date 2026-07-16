@@ -92,7 +92,8 @@ function TradeIntelligencePage() {
 
   // "live" = current writable trade_intelligence table (still being appended
   // to by any running pipeline). Anything else = an archived snapshot label.
-  const [dataset, setDataset] = useState<string>("live");
+  // Shared with /research via useDataset (localStorage-backed).
+  const [dataset, setDataset] = useDataset();
 
   const [form, setForm] = useState({
     strategyPresetId: strategyIds[0] ?? "",

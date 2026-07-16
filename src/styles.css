@@ -260,6 +260,29 @@
   /* Numeric-heavy cells look right in mono */
   td.tabular, td[data-tabular="true"], .tabular-nums { font-variant-numeric: tabular-nums; }
 
+  /* ---- Global compact density ---- */
+  [data-slot="card-header"] {
+    padding: 0.625rem 0.875rem !important;
+    gap: 0.25rem !important;
+  }
+  [data-slot="card-content"] { padding: 0.625rem 0.875rem !important; }
+  [data-slot="card-footer"] { padding: 0.5rem 0.875rem !important; }
+  [data-slot="card-title"] { font-size: 0.9rem; line-height: 1.2; }
+  [data-slot="card-description"] { font-size: 0.75rem; }
+
+  th, td { padding: 0.375rem 0.625rem !important; }
+  th { font-size: 0.65rem; }
+  td { font-size: 0.8125rem; }
+
+  [data-slot="input"], [data-slot="select-trigger"] { height: 2rem; font-size: 0.8125rem; }
+  [data-slot="textarea"] { font-size: 0.8125rem; }
+  [data-slot="label"] { font-size: 0.75rem; }
+
+  [data-slot="tabs-list"] { height: 2rem; padding: 2px; }
+  [data-slot="tabs-trigger"] { padding: 0.25rem 0.625rem; font-size: 0.8125rem; }
+
+  [data-slot="badge"] { padding: 0.05rem 0.4rem; font-size: 0.68rem; }
+
   /* Mobile-friendly defaults */
   html, body { overflow-x: hidden; }
   main { min-width: 0; }

@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           Skip to main content
         </a>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/40 bg-background/50 px-4 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/30 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border/40 bg-background/50 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/30 sm:px-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
               <span className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70 sm:inline">
@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           key={pathname}
-          className="min-h-[calc(100dvh-4rem)] animate-fade-in"
+          className="min-h-[calc(100dvh-2.75rem)] animate-fade-in"
         >
           {children}
         </main>

@@ -110,6 +110,87 @@ export const runLiveTickNow = createServerFn({ method: "POST" }).handler(async (
   return await runLiveTradingTick();
 });
 
+/**
+ * Import the top-N paper runners (ranked by score) into live_runners.
+ * - Idempotent: matches an existing live runner by
+ *   (strategy_preset + symbol + timeframe + exec_preset). If found, updates
+ *   risk/lookback/source in place. Otherwise inserts a new row with
+ *   running=false and a sensible default leverage (5x).
+ * - Never flips `running` on for you — safety.
+ * - Also propagates the paper runner label with a "(live)" suffix on create.
+ */
+export const importTopPaperRunnersToLive = createServerFn({ method: "POST" })
+  .inputValidator((raw) =>
+    z.object({
+      topN: z.number().int().min(1).max(50).default(10),
+      leverage: z.number().int().min(1).max(125).default(5),
+    }).parse(raw),
+  )
+  .handler(async ({ data }): Promise<{
+    imported: number;
+    updated: number;
+    inserted: number;
+    runners: Array<{ label: string; symbol: string; strategy_preset: string; action: "inserted" | "updated" }>;
+  }> => {
+    const s = await admin();
+    const { data: top, error } = await s
+      .from("paper_runners")
+      .select("label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, score")
+      .order("score", { ascending: false, nullsFirst: false })
+      .order("running", { ascending: false })
+      .limit(data.topN);
+    if (error) throw new Error(error.message);
+
+    const { data: existingLive } = await s
+      .from("live_runners")
+      .select("id, symbol, timeframe, strategy_preset, exec_preset");
+
+    const results: Array<{ label: string; symbol: string; strategy_preset: string; action: "inserted" | "updated" }> = [];
+    let inserted = 0;
+    let updated = 0;
+
+    for (const p of top ?? []) {
+      const match = (existingLive ?? []).find(
+        (l) =>
+          l.symbol === p.symbol &&
+          l.timeframe === p.timeframe &&
+          l.strategy_preset === p.strategy_preset &&
+          l.exec_preset === p.exec_preset,
+      );
+      if (match) {
+        const { error: uerr } = await s
+          .from("live_runners")
+          .update({
+            source: p.source,
+            risk_usd: p.risk_usd,
+            lookback_days: p.lookback_days,
+          })
+          .eq("id", match.id);
+        if (uerr) throw new Error(uerr.message);
+        updated += 1;
+        results.push({ label: p.label, symbol: p.symbol, strategy_preset: p.strategy_preset, action: "updated" });
+      } else {
+        const { error: ierr } = await s.from("live_runners").insert({
+          label: `${p.label} (live)`,
+          source: p.source,
+          symbol: p.symbol,
+          timeframe: p.timeframe,
+          strategy_preset: p.strategy_preset,
+          exec_preset: p.exec_preset,
+          risk_usd: p.risk_usd,
+          lookback_days: p.lookback_days,
+          leverage: data.leverage,
+          running: false,
+        });
+        if (ierr) throw new Error(ierr.message);
+        inserted += 1;
+        results.push({ label: p.label, symbol: p.symbol, strategy_preset: p.strategy_preset, action: "inserted" });
+      }
+    }
+
+    return { imported: results.length, inserted, updated, runners: results };
+  });
+
 export interface RuleCheckDTO {
   group: "session" | "trend" | "volatility" | "setup" | "entry" | "risk";
   label: string;

@@ -192,7 +192,7 @@ export const diagnoseLiveRunners = createServerFn({ method: "POST" }).handler(
         strategy_preset: r.strategy_preset, running: r.running,
         windowActive: false, nextOpenMinutes: null,
         barsProcessed: 0, setupsDetected: 0, signalsCreated: 0, signalsInvalidated: 0,
-        filterRejects: [], lastBar: null, pending: null, lastSignal: null, error: null,
+        filterRejects: [], rules: [], lastBar: null, pending: null, lastSignal: null, error: null,
       };
       try {
         const windows = windowsForPreset(r.strategy_preset);

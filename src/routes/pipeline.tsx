@@ -195,6 +195,7 @@ function PipelinePage() {
               execPresetId: spec.execPresetId,
               tags: ["pipeline", `run:${id}`],
               riskUsdOverride: riskUsd,
+              snapshotName: `pipeline-${id.slice(0, 8)}`,
             },
           });
           inserted = res.inserted ?? 0;
@@ -442,6 +443,7 @@ function PipelinePage() {
               execPresetId: c.execPresetId,
               tags: ["pipeline", `run:${row.id}`, "rerecord"],
               riskUsdOverride: Number(m.riskUsdPerTrade),
+              snapshotName: `pipeline-${String(row.id).slice(0, 8)}`,
             },
           });
           inserted += res.inserted ?? 0;

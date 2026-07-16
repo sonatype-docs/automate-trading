@@ -133,6 +133,7 @@ export function PnlCalendarCard({
   const [month, setMonth] = useState<string>(currentIstMonth());
   const [symbol, setSymbol] = useState<string>("all");
   const [mode, setMode] = useState<Mode>(defaultMode);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const fetchCal = useServerFn(getPnlCalendar);
   const { data, isLoading, error } = useQuery({
@@ -149,6 +150,9 @@ export function PnlCalendarCard({
 
   const weeks = useMemo(() => buildMonthGrid(month), [month]);
   const today = todayIstKey();
+  const activeDate = selectedDate ?? today;
+  const isToday = activeDate === today;
+
 
   return (
     <div className="space-y-4">
@@ -185,20 +189,29 @@ export function PnlCalendarCard({
       )}
 
       {showToday && (() => {
-        const t = byDate.get(today);
+        const t = byDate.get(activeDate);
         const realized = t?.realized ?? 0;
         const trades = t?.trades ?? 0;
         const wins = t?.wins ?? 0;
         const losses = t?.losses ?? 0;
         const best = t?.bestTrade ?? 0;
         const worst = t?.worstTrade ?? 0;
-        const unreal = data?.unrealized ?? 0;
+        const unreal = isToday ? (data?.unrealized ?? 0) : 0;
         return (
           <Card className="border-primary/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Today · {today}</div>
-                <div className="text-[10px] text-muted-foreground">resets daily (IST)</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  {isToday ? "Today" : "Selected"} · {activeDate}
+                </div>
+                <div className="flex items-center gap-2">
+                  {!isToday && (
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setSelectedDate(null)}>
+                      Back to today
+                    </Button>
+                  )}
+                  <div className="text-[10px] text-muted-foreground">IST</div>
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
@@ -207,8 +220,9 @@ export function PnlCalendarCard({
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">Unrealized</div>
-                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{fmtUsd(unreal)}</div>
+                  <div className={`font-mono text-xl font-bold ${unreal > 0 ? "text-long" : unreal < 0 ? "text-short" : ""}`}>{isToday ? fmtUsd(unreal) : "—"}</div>
                 </div>
+
                 <div>
                   <div className="text-[11px] text-muted-foreground">Trades</div>
                   <div className="font-mono text-xl font-bold">{trades}</div>
@@ -271,18 +285,22 @@ export function PnlCalendarCard({
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);
                   const isToday = day.date === today;
+                  const isSelected = day.date === selectedDate;
                   const isCurrentMonth = day.date.startsWith(month);
                   return (
                     <Tooltip key={day.date}>
                       <TooltipTrigger asChild>
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(day.date === today ? null : day.date)}
                           className={[
-                            "h-14 sm:h-20 rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-default overflow-hidden",
+                            "h-14 sm:h-20 w-full text-left rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-pointer overflow-hidden",
                             isCurrentMonth ? bg : "bg-muted/30 opacity-50",
-                            isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
+                            isSelected ? "ring-2 ring-accent border-accent" : isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
                             isLoading ? "animate-pulse" : "hover:scale-[1.02] hover:shadow-sm",
                           ].join(" ")}
                         >
+
                           <div className="flex items-center justify-between gap-0.5 leading-none">
                             <span className="text-[10px] sm:text-[11px] font-semibold">{day.dayNum}</span>
                             {cell && cell.trades > 0 && (
@@ -296,7 +314,8 @@ export function PnlCalendarCard({
                           ) : (
                             <div className="text-[10px] text-muted-foreground">—</div>
                           )}
-                        </div>
+                        </button>
+
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
                         <div className="font-semibold">{day.date}</div>

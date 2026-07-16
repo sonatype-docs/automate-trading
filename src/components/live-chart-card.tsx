@@ -100,6 +100,12 @@ export function LiveChartCard() {
     queryFn: () => tradesFn({ data: { limit: 50 } }),
     refetchInterval: 15_000,
   });
+  const statusFn = useServerFn(getRunnersStatusSummary);
+  const statusQ = useQuery({
+    queryKey: ["live-runners-status"],
+    queryFn: () => statusFn(),
+    refetchInterval: 30_000,
+  });
   const liveRecent = useMemo(() => {
     const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
     if (!runnerId) return rows.slice(0, 10);

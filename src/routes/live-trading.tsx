@@ -143,6 +143,9 @@ function LiveTradingPage() {
           </CardContent>
         </Card>
 
+        <DiagnosticsCard />
+
+
         <Card>
           <CardHeader>
             <CardTitle>Open live orders ({openTrades.length})</CardTitle>

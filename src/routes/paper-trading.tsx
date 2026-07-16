@@ -16,6 +16,8 @@ import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity } from "lucide-reac
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 
 export const Route = createFileRoute("/paper-trading")({
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),

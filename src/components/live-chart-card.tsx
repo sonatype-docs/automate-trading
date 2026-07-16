@@ -22,8 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle";
 import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
-  getLiveChartData, getLastPrice, listLiveRunners,
-  type LiveChartDataDTO,
+  getLiveChartData, getLastPrice, listLiveRunners, listLiveTrades,
+  type LiveChartDataDTO, type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
 
 

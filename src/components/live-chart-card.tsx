@@ -198,6 +198,7 @@ export function LiveChartCard() {
               <ChartCanvas data={chartQ.data} livePrice={livePrice} overlays={overlays} />
               <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
             </div>
+            <RecentTradesStrip trades={recentTrades} loading={tradesQ.isPending} />
             <PlanPanel data={chartQ.data} />
           </div>
         )}

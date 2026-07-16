@@ -1,42 +1,41 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-type MinTrade = {
-  id: string;
-  symbol?: string | null;
-  side?: string | null;
-  status?: string | null;
-  entry_price?: number | null;
-  qty?: number | null;
-  created_at?: string | null;
-  entry_ts?: string | null;
-};
+type MinItem = Record<string, any>;
 
 /**
- * Toasts once whenever a new trade id appears in `trades`.
- * On first load it seeds the set silently so we don't toast for history.
+ * Toasts once whenever a new item (by key) appears in `items`.
+ * Seeds silently on first load so history doesn't spam toasts.
  */
-export function useNewTradeToasts(trades: MinTrade[] | undefined, label: string) {
+export function useNewTradeToasts<T extends MinItem>(
+  items: T[] | undefined,
+  label: string,
+  opts?: { keyFn?: (t: T) => string; describe?: (t: T) => string },
+) {
   const seenRef = useRef<Set<string> | null>(null);
+  const keyFn = opts?.keyFn ?? ((t: T) => String(t.id));
+  const describe =
+    opts?.describe ??
+    ((t: T) => {
+      const side = String(t.side ?? t.direction ?? "").toUpperCase();
+      const sym = t.symbol ?? "—";
+      const px = t.entry_price != null ? ` @ ${t.entry_price}` : "";
+      const qty = t.qty != null ? ` × ${t.qty}` : "";
+      return `${side} ${sym}${qty}${px}`;
+    });
 
   useEffect(() => {
-    if (!trades) return;
+    if (!items) return;
     if (seenRef.current === null) {
-      seenRef.current = new Set(trades.map((t) => t.id));
+      seenRef.current = new Set(items.map(keyFn));
       return;
     }
     const seen = seenRef.current;
-    const fresh = trades.filter((t) => !seen.has(t.id));
+    const fresh = items.filter((t) => !seen.has(keyFn(t)));
     if (!fresh.length) return;
     for (const t of fresh) {
-      seen.add(t.id);
-      const side = (t.side || "").toUpperCase();
-      const sym = t.symbol || "—";
-      const px = t.entry_price != null ? ` @ ${t.entry_price}` : "";
-      const qty = t.qty != null ? ` × ${t.qty}` : "";
-      toast.success(`${label} order placed`, {
-        description: `${side} ${sym}${qty}${px}`,
-      });
+      seen.add(keyFn(t));
+      toast.success(`${label} order placed`, { description: describe(t) });
     }
-  }, [trades, label]);
+  }, [items, label, keyFn, describe]);
 }

@@ -285,18 +285,22 @@ export function PnlCalendarCard({
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);
                   const isToday = day.date === today;
+                  const isSelected = day.date === selectedDate;
                   const isCurrentMonth = day.date.startsWith(month);
                   return (
                     <Tooltip key={day.date}>
                       <TooltipTrigger asChild>
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(day.date === today ? null : day.date)}
                           className={[
-                            "h-14 sm:h-20 rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-default overflow-hidden",
+                            "h-14 sm:h-20 w-full text-left rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-pointer overflow-hidden",
                             isCurrentMonth ? bg : "bg-muted/30 opacity-50",
-                            isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
+                            isSelected ? "ring-2 ring-accent border-accent" : isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
                             isLoading ? "animate-pulse" : "hover:scale-[1.02] hover:shadow-sm",
                           ].join(" ")}
                         >
+
                           <div className="flex items-center justify-between gap-0.5 leading-none">
                             <span className="text-[10px] sm:text-[11px] font-semibold">{day.dayNum}</span>
                             {cell && cell.trades > 0 && (

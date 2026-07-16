@@ -149,10 +149,17 @@ function ResearchPage() {
     return next;
   });
   const queryFn = useServerFn(queryTrades);
+  const snapshotsFn = useServerFn(listSnapshots);
+  const [dataset, setDataset] = useDataset();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["research", "all-trades"],
-    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc" } }),
+    queryKey: ["research", "all-trades", dataset],
+    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset } }),
+  });
+  const snapshotList = useQuery({
+    queryKey: ["trade-intel", "snapshots"],
+    queryFn: () => snapshotsFn(),
+    staleTime: 60_000,
   });
   const allTrades: TradeRecord[] = data?.rows ?? [];
 

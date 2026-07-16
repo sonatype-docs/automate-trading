@@ -314,7 +314,8 @@ export function PnlCalendarCard({
                           ) : (
                             <div className="text-[10px] text-muted-foreground">—</div>
                           )}
-                        </div>
+                        </button>
+
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
                         <div className="font-semibold">{day.date}</div>

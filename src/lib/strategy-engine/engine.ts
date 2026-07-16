@@ -74,10 +74,6 @@ export function runStrategy(
       if (filled) {
         emit("OnTradeFilled", bar.ts, { signalId: p.signal.signalId, price: p.entry.price });
         pendingByDir[dir] = null;
-        if (isPdhPdl && armedByDir[dir]) {
-          armedByDir[dir].attempts += 1;
-          if (armedByDir[dir].attempts >= maxAttempts) armedByDir[dir] = null;
-        }
         continue;
       }
       if (reasons.length) {

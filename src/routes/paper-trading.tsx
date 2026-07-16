@@ -86,6 +86,9 @@ function PaperTradingPage() {
   const runnersList = runners.data ?? [];
   const positionsList = positions.data ?? [];
   const tradesList = trades.data ?? [];
+  useNewTradeToasts(positionsList, "Paper", {
+    keyFn: (p) => `${p.runner_id}:${p.symbol}:${p.entry_ts}`,
+  });
   const anyRunning = runnersList.some((r) => r.running);
 
   return (

@@ -16,6 +16,7 @@ import {
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
+import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 
 export const Route = createFileRoute("/live-trading")({
   head: () => ({
@@ -167,7 +168,10 @@ function LiveTradingPage() {
         )}
         </TabsContent>
         <TabsContent value="performance">
-          <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+          <div className="space-y-6">
+            <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+            <PnlCalendarCard defaultMode="live" lockMode />
+          </div>
         </TabsContent>
       </Tabs>
     </AppShell>

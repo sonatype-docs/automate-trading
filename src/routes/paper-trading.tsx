@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
+import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 
 export const Route = createFileRoute("/paper-trading")({
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),
@@ -133,7 +134,10 @@ function PaperTradingPage() {
         </Card>
         </TabsContent>
         <TabsContent value="performance">
-          <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+          <div className="space-y-6">
+            <StrategyPerformanceCard defaultMode="paper" lockMode showStrategyFilter />
+            <PnlCalendarCard defaultMode="paper" lockMode />
+          </div>
         </TabsContent>
       </Tabs>
     </AppShell>

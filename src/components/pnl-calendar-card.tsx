@@ -190,6 +190,8 @@ export function PnlCalendarCard({
         const trades = t?.trades ?? 0;
         const wins = t?.wins ?? 0;
         const losses = t?.losses ?? 0;
+        const best = t?.bestTrade ?? 0;
+        const worst = t?.worstTrade ?? 0;
         const unreal = data?.unrealized ?? 0;
         return (
           <Card className="border-primary/40">
@@ -218,6 +220,14 @@ export function PnlCalendarCard({
                     <span className="text-muted-foreground"> · </span>
                     <span className="text-short">{losses}</span>
                   </div>
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <div className="text-[11px] text-muted-foreground">Best trade</div>
+                  <div className="font-mono text-xl font-bold text-long">{trades > 0 ? fmtUsd(best) : "—"}</div>
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <div className="text-[11px] text-muted-foreground">Worst trade</div>
+                  <div className="font-mono text-xl font-bold text-short">{trades > 0 ? fmtUsd(worst) : "—"}</div>
                 </div>
               </div>
             </CardContent>

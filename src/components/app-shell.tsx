@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           key={pathname}
-          className="min-h-[calc(100dvh-4rem)] animate-fade-in"
+          className="min-h-[calc(100dvh-2.75rem)] animate-fade-in [&>div]:!p-3 sm:[&>div]:!p-4"
         >
           {children}
         </main>

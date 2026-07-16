@@ -579,10 +579,9 @@ export const getLiveChartData = createServerFn({ method: "POST" })
       else
         markers.push({ time: t, kind: "signal_short", label: sig.type });
     }
-    for (const inv of sres.invalidated) {
-      const sig = sres.signals.find((x) => x.signalId === inv.signalId);
-      if (!sig || sig.timestamp < windowStart) continue;
-      markers.push({ time: Math.floor(sig.timestamp / 1000), kind: "invalidated", label: inv.reason });
+    for (const sig of sres.invalidated) {
+      if (sig.timestamp < windowStart) continue;
+      markers.push({ time: Math.floor(sig.timestamp / 1000), kind: "invalidated", label: "invalid" });
     }
 
     // Latest open/pending live trade for this runner.

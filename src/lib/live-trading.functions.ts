@@ -486,6 +486,15 @@ function buildRuleChecks(
 
 // ---------- Live chart data ----------
 export interface ChartCandleDTO { t: number; o: number; h: number; l: number; c: number; v: number }
+export interface ChartSeriesPointDTO { t: number; v: number | null }
+export interface ChartSeriesDTO {
+  vwap: ChartSeriesPointDTO[];
+  ema20: ChartSeriesPointDTO[];
+  ema50: ChartSeriesPointDTO[];
+  ema200: ChartSeriesPointDTO[];
+  adx: ChartSeriesPointDTO[];
+  atr: ChartSeriesPointDTO[];
+}
 export interface ChartMarkerDTO {
   time: number;
   kind: "setup" | "signal_long" | "signal_short" | "invalidated";
@@ -519,9 +528,11 @@ export interface LiveChartDataDTO {
   runner_id: string;
   label: string;
   symbol: string;
-  timeframe: string;
+  timeframe: string;         // display TF (may differ from runner TF)
+  runnerTimeframe: string;   // strategy's native TF
   strategy_preset: string;
   candles: ChartCandleDTO[];
+  series: ChartSeriesDTO;
   markers: ChartMarkerDTO[];
   activeTrade: ActiveTradeDTO | null;
   pendingSignal: {

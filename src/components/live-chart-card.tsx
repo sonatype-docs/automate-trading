@@ -99,11 +99,27 @@ export function LiveChartCard() {
     queryFn: () => tradesFn({ data: { limit: 50 } }),
     refetchInterval: 15_000,
   });
-  const recentTrades = useMemo(() => {
+  const liveRecent = useMemo(() => {
     const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
     if (!runnerId) return rows.slice(0, 10);
     return rows.filter((t) => t.runner_id === runnerId).slice(0, 10);
   }, [tradesQ.data, runnerId]);
+
+  // Fallback: no live trades yet — show last 10 backtest trades for this symbol.
+  const symbol = chartQ.data?.symbol;
+  const btFn = useServerFn(queryTrades);
+  const btQ = useQuery({
+    queryKey: ["bt-trades-recent", symbol],
+    queryFn: () => btFn({ data: { symbol, limit: 10, orderBy: "exit_time", order: "desc" } }),
+    enabled: !!symbol && liveRecent.length === 0 && !tradesQ.isPending,
+    refetchInterval: 60_000,
+  });
+  const recentTrades: RecentTradeItem[] = useMemo(() => {
+    if (liveRecent.length > 0) return liveRecent.map(liveToItem);
+    return (btQ.data?.rows ?? []).map(recordToItem);
+  }, [liveRecent, btQ.data]);
+  const usingBacktest = liveRecent.length === 0 && (btQ.data?.rows.length ?? 0) > 0;
+  const tradesLoading = tradesQ.isPending || (liveRecent.length === 0 && btQ.isPending);
 
   const livePrice = priceQ.data?.price ?? chartQ.data?.lastPrice ?? null;
   const runnerTf = chartQ.data?.runnerTimeframe;

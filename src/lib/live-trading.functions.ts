@@ -293,3 +293,193 @@ export const cancelLiveOrder = createServerFn({ method: "POST" })
     }).eq("id", data.trade_id);
     return { ok: res.ok, status: res.status };
   });
+
+// ---------- Rule builder ----------
+// Turns the preset config into a human-readable requirement/actual/pass table
+// evaluated against the latest enriched bar. Kept as a plain function so it
+// stays SSR-serializable and easy to extend.
+type AnyBar = {
+  close: number; session: string; hour: number; weekday: number;
+  isWeekend: boolean; isHoliday: boolean;
+  ema20: number | null; ema50: number | null; ema100: number | null; ema200: number | null;
+  vwapDaily: number | null; adx: number | null;
+  atr: number | null; atrPercentile: number | null;
+};
+function fmt(n: number | null | undefined, d = 2) {
+  return n == null || !Number.isFinite(n) ? "—" : Number(n).toFixed(d);
+}
+function buildRuleChecks(
+  scfg: import("@/lib/strategy-engine/types").StrategyConfig,
+  last: AnyBar,
+  prev: AnyBar | null,
+): RuleCheckDTO[] {
+  const rules: RuleCheckDTO[] = [];
+  const sess = scfg.session;
+  if (sess?.allowedSessions?.length) {
+    const pass = sess.allowedSessions.includes(last.session as never);
+    rules.push({
+      group: "session", label: "Allowed session",
+      requirement: sess.allowedSessions.join(" / "),
+      actual: last.session, pass,
+    });
+  }
+  if (sess?.allowedWeekdays?.length) {
+    const pass = sess.allowedWeekdays.includes(last.weekday);
+    rules.push({
+      group: "session", label: "Allowed weekday",
+      requirement: sess.allowedWeekdays.join(","),
+      actual: String(last.weekday), pass,
+    });
+  }
+  if (sess?.hoursOfDay?.length) {
+    const pass = sess.hoursOfDay.includes(last.hour);
+    rules.push({
+      group: "session", label: "Hour of day",
+      requirement: sess.hoursOfDay.join(","),
+      actual: String(last.hour), pass,
+    });
+  }
+  if (sess?.blockWeekend) {
+    rules.push({
+      group: "session", label: "Block weekend",
+      requirement: "not weekend", actual: last.isWeekend ? "weekend" : "weekday",
+      pass: !last.isWeekend,
+    });
+  }
+  if (sess?.blockHoliday) {
+    rules.push({
+      group: "session", label: "Block holiday",
+      requirement: "not holiday", actual: last.isHoliday ? "holiday" : "trading day",
+      pass: !last.isHoliday,
+    });
+  }
+
+  const tr = scfg.trend;
+  const emaKey = (n: number): keyof AnyBar | null =>
+    n === 20 ? "ema20" : n === 50 ? "ema50" : n === 100 ? "ema100" : n === 200 ? "ema200" : null;
+  if (tr?.emaAlignment?.above?.length) {
+    for (const len of tr.emaAlignment.above) {
+      const k = emaKey(len); if (!k) continue;
+      const v = last[k] as number | null;
+      const pass = v !== null && last.close > v;
+      rules.push({
+        group: "trend", label: `Close > EMA${len}`,
+        requirement: `close > EMA${len}`,
+        actual: `close ${fmt(last.close)} vs EMA${len} ${fmt(v)}`,
+        pass,
+      });
+    }
+  }
+  if (tr?.emaAlignment?.below?.length) {
+    for (const len of tr.emaAlignment.below) {
+      const k = emaKey(len); if (!k) continue;
+      const v = last[k] as number | null;
+      const pass = v !== null && last.close < v;
+      rules.push({
+        group: "trend", label: `Close < EMA${len}`,
+        requirement: `close < EMA${len}`,
+        actual: `close ${fmt(last.close)} vs EMA${len} ${fmt(v)}`,
+        pass,
+      });
+    }
+  }
+  if (tr?.vwapSide && last.vwapDaily !== null) {
+    const pass = tr.vwapSide === "above" ? last.close > last.vwapDaily : last.close < last.vwapDaily;
+    rules.push({
+      group: "trend", label: `Price ${tr.vwapSide} VWAP`,
+      requirement: `close ${tr.vwapSide === "above" ? ">" : "<"} VWAP`,
+      actual: `close ${fmt(last.close)} vs VWAP ${fmt(last.vwapDaily)}`,
+      pass,
+    });
+  }
+  if (tr?.adxMin !== undefined) {
+    const pass = last.adx !== null && last.adx >= tr.adxMin;
+    rules.push({
+      group: "trend", label: "ADX minimum",
+      requirement: `ADX ≥ ${tr.adxMin}`,
+      actual: `ADX ${fmt(last.adx, 1)}`, pass,
+    });
+  }
+  if (tr?.adxMax !== undefined) {
+    const pass = last.adx !== null && last.adx <= tr.adxMax;
+    rules.push({
+      group: "trend", label: "ADX maximum (chop)",
+      requirement: `ADX ≤ ${tr.adxMax}`,
+      actual: `ADX ${fmt(last.adx, 1)}`, pass,
+    });
+  }
+
+  const v = scfg.volatility;
+  if (v?.atrMin !== undefined) {
+    const pass = last.atr !== null && last.atr >= v.atrMin;
+    rules.push({
+      group: "volatility", label: "ATR minimum",
+      requirement: `ATR ≥ ${v.atrMin}`, actual: `ATR ${fmt(last.atr)}`, pass,
+    });
+  }
+  if (v?.atrMax !== undefined) {
+    const pass = last.atr !== null && last.atr <= v.atrMax;
+    rules.push({
+      group: "volatility", label: "ATR maximum",
+      requirement: `ATR ≤ ${v.atrMax}`, actual: `ATR ${fmt(last.atr)}`, pass,
+    });
+  }
+  if (v?.atrPercentileMin !== undefined) {
+    const pass = last.atrPercentile !== null && last.atrPercentile >= v.atrPercentileMin;
+    rules.push({
+      group: "volatility", label: "ATR percentile min",
+      requirement: `ATR pct ≥ ${v.atrPercentileMin}`,
+      actual: `ATR pct ${fmt(last.atrPercentile, 0)}`, pass,
+    });
+  }
+  if (v?.atrPercentileMax !== undefined) {
+    const pass = last.atrPercentile !== null && last.atrPercentile <= v.atrPercentileMax;
+    rules.push({
+      group: "volatility", label: "ATR percentile max",
+      requirement: `ATR pct ≤ ${v.atrPercentileMax}`,
+      actual: `ATR pct ${fmt(last.atrPercentile, 0)}`, pass,
+    });
+  }
+  if (v?.requireExpansion) {
+    const pass = prev?.atr != null && last.atr != null && last.atr > prev.atr;
+    rules.push({
+      group: "volatility", label: "ATR expanding",
+      requirement: "ATR > prev ATR",
+      actual: `${fmt(last.atr)} vs ${fmt(prev?.atr ?? null)}`, pass,
+    });
+  }
+  if (v?.requireCompression) {
+    const pass = prev?.atr != null && last.atr != null && last.atr < prev.atr;
+    rules.push({
+      group: "volatility", label: "ATR compressing",
+      requirement: "ATR < prev ATR",
+      actual: `${fmt(last.atr)} vs ${fmt(prev?.atr ?? null)}`, pass,
+    });
+  }
+
+  // Setup / entry are informational — the trade only triggers if the setup
+  // detector matches on this bar, which lives inside the engine. Surface the
+  // required setup kind so the user sees what pattern we're hunting.
+  if (scfg.setup?.kind) {
+    rules.push({
+      group: "setup", label: "Setup pattern",
+      requirement: scfg.setup.kind.replace(/_/g, " "),
+      actual: "detected in engine stats", pass: true,
+    });
+  }
+  if (scfg.entry?.model?.kind) {
+    rules.push({
+      group: "entry", label: "Entry model",
+      requirement: scfg.entry.model.kind,
+      actual: "—", pass: true,
+    });
+  }
+  if (scfg.management?.maxDailyTrades) {
+    rules.push({
+      group: "risk", label: "Max daily trades",
+      requirement: `≤ ${scfg.management.maxDailyTrades}/day`,
+      actual: "engine-enforced", pass: true,
+    });
+  }
+  return rules;
+}

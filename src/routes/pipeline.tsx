@@ -195,6 +195,7 @@ function PipelinePage() {
               execPresetId: spec.execPresetId,
               tags: ["pipeline", `run:${id}`],
               riskUsdOverride: riskUsd,
+              snapshotName: `pipeline-${id.slice(0, 8)}`,
             },
           });
           inserted = res.inserted ?? 0;

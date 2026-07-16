@@ -462,8 +462,10 @@ function RunnerCardMobile({ r, selected, onSelectToggle, onToggle, onSave }: {
   );
 }
 
-function RunnerRow({ r, onToggle, onSave }: {
+function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
   r: LiveRunnerDTO;
+  selected: boolean;
+  onSelectToggle: (id: string) => void;
   onToggle: (r: LiveRunnerDTO) => void;
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
@@ -472,7 +474,14 @@ function RunnerRow({ r, onToggle, onSave }: {
   const [showStrategy, setShowStrategy] = useState(false);
   const dirty = Number(risk) !== Number(r.risk_usd) || Number(lev) !== Number(r.leverage);
   return (
-    <TableRow>
+    <TableRow data-state={selected ? "selected" : undefined}>
+      <TableCell className="w-8">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onSelectToggle(r.id)}
+          aria-label={`Select ${r.label}`}
+        />
+      </TableCell>
       <TableCell className="font-medium">{r.label}</TableCell>
       <TableCell>{r.symbol} · {r.timeframe}</TableCell>
       <TableCell>

@@ -300,10 +300,11 @@ function TradeIntelligencePage() {
             Permanent, queryable store of every completed trade with full market context.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <Label className="text-xs uppercase text-muted-foreground">Dataset</Label>
           <Select value={dataset} onValueChange={setDataset}>
-            <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[260px]"><SelectValue /></SelectTrigger>
+
             <SelectContent>
               <SelectItem value="live">Live (current, appended by pipeline)</SelectItem>
               {(snapshotList.data?.snapshots ?? []).map((s) => (

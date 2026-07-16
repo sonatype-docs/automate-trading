@@ -98,7 +98,8 @@ export const testLiveConnection = createServerFn({ method: "POST" }).handler(asy
   const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
   const client = createSharkClient();
   try {
-    return await client.testConnection();
+    const r = await client.testConnection();
+    return { ok: r.ok, status: r.status, message: r.message };
   } catch (e) {
     return { ok: false, status: 0, message: e instanceof Error ? e.message : String(e) };
   }

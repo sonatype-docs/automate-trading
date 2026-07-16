@@ -210,9 +210,9 @@ export function PnlCalendarCard({
                   <div key={d} className="px-1">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                 {weeks.map((day, i) => {
-                  if (!day) return <div key={i} className="h-20 rounded-md bg-muted/30" />;
+                  if (!day) return <div key={i} className="h-14 sm:h-20 rounded-md bg-muted/30" />;
                   const cell = byDate.get(day.date);
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);
@@ -223,20 +223,20 @@ export function PnlCalendarCard({
                       <TooltipTrigger asChild>
                         <div
                           className={[
-                            "h-20 rounded-md border p-2 flex flex-col justify-between transition-all cursor-default",
+                            "h-14 sm:h-20 rounded-md border p-1 sm:p-2 flex flex-col justify-between transition-all cursor-default overflow-hidden",
                             isCurrentMonth ? bg : "bg-muted/30 opacity-50",
                             isToday ? "ring-2 ring-primary/60 border-primary/50" : "border-border/60",
                             isLoading ? "animate-pulse" : "hover:scale-[1.02] hover:shadow-sm",
                           ].join(" ")}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold">{day.dayNum}</span>
+                          <div className="flex items-center justify-between gap-0.5 leading-none">
+                            <span className="text-[10px] sm:text-[11px] font-semibold">{day.dayNum}</span>
                             {cell && cell.trades > 0 && (
-                              <span className="text-[10px] text-muted-foreground">{cell.trades}t</span>
+                              <span className="text-[9px] sm:text-[10px] text-muted-foreground">{cell.trades}t</span>
                             )}
                           </div>
                           {cell && cell.trades > 0 ? (
-                            <div className={`font-mono text-sm font-semibold ${pnl > 0 ? "text-long" : pnl < 0 ? "text-short" : ""}`}>
+                            <div className={`font-mono text-[10px] sm:text-sm font-semibold truncate ${pnl > 0 ? "text-long" : pnl < 0 ? "text-short" : ""}`}>
                               {fmtUsd(pnl)}
                             </div>
                           ) : (

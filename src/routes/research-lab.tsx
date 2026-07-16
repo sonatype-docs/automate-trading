@@ -48,17 +48,19 @@ function LabPage() {
       </header>
 
       <Tabs defaultValue="projects">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="experiments">Experiments</TabsTrigger>
-          <TabsTrigger value="hypotheses">Hypotheses</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="diff">Diff</TabsTrigger>
-          <TabsTrigger value="search">Search</TabsTrigger>
-          <TabsTrigger value="metrics">Metrics</TabsTrigger>
-        </TabsList>
+        <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-max min-w-full justify-start">
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="experiments">Experiments</TabsTrigger>
+            <TabsTrigger value="hypotheses">Hypotheses</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="diff">Diff</TabsTrigger>
+            <TabsTrigger value="search">Search</TabsTrigger>
+            <TabsTrigger value="metrics">Metrics</TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="projects"><ProjectsTab /></TabsContent>
         <TabsContent value="experiments"><ExperimentsTab /></TabsContent>
         <TabsContent value="hypotheses"><HypothesesTab /></TabsContent>

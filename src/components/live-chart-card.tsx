@@ -182,8 +182,8 @@ export function LiveChartCard() {
         {chartQ.data && (
           <div className="space-y-4">
             {/* Toolbar: TF toggle + overlay toggles */}
-            <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/20 px-2 py-1.5">
-              <div className="flex items-center gap-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-md border bg-muted/20 px-2 py-2">
+              <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-[11px] text-muted-foreground mr-1">TF</span>
                 {DISPLAY_TFS.map((t) => (
                   <Button
@@ -200,12 +200,13 @@ export function LiveChartCard() {
                     onClick={() => setTf(null)}>reset</Button>
                 )}
                 {runnerTf && (
-                  <span className="text-[10px] text-muted-foreground ml-1">
-                    strategy runs on <b>{runnerTf}</b>
+                  <span className="text-[10px] text-muted-foreground ml-1 whitespace-nowrap">
+                    on <b>{runnerTf}</b>
                   </span>
                 )}
               </div>
-              <div className="h-5 w-px bg-border" />
+              <div className="hidden sm:block h-5 w-px bg-border" />
+              <div className="h-px w-full bg-border sm:hidden" />
               <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[11px] text-muted-foreground mr-1">Overlays</span>
                 {overlayToggle("vwap", "VWAP")}

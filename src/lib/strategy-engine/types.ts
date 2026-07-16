@@ -134,6 +134,8 @@ export interface ManagementConfig {
   maxOpenPositions?: number;
   maxDailyTrades?: number;
   maxWeeklyTrades?: number;
+  /** For sweep-family setups: max # of fills per single armed sweep event. */
+  maxAttemptsPerSweep?: number;
 }
 
 // ---------- Invalidation ----------

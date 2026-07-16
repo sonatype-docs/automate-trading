@@ -637,15 +637,57 @@ function PlanPanel({ data }: { data: LiveChartDataDTO }) {
   );
 }
 
-function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loading: boolean }) {
-  const totalPnl = trades.reduce((a, t) => a + (Number(t.net_pnl) || 0), 0);
-  const wins = trades.filter((t) => (Number(t.net_pnl) || 0) > 0).length;
+interface RecentTradeItem {
+  id: string;
+  direction: "long" | "short";
+  entryTs: string;
+  exitTs: string | null;
+  netPnl: number;
+  rr: number | null;
+  exitReason: string | null;
+  status: string;
+}
+
+function liveToItem(t: LiveTradeDTO): RecentTradeItem {
+  return {
+    id: t.id,
+    direction: t.direction,
+    entryTs: t.entry_ts,
+    exitTs: t.exit_ts ?? null,
+    netPnl: Number(t.net_pnl) || 0,
+    rr: t.rr != null ? Number(t.rr) : null,
+    exitReason: t.exit_reason ?? null,
+    status: t.status,
+  };
+}
+
+function recordToItem(r: import("@/lib/trade-intelligence/types").TradeRecord): RecentTradeItem {
+  return {
+    id: r.tradeId,
+    direction: r.direction,
+    entryTs: new Date(r.entryTime).toISOString(),
+    exitTs: r.exitTime ? new Date(r.exitTime).toISOString() : null,
+    netPnl: Number(r.netPnl) || 0,
+    rr: r.actualRr != null ? Number(r.actualRr) : null,
+    exitReason: r.exitReason ?? null,
+    status: r.status,
+  };
+}
+
+function RecentTradesStrip({ trades, loading, source }: { trades: RecentTradeItem[]; loading: boolean; source: "live" | "backtest" }) {
+  const totalPnl = trades.reduce((a, t) => a + t.netPnl, 0);
+  const wins = trades.filter((t) => t.netPnl > 0).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
 
   return (
     <div className="rounded-md border p-3 space-y-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="text-xs font-medium">Last {trades.length || 10} closed trades</div>
+        <div className="text-xs font-medium flex items-center gap-2">
+          Last {trades.length || 10} closed trades
+          {source === "backtest" && trades.length > 0 && (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">from backtest</Badge>
+          )}
+        </div>
         {trades.length > 0 && (
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <span>Win rate: <b className="text-foreground">{winRate.toFixed(0)}%</b> ({wins}/{trades.length})</span>
@@ -665,8 +707,8 @@ function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loadin
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-1">
           {trades.map((t) => {
-            const pnl = Number(t.net_pnl) || 0;
-            const rr = t.rr != null ? Number(t.rr) : null;
+            const pnl = t.netPnl;
+            const rr = t.rr;
             const win = pnl > 0;
             const long = t.direction === "long";
             return (
@@ -674,7 +716,7 @@ function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loadin
                 key={t.id}
                 className={`shrink-0 min-w-[150px] rounded-md border px-2.5 py-1.5 text-xs
                   ${win ? "border-emerald-500/40 bg-emerald-500/10" : "border-destructive/40 bg-destructive/10"}`}
-                title={new Date(t.entry_ts).toLocaleString()}
+                title={new Date(t.entryTs).toLocaleString()}
               >
                 <div className="flex items-center justify-between gap-1">
                   <span className={`font-mono text-[10px] px-1 py-0.5 rounded ${long ? "bg-emerald-500/20 text-emerald-500" : "bg-destructive/20 text-destructive"}`}>
@@ -682,7 +724,7 @@ function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loadin
                     {t.direction.toUpperCase()}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {new Date(t.exit_ts ?? t.entry_ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(t.exitTs ?? t.entryTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
                 <div className={`font-mono font-semibold mt-1 ${win ? "text-emerald-500" : "text-destructive"}`}>
@@ -690,8 +732,8 @@ function RecentTradesStrip({ trades, loading }: { trades: LiveTradeDTO[]; loadin
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>{rr != null ? `${rr >= 0 ? "+" : ""}${rr.toFixed(2)}R` : "—"}</span>
-                  <span className="truncate max-w-[80px]" title={t.exit_reason ?? ""}>
-                    {t.exit_reason ?? t.status}
+                  <span className="truncate max-w-[80px]" title={t.exitReason ?? ""}>
+                    {t.exitReason ?? t.status}
                   </span>
                 </div>
               </div>

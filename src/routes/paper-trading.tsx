@@ -99,11 +99,16 @@ function PaperTradingPage() {
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Runners</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => tick.mutate()} disabled={tick.isPending}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${tick.isPending ? "animate-spin" : ""}`} />
                 Tick now
               </Button>
+              <Button size="sm" variant="outline" onClick={() => backfillMut.mutate()} disabled={backfillMut.isPending}>
+                <History className={`h-4 w-4 mr-1 ${backfillMut.isPending ? "animate-spin" : ""}`} />
+                {backfillMut.isPending ? "Backfilling…" : "Backfill top 10 (180d)"}
+              </Button>
+
               {anyRunning ? (
                 <Button size="sm" variant="destructive" onClick={() => toggleAll.mutate(false)}>
                   <StopCircle className="h-4 w-4 mr-1" /> Stop all

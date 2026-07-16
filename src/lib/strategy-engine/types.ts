@@ -58,7 +58,8 @@ export type SetupKind =
   | "bos" | "choch" | "mss"
   | "prev_day_high_sweep" | "prev_day_low_sweep"
   | "equal_high_sweep" | "equal_low_sweep"
-  | "vwap_cross" | "poc_rejection" | "vah_break" | "val_break";
+  | "vwap_cross" | "poc_rejection" | "vah_break" | "val_break"
+  | "pdh_pdl_sweep";
 
 export interface SetupConfig {
   kind: SetupKind;

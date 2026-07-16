@@ -303,6 +303,21 @@ function ChartCanvas({ data, livePrice, overlays }: {
     const last = cData[cData.length - 1];
     if (last) lastCandleRef.current = { ...last };
 
+    // Overlay series data — filter out nulls (line series doesn't accept them).
+    const overlayData = {
+      vwap: data.series.vwap, ema20: data.series.ema20, ema50: data.series.ema50,
+      ema200: data.series.ema200, adx: data.series.adx, atr: data.series.atr,
+    } as const;
+    (Object.keys(overlayData) as (keyof OverlayFlags)[]).forEach((k) => {
+      const s = overlaySeriesRef.current[k];
+      if (!s) return;
+      const pts = overlayData[k]
+        .filter((p) => p.v != null && Number.isFinite(p.v))
+        .map((p) => ({ time: p.t as UTCTimestamp, value: p.v as number }));
+      s.setData(pts);
+    });
+
+
     // Markers.
     const seriesMarkers: SeriesMarker<UTCTimestamp>[] = data.markers.map((m) => {
       if (m.kind === "signal_long") return {

@@ -196,11 +196,23 @@ export function LiveChartCard() {
 
 
 
-function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: number | null }) {
+const OVERLAY_META: Record<keyof OverlayFlags, { color: string; pane: 0 | 1 | 2; title: string }> = {
+  vwap:   { color: "#f59e0b", pane: 0, title: "VWAP" },
+  ema20:  { color: "#38bdf8", pane: 0, title: "EMA20" },
+  ema50:  { color: "#a78bfa", pane: 0, title: "EMA50" },
+  ema200: { color: "#f472b6", pane: 0, title: "EMA200" },
+  adx:    { color: "#22d3ee", pane: 1, title: "ADX" },
+  atr:    { color: "#fbbf24", pane: 2, title: "ATR" },
+};
+
+function ChartCanvas({ data, livePrice, overlays }: {
+  data: LiveChartDataDTO; livePrice: number | null; overlays: OverlayFlags;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const overlaySeriesRef = useRef<Partial<Record<keyof OverlayFlags, ISeriesApi<"Line">>>>({});
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any>(null);
   const linesRef = useRef<IPriceLine[]>([]);
@@ -214,6 +226,7 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
       layout: {
         background: { color: "rgba(0,0,0,0)" },
         textColor: "#94a3b8",
+        panes: { separatorColor: "rgba(120,120,120,0.2)", separatorHoverColor: "rgba(120,120,120,0.35)" },
       },
       grid: {
         vertLines: { color: "rgba(120,120,120,0.1)" },
@@ -242,10 +255,35 @@ function ChartCanvas({ data, livePrice }: { data: LiveChartDataDTO; livePrice: n
       chartRef.current = null;
       candleSeriesRef.current = null;
       volSeriesRef.current = null;
+      overlaySeriesRef.current = {};
       markersRef.current = null;
       linesRef.current = [];
     };
   }, []);
+
+  // Manage overlay line series based on flags.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const current = overlaySeriesRef.current;
+    (Object.keys(OVERLAY_META) as (keyof OverlayFlags)[]).forEach((k) => {
+      const want = overlays[k];
+      const has = !!current[k];
+      if (want && !has) {
+        const meta = OVERLAY_META[k];
+        const s = chart.addSeries(LineSeries, {
+          color: meta.color, lineWidth: 2, priceLineVisible: false,
+          lastValueVisible: true, title: meta.title,
+        }, meta.pane);
+        current[k] = s;
+      } else if (!want && has) {
+        try { chart.removeSeries(current[k]!); } catch { /* noop */ }
+        delete current[k];
+      }
+    });
+  }, [overlays]);
+
+
 
   // Push candles + markers + price lines whenever data changes.
   useEffect(() => {

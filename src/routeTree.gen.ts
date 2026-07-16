@@ -20,6 +20,7 @@ import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as PaperTradingRouteImport } from './routes/paper-trading'
 import { Route as OptimizerRouteImport } from './routes/optimizer'
 import { Route as MarketDataRouteImport } from './routes/market-data'
+import { Route as LiveTradingRouteImport } from './routes/live-trading'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
 import { Route as ExecutionEngineRouteImport } from './routes/execution-engine'
@@ -40,6 +41,7 @@ import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$v
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
+import { Route as ApiPublicHooksLiveTickRouteImport } from './routes/api/public/hooks/live-tick'
 
 const TradeIntelligenceRoute = TradeIntelligenceRouteImport.update({
   id: '/trade-intelligence',
@@ -94,6 +96,11 @@ const OptimizerRoute = OptimizerRouteImport.update({
 const MarketDataRoute = MarketDataRouteImport.update({
   id: '/market-data',
   path: '/market-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveTradingRoute = LiveTradingRouteImport.update({
+  id: '/live-trading',
+  path: '/live-trading',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JournalRoute = JournalRouteImport.update({
@@ -198,6 +205,11 @@ const ApiPublicHooksPaperTickRoute = ApiPublicHooksPaperTickRouteImport.update({
   path: '/api/public/hooks/paper-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksLiveTickRoute = ApiPublicHooksLiveTickRouteImport.update({
+  id: '/api/public/hooks/live-tick',
+  path: '/api/public/hooks/live-tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -208,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -228,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/handbook/': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -240,6 +254,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/execution-engine': typeof ExecutionEngineRoute
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -259,6 +274,7 @@ export interface FileRoutesByTo {
   '/handbook': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -273,6 +289,7 @@ export interface FileRoutesById {
   '/execution-engine': typeof ExecutionEngineRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
+  '/live-trading': typeof LiveTradingRoute
   '/market-data': typeof MarketDataRoute
   '/optimizer': typeof OptimizerRoute
   '/paper-trading': typeof PaperTradingRoute
@@ -293,6 +310,7 @@ export interface FileRoutesById {
   '/handbook/': typeof HandbookIndexRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
+  '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
   '/api/public/webhook/tradingview': typeof ApiPublicWebhookTradingviewRoute
@@ -308,6 +326,7 @@ export interface FileRouteTypes {
     | '/execution-engine'
     | '/handbook'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -328,6 +347,7 @@ export interface FileRouteTypes {
     | '/handbook/'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -340,6 +360,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/execution-engine'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -359,6 +380,7 @@ export interface FileRouteTypes {
     | '/handbook'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -372,6 +394,7 @@ export interface FileRouteTypes {
     | '/execution-engine'
     | '/handbook'
     | '/journal'
+    | '/live-trading'
     | '/market-data'
     | '/optimizer'
     | '/paper-trading'
@@ -392,6 +415,7 @@ export interface FileRouteTypes {
     | '/handbook/'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
+    | '/api/public/hooks/live-tick'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
     | '/api/public/webhook/tradingview'
@@ -406,6 +430,7 @@ export interface RootRouteChildren {
   ExecutionEngineRoute: typeof ExecutionEngineRoute
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
+  LiveTradingRoute: typeof LiveTradingRoute
   MarketDataRoute: typeof MarketDataRoute
   OptimizerRoute: typeof OptimizerRoute
   PaperTradingRoute: typeof PaperTradingRoute
@@ -422,6 +447,7 @@ export interface RootRouteChildren {
   BacktestOrbRoute: typeof BacktestOrbRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
+  ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksPaperTickRoute: typeof ApiPublicHooksPaperTickRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
   ApiPublicWebhookTradingviewRoute: typeof ApiPublicWebhookTradingviewRoute
@@ -504,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/market-data'
       fullPath: '/market-data'
       preLoaderRoute: typeof MarketDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live-trading': {
+      id: '/live-trading'
+      path: '/live-trading'
+      fullPath: '/live-trading'
+      preLoaderRoute: typeof LiveTradingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/journal': {
@@ -646,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPaperTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/live-tick': {
+      id: '/api/public/hooks/live-tick'
+      path: '/api/public/hooks/live-tick'
+      fullPath: '/api/public/hooks/live-tick'
+      preLoaderRoute: typeof ApiPublicHooksLiveTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -686,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExecutionEngineRoute: ExecutionEngineRoute,
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
+  LiveTradingRoute: LiveTradingRoute,
   MarketDataRoute: MarketDataRoute,
   OptimizerRoute: OptimizerRoute,
   PaperTradingRoute: PaperTradingRoute,
@@ -702,6 +743,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestOrbRoute: BacktestOrbRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
+  ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksPaperTickRoute: ApiPublicHooksPaperTickRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,
   ApiPublicWebhookTradingviewRoute: ApiPublicWebhookTradingviewRoute,

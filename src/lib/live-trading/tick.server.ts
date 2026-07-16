@@ -1,0 +1,220 @@
+// Runs one LIVE trading tick — places REAL orders on SharkExchange for any
+// brand-new signal produced by the strategy engine, and reconciles previously
+// opened live_trades against the exchange to detect SL/TP exits.
+//
+// Idempotency: each trade is keyed by runner_id + strategy signalId.
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { loadRawCandles } from "@/lib/market-data/loader.server";
+import { enrichCandles } from "@/lib/market-data/enrich";
+import { DEFAULT_CONFIG, type Timeframe } from "@/lib/market-data/types";
+import { runStrategy } from "@/lib/strategy-engine/engine";
+import { runExecution } from "@/lib/execution-engine/engine";
+import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
+import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
+import { createSharkClient } from "@/lib/exchange/shark-client.server";
+import type { KlineSourceId } from "@/lib/exchange/kline-source.server";
+
+interface RunnerRow {
+  id: string;
+  label: string;
+  source: string;
+  symbol: string;
+  timeframe: string;
+  strategy_preset: string;
+  exec_preset: string;
+  risk_usd: number;
+  lookback_days: number;
+  leverage: number;
+}
+
+export interface LiveTickReport {
+  ok: boolean;
+  runners: number;
+  results: Array<{
+    runner_id: string;
+    label: string;
+    placed: number;
+    reconciled: number;
+    error?: string;
+  }>;
+}
+
+export async function runLiveTradingTick(): Promise<LiveTickReport> {
+  const { data: runners, error } = await supabaseAdmin
+    .from("live_runners")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage")
+    .eq("running", true);
+  if (error) throw new Error(error.message);
+
+  const out: LiveTickReport["results"] = [];
+  for (const r of (runners ?? []) as RunnerRow[]) {
+    try {
+      const res = await tickOne(r);
+      out.push({ runner_id: r.id, label: r.label, ...res });
+      await supabaseAdmin.from("live_runners")
+        .update({ last_tick_at: new Date().toISOString(), last_tick_error: null })
+        .eq("id", r.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      out.push({ runner_id: r.id, label: r.label, placed: 0, reconciled: 0, error: msg });
+      await supabaseAdmin.from("live_runners")
+        .update({ last_tick_at: new Date().toISOString(), last_tick_error: msg })
+        .eq("id", r.id);
+    }
+  }
+  return { ok: true, runners: out.length, results: out };
+}
+
+async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: number }> {
+  const scfg = STRATEGY_PRESETS[r.strategy_preset];
+  if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
+  const baseE = EXEC_PRESETS[r.exec_preset];
+  if (!baseE) throw new Error(`Unknown exec preset ${r.exec_preset}`);
+  const ecfg = withRiskUsd(baseE, Number(r.risk_usd));
+
+  const client = createSharkClient();
+
+  // 1) Reconcile still-open live trades against the exchange.
+  const reconciled = await reconcileOpen(r, client);
+
+  // 2) Load fresh candles and run the strategy.
+  const toMs = Date.now();
+  const fromMs = toMs - Number(r.lookback_days) * 24 * 60 * 60 * 1000;
+  const { candles } = await loadRawCandles({
+    source: r.source as KlineSourceId,
+    symbol: r.symbol,
+    timeframe: r.timeframe as Timeframe,
+    fromMs, toMs,
+  });
+  if (!candles.length) return { placed: 0, reconciled };
+
+  const enriched = enrichCandles(candles, {
+    ...DEFAULT_CONFIG,
+    symbol: r.symbol,
+    timeframe: r.timeframe as Timeframe,
+  });
+  const sres = runStrategy(enriched, scfg, { mode: "live", symbol: r.symbol });
+  const eres = runExecution(enriched, sres.signals, ecfg, { symbol: r.symbol });
+
+  // Only look at the newest "still-open" flushed trade — that's the current signal.
+  const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
+  if (!openFlush) return { placed: 0, reconciled };
+
+  // Dedup: skip if a live_trade already exists for this signalId.
+  const { data: existing } = await supabaseAdmin
+    .from("live_trades")
+    .select("id")
+    .eq("runner_id", r.id)
+    .eq("dedup_key", openFlush.signalId)
+    .maybeSingle();
+  if (existing) return { placed: 0, reconciled };
+
+  // 3) Size from stop distance so loss ≈ risk_usd on hit.
+  const stopDist = Math.abs(openFlush.fillPrice - openFlush.stopPrice);
+  if (stopDist <= 0) return { placed: 0, reconciled };
+  const qty = Math.max(0.001, Number((Number(r.risk_usd) / stopDist).toFixed(3)));
+
+  // 4) Best-effort leverage update — ignore errors.
+  try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
+
+  // 5) Place market order with attached SL/TP.
+  let placedOk = 0;
+  const insertBase = {
+    runner_id: r.id,
+    dedup_key: openFlush.signalId,
+    symbol: r.symbol,
+    timeframe: r.timeframe,
+    strategy_preset: r.strategy_preset,
+    direction: openFlush.direction,
+    qty,
+    entry_ts: new Date(openFlush.entryTime).toISOString(),
+    entry_price: openFlush.fillPrice,
+    stop_price: openFlush.stopPrice,
+    target_price: openFlush.targetPrice,
+  };
+  try {
+    const res = await client.placeOrder({
+      symbol: r.symbol,
+      side: openFlush.direction === "long" ? "buy" : "sell",
+      qty,
+      type: "market",
+      stopLossPrice: openFlush.stopPrice,
+      takeProfitPrice: openFlush.targetPrice,
+    });
+    await supabaseAdmin.from("live_trades").insert({
+      ...insertBase,
+      client_order_id: res.exchangeOrderId || null,
+      fill_price: res.filledPrice ?? null,
+      status: res.status === "filled" ? "open" : "pending",
+      raw_place: res.raw as never,
+    });
+    placedOk = 1;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await supabaseAdmin.from("live_trades").insert({
+      ...insertBase,
+      status: "error",
+      error: msg.slice(0, 500),
+    });
+    throw e;
+  }
+  return { placed: placedOk, reconciled };
+}
+
+/** Check every open/pending live_trades row; mark closed when the exchange
+ *  no longer shows an open child order for that clientOrderId. */
+async function reconcileOpen(
+  r: RunnerRow,
+  client: ReturnType<typeof createSharkClient>,
+): Promise<number> {
+  const { data: openRows } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .eq("runner_id", r.id)
+    .in("status", ["open", "pending"]);
+  if (!openRows?.length) return 0;
+
+  let openOrders: Awaited<ReturnType<typeof client.getOpenOrders>> = [];
+  try { openOrders = await client.getOpenOrders(r.symbol); } catch { return 0; }
+  const openIds = new Set(openOrders.map((o) => o.clientOrderId));
+
+  let last = 0;
+  try { last = await client.getLastPrice(r.symbol); } catch { /* keep 0 */ }
+
+  let n = 0;
+  for (const row of openRows) {
+    if (!row.client_order_id) continue;
+    // If the placed order's ID is still listed as open (or any of its children),
+    // consider the trade still open.
+    if (openIds.has(row.client_order_id)) continue;
+
+    // Try to fetch a real fill to know exit price.
+    const fill = await client.getFillForClientOrderId(row.client_order_id).catch(() => null);
+    const exitPrice = fill?.price && fill.price > 0 ? fill.price : last;
+    if (!exitPrice) continue; // no data — skip until next tick
+
+    const dir = row.direction === "long" ? 1 : -1;
+    const grossPnl = (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
+    const stopDist = Math.abs(Number(row.entry_price) - Number(row.stop_price));
+    const rr = stopDist > 0 ? ((exitPrice - Number(row.entry_price)) * dir) / stopDist : 0;
+    const exitReason =
+      dir === 1
+        ? exitPrice <= Number(row.stop_price) * 1.001 ? "stop"
+        : exitPrice >= Number(row.target_price) * 0.999 ? "target" : "closed"
+        : exitPrice >= Number(row.stop_price) * 0.999 ? "stop"
+        : exitPrice <= Number(row.target_price) * 1.001 ? "target" : "closed";
+
+    await supabaseAdmin.from("live_trades").update({
+      status: "closed",
+      exit_ts: new Date().toISOString(),
+      exit_price: exitPrice,
+      exit_reason: exitReason,
+      rr,
+      gross_pnl: grossPnl,
+      net_pnl: grossPnl, // fees not fetched separately
+      fees: 0,
+    }).eq("id", row.id);
+    n += 1;
+  }
+  return n;
+}

@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   listPaperRunners, listPaperPositions, listPaperTrades,
   setRunnerRunning, setAllRunnersRunning, runPaperTickNow, resetPaperRunner,
+  backfillPaperTradesFromBacktest,
   type RunnerDTO, type PositionDTO, type TradeDTO,
 } from "@/lib/paper-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity, History } from "lucide-react";
+
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";

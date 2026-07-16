@@ -316,7 +316,6 @@ function StrategyPerformanceCard() {
         )}
       </CardContent>
     </Card>
-    </div>
   );
 }
 

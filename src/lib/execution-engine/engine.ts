@@ -76,6 +76,43 @@ export function runExecution(
     // 1) Ingest any new signals produced by the strategy on this bar → create orders.
     const list = signalsAt[i] ?? [];
     for (const sig of list) {
+      // Contradictory-entry rule: if an OPPOSITE-direction position is
+      // already open on the same symbol, either ignore (if it's in profit)
+      // or close it and take the reverse (if it's in loss). Applies to
+      // every runner — paper and live share this engine.
+      const opposingIdx = openPositions.findIndex(
+        (p) => p.order.symbol === sig.symbol && p.ctx.direction !== sig.direction,
+      );
+      if (opposingIdx >= 0) {
+        const opp = openPositions[opposingIdx];
+        const uPnl = pnl(
+          opp.ctx.direction,
+          opp.ctx.fillPrice,
+          bar.close,
+          opp.order.remainingUnits,
+          cfg.contractMultiplier,
+        );
+        if (uPnl >= 0) {
+          emit("OnRiskBlock", bar.ts, { signalId: sig.signalId, reason: "contradictory_ignored_in_profit" });
+          continue;
+        }
+        // In loss → close existing at market (bar close) then take reverse.
+        closePosition(opp, bar, i, bar.close, "reverse_on_loss", cfg, risk, trades, emit);
+        openPositions.splice(opposingIdx, 1);
+        // Also cancel any still-pending orders for the opposite direction
+        // on the same symbol so they can't fill against the new entry.
+        for (let o = openOrders.length - 1; o >= 0; o--) {
+          const po = openOrders[o];
+          const pdir: "long" | "short" = po.side === "buy" ? "long" : "short";
+          if (po.symbol === sig.symbol && pdir !== sig.direction) {
+            po.status = "cancelled";
+            cancelled.push(po);
+            openOrders.splice(o, 1);
+            emit("OnOrderCancelled", bar.ts, { orderId: po.orderId, reason: "reversed" });
+          }
+        }
+      }
+
       const block = canOpen(risk, cfg, bar.ts);
       if (block) {
         noteBlock(risk, block);

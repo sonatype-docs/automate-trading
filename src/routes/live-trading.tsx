@@ -105,9 +105,9 @@ function LiveTradingPage() {
 
 
         <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle>Live runners</CardTitle>
-            <div className="flex items-center gap-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="truncate">Live runners</CardTitle>
+            <div className="hidden sm:flex items-center gap-2">
               {connMsg && (
                 <span className={`text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} max-w-[280px] truncate`} title={connMsg.text}>
                   {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
@@ -122,8 +122,26 @@ function LiveTradingPage() {
                 Tick now
               </Button>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"><MoreVertical className="h-4 w-4" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => testMut.mutate()} disabled={testMut.isPending}>
+                  <Plug className="h-4 w-4 mr-2" /> Test connection
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => tick.mutate()} disabled={tick.isPending}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Tick now
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
+            {connMsg && (
+              <div className={`sm:hidden mb-2 text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} truncate`} title={connMsg.text}>
+                {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
+              </div>
+            )}
             <RunnersTable
               runners={runnersList}
               onToggle={(r) => {

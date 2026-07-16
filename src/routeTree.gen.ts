@@ -33,6 +33,7 @@ import { Route as HandbookIndexRouteImport } from './routes/handbook.index'
 import { Route as BacktestIndexRouteImport } from './routes/backtest.index'
 import { Route as HandbookVolumeRouteImport } from './routes/handbook.$volume'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
+import { Route as BacktestPdhPdlSweepRouteImport } from './routes/backtest.pdh-pdl-sweep'
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
@@ -163,6 +164,11 @@ const BacktestSilverBulletRoute = BacktestSilverBulletRouteImport.update({
   path: '/backtest/silver-bullet',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BacktestPdhPdlSweepRoute = BacktestPdhPdlSweepRouteImport.update({
+  id: '/backtest/pdh-pdl-sweep',
+  path: '/backtest/pdh-pdl-sweep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BacktestOrbRoute = BacktestOrbRouteImport.update({
   id: '/backtest/orb',
   path: '/backtest/orb',
@@ -235,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/backtest': typeof BacktestIndexRoute
   '/handbook': typeof HandbookIndexRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
+  '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
+    | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
     | '/handbook/$volume'
     | '/backtest/'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
+    | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
     | '/backtest'
     | '/handbook'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
+    | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
     | '/handbook/$volume'
     | '/backtest/'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
+  BacktestPdhPdlSweepRoute: typeof BacktestPdhPdlSweepRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
@@ -623,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestSilverBulletRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backtest/pdh-pdl-sweep': {
+      id: '/backtest/pdh-pdl-sweep'
+      path: '/backtest/pdh-pdl-sweep'
+      fullPath: '/backtest/pdh-pdl-sweep'
+      preLoaderRoute: typeof BacktestPdhPdlSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/backtest/orb': {
       id: '/backtest/orb'
       path: '/backtest/orb'
@@ -741,6 +761,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,
+  BacktestPdhPdlSweepRoute: BacktestPdhPdlSweepRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,

@@ -14,7 +14,9 @@ import {
   diagnoseLiveRunners,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
@@ -103,9 +105,9 @@ function LiveTradingPage() {
 
 
         <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle>Live runners</CardTitle>
-            <div className="flex items-center gap-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="truncate">Live runners</CardTitle>
+            <div className="hidden sm:flex items-center gap-2">
               {connMsg && (
                 <span className={`text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} max-w-[280px] truncate`} title={connMsg.text}>
                   {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
@@ -120,8 +122,26 @@ function LiveTradingPage() {
                 Tick now
               </Button>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"><MoreVertical className="h-4 w-4" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => testMut.mutate()} disabled={testMut.isPending}>
+                  <Plug className="h-4 w-4 mr-2" /> Test connection
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => tick.mutate()} disabled={tick.isPending}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Tick now
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
+            {connMsg && (
+              <div className={`sm:hidden mb-2 text-xs ${connMsg.ok ? "text-emerald-500" : "text-destructive"} truncate`} title={connMsg.text}>
+                {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
+              </div>
+            )}
             <RunnersTable
               runners={runnersList}
               onToggle={(r) => {
@@ -189,27 +209,119 @@ function RunnersTable({ runners, onToggle, onSave }: {
   onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
 }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Label</TableHead>
-          <TableHead>Symbol / TF</TableHead>
-          <TableHead>Strategy</TableHead>
-          <TableHead>Entry window (IST)</TableHead>
-          <TableHead>Risk $</TableHead>
-          <TableHead>Leverage</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Last tick</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+    <>
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Label</TableHead>
+              <TableHead>Symbol / TF</TableHead>
+              <TableHead>Strategy</TableHead>
+              <TableHead>Entry window (IST)</TableHead>
+              <TableHead>Risk $</TableHead>
+              <TableHead>Leverage</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last tick</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {runners.map((r) => <RunnerRow key={r.id} r={r} onToggle={onToggle} onSave={onSave} />)}
+            {runners.length === 0 && (
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden space-y-2">
         {runners.length === 0 && (
-          <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No live runners</TableCell></TableRow>
+          <div className="text-center text-sm text-muted-foreground py-4">No live runners</div>
         )}
-      </TableBody>
-    </Table>
+        {runners.map((r) => (
+          <RunnerCardMobile key={r.id} r={r} onToggle={onToggle} onSave={onSave} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function RunnerCardMobile({ r, onToggle, onSave }: {
+  r: LiveRunnerDTO;
+  onToggle: (r: LiveRunnerDTO) => void;
+  onSave: (v: { id: string; risk_usd?: number; leverage?: number }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [risk, setRisk] = useState(String(r.risk_usd));
+  const [lev, setLev] = useState(String(r.leverage));
+  const [showStrategy, setShowStrategy] = useState(false);
+  const dirty = Number(risk) !== Number(r.risk_usd) || Number(lev) !== Number(r.leverage);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
+      <div className="flex items-center gap-2 p-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium">{r.label}</span>
+            {r.running
+              ? <Badge className="bg-destructive text-destructive-foreground text-[10px] shrink-0">LIVE</Badge>
+              : <Badge variant="outline" className="text-[10px] shrink-0">Stopped</Badge>}
+          </div>
+          <div className="text-[11px] text-muted-foreground truncate">
+            {r.symbol} · {r.timeframe} · {r.strategy_preset}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={r.running ? "destructive" : "default"}
+          className="shrink-0 h-8 px-2"
+          onClick={() => onToggle(r)}
+        >
+          {r.running
+            ? <><StopCircle className="h-3.5 w-3.5 mr-1" />Stop</>
+            : <><PlayCircle className="h-3.5 w-3.5 mr-1" />Start</>}
+        </Button>
+        <CollapsibleTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0">
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </Button>
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent className="px-2.5 pb-2.5 space-y-2.5 border-t pt-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Risk $</span>
+            <Input value={risk} onChange={(e) => setRisk(e.target.value)}
+              disabled={r.running} className="h-8" inputMode="decimal" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Leverage</span>
+            <Input value={lev} onChange={(e) => setLev(e.target.value)}
+              disabled={r.running} className="h-8" inputMode="numeric" />
+          </label>
+        </div>
+        {dirty && !r.running && (
+          <Button size="sm" variant="secondary" className="w-full" onClick={() =>
+            onSave({ id: r.id, risk_usd: Number(risk), leverage: Number(lev) })
+          }>Save changes</Button>
+        )}
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-mono">Entry window (IST)</div>
+          <EntryWindowCell preset={r.strategy_preset} />
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Last tick: {fmtTs(r.last_tick_at)}</span>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setShowStrategy(true)}>
+            <Info className="h-3.5 w-3.5 mr-1" /> Strategy
+          </Button>
+        </div>
+        {r.last_tick_error && (
+          <div className="text-[11px] text-destructive break-words">{r.last_tick_error}</div>
+        )}
+        <StrategyDetailsDialog preset={r.strategy_preset} open={showStrategy} onOpenChange={setShowStrategy} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -547,31 +659,37 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
     { key: "risk", label: "Risk" },
   ];
 
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border p-3 space-y-3">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="font-medium">
-            {d.label} <span className="text-xs text-muted-foreground">· {d.symbol} · {d.timeframe} · {d.strategy_preset}</span>
-          </div>
-          {d.lastBar && (
-            <div className="text-xs text-muted-foreground">
-              Last bar: {new Date(d.lastBar.ts).toLocaleTimeString()} · close {d.lastBar.close.toFixed(2)} · session {d.lastBar.session} · {d.barsProcessed} bars analyzed
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
+      <CollapsibleTrigger asChild>
+        <button className="w-full text-left p-3 flex items-start justify-between gap-2 hover:bg-muted/30 transition-colors">
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate">
+              {d.label} <span className="text-xs text-muted-foreground">· {d.symbol} · {d.timeframe}</span>
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {rulesPassed}/{d.rules.length} rules pass
-          </span>
-          <Badge variant={gatesOk ? "default" : "outline"} className={gatesOk ? "" : "text-muted-foreground"}>
-            {!d.running ? "Stopped"
-              : !d.windowActive ? "Outside entry window"
-              : rulesFailed.length > 0 ? `Blocked by ${rulesFailed.length} rule${rulesFailed.length > 1 ? "s" : ""}`
-              : "All rules pass — waiting for setup"}
-          </Badge>
-        </div>
-      </div>
+            {d.lastBar && (
+              <div className="text-[11px] text-muted-foreground truncate">
+                {new Date(d.lastBar.ts).toLocaleTimeString()} · close {d.lastBar.close.toFixed(2)} · {d.barsProcessed} bars
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">
+              {rulesPassed}/{d.rules.length} pass
+            </span>
+            <Badge variant={gatesOk ? "default" : "outline"} className={`text-[10px] ${gatesOk ? "" : "text-muted-foreground"}`}>
+              {!d.running ? "Stopped"
+                : !d.windowActive ? "Closed"
+                : rulesFailed.length > 0 ? `${rulesFailed.length} block`
+                : "Ready"}
+            </Badge>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-3 space-y-3 border-t pt-3">
+
 
       {d.error && <div className="text-xs text-destructive">Error: {d.error}</div>}
 
@@ -655,7 +773,9 @@ function RunnerDiagnostics({ d }: { d: RunnerDiagnosticsDTO }) {
       <div className="text-[10px] text-muted-foreground">
         Setups: {d.setupsDetected} · Signals: {d.signalsCreated} · Invalidated: {d.signalsInvalidated}
       </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
+
   );
 }
 

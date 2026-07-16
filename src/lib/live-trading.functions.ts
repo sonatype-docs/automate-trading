@@ -86,7 +86,7 @@ export const updateLiveRunner = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const s = await admin();
-    const patch: Record<string, number> = {};
+    const patch: { risk_usd?: number; leverage?: number } = {};
     if (data.risk_usd != null) patch.risk_usd = data.risk_usd;
     if (data.leverage != null) patch.leverage = data.leverage;
     const { error } = await s.from("live_runners").update(patch).eq("id", data.id);

@@ -8,18 +8,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  createChart, CandlestickSeries, HistogramSeries,
+  createChart, CandlestickSeries, HistogramSeries, LineSeries,
   CrosshairMode, LineStyle,
   type IChartApi, type ISeriesApi, type IPriceLine, type UTCTimestamp,
   type SeriesMarker,
   createSeriesMarkers,
-  type ISeriesMarkersPluginApi,
 } from "lightweight-charts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
 import {
   getLiveChartData, getLastPrice, listLiveRunners,

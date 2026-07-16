@@ -120,3 +120,179 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
       summary: { monthTotal, trades: totalTrades, wins, losses },
     };
   });
+
+// ---------- Strategy performance breakdown ----------
+
+const PerfInput = z.object({
+  period: z.enum(["ytd", "month", "week", "all"]).default("ytd"),
+  // Anchor date (IST, YYYY-MM-DD) for 'month' and 'week'. Default = today IST.
+  anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  mode: z.enum(["all", "paper", "live"]).default("all"),
+});
+
+function istNowDateKey(): string {
+  const d = new Date(Date.now() + (5 * 60 + 30) * 60_000);
+  return d.toISOString().slice(0, 10);
+}
+
+function periodRangeUtc(period: "ytd" | "month" | "week" | "all", anchor: string): { startUtc: string | null; endUtc: string | null } {
+  if (period === "all") return { startUtc: null, endUtc: null };
+  const [ay, am, ad] = anchor.split("-").map(Number);
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+  const toUtc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - IST_OFFSET_MS).toISOString();
+  if (period === "ytd") {
+    return { startUtc: toUtc(ay, 1, 1), endUtc: toUtc(ay + 1, 1, 1) };
+  }
+  if (period === "month") {
+    const nextMonth = am === 12 ? { y: ay + 1, m: 1 } : { y: ay, m: am + 1 };
+    return { startUtc: toUtc(ay, am, 1), endUtc: toUtc(nextMonth.y, nextMonth.m, 1) };
+  }
+  // week: Mon..Sun containing anchor (IST)
+  const anchorIstMs = Date.UTC(ay, am - 1, ad);
+  const dow = new Date(anchorIstMs).getUTCDay(); // 0=Sun..6=Sat
+  const monOffset = (dow + 6) % 7;
+  const monMs = anchorIstMs - monOffset * 86_400_000;
+  const startMs = monMs - IST_OFFSET_MS;
+  const endMs = startMs + 7 * 86_400_000;
+  return { startUtc: new Date(startMs).toISOString(), endUtc: new Date(endMs).toISOString() };
+}
+
+export interface StrategyPerfRow {
+  key: string;
+  source: "paper" | "live";
+  symbol: string;
+  timeframe: string;
+  strategy_preset: string;
+  totalTrades: number;
+  longTrades: number;
+  shortTrades: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  winRate: number;    // 0..1
+  grossPnl: number;
+  fees: number;
+  netPnl: number;
+  avgPnl: number;
+  bestPnl: number;
+  worstPnl: number;
+  lastTradeAt: string | null;
+}
+
+export const getStrategyPerformance = createServerFn({ method: "GET" })
+  .validator((raw: unknown) => PerfInput.parse(raw))
+  .handler(async ({ data }) => {
+    const supabase = await admin();
+    const anchor = data.anchor ?? istNowDateKey();
+    const { startUtc, endUtc } = periodRangeUtc(data.period, anchor);
+
+    const rowsByKey = new Map<string, StrategyPerfRow>();
+    const bumpRow = (r: {
+      source: "paper" | "live";
+      symbol: string;
+      timeframe: string;
+      strategy_preset: string;
+      direction: string;
+      net_pnl: number;
+      gross_pnl: number;
+      fees: number;
+      exit_ts: string | null;
+    }) => {
+      const key = `${r.source}|${r.symbol}|${r.timeframe}|${r.strategy_preset}`;
+      let row = rowsByKey.get(key);
+      if (!row) {
+        row = {
+          key, source: r.source, symbol: r.symbol, timeframe: r.timeframe, strategy_preset: r.strategy_preset,
+          totalTrades: 0, longTrades: 0, shortTrades: 0, wins: 0, losses: 0, breakeven: 0, winRate: 0,
+          grossPnl: 0, fees: 0, netPnl: 0, avgPnl: 0, bestPnl: -Infinity, worstPnl: Infinity, lastTradeAt: null,
+        };
+        rowsByKey.set(key, row);
+      }
+      row.totalTrades += 1;
+      const dir = (r.direction || "").toLowerCase();
+      if (dir === "long" || dir === "buy") row.longTrades += 1;
+      else if (dir === "short" || dir === "sell") row.shortTrades += 1;
+      if (r.net_pnl > 0) row.wins += 1;
+      else if (r.net_pnl < 0) row.losses += 1;
+      else row.breakeven += 1;
+      row.grossPnl += r.gross_pnl;
+      row.fees += r.fees;
+      row.netPnl += r.net_pnl;
+      if (r.net_pnl > row.bestPnl) row.bestPnl = r.net_pnl;
+      if (r.net_pnl < row.worstPnl) row.worstPnl = r.net_pnl;
+      if (r.exit_ts && (!row.lastTradeAt || r.exit_ts > row.lastTradeAt)) row.lastTradeAt = r.exit_ts;
+    };
+
+    if (data.mode !== "live") {
+      let q = supabase.from("paper_trades").select("symbol, timeframe, strategy_preset, direction, net_pnl, gross_pnl, fees, exit_ts");
+      if (startUtc) q = q.gte("exit_ts", startUtc);
+      if (endUtc) q = q.lt("exit_ts", endUtc);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      for (const t of rows ?? []) {
+        bumpRow({
+          source: "paper",
+          symbol: t.symbol as string,
+          timeframe: t.timeframe as string,
+          strategy_preset: t.strategy_preset as string,
+          direction: (t.direction as string) ?? "",
+          net_pnl: Number(t.net_pnl ?? 0),
+          gross_pnl: Number(t.gross_pnl ?? 0),
+          fees: Number(t.fees ?? 0),
+          exit_ts: (t.exit_ts as string) ?? null,
+        });
+      }
+    }
+
+    if (data.mode !== "paper") {
+      let q = supabase.from("live_trades")
+        .select("symbol, timeframe, strategy_preset, direction, net_pnl, gross_pnl, fees, exit_ts")
+        .not("exit_ts", "is", null);
+      if (startUtc) q = q.gte("exit_ts", startUtc);
+      if (endUtc) q = q.lt("exit_ts", endUtc);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      for (const t of rows ?? []) {
+        bumpRow({
+          source: "live",
+          symbol: t.symbol as string,
+          timeframe: t.timeframe as string,
+          strategy_preset: t.strategy_preset as string,
+          direction: (t.direction as string) ?? "",
+          net_pnl: Number(t.net_pnl ?? 0),
+          gross_pnl: Number(t.gross_pnl ?? 0),
+          fees: Number(t.fees ?? 0),
+          exit_ts: (t.exit_ts as string) ?? null,
+        });
+      }
+    }
+
+    const rows = Array.from(rowsByKey.values()).map((r) => {
+      if (!Number.isFinite(r.bestPnl)) r.bestPnl = 0;
+      if (!Number.isFinite(r.worstPnl)) r.worstPnl = 0;
+      r.winRate = r.totalTrades ? r.wins / r.totalTrades : 0;
+      r.avgPnl = r.totalTrades ? r.netPnl / r.totalTrades : 0;
+      return r;
+    }).sort((a, b) => b.netPnl - a.netPnl);
+
+    const totals = rows.reduce((acc, r) => {
+      acc.totalTrades += r.totalTrades;
+      acc.wins += r.wins;
+      acc.losses += r.losses;
+      acc.netPnl += r.netPnl;
+      acc.grossPnl += r.grossPnl;
+      acc.fees += r.fees;
+      acc.longTrades += r.longTrades;
+      acc.shortTrades += r.shortTrades;
+      return acc;
+    }, { totalTrades: 0, wins: 0, losses: 0, netPnl: 0, grossPnl: 0, fees: 0, longTrades: 0, shortTrades: 0 });
+
+    return {
+      period: data.period,
+      anchor,
+      range: { startUtc, endUtc },
+      rows,
+      totals,
+    };
+  });
+

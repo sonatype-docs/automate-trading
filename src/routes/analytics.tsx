@@ -14,7 +14,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity } from "lucide-react";
-import { getPnlCalendar } from "@/lib/analytics.functions";
+import { getPnlCalendar, getStrategyPerformance } from "@/lib/analytics.functions";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({

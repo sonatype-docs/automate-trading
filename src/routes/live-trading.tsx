@@ -200,8 +200,50 @@ function LiveTradingPage() {
                 {connMsg.ok ? "✓ " : "✗ "}{connMsg.text}
               </div>
             )}
+            {selected.size > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+                <span className="text-xs font-medium">
+                  {selected.size} selected
+                  {selectedStopped > 0 && ` · ${selectedStopped} stopped`}
+                  {selectedRunning > 0 && ` · ${selectedRunning} running`}
+                </span>
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={selectedStopped === 0 || bulkStart.isPending}
+                    onClick={() => {
+                      if (!confirm(`Start LIVE trading on ${selectedStopped} runner(s)? Real orders will be placed.`)) return;
+                      bulkStart.mutate();
+                    }}
+                  >
+                    <PlayCircle className={`h-4 w-4 mr-1 ${bulkStart.isPending ? "animate-pulse" : ""}`} />
+                    Start {selectedStopped || ""}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={selectedRunning === 0 || bulkStop.isPending}
+                    onClick={() => {
+                      if (!confirm(`Stop ${selectedRunning} running runner(s)?`)) return;
+                      bulkStop.mutate();
+                    }}
+                  >
+                    <StopCircle className={`h-4 w-4 mr-1 ${bulkStop.isPending ? "animate-pulse" : ""}`} />
+                    Stop {selectedRunning || ""}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={clearSelection}>
+                    <X className="h-4 w-4 mr-1" /> Clear
+                  </Button>
+                </div>
+              </div>
+            )}
             <RunnersTable
               runners={runnersList}
+              selected={selected}
+              onSelectToggle={toggleSelect}
+              onSelectAll={selectAll}
+              onClearSelection={clearSelection}
               onToggle={(r) => {
                 if (!r.running && !confirm(`Start LIVE trading for ${r.label}? Real orders will be placed.`)) return;
                 toggle.mutate({ id: r.id, running: !r.running });

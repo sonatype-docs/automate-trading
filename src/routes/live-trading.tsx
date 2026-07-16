@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -261,7 +261,10 @@ function EntryWindowCell({ preset }: { preset: string }) {
   const windows = windowsForPreset(preset);
   // Re-render every minute so active/next-open indicators stay accurate.
   const [, setTick] = useState(0);
-  useEffectMinute(() => setTick((n) => n + 1));
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   if (!windows.length) {
     return <span className="text-xs text-muted-foreground">—</span>;
@@ -304,16 +307,6 @@ function EntryWindowCell({ preset }: { preset: string }) {
   );
 }
 
-function useEffectMinute(fn: () => void) {
-  // Small inline hook to avoid a separate file — ticks on the wall-clock minute.
-  const [ref] = useState({ fn });
-  ref.fn = fn;
-  useState(() => {
-    if (typeof window === "undefined") return 0;
-    const id = window.setInterval(() => ref.fn(), 30_000);
-    return id;
-  });
-}
 
 function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id: string) => void }) {
   if (!trades.length) return <p className="text-sm text-muted-foreground">No open live orders.</p>;

@@ -852,3 +852,120 @@ export const getLastPrice = createServerFn({ method: "POST" })
     const price = await createSharkClient().getLastPrice(data.symbol);
     return { price, ts: Date.now() };
   });
+
+export interface RunnerStatusDTO {
+  runner_id: string;
+  state: "error" | "trade_open" | "setup_ready" | "session_closed" | "blocked" | "scanning" | "stopped";
+  detail: string | null;
+  direction: string | null;
+}
+
+export const getRunnersStatusSummary = createServerFn({ method: "GET" })
+  .handler(async (): Promise<RunnerStatusDTO[]> => {
+    const s = await admin();
+    const { data: runners, error } = await s.from("live_runners").select("*").order("label");
+    if (error) throw new Error(error.message);
+
+    const [
+      { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
+      { runStrategy }, { STRATEGY_PRESETS },
+      { evalSessionFilter, evalTrendFilter, evalVolatilityFilter },
+      { windowsForPreset, isWindowActive },
+    ] = await Promise.all([
+      import("@/lib/market-data/loader.server"),
+      import("@/lib/market-data/enrich"),
+      import("@/lib/market-data/types"),
+      import("@/lib/strategy-engine/engine"),
+      import("@/lib/strategy-engine/presets"),
+      import("@/lib/strategy-engine/filters"),
+      import("@/lib/session-windows"),
+    ]);
+
+    const { data: openTrades } = await s.from("live_trades")
+      .select("runner_id, direction, status")
+      .in("status", ["open", "pending"]);
+    const openByRunner = new Map<string, { direction: string; status: string }>();
+    for (const t of openTrades ?? []) {
+      if (!openByRunner.has(t.runner_id)) {
+        openByRunner.set(t.runner_id, { direction: String(t.direction), status: String(t.status) });
+      }
+    }
+
+    const results = await Promise.all((runners ?? []).map(async (r): Promise<RunnerStatusDTO> => {
+      const rr = r as unknown as LiveRunnerDTO;
+      if (rr.last_tick_error) {
+        return { runner_id: rr.id, state: "error", detail: rr.last_tick_error, direction: null };
+      }
+      const open = openByRunner.get(rr.id);
+      if (open) {
+        return { runner_id: rr.id, state: "trade_open", detail: open.status, direction: open.direction };
+      }
+      if (!rr.running) {
+        return { runner_id: rr.id, state: "stopped", detail: null, direction: null };
+      }
+
+      try {
+        const scfg = STRATEGY_PRESETS[rr.strategy_preset as keyof typeof STRATEGY_PRESETS];
+        if (!scfg) throw new Error(`Unknown preset ${rr.strategy_preset}`);
+
+        const toMs = Date.now();
+        const fromMs = toMs - Math.max(2, Number(rr.lookback_days)) * 24 * 60 * 60 * 1000;
+        const { candles } = await loadRawCandles({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          source: rr.source as any, symbol: rr.symbol,
+          timeframe: rr.timeframe as never, fromMs, toMs,
+        });
+        const enriched = enrichCandles(candles, {
+          ...DEFAULT_CONFIG, symbol: rr.symbol, timeframe: rr.timeframe as never,
+        });
+        const sres = runStrategy(enriched, scfg, { mode: "live", symbol: rr.symbol });
+
+        const windows = windowsForPreset(rr.strategy_preset);
+        const windowActive = windows.length === 0 || windows.some(isWindowActive);
+        if (!windowActive) {
+          return { runner_id: rr.id, state: "session_closed", detail: "outside trading window", direction: null };
+        }
+
+        const invIds = new Set(sres.invalidated.map((x) => x.signalId));
+        const filledIds = new Set(
+          sres.events.filter((e) => e.name === "OnTradeFilled").map((e) => e.data.signalId as string),
+        );
+        const pending = [...sres.signals].reverse().find(
+          (sig) => sig.type !== "BUY" && sig.type !== "SELL"
+            && !invIds.has(sig.signalId) && !filledIds.has(sig.signalId),
+        );
+        if (pending) {
+          return {
+            runner_id: rr.id, state: "setup_ready",
+            detail: `entry ${pending.entryPrice.toFixed(2)}`,
+            direction: pending.direction,
+          };
+        }
+
+        const lastBar = enriched[enriched.length - 1] ?? null;
+        const prevBar = enriched[enriched.length - 2] ?? null;
+        if (lastBar) {
+          const idx = enriched.length - 1;
+          const checks = [
+            evalSessionFilter(lastBar, scfg.session),
+            evalTrendFilter(lastBar, enriched, idx, scfg.trend),
+            evalVolatilityFilter(lastBar, prevBar, scfg.volatility),
+          ];
+          const failing = checks.filter((c) => !c.pass);
+          if (failing.length) {
+            return {
+              runner_id: rr.id, state: "blocked",
+              detail: failing.map((c) => c.label).join(", "),
+              direction: null,
+            };
+          }
+        }
+        return { runner_id: rr.id, state: "scanning", detail: null, direction: null };
+      } catch (e) {
+        return { runner_id: rr.id, state: "error", detail: e instanceof Error ? e.message : String(e), direction: null };
+      }
+    }));
+
+    return results;
+  });
+

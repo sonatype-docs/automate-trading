@@ -91,6 +91,11 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
       return { inserted: 0, tradesInRun: 0, skipped: 0 };
     }
     const rows = records.map(recordToRow);
+    const targetTable = data.snapshotName ? "trade_intelligence_archive" : "trade_intelligence";
+    const onConflict = data.snapshotName ? "snapshot_name,trade_id" : "trade_id";
+    if (data.snapshotName) {
+      for (const row of rows as Record<string, unknown>[]) row.snapshot_name = data.snapshotName;
+    }
     // Chunk upserts — a single 10k-row request can time out or exceed
     // PostgREST's payload cap. 500/chunk keeps every request well within limits.
     const CHUNK = 500;
@@ -99,8 +104,8 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
       const slice = rows.slice(i, i + CHUNK);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error, count } = await supabase
-        .from("trade_intelligence")
-        .upsert(slice as any, { onConflict: "trade_id", count: "exact" });
+        .from(targetTable)
+        .upsert(slice as any, { onConflict, count: "exact" });
       if (error) throw new Error(error.message);
       inserted += count ?? slice.length;
     }

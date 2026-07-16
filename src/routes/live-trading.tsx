@@ -168,7 +168,10 @@ function LiveTradingPage() {
         )}
         </TabsContent>
         <TabsContent value="performance">
-          <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+          <div className="space-y-6">
+            <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
+            <PnlCalendarCard defaultMode="live" lockMode />
+          </div>
         </TabsContent>
       </Tabs>
     </AppShell>

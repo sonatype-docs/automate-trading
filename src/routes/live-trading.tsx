@@ -82,7 +82,7 @@ function LiveTradingPage() {
   const totalPnl = closedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
   return (
-    <AppShell>
+    <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -174,7 +174,7 @@ function LiveTradingPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </AppShell>
+    </div>
   );
 }
 

@@ -115,6 +115,11 @@ export function planTargets(
           ? bar.prevDayHigh ?? bar.swingHigh ?? entryPrice + side * rDist * 2
           : bar.prevDayLow ?? bar.swingLow ?? entryPrice + side * rDist * 2;
         break;
+      case "opposite_pdx":
+        price = direction === "long"
+          ? bar.prevDayHigh ?? entryPrice + side * rDist * 5
+          : bar.prevDayLow ?? entryPrice + side * rDist * 5;
+        break;
       case "opposite_range": {
         const half = bar.openingRangeSize ? bar.openingRangeSize / 2 : rDist;
         const mid = bar.close - (bar.breakDistance ?? 0) * side;

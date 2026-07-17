@@ -88,6 +88,14 @@ export interface EditOrderParams {
   quantity?: number;
 }
 
+export interface OpenPositionRow {
+  symbol: string;
+  side: "LONG" | "SHORT" | string;
+  qty: number;
+  entryPrice: number | null;
+  raw: unknown;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
@@ -95,6 +103,7 @@ export interface ExchangeClient {
   updateLeverage(symbol: string, leverage: number): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
+  getOpenPositions(symbol?: string): Promise<OpenPositionRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;

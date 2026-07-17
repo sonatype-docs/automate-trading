@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +144,10 @@ function LiveTradingPage() {
     onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
   });
 
+  const [showTick, setShowTick] = useState(false);
+  const [showChart, setShowChart] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+
   return (
     <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">
@@ -153,11 +157,16 @@ function LiveTradingPage() {
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
 
-        <TickStatusCard runners={runnersList} />
+        <CollapsedShell title="Why isn't a trade triggering?" open={showTick} onToggle={() => setShowTick((v) => !v)}>
+          <TickStatusCard runners={runnersList} />
+        </CollapsedShell>
 
         <TopRunnersVerificationCard />
 
-        <LiveChartCard />
+        <CollapsedShell title="Live chart" open={showChart} onToggle={() => setShowChart((v) => !v)}>
+          <LiveChartCard />
+        </CollapsedShell>
+
 
 
 
@@ -263,7 +272,9 @@ function LiveTradingPage() {
           </CardContent>
         </Card>
 
-        <DiagnosticsCard />
+        <CollapsedShell title="Why isn't a trade triggering? (diagnostics)" open={showDiag} onToggle={() => setShowDiag((v) => !v)}>
+          <DiagnosticsCard />
+        </CollapsedShell>
 
 
         <Card>
@@ -306,6 +317,23 @@ function LiveTradingPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function CollapsedShell({ title, open, onToggle, children }: {
+  title: string; open: boolean; onToggle: () => void; children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        className="flex flex-row items-center justify-between gap-2 cursor-pointer select-none py-3"
+        onClick={onToggle}
+      >
+        <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </CardHeader>
+      {open && <CardContent className="pt-0">{children}</CardContent>}
+    </Card>
   );
 }
 

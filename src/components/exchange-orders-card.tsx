@@ -105,13 +105,17 @@ export function ExchangeOrdersCard() {
   const q = useQuery({
     queryKey: ["exchange-orders"],
     queryFn: () => fn(),
-    refetchInterval: 5_000,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
   });
 
   const tradesQ = useQuery({
     queryKey: ["live-trades-card"],
     queryFn: () => tradesFn({ data: { limit: 2000 } }),
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
+    staleTime: 8_000,
+    placeholderData: keepPreviousData,
   });
 
   const cancelMut = useMutation({

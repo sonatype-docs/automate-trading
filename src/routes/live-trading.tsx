@@ -764,14 +764,14 @@ function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id
 }
 
 function ClosedTable({ trades }: { trades: LiveTradeDTO[] }) {
-  if (!trades.length) return <p className="text-sm text-muted-foreground">No closed live trades yet.</p>;
+  if (!trades.length) return <p className="text-sm text-muted-foreground">No finished live attempts yet.</p>;
   return (
     <div className="max-h-[500px] overflow-auto">
       <Table>
         <TableHeader><TableRow>
           <TableHead>Symbol</TableHead><TableHead>Dir</TableHead>
           <TableHead>Entry</TableHead><TableHead>Exit</TableHead><TableHead>Reason</TableHead>
-          <TableHead>RR</TableHead><TableHead className="text-right">Net PnL</TableHead><TableHead>Closed</TableHead>
+          <TableHead>RR</TableHead><TableHead>Outcome</TableHead><TableHead className="text-right">Net PnL</TableHead><TableHead>Closed</TableHead>
         </TableRow></TableHeader>
         <TableBody>
           {trades.map((t) => (
@@ -782,8 +782,11 @@ function ClosedTable({ trades }: { trades: LiveTradeDTO[] }) {
               <TableCell>{t.exit_price != null ? Number(t.exit_price).toFixed(2) : "—"}</TableCell>
               <TableCell className="text-xs text-muted-foreground">{t.exit_reason ?? "—"}</TableCell>
               <TableCell>{t.rr != null ? Number(t.rr).toFixed(2) : "—"}</TableCell>
-              <TableCell className={`text-right font-medium ${Number(t.net_pnl ?? 0) >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                {fmtUsd(t.net_pnl)}
+              <TableCell className="text-xs text-muted-foreground">
+                {hasRealizedPnl(t) ? "Filled" : noFillReason(t.exit_reason) ? "No fill" : t.status}
+              </TableCell>
+              <TableCell className={`text-right font-medium ${!hasRealizedPnl(t) ? "text-muted-foreground" : Number(t.net_pnl) >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                {pnlDisplay(t)}
               </TableCell>
               <TableCell className="text-xs">{fmtTs(t.exit_ts)}</TableCell>
             </TableRow>

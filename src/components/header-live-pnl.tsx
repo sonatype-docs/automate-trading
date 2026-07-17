@@ -78,7 +78,7 @@ export function HeaderLivePnl() {
           : "No open positions"
       }
     >
-      <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
+      
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">P&amp;L</span>
       <span className="text-base sm:text-xl">{hasPos ? `$${fmtUsd(total)}` : "$0.00"}</span>
       {hasPos && (

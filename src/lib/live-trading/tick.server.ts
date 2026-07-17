@@ -478,7 +478,7 @@ async function reconcileOpen(
           fill_price: fill?.price ?? Number(row.entry_price),
           entry_price: fill?.price ?? Number(row.entry_price),
           // Stamp the age-clock the first time we detect a fill.
-          fill_ts: row.fill_ts ?? new Date(fill?.timeMs ?? Date.now()).toISOString(),
+          fill_ts: row.fill_ts ?? new Date().toISOString(),
         }).eq("id", row.id);
       } else {
         await supabaseAdmin.from("live_trades").update({

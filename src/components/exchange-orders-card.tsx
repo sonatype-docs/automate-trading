@@ -81,7 +81,7 @@ export function ExchangeOrdersCard() {
 
   const tradesQ = useQuery({
     queryKey: ["live-trades-card"],
-    queryFn: () => tradesFn({ data: { limit: 200 } }),
+    queryFn: () => tradesFn({ data: { limit: 2000 } }),
     refetchInterval: 5_000,
   });
 
@@ -107,10 +107,15 @@ export function ExchangeOrdersCard() {
     .filter((t) => t.status === "closed" || t.status === "error")
     .sort((a, b) => (b.exit_ts ?? b.entry_ts).localeCompare(a.exit_ts ?? a.entry_ts));
   const realizedTrades = finishedTrades.filter(hasRealizedPnl);
-
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const startOfTodayMs = startOfToday.getTime();
+  const isTodayAttempt = (t: LiveTradeDTO) => {
+    const tsSrc = t.exit_ts ?? t.entry_ts;
+    const ts = tsSrc ? new Date(tsSrc).getTime() : 0;
+    return ts >= startOfTodayMs;
+  };
+  const finishedToday = finishedTrades.filter(isTodayAttempt);
   let overallPnl = 0;
   let todayPnl = 0;
   let todayRealizedCount = 0;
@@ -186,6 +191,11 @@ export function ExchangeOrdersCard() {
         {data?.error && (
           <div className="mt-2 text-xs text-destructive">{data.error}</div>
         )}
+        {tradesQ.error && (
+          <div className="mt-2 text-xs text-destructive">
+            {tradesQ.error instanceof Error ? tradesQ.error.message : "Failed to load runner trades"}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -209,7 +219,7 @@ export function ExchangeOrdersCard() {
               <TabsTrigger value="closed" className="whitespace-nowrap">
                 <span className="sm:hidden">Closed</span>
                 <span className="hidden sm:inline">Executed &amp; Closed</span>
-                <Badge variant="outline" className="ml-2">{finishedTrades.length}</Badge>
+                <Badge variant="outline" className="ml-2">{finishedToday.length}</Badge>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -377,8 +387,8 @@ export function ExchangeOrdersCard() {
 
           {/* Closed: our runner trades that finished today or recently */}
           <TabsContent value="closed" className="mt-3">
-            {finishedTrades.length === 0 ? (
-              <EmptyRow text="No closed runner trades yet." />
+            {finishedToday.length === 0 ? (
+              <EmptyRow text="No finished runner attempts today." />
             ) : (
               <div className="rounded border overflow-x-auto">
                 <Table>
@@ -397,7 +407,7 @@ export function ExchangeOrdersCard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {finishedTrades.map((t) => {
+                    {finishedToday.map((t) => {
                       const pnl = Number(t.net_pnl ?? 0);
                       const realized = hasRealizedPnl(t);
                       const pnlCls =

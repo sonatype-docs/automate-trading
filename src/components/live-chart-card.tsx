@@ -641,7 +641,9 @@ function AllRunnersStatusPanel({
           } else if (st?.state === "session_closed") {
             statusText = "Session closed"; tone = "muted"; StatusIcon = Clock;
           } else if (st?.state === "blocked") {
-            statusText = "Filters blocking"; tone = "warning"; StatusIcon = Shield;
+            const labels = (st.detail ?? "").split(" · ").map((s) => s.split(" (")[0]).filter(Boolean);
+            statusText = labels.length ? `Blocked: ${labels.join(", ")}` : "Filters blocking";
+            tone = "warning"; StatusIcon = Shield;
             subDetail = st.detail;
           } else if (st?.state === "error") {
             statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;

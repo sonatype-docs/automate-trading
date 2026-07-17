@@ -977,3 +977,107 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
     return results;
   });
 
+// ---------- Top-10 curated selection (backtested robustness winners) ----------
+// Hardcoded so the verification panel shows a stable, reviewable list.
+// Ordered by robustness score from the backtest screenshots.
+export interface TopRunnerSpec {
+  label: string;
+  source: "shark" | "yahoo";
+  symbol: "BTCUSDT" | "XAUUSDT";
+  timeframe: string;
+  strategy_preset: string;
+  exec_preset: string;
+  risk_usd: number;
+  lookback_days: number;
+  leverage: number;
+  robustness: number;
+}
+
+export const TOP_RUNNER_SELECTION: TopRunnerSpec[] = [
+  { label: "BTC 1h London ORB (live)",   source: "shark", symbol: "BTCUSDT", timeframe: "1h",  strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 5, robustness: 89 },
+  { label: "BTC 5m VWAP (live)",         source: "shark", symbol: "BTCUSDT", timeframe: "5m",  strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 5, robustness: 87 },
+  { label: "XAU 30m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "30m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 5, robustness: 85 },
+  { label: "XAU 10m VWAP (live)",        source: "yahoo", symbol: "XAUUSDT", timeframe: "10m", strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 5, robustness: 84 },
+  { label: "BTC 15m VWAP (live)",        source: "shark", symbol: "BTCUSDT", timeframe: "15m", strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 5, robustness: 84 },
+  { label: "BTC 45m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "45m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 5, robustness: 82 },
+  { label: "XAU 45m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "45m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 5, robustness: 79 },
+  { label: "BTC 15m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "15m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 5, robustness: 77 },
+  { label: "XAU 15m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "15m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 5, robustness: 74 },
+  { label: "BTC 30m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "30m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 5, robustness: 73 },
+];
+
+export interface TopSelectionPreviewDTO {
+  selection: TopRunnerSpec[];
+  existing: Array<{
+    id: string; label: string; symbol: string; timeframe: string;
+    strategy_preset: string; running: boolean;
+  }>;
+}
+
+export const previewTopSelection = createServerFn({ method: "GET" })
+  .handler(async (): Promise<TopSelectionPreviewDTO> => {
+    const s = await admin();
+    const { data, error } = await s
+      .from("live_runners")
+      .select("id, label, symbol, timeframe, strategy_preset, running")
+      .order("label");
+    if (error) throw new Error(error.message);
+    return {
+      selection: TOP_RUNNER_SELECTION,
+      existing: (data ?? []) as TopSelectionPreviewDTO["existing"],
+    };
+  });
+
+export interface ReplaceReportDTO {
+  deleted: Array<{ id: string; label: string; symbol: string; timeframe: string; strategy_preset: string }>;
+  inserted: Array<{ id: string; label: string; symbol: string; timeframe: string; strategy_preset: string }>;
+  deletedTrades: number;
+  startRequested: boolean;
+}
+
+export const replaceLiveRunnersWithTopSelection = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({ startImmediately: z.boolean().default(false) }).parse(raw))
+  .handler(async ({ data }): Promise<ReplaceReportDTO> => {
+    const s = await admin();
+
+    // Snapshot existing runners so we can report exactly what got removed.
+    const { data: existing, error: exErr } = await s
+      .from("live_runners")
+      .select("id, label, symbol, timeframe, strategy_preset");
+    if (exErr) throw new Error(exErr.message);
+
+    // Delete dependent live_trades first, then runners. CASCADE would handle
+    // trades but we count them explicitly so the UI can show it.
+    const { count: tradeCount } = await s
+      .from("live_trades")
+      .select("*", { count: "exact", head: true });
+    if ((existing ?? []).length > 0) {
+      const { error: dtErr } = await s.from("live_trades").delete().not("id", "is", null);
+      if (dtErr) throw new Error(dtErr.message);
+      const { error: drErr } = await s.from("live_runners").delete().not("id", "is", null);
+      if (drErr) throw new Error(drErr.message);
+    }
+
+    // Insert the curated selection.
+    const rows = TOP_RUNNER_SELECTION.map((r) => ({
+      label: r.label, source: r.source, symbol: r.symbol,
+      timeframe: r.timeframe, strategy_preset: r.strategy_preset,
+      exec_preset: r.exec_preset, risk_usd: r.risk_usd,
+      lookback_days: r.lookback_days, leverage: r.leverage,
+      running: data.startImmediately,
+      started_at: data.startImmediately ? new Date().toISOString() : null,
+    }));
+    const { data: inserted, error: inErr } = await s
+      .from("live_runners")
+      .insert(rows)
+      .select("id, label, symbol, timeframe, strategy_preset");
+    if (inErr) throw new Error(inErr.message);
+
+    return {
+      deleted: (existing ?? []) as ReplaceReportDTO["deleted"],
+      inserted: (inserted ?? []) as ReplaceReportDTO["inserted"],
+      deletedTrades: tradeCount ?? 0,
+      startRequested: data.startImmediately,
+    };
+  });
+

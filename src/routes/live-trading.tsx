@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
-  diagnoseLiveRunners, importTopPaperRunnersToLive,
+  diagnoseLiveRunners, importTopPaperRunnersToLive, listLiveExchangeOrders,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical, Download } from "lucide-react";

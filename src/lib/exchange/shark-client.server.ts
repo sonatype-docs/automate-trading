@@ -465,7 +465,7 @@ export function createSharkClient(): ExchangeClient {
           qty: num(o.qty ?? o.quantity ?? o.filledAmount ?? o.orderAmount),
           price,
           fee: num(o.fee ?? o.commission ?? o.tradeFee),
-          realizedPnl: num(o.realizedPnl ?? o.realisedPnl ?? o.pnl),
+          realizedPnl: num(o.realizedProfit ?? o.realizedPnl ?? o.realisedPnl ?? o.pnl),
           reduceOnly:
             typeof o.reduceOnly === "boolean" ? (o.reduceOnly as boolean) : null,
           timeMs: Number.isFinite(timeMs) ? timeMs : 0,

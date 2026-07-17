@@ -104,11 +104,13 @@ export type Database = {
           entry_price: number
           entry_ts: string
           error: string | null
+          exit_client_order_id: string | null
           exit_price: number | null
           exit_reason: string | null
           exit_ts: string | null
           fees: number | null
           fill_price: number | null
+          fill_ts: string | null
           gross_pnl: number | null
           id: string
           net_pnl: number | null
@@ -132,11 +134,13 @@ export type Database = {
           entry_price: number
           entry_ts: string
           error?: string | null
+          exit_client_order_id?: string | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_ts?: string | null
           fees?: number | null
           fill_price?: number | null
+          fill_ts?: string | null
           gross_pnl?: number | null
           id?: string
           net_pnl?: number | null
@@ -160,11 +164,13 @@ export type Database = {
           entry_price?: number
           entry_ts?: string
           error?: string | null
+          exit_client_order_id?: string | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_ts?: string | null
           fees?: number | null
           fill_price?: number | null
+          fill_ts?: string | null
           gross_pnl?: number | null
           id?: string
           net_pnl?: number | null

@@ -277,7 +277,12 @@
     font-family: var(--font-mono);
   }
   tbody tr { transition: background-color 180ms ease; }
-  tbody tr:hover { background: color-mix(in oklch, var(--color-primary) 6%, transparent); }
+  tbody tr:hover {
+    background: linear-gradient(90deg,
+      color-mix(in oklch, var(--brand-flame) 8%, transparent),
+      color-mix(in oklch, var(--brand-copper) 8%, transparent) 60%,
+      color-mix(in oklch, var(--brand-violet) 6%, transparent));
+  }
 
   /* Numeric-heavy cells look right in mono */
   td.tabular, td[data-tabular="true"], .tabular-nums { font-variant-numeric: tabular-nums; }

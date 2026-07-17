@@ -345,6 +345,35 @@ export function createSharkClient(): ExchangeClient {
       return fetchOpenOrders(symbol);
     },
 
+    async getOpenPositions(symbol) {
+      const { apiKey, apiSecret } = requireCreds();
+      const params: Record<string, string | number> = { sortOrder: "desc", pageSize: "100" };
+      if (symbol) params.symbol = symbol.toUpperCase();
+      const res = await signedGet(apiKey, apiSecret, "/v1/positions/OPEN", params);
+      if (!res.ok) return [];
+      const rows =
+        (res.json as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(res.json) ? (res.json as unknown[]) : []);
+      const out: OpenPositionRow[] = [];
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      for (const r of rows) {
+        const o = r as Record<string, unknown>;
+        const qty = num(o.positionAmt ?? o.quantity ?? o.qty ?? o.size);
+        if (qty == null || qty === 0) continue;
+        out.push({
+          symbol: String(o.symbol ?? o.contractName ?? ""),
+          side: String(o.side ?? o.positionSide ?? (qty > 0 ? "LONG" : "SHORT")).toUpperCase(),
+          qty: Math.abs(qty),
+          entryPrice: num(o.entryPrice ?? o.avgEntryPrice ?? o.avgPrice),
+          raw: o,
+        });
+      }
+      return out;
+    },
+
     async getFillForClientOrderId(clientOrderId) {
       const { apiKey, apiSecret } = requireCreds();
       const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", {

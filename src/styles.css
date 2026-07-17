@@ -356,11 +356,11 @@
   }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--brand-flame), var(--brand-copper) 55%, var(--brand-violet));
+    background: var(--brand-copper);
     border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--brand-ember), var(--brand-copper) 45%, var(--brand-violet));
+    background: var(--brand-ember);
   }
 
   /* Route transitions */

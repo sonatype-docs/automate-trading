@@ -268,10 +268,19 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       symbol: r.symbol,
       side: openFlush.direction === "long" ? "buy" : "sell",
       qty,
-      type: "market",
+      type: "limit",
+      price: openFlush.fillPrice,
       stopLossPrice: openFlush.stopPrice,
       takeProfitPrice: openFlush.targetPrice,
     });
+    await supabaseAdmin.from("live_trades").insert({
+      ...insertBase,
+      client_order_id: res.exchangeOrderId || null,
+      fill_price: res.filledPrice ?? null,
+      status: res.status === "filled" ? "open" : "pending",
+      raw_place: res.raw as never,
+    });
+
     await supabaseAdmin.from("live_trades").insert({
       ...insertBase,
       client_order_id: res.exchangeOrderId || null,

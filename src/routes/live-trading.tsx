@@ -26,7 +26,7 @@ import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
   type IstWindow,
 } from "@/lib/session-windows";
-import { LiveChartCard } from "@/components/live-chart-card";
+import { LiveChartCard, AllRunnersStatusCard } from "@/components/live-chart-card";
 import { TopRunnersVerificationCard } from "@/components/top-runners-verification";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 

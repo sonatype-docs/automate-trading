@@ -1081,3 +1081,156 @@ export const replaceLiveRunnersWithTopSelection = createServerFn({ method: "POST
     };
   });
 
+
+// ---------- Live exchange orders (pending / executed / closed) ----------
+export interface ExchangePendingOrder {
+  clientOrderId: string;
+  symbol: string;
+  side: string;
+  type: string;
+  price: number | null;
+  quantity: number | null;
+  filledAmount: number | null;
+  stopPrice: number | null;
+  stopLossPrice: number | null;
+  takeProfitPrice: number | null;
+  reduceOnly: boolean | null;
+  subType: string | null;
+  createdAt: string | null;
+}
+export interface ExchangeOpenPosition {
+  symbol: string;
+  side: string;
+  qty: number;
+  entryPrice: number | null;
+}
+export interface ExchangeClosedTrade {
+  id: string;
+  clientOrderId: string | null;
+  symbol: string;
+  side: string;
+  type: string;
+  price: number | null;
+  quantity: number | null;
+  fee: number | null;
+  realizedPnl: number | null;
+  time: string | null;
+}
+export interface ExchangeOrdersDTO {
+  pending: ExchangePendingOrder[];
+  executed: ExchangeOpenPosition[];
+  closed: ExchangeClosedTrade[];
+  fetchedAt: string;
+  error: string | null;
+}
+
+export const listLiveExchangeOrders = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ExchangeOrdersDTO> => {
+    const empty: ExchangeOrdersDTO = {
+      pending: [], executed: [], closed: [],
+      fetchedAt: new Date().toISOString(), error: null,
+    };
+    try {
+      const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+      const client = createSharkClient();
+      const s = await admin();
+      // Symbols the user actually has runners on.
+      const { data: runners } = await s.from("live_runners").select("symbol");
+      const symbols = Array.from(new Set((runners ?? []).map((r) => r.symbol.toUpperCase())));
+      if (symbols.length === 0) return empty;
+
+      // 1) Open orders + open positions per symbol.
+      const [ordersBySymbol, posBySymbol] = await Promise.all([
+        Promise.all(symbols.map((sym) => client.getOpenOrders(sym).catch(() => []))),
+        Promise.all(symbols.map((sym) => client.getOpenPositions(sym).catch(() => []))),
+      ]);
+
+      const pending: ExchangePendingOrder[] = [];
+      for (const rows of ordersBySymbol) {
+        for (const o of rows) {
+          pending.push({
+            clientOrderId: o.clientOrderId,
+            symbol: o.symbol,
+            side: o.side,
+            type: o.type,
+            price: o.price,
+            quantity: o.quantity,
+            filledAmount: o.filledAmount,
+            stopPrice: o.stopPrice,
+            stopLossPrice: o.stopLossPrice,
+            takeProfitPrice: o.takeProfitPrice,
+            reduceOnly: o.reduceOnly,
+            subType: o.subType,
+            createdAt: o.createdAt,
+          });
+        }
+      }
+      const executed: ExchangeOpenPosition[] = [];
+      for (const rows of posBySymbol) {
+        for (const p of rows) {
+          executed.push({
+            symbol: p.symbol,
+            side: p.side,
+            qty: p.qty,
+            entryPrice: p.entryPrice,
+          });
+        }
+      }
+
+      // 2) Recent trade history (fills = executed + closed leg fills).
+      //    Shark returns most-recent first; we take up to 100.
+      const snapshot = await client.getAccountSnapshot();
+      const historyRaw =
+        (snapshot.tradeHistory as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(snapshot.tradeHistory) ? (snapshot.tradeHistory as unknown[]) : []);
+      const closed: ExchangeClosedTrade[] = [];
+      const symbolSet = new Set(symbols);
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      for (const r of historyRaw as Record<string, unknown>[]) {
+        const sym = String(r.symbol ?? r.contractName ?? "").toUpperCase();
+        if (symbolSet.size > 0 && !symbolSet.has(sym)) continue;
+        closed.push({
+          id: String(r.id ?? r.tradeId ?? r.orderId ?? r.clientOrderId ?? Math.random()),
+          clientOrderId:
+            (r.clientOrderId as string | undefined) ??
+            (r.orderId as string | undefined) ??
+            null,
+          symbol: sym,
+          side: String(r.side ?? ""),
+          type: String(r.type ?? r.orderType ?? ""),
+          price: num(r.price ?? r.fillPrice ?? r.avgPrice),
+          quantity: num(r.qty ?? r.quantity ?? r.filledAmount),
+          fee: num(r.fee ?? r.takerFee ?? r.makerFee ?? r.commission),
+          realizedPnl: num(r.realizedPnl ?? r.pnl ?? r.profit),
+          time:
+            (r.time as string | undefined) ??
+            (r.createdAt as string | undefined) ??
+            (r.updatedAt as string | undefined) ??
+            null,
+        });
+      }
+      closed.sort((a, b) => (b.time ?? "").localeCompare(a.time ?? ""));
+
+      return {
+        pending, executed,
+        closed: closed.slice(0, 100),
+        fetchedAt: new Date().toISOString(),
+        error: null,
+      };
+    } catch (e) {
+      return { ...empty, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);
+
+export const cancelExchangeOrder = createServerFn({ method: "POST" })
+  .inputValidator((raw) => z.object({ clientOrderId: z.string().min(1) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    const res = await client.cancelOrder(data.clientOrderId);
+    return { ok: res.ok, status: res.status, body: res.body };
+  });

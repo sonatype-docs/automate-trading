@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import { PaperStatsCard } from "@/components/paper-stats-card";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
 export const Route = createFileRoute("/paper-trading")({
@@ -99,7 +100,8 @@ function PaperTradingPage() {
           <TabsTrigger value="performance">Strategy performance</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
-        <PnlCalendarCard defaultMode="paper" lockMode showStrategyFilter={false} showKpis={false} showToday />
+        <PaperStatsCard trades={tradesList} positions={positionsList} />
+        <PnlCalendarCard defaultMode="paper" lockMode showStrategyFilter={false} showKpis={false} />
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Runners</CardTitle>

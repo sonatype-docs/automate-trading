@@ -161,6 +161,14 @@ export function ExchangeOrdersCard() {
   const avgR = closeNetValues.length > 0
     ? closeNetValues.reduce((s, v) => s + v / riskPerTradeUsd, 0) / closeNetValues.length
     : null;
+  const winNetValues = closeNetValues.filter((v) => v > 0);
+  const lossNetValues = closeNetValues.filter((v) => v < 0);
+  const avgRWin = winNetValues.length > 0
+    ? winNetValues.reduce((s, v) => s + v / riskPerTradeUsd, 0) / winNetValues.length
+    : null;
+  const avgRLoss = lossNetValues.length > 0
+    ? lossNetValues.reduce((s, v) => s + v / riskPerTradeUsd, 0) / lossNetValues.length
+    : null;
   let todayRealizedCount = 0;
   let todayAttempts = 0;
   let todayNoFill = 0;
@@ -177,6 +185,21 @@ export function ExchangeOrdersCard() {
       }
     }
   }
+  // Month-to-date (local time), from exchange fills
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const startOfMonthMs = startOfMonth.getTime();
+  const exchangeFillsMonth = exchangeFills.filter((t) => {
+    const ts = t.time ? new Date(t.time).getTime() : 0;
+    return ts >= startOfMonthMs;
+  });
+  const monthSummary = sumExchange(exchangeFillsMonth);
+  const monthCloses = exchangeFillsMonth.filter(isRealizedExchangeClose);
+  const monthCloseNet = monthCloses.map((r) => Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)));
+  const monthWins = monthCloseNet.filter((v) => v > 0).length;
+  const monthLosses = monthCloseNet.filter((v) => v < 0).length;
+
   const pnlTone = (v: number) =>
     v > 0 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
       : v < 0 ? "border-destructive/40 bg-destructive/10 text-destructive"
@@ -185,6 +208,54 @@ export function ExchangeOrdersCard() {
     q.refetch();
     tradesQ.refetch();
   };
+
+  const stats: Array<{ label: string; value: string; hint?: string; tone?: string }> = [
+    {
+      label: "Today · Trades",
+      value: String(closeNetValues.length),
+      hint: `${todayAttempts} attempts · ${todayNoFill} no-fill${todayErrors ? ` · ${todayErrors} error` : ""}`,
+    },
+    { label: "Today · Wins", value: String(todayWins), tone: todayWins > 0 ? "text-emerald-500" : undefined },
+    { label: "Today · Losses", value: String(todayLosses), tone: todayLosses > 0 ? "text-destructive" : undefined },
+    {
+      label: "Today · Win rate",
+      value: todayWinRate == null ? "—" : `${todayWinRate.toFixed(0)}%`,
+    },
+    {
+      label: "Today · Net P&L",
+      value: closeNetValues.length ? fmtMoney(todayExchangeSummary.net) : "—",
+      hint: todayExchangeSummary.hasInr ? fmtInr(todayExchangeSummary.netInr) : "after fees",
+      tone: todayExchangeSummary.net > 0 ? "text-emerald-500" : todayExchangeSummary.net < 0 ? "text-destructive" : undefined,
+    },
+    {
+      label: "Today · Fees",
+      value: closeNetValues.length ? `${todayExchangeSummary.fees.toFixed(2)} USDT` : "—",
+      hint: todayExchangeSummary.hasInr ? `₹${todayExchangeSummary.feesInr.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : undefined,
+    },
+    {
+      label: "R:R · Wins",
+      value: avgRWin == null ? "—" : `+${avgRWin.toFixed(2)}R`,
+      hint: `${todayWins} win${todayWins === 1 ? "" : "s"}`,
+      tone: avgRWin != null ? "text-emerald-500" : undefined,
+    },
+    {
+      label: "R:R · Losses",
+      value: avgRLoss == null ? "—" : `${avgRLoss.toFixed(2)}R`,
+      hint: `${todayLosses} loss${todayLosses === 1 ? "" : "es"}`,
+      tone: avgRLoss != null ? "text-destructive" : undefined,
+    },
+    {
+      label: "Month · Net P&L",
+      value: monthCloseNet.length ? fmtMoney(monthSummary.net) : "—",
+      hint: `${monthWins}W/${monthLosses}L · after fees`,
+      tone: monthSummary.net > 0 ? "text-emerald-500" : monthSummary.net < 0 ? "text-destructive" : undefined,
+    },
+    {
+      label: "Month · Fees",
+      value: monthCloseNet.length ? `${monthSummary.fees.toFixed(2)} USDT` : "—",
+      hint: monthSummary.hasInr ? `₹${monthSummary.feesInr.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : undefined,
+    },
+  ];
 
   return (
     <Card>
@@ -224,6 +295,19 @@ export function ExchangeOrdersCard() {
               <RefreshCw className={`h-3.5 w-3.5 ${q.isFetching || tradesQ.isFetching ? "animate-spin" : ""}`} />
             </Button>
           </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {stats.map((s) => (
+            <div
+              key={s.label}
+              className="rounded-md border bg-muted/20 px-2.5 py-2 flex flex-col gap-0.5"
+              title={s.hint}
+            >
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</div>
+              <div className={`text-sm font-mono font-semibold leading-tight ${s.tone ?? ""}`}>{s.value}</div>
+              {s.hint && <div className="text-[10px] text-muted-foreground truncate">{s.hint}</div>}
+            </div>
+          ))}
         </div>
         {data?.error && (
           <div className="mt-2 text-xs text-destructive">{data.error}</div>

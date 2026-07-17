@@ -122,6 +122,59 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     }).eq("id", sp.id);
   }
 
+  // 0.5) Promote QUEUED signals when the symbol is now free.
+  // Queued rows carry full entry data; place them on the exchange in order.
+  const QUEUE_MAX_AGE_MS = 15 * 60 * 1000;
+  const { data: queuedRows } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, direction, qty, entry_price, stop_price, target_price, entry_ts")
+    .eq("runner_id", r.id)
+    .eq("symbol", r.symbol)
+    .eq("status", "queued")
+    .order("entry_ts", { ascending: true });
+  for (const q of queuedRows ?? []) {
+    const ageMs = Date.now() - new Date(q.entry_ts as string).getTime();
+    if (ageMs > QUEUE_MAX_AGE_MS) {
+      await supabaseAdmin.from("live_trades").update({
+        status: "closed",
+        exit_ts: new Date().toISOString(),
+        exit_reason: "expired_queue",
+      }).eq("id", q.id);
+      continue;
+    }
+    const { count: busyNow } = await supabaseAdmin
+      .from("live_trades")
+      .select("id", { count: "exact", head: true })
+      .eq("symbol", r.symbol)
+      .in("status", ["open", "pending"]);
+    if ((busyNow ?? 0) > 0) break;
+    try {
+      try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
+      const res = await client.placeOrder({
+        symbol: r.symbol,
+        side: q.direction === "long" ? "buy" : "sell",
+        qty: Number(q.qty),
+        type: "limit",
+        price: Number(q.entry_price),
+        stopLossPrice: Number(q.stop_price),
+        takeProfitPrice: Number(q.target_price),
+      });
+      await supabaseAdmin.from("live_trades").update({
+        client_order_id: res.exchangeOrderId || null,
+        fill_price: res.filledPrice ?? null,
+        status: res.status === "filled" ? "open" : "pending",
+        raw_place: res.raw as never,
+      }).eq("id", q.id);
+      break; // symbol slot now taken — remaining queued rows wait
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabaseAdmin.from("live_trades").update({
+        status: "error",
+        error: msg.slice(0, 500),
+      }).eq("id", q.id);
+    }
+  }
+
   // 1) Reconcile still-open live trades against the exchange.
   const reconciled = await reconcileOpen(r, client);
 

@@ -156,13 +156,14 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
         qty: Number(q.qty),
         type: "limit",
         price: Number(q.entry_price),
-        stopLossPrice: Number(q.stop_price),
-        takeProfitPrice: Number(q.target_price),
+        // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
       });
+      const filled = res.status === "filled";
       await supabaseAdmin.from("live_trades").update({
         client_order_id: res.exchangeOrderId || null,
         fill_price: res.filledPrice ?? null,
-        status: res.status === "filled" ? "open" : "pending",
+        status: filled ? "open" : "pending",
+        fill_ts: filled ? new Date().toISOString() : null,
         raw_place: res.raw as never,
       }).eq("id", q.id);
       break; // symbol slot now taken — remaining queued rows wait
@@ -247,7 +248,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   //    THEN place the reverse.
   const { data: openOpposite } = await supabaseAdmin
     .from("live_trades")
-    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price, fill_ts, entry_ts, status")
     .eq("runner_id", r.id)
     .eq("symbol", r.symbol)
     .in("status", ["open", "pending"])
@@ -275,15 +276,21 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
           }
         }
       } catch { /* ignore */ }
-      // 2) Reduce-only market close in the opposite side.
+      // 2) Reduce-only close in the opposite side. Use MARKET if <14m
+      //    since fill (fee-free), else LIMIT reduce-only at last price.
       const closeSide: "buy" | "sell" = openOpposite.direction === "long" ? "sell" : "buy";
       let exitPrice = last;
+      const exitPick = pickExitOrderType(
+        openOpposite.fill_ts ?? openOpposite.entry_ts,
+        last,
+      );
       try {
         const closeRes = await client.placeOrder({
           symbol: r.symbol,
           side: closeSide,
           qty: Number(openOpposite.qty),
-          type: "market",
+          type: exitPick.type,
+          price: exitPick.type === "limit" ? exitPick.price : undefined,
           reduceOnly: true,
         });
         if (closeRes.filledPrice && closeRes.filledPrice > 0) exitPrice = closeRes.filledPrice;
@@ -365,14 +372,15 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       qty,
       type: "limit",
       price: openFlush.fillPrice,
-      stopLossPrice: openFlush.stopPrice,
-      takeProfitPrice: openFlush.targetPrice,
+      // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
     });
+    const filled = res.status === "filled";
     await supabaseAdmin.from("live_trades").insert({
       ...insertBase,
       client_order_id: res.exchangeOrderId || null,
       fill_price: res.filledPrice ?? null,
-      status: res.status === "filled" ? "open" : "pending",
+      status: filled ? "open" : "pending",
+      fill_ts: filled ? new Date().toISOString() : null,
       raw_place: res.raw as never,
     });
     placedOk = 1;
@@ -388,6 +396,19 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   return { placed: placedOk, reconciled };
 }
 
+/** 14-minute exit-type rule: MARKET is fee-free under 14 minutes since
+ *  entry fill; beyond that use LIMIT reduce-only at the target price. */
+function pickExitOrderType(
+  fillTsIso: string | null | undefined,
+  levelPrice: number,
+): { type: "market" } | { type: "limit"; price: number } {
+  const FREE_WINDOW_MS = 14 * 60 * 1000;
+  const t = fillTsIso ? new Date(fillTsIso).getTime() : NaN;
+  if (!Number.isFinite(t)) return { type: "limit", price: levelPrice };
+  const ageMs = Date.now() - t;
+  return ageMs < FREE_WINDOW_MS ? { type: "market" } : { type: "limit", price: levelPrice };
+}
+
 /** Reconcile each open/pending live_trade row against the exchange.
  *  Source of truth for "still open" = an actual open POSITION on the symbol
  *  whose side + qty covers this row. Parent order id alone is unreliable
@@ -398,33 +419,27 @@ async function reconcileOpen(
 ): Promise<number> {
   const { data: openRows } = await supabaseAdmin
     .from("live_trades")
-    .select("id, status, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .select("id, status, client_order_id, exit_client_order_id, direction, qty, entry_price, stop_price, target_price, fill_ts, entry_ts")
     .eq("runner_id", r.id)
     .in("status", ["open", "pending"]);
   if (!openRows?.length) return 0;
 
   let openOrders: Awaited<ReturnType<typeof client.getOpenOrders>> = [];
-  let openOrdersOk = false;
   try {
     openOrders = await client.getOpenOrders(r.symbol);
-    openOrdersOk = true;
   } catch {
     // API hiccup — don't guess anything this tick.
     return 0;
   }
-  if (!openOrdersOk) return 0;
   const openIds = new Set(openOrders.map((o) => o.clientOrderId));
 
   let positions: Awaited<ReturnType<typeof client.getOpenPositions>> = [];
-  let positionsOk = false;
   try {
     positions = await client.getOpenPositions(r.symbol);
-    positionsOk = true;
   } catch {
     // Position endpoint failed — do NOT close anything without truth.
     return 0;
   }
-  if (!positionsOk) return 0;
 
   const netQtyByDir = (dir: "long" | "short") =>
     positions
@@ -436,22 +451,15 @@ async function reconcileOpen(
       })
       .reduce((a, p) => a + Math.abs(p.qty), 0);
 
-  // Pull recent fills once so we can match real SL/TP exits.
+  // Pull recent fills once so we can match real exit fills.
   let recentFills: Awaited<ReturnType<typeof client.getRecentFills>> = [];
   try { recentFills = await client.getRecentFills(r.symbol); } catch { /* keep [] */ }
 
-  // Helper: find a still-open reduce-only child order for this row by
-  // matching stop_price or target_price (Shark returns stopPrice for SL
-  // children and price/takeProfitPrice for TP children).
+  // Last price for breach detection (skip exits this tick if unavailable).
+  let lastPrice = 0;
+  try { lastPrice = await client.getLastPrice(r.symbol); } catch { /* keep 0 */ }
+
   const near = (a: number | null, b: number) => a != null && Math.abs(a - b) / b < 0.001;
-  const hasChildFor = (row: { stop_price: number; target_price: number }) =>
-    openOrders.some((o) =>
-      (o.reduceOnly === true || o.subType === "STOP_LOSS" || o.subType === "TAKE_PROFIT") &&
-      (near(o.stopPrice, Number(row.stop_price)) ||
-        near(o.stopLossPrice, Number(row.stop_price)) ||
-        near(o.price, Number(row.target_price)) ||
-        near(o.takeProfitPrice, Number(row.target_price)))
-    );
 
   let n = 0;
   for (const row of openRows) {
@@ -469,6 +477,8 @@ async function reconcileOpen(
           status: "open",
           fill_price: fill?.price ?? Number(row.entry_price),
           entry_price: fill?.price ?? Number(row.entry_price),
+          // Stamp the age-clock the first time we detect a fill.
+          fill_ts: row.fill_ts ?? new Date().toISOString(),
         }).eq("id", row.id);
       } else {
         await supabaseAdmin.from("live_trades").update({
@@ -481,78 +491,95 @@ async function reconcileOpen(
       continue;
     }
 
-    // OPEN (already filled): still open if position exists AND we can see a
-    // matching SL/TP child order on the book.
+    // OPEN (already filled). SL/TP are NOT attached at entry anymore — the
+    // engine watches price and sends the exit itself, picking MARKET or LIMIT
+    // by the 14-minute rule (market is fee-free under 14m).
     const posQty = netQtyByDir(row.direction as "long" | "short");
-    const childActive = hasChildFor({
-      stop_price: Number(row.stop_price),
-      target_price: Number(row.target_price),
-    });
-    if (posQty > 0 && childActive) continue;
 
-    // Position/child gone → find the REAL exit fill in trade history.
-    // A close for a long is a SELL reduceOnly; for a short is a BUY reduceOnly.
-    // We match on qty within 5% and time after entry_ts, price at/near stop or target.
-    const entryMs = Date.now(); // conservative fallback
-    // Prefer entry_ts if available on row (not selected earlier — fall back to 0)
-    const closeSide = row.direction === "long" ? "SELL" : "BUY";
-    const qtyTarget = Number(row.qty);
-    const candidates = recentFills.filter((f) =>
-      f.symbol.toUpperCase() === r.symbol.toUpperCase() &&
-      f.side === closeSide &&
-      (f.reduceOnly === true || f.reduceOnly === null) &&
-      f.qty > 0 &&
-      Math.abs(f.qty - qtyTarget) / qtyTarget < 0.1 &&
-      (near(f.price, Number(row.stop_price)) || near(f.price, Number(row.target_price)))
-    );
-    if (candidates.length === 0) {
-      // No confirmed close fill on the exchange yet — leave open, retry next tick.
-      // (Prevents fake "closed at last price" wins polluting performance.)
+    // If the position is gone, try to match a real exit fill and close the row.
+    if (posQty <= 0) {
+      const closeSide = row.direction === "long" ? "SELL" : "BUY";
+      const qtyTarget = Number(row.qty);
+      const candidates = recentFills.filter((f) =>
+        f.symbol.toUpperCase() === r.symbol.toUpperCase() &&
+        f.side === closeSide &&
+        (f.reduceOnly === true || f.reduceOnly === null) &&
+        f.qty > 0 &&
+        Math.abs(f.qty - qtyTarget) / qtyTarget < 0.1
+      );
+      if (candidates.length === 0) continue; // wait for fill to appear
+      candidates.sort((a, b) => b.timeMs - a.timeMs);
+      const exit = candidates[0];
+      const dir = row.direction === "long" ? 1 : -1;
+      const exitPrice = exit.price;
+      const grossPnl = exit.realizedPnl !== 0
+        ? exit.realizedPnl
+        : (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
+      const fees = Math.abs(exit.fee);
+      const netPnl = grossPnl - fees;
+      const stopDist = Math.abs(Number(row.entry_price) - Number(row.stop_price));
+      const rr = stopDist > 0 ? ((exitPrice - Number(row.entry_price)) * dir) / stopDist : 0;
+      const exitReason =
+        near(exit.price, Number(row.stop_price)) ? "stop"
+        : near(exit.price, Number(row.target_price)) ? "target"
+        : "closed";
+      await supabaseAdmin.from("live_trades").update({
+        status: "closed",
+        exit_ts: new Date(exit.timeMs || Date.now()).toISOString(),
+        exit_price: exitPrice,
+        exit_reason: exitReason,
+        rr,
+        gross_pnl: grossPnl,
+        net_pnl: netPnl,
+        fees,
+      }).eq("id", row.id);
+      n += 1;
       continue;
     }
-    // Pick the most recent matching fill.
-    candidates.sort((a, b) => b.timeMs - a.timeMs);
-    const exit = candidates[0];
-    void entryMs;
 
-    // Cancel any orphan reduce-only children for this row to keep queue clean.
-    for (const o of openOrders) {
-      if (!o.clientOrderId) continue;
-      const isChild = o.reduceOnly === true || o.subType === "STOP_LOSS" || o.subType === "TAKE_PROFIT";
-      if (!isChild) continue;
-      const belongs =
-        near(o.stopPrice, Number(row.stop_price)) ||
-        near(o.stopLossPrice, Number(row.stop_price)) ||
-        near(o.price, Number(row.target_price)) ||
-        near(o.takeProfitPrice, Number(row.target_price));
-      if (belongs) await client.cancelOrder(o.clientOrderId).catch(() => undefined);
-    }
-
+    // Position still open. Check SL/TP breach against last price.
+    if (lastPrice <= 0) continue;
     const dir = row.direction === "long" ? 1 : -1;
-    const exitPrice = exit.price;
-    const grossPnl = exit.realizedPnl !== 0
-      ? exit.realizedPnl
-      : (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
-    const fees = Math.abs(exit.fee);
-    const netPnl = grossPnl - fees;
-    const stopDist = Math.abs(Number(row.entry_price) - Number(row.stop_price));
-    const rr = stopDist > 0 ? ((exitPrice - Number(row.entry_price)) * dir) / stopDist : 0;
-    const exitReason =
-      near(exit.price, Number(row.stop_price)) ? "stop"
-      : near(exit.price, Number(row.target_price)) ? "target"
-      : "closed";
+    const stopHit = row.direction === "long"
+      ? lastPrice <= Number(row.stop_price)
+      : lastPrice >= Number(row.stop_price);
+    const targetHit = row.direction === "long"
+      ? lastPrice >= Number(row.target_price)
+      : lastPrice <= Number(row.target_price);
+    if (!stopHit && !targetHit) continue;
 
-    await supabaseAdmin.from("live_trades").update({
-      status: "closed",
-      exit_ts: new Date(exit.timeMs || Date.now()).toISOString(),
-      exit_price: exitPrice,
-      exit_reason: exitReason,
-      rr,
-      gross_pnl: grossPnl,
-      net_pnl: netPnl,
-      fees,
-    }).eq("id", row.id);
-    n += 1;
+    // If we already have a live reduce-only exit order on the book, don't double-send.
+    const existingExit = openOrders.find((o) =>
+      (o.reduceOnly === true || o.subType === "STOP_LOSS" || o.subType === "TAKE_PROFIT") &&
+      o.clientOrderId &&
+      (row.exit_client_order_id
+        ? o.clientOrderId === row.exit_client_order_id
+        : true)
+    );
+    if (existingExit) continue;
+
+    const level = stopHit ? Number(row.stop_price) : Number(row.target_price);
+    const closeSide: "buy" | "sell" = row.direction === "long" ? "sell" : "buy";
+    const pick = pickExitOrderType(row.fill_ts ?? row.entry_ts, level);
+    try {
+      const exitRes = await client.placeOrder({
+        symbol: r.symbol,
+        side: closeSide,
+        qty: Number(row.qty),
+        type: pick.type,
+        price: pick.type === "limit" ? pick.price : undefined,
+        reduceOnly: true,
+      });
+      await supabaseAdmin.from("live_trades").update({
+        exit_client_order_id: exitRes.exchangeOrderId || null,
+      }).eq("id", row.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[live-tick][exit] placeOrder failed", { rowId: row.id, msg });
+    }
+    // Row itself is closed on the next tick when the fill appears in history.
+    // dir is used above in the position-gone branch; silence unused warning.
+    void dir;
   }
   return n;
 }

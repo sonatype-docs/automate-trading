@@ -5,7 +5,7 @@
 // - Setup / signal markers overlaid on the chart.
 // - Right panel shows live P&L, R multiple, direction, qty, elapsed.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   createChart, CandlestickSeries, HistogramSeries, LineSeries,
@@ -60,7 +60,8 @@ export interface OverlayFlags {
 export function LiveChartCard() {
   const runnersFn = useServerFn(listLiveRunners);
   const runners = useQuery({
-    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 10_000,
+    queryKey: ["live-runners"], queryFn: () => runnersFn(),
+    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
   const [runnerId, setRunnerId] = useState<string | null>(null);
   const [tf, setTf] = useState<DisplayTf | null>(null);
@@ -86,6 +87,8 @@ export function LiveChartCard() {
     } }),
     enabled: !!runnerId,
     refetchInterval: 30_000,
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
   });
 
   const priceFn = useServerFn(getLastPrice);
@@ -93,20 +96,21 @@ export function LiveChartCard() {
     queryKey: ["live-price", chartQ.data?.symbol],
     queryFn: () => priceFn({ data: { symbol: chartQ.data!.symbol } }),
     enabled: !!chartQ.data?.symbol,
-    refetchInterval: 2_000,
+    refetchInterval: 3_000,
+    placeholderData: keepPreviousData,
   });
 
   const tradesFn = useServerFn(listLiveTrades);
   const tradesQ = useQuery({
     queryKey: ["live-trades-recent"],
     queryFn: () => tradesFn({ data: { limit: 50 } }),
-    refetchInterval: 15_000,
+    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
   const statusFn = useServerFn(getRunnersStatusSummary);
   const statusQ = useQuery({
     queryKey: ["live-runners-status"],
     queryFn: () => statusFn(),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
   });
   const liveRecent = useMemo(() => {
     const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
@@ -531,13 +535,16 @@ export function AllRunnersStatusCard() {
   const tradesFn = useServerFn(listLiveTrades);
   const statusFn = useServerFn(getRunnersStatusSummary);
   const runnersQ = useQuery({
-    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5_000,
+    queryKey: ["live-runners"], queryFn: () => runnersFn(),
+    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
   const tradesQ = useQuery({
-    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5_000,
+    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
+    refetchInterval: 10_000, staleTime: 8_000, placeholderData: keepPreviousData,
   });
   const statusQ = useQuery({
-    queryKey: ["live-runners-status"], queryFn: () => statusFn(), refetchInterval: 30_000,
+    queryKey: ["live-runners-status"], queryFn: () => statusFn(),
+    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
   });
   const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
   const onRefresh = () => {

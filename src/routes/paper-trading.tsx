@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
+import { PaperStatsCard } from "@/components/paper-stats-card";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
 export const Route = createFileRoute("/paper-trading")({

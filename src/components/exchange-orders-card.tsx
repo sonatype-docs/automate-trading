@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   listLiveExchangeOrders,
   cancelExchangeOrder,
+  listLiveTrades,
   type ExchangePendingOrder,
 } from "@/lib/live-trading.functions";
 

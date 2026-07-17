@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
-  diagnoseLiveRunners, importTopPaperRunnersToLive,
+  diagnoseLiveRunners, importTopPaperRunnersToLive, listLiveExchangeOrders,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical, Download } from "lucide-react";
@@ -85,6 +85,10 @@ function LiveTradingPage() {
   const trades = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5000,
   });
+  const exchOrdersFn = useServerFn(listLiveExchangeOrders);
+  const exchOrders = useQuery({
+    queryKey: ["exchange-orders"], queryFn: () => exchOrdersFn(), refetchInterval: 5000,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["live-runners"] });
@@ -114,6 +118,22 @@ function LiveTradingPage() {
   const realizedClosedTrades = closedTrades.filter(hasRealizedPnl);
   const noFillClosedTrades = closedTrades.filter((t) => !hasRealizedPnl(t));
   const totalPnl = realizedClosedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
+
+  // Exchange-truth realised P&L (from Shark trade history). Includes fills
+  // that never made it into our live_trades table (manual orders, historical).
+  const exchClosedRows = exchOrders.data?.closed ?? [];
+  const exchRealizedFills = exchClosedRows.filter(
+    (r) => r.realizedPnl != null && r.realizedPnl !== 0,
+  );
+  const exchTotalPnl = exchRealizedFills.reduce(
+    (s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)),
+    0,
+  );
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const exchTodayPnl = exchRealizedFills
+    .filter((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime())
+    .reduce((s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)), 0);
+
 
   // Multi-select for bulk start / stop.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -313,12 +333,19 @@ function LiveTradingPage() {
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Finished live attempts</CardTitle>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <span className={`font-medium ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                Realised: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
+            <div className="flex flex-wrap gap-3 text-sm items-center">
+              <span className={`font-medium ${exchTotalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Realised (exchange): {exchRealizedFills.length ? fmtUsd(exchTotalPnl) : "—"}
               </span>
-              <span className="text-muted-foreground">
-                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill
+              <span className={`text-xs ${exchTodayPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Today: {exchRealizedFills.some((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime()) ? fmtUsd(exchTodayPnl) : "—"}
+              </span>
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className={`text-xs ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Runners' fills: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill · {exchRealizedFills.length} exch fills
               </span>
             </div>
           </CardHeader>

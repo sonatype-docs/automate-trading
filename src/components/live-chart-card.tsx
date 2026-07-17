@@ -618,69 +618,81 @@ function AllRunnersStatusPanel({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-        {runners.map((r) => {
-          const open = openByRunner.get(r.id);
-          const st = statusByRunner.get(r.id);
+        {runners
+          .map((r) => {
+            const open = openByRunner.get(r.id);
+            const st = statusByRunner.get(r.id);
 
-          let statusText: string;
-          let tone: "success" | "warning" | "destructive" | "muted" | "primary";
-          let StatusIcon = Activity;
-          let subDetail: string | null = null;
+            let statusText: string;
+            let tone: "success" | "warning" | "destructive" | "muted" | "primary" | "dim";
+            let StatusIcon = Activity;
+            let subDetail: string | null = null;
+            let sortKey = 99;
 
-          if (r.last_tick_error) {
-            statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
-          } else if (open) {
-            statusText = `Trade ${open.status} · ${open.direction.toUpperCase()}`;
-            tone = "primary";
-            StatusIcon = open.direction === "long" ? TrendingUp : TrendingDown;
-          } else if (!r.running) {
-            statusText = "Stopped"; tone = "muted"; StatusIcon = Pause;
-          } else if (st?.state === "setup_ready") {
-            statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`; tone = "success"; StatusIcon = Target;
-            subDetail = st.detail;
-          } else if (st?.state === "session_closed") {
-            statusText = "Session closed"; tone = "muted"; StatusIcon = Clock;
-          } else if (st?.state === "blocked") {
-            const labels = (st.detail ?? "").split(" · ").map((s) => s.split(" (")[0]).filter(Boolean);
-            statusText = labels.length ? `Blocked: ${labels.join(", ")}` : "Filters blocking";
-            tone = "warning"; StatusIcon = Shield;
-            subDetail = st.detail;
-          } else if (st?.state === "error") {
-            statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
-            subDetail = st.detail;
-          } else if (!st) {
-            statusText = "Loading…"; tone = "muted"; StatusIcon = Circle;
-          } else {
-            statusText = "Scanning"; tone = "warning"; StatusIcon = Radar;
-          }
+            if (r.last_tick_error) {
+              statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle; sortKey = 4;
+            } else if (open) {
+              statusText = `Trade ${open.status} · ${open.direction.toUpperCase()}`;
+              tone = "primary";
+              StatusIcon = open.direction === "long" ? TrendingUp : TrendingDown;
+              sortKey = 0;
+            } else if (!r.running) {
+              statusText = "Stopped"; tone = "muted"; StatusIcon = Pause; sortKey = 5;
+            } else if (st?.state === "setup_ready") {
+              statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`; tone = "success"; StatusIcon = Target;
+              subDetail = st.detail; sortKey = 1;
+            } else if (st?.state === "blocked") {
+              const labels = (st.detail ?? "").split(" · ").map((s) => s.split(" (")[0]).filter(Boolean);
+              statusText = labels.length ? `Blocked: ${labels.join(", ")}` : "Filters blocking";
+              tone = "warning"; StatusIcon = Shield;
+              subDetail = st.detail; sortKey = 2;
+            } else if (st?.state === "session_closed") {
+              statusText = "Session closed"; tone = "dim"; StatusIcon = Clock; sortKey = 6;
+            } else if (st?.state === "error") {
+              statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
+              subDetail = st.detail; sortKey = 4;
+            } else if (!st) {
+              statusText = "Loading…"; tone = "muted"; StatusIcon = Circle; sortKey = 7;
+            } else {
+              statusText = "Scanning"; tone = "warning"; StatusIcon = Radar; sortKey = 3;
+            }
 
+            return { r, open, statusText, tone, StatusIcon, subDetail, sortKey };
+          })
+          .sort((a, b) => a.sortKey - b.sortKey || a.r.label.localeCompare(b.r.label))
+          .map(({ r, open, statusText, tone, StatusIcon, subDetail }) => {
+          const isDim = tone === "dim";
           const toneWrap =
-            tone === "success" ? "border-l-[3px] border-l-success bg-success/5"
+            tone === "success" ? "border-l-[3px] border-l-success bg-success/10 ring-1 ring-success/20"
             : tone === "primary" ? "border-l-[3px] border-l-primary bg-primary/5 ring-1 ring-primary/20"
-            : tone === "warning" ? "border-l-[3px] border-l-warning bg-warning/5"
+            : tone === "warning" ? "border-l-[3px] border-l-warning bg-warning/10 ring-1 ring-warning/20"
             : tone === "destructive" ? "border-l-[3px] border-l-destructive bg-destructive/10"
+            : isDim ? "border-l-[3px] border-l-muted-foreground/20 bg-muted/40 opacity-55 grayscale"
             : "border-l-[3px] border-l-muted-foreground/30 bg-muted/20";
 
           const toneBadge =
-            tone === "success" ? "bg-success/15 text-success border-success/30"
+            tone === "success" ? "bg-success/20 text-success border-success/40"
             : tone === "primary" ? "bg-primary/15 text-primary border-primary/30"
-            : tone === "warning" ? "bg-warning/15 text-warning border-warning/30"
+            : tone === "warning" ? "bg-warning/20 text-warning border-warning/40"
             : tone === "destructive" ? "bg-destructive/15 text-destructive border-destructive/30"
+            : isDim ? "bg-muted/60 text-muted-foreground/70 border-border/50"
             : "bg-muted text-muted-foreground border-border";
 
           const isBtc = r.symbol.toUpperCase().startsWith("BTC");
           const SymbolIcon = isBtc ? Bitcoin : Coins;
-          const symbolColor = isBtc ? "text-brand-ember" : "text-brand-copper";
+          const symbolColor = isDim ? "text-muted-foreground/60" : isBtc ? "text-brand-ember" : "text-brand-copper";
 
           return (
-            <div key={r.id} className={`rounded-md border p-2.5 flex flex-col gap-1.5 text-xs card-hover ${toneWrap}`}>
+            <div key={r.id} className={`rounded-md border p-2.5 flex flex-col gap-1.5 text-xs card-hover ${toneWrap} ${isDim ? "text-muted-foreground" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <SymbolIcon className={`h-4 w-4 shrink-0 ${symbolColor}`} />
-                  <span className="font-semibold truncate">{r.label}</span>
+                  <span className={`font-semibold truncate ${isDim ? "text-muted-foreground" : ""}`}>{r.label}</span>
                 </div>
                 <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
-                  r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow" : "bg-accent/40 text-accent-foreground border-accent"
+                  isDim ? "bg-muted/60 text-muted-foreground/70 border-border/50"
+                  : r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow"
+                  : "bg-accent/40 text-accent-foreground border-accent"
                 }`}>
                   {r.leverage}×
                 </span>
@@ -691,7 +703,7 @@ function AllRunnersStatusPanel({
                 <span>{statusText}</span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 text-muted-foreground font-mono text-[10.5px]">
+              <div className={`flex items-center justify-between gap-2 font-mono text-[10.5px] ${isDim ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                 <span className="truncate">{r.symbol} · {r.timeframe} · {r.strategy_preset}</span>
                 <span className="shrink-0 flex items-center gap-1">
                   <Clock className="h-2.5 w-2.5" />
@@ -721,6 +733,7 @@ function AllRunnersStatusPanel({
     </div>
   );
 }
+
 
 function StatPill({ icon, label, value, tone }: {
   icon: React.ReactNode; label: string; value: number;

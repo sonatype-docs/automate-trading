@@ -84,11 +84,48 @@ export function ExchangeOrdersCard() {
   const serverQueued = allTrades.filter((t) => t.status === "queued");
   const liveRunning = allTrades.filter((t) => t.status === "open");
 
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTodayMs = startOfToday.getTime();
+  let overallPnl = 0;
+  let todayPnl = 0;
+  let todayCount = 0;
+  let todayWins = 0;
+  for (const t of closed) {
+    const p = t.realizedPnl ?? 0;
+    overallPnl += p;
+    const ts = t.time ? new Date(t.time).getTime() : 0;
+    if (ts >= startOfTodayMs) {
+      todayPnl += p;
+      todayCount += 1;
+      if (p > 0) todayWins += 1;
+    }
+  }
+  const todayWinRate = todayCount > 0 ? (todayWins / todayCount) * 100 : 0;
+  const pnlTone = (v: number) =>
+    v > 0 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+      : v < 0 ? "border-destructive/40 bg-destructive/10 text-destructive"
+        : "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">Exchange orders · live</CardTitle>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <CardTitle className="text-base">Exchange orders · live</CardTitle>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(overallPnl)}`}
+              title="Sum of realized PnL across recent exchange history"
+            >
+              Overall {overallPnl >= 0 ? "+" : ""}{fmtNum(overallPnl)} USDT
+            </span>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(todayPnl)}`}
+              title="Realized PnL since midnight local"
+            >
+              Today {todayPnl >= 0 ? "+" : ""}{fmtNum(todayPnl)} · {todayCount} trades · {todayWinRate.toFixed(0)}% win
+            </span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {data?.fetchedAt && <span>updated {fmtTime(data.fetchedAt)}</span>}
             <Button

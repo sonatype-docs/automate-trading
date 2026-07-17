@@ -147,6 +147,7 @@ function LiveTradingPage() {
   const [showTick, setShowTick] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
+  const [showRunners, setShowRunners] = useState(false);
 
   return (
     <div className="p-4 sm:p-6">

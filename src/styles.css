@@ -248,6 +248,54 @@
       0 8px 24px -14px color-mix(in oklch, black 90%, transparent);
   }
 
+  /* Sunset accent strip on every card + gradient card titles */
+  [data-slot="card"]::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+    background: linear-gradient(90deg,
+      var(--brand-flame) 0%,
+      var(--brand-ember) 30%,
+      var(--brand-copper) 65%,
+      var(--brand-violet) 100%);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  [data-slot="card-title"] {
+    background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 30%, var(--brand-copper) 65%, var(--brand-violet));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-family: var(--font-display);
+  }
+  [data-slot="card-header"] {
+    border-bottom: 1px solid color-mix(in oklch, var(--brand-copper) 18%, transparent);
+    background:
+      linear-gradient(90deg,
+        color-mix(in oklch, var(--brand-flame) 6%, transparent),
+        color-mix(in oklch, var(--brand-copper) 5%, transparent) 55%,
+        color-mix(in oklch, var(--brand-violet) 6%, transparent));
+  }
+
+  /* Tabs — vivid active pill */
+  [data-slot="tabs-list"] {
+    background: color-mix(in oklch, var(--brand-copper) 8%, var(--color-muted));
+    border: 1px solid color-mix(in oklch, var(--brand-copper) 22%, var(--color-border));
+  }
+  [data-slot="tabs-trigger"][data-state="active"] {
+    background: linear-gradient(120deg, var(--brand-flame), var(--brand-copper) 60%, var(--brand-violet));
+    color: white !important;
+    box-shadow: 0 6px 18px -8px color-mix(in oklch, var(--brand-copper) 60%, transparent);
+  }
+
+  /* Badges — outline variant picks up sunset border */
+  [data-slot="badge"] {
+    border-color: color-mix(in oklch, var(--brand-copper) 30%, var(--color-border));
+  }
+
 
   /* Inputs — flat with focus ember */
   [data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"] {

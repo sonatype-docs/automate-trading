@@ -79,10 +79,13 @@ export function ExchangeOrdersCard() {
   const data = q.data;
   const pending = data?.pending ?? [];
   const executed = data?.executed ?? [];
-  const closed = data?.closed ?? [];
   const allTrades = tradesQ.data ?? [];
   const serverQueued = allTrades.filter((t) => t.status === "queued");
   const liveRunning = allTrades.filter((t) => t.status === "open");
+  // Our own runner trades that have finished (filled+closed, expired, or errored).
+  const closedTrades = allTrades
+    .filter((t) => t.status === "closed" || t.status === "error")
+    .sort((a, b) => (b.exit_ts ?? b.entry_ts).localeCompare(a.exit_ts ?? a.entry_ts));
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -91,10 +94,11 @@ export function ExchangeOrdersCard() {
   let todayPnl = 0;
   let todayCount = 0;
   let todayWins = 0;
-  for (const t of closed) {
-    const p = t.realizedPnl ?? 0;
+  for (const t of closedTrades) {
+    const p = t.net_pnl ?? 0;
     overallPnl += p;
-    const ts = t.time ? new Date(t.time).getTime() : 0;
+    const tsSrc = t.exit_ts ?? t.entry_ts;
+    const ts = tsSrc ? new Date(tsSrc).getTime() : 0;
     if (ts >= startOfTodayMs) {
       todayPnl += p;
       todayCount += 1;

@@ -158,6 +158,17 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .maybeSingle();
   if (existing) return { placed: 0, reconciled };
 
+  // Symbol-level lock: only ONE live trade per symbol across all runners.
+  // First runner to fire wins the slot; others wait until it closes.
+  const { count: symbolBusy } = await supabaseAdmin
+    .from("live_trades")
+    .select("id", { count: "exact", head: true })
+    .eq("symbol", r.symbol)
+    .in("status", ["open", "pending"]);
+  if ((symbolBusy ?? 0) > 0) {
+    return { placed: 0, reconciled };
+  }
+
   // Cancel-and-replace: if a still-PENDING limit order exists for this runner
   // (parent not yet filled) with a different signalId, cancel it on the
   // exchange and mark the DB row cancelled before placing the new one.

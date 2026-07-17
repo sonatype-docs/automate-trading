@@ -955,7 +955,9 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
           if (failing.length) {
             return {
               runner_id: rr.id, state: "blocked",
-              detail: failing.map((c) => c.label).join(", "),
+              detail: failing
+                .map((c) => `${c.label}${c.reason ? ` (${c.reason})` : ""}`)
+                .join(" · "),
               direction: null,
             };
           }

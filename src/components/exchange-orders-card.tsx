@@ -50,12 +50,19 @@ function labelForPending(o: ExchangePendingOrder): string {
 export function ExchangeOrdersCard() {
   const fn = useServerFn(listLiveExchangeOrders);
   const cancelFn = useServerFn(cancelExchangeOrder);
+  const tradesFn = useServerFn(listLiveTrades);
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"pending" | "executed" | "closed">("pending");
+  const [tab, setTab] = useState<"server" | "pending" | "closed" | "live">("server");
 
   const q = useQuery({
     queryKey: ["exchange-orders"],
     queryFn: () => fn(),
+    refetchInterval: 5_000,
+  });
+
+  const tradesQ = useQuery({
+    queryKey: ["live-trades-card"],
+    queryFn: () => tradesFn({ data: { limit: 200 } }),
     refetchInterval: 5_000,
   });
 
@@ -73,6 +80,9 @@ export function ExchangeOrdersCard() {
   const pending = data?.pending ?? [];
   const executed = data?.executed ?? [];
   const closed = data?.closed ?? [];
+  const allTrades = tradesQ.data ?? [];
+  const serverQueued = allTrades.filter((t) => t.status === "queued");
+  const liveRunning = allTrades.filter((t) => t.status === "open");
 
   return (
     <Card>

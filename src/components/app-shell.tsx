@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNavCarousel } from "./mobile-nav-carousel";
+import { HeaderLivePnl } from "./header-live-pnl";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -18,7 +19,8 @@ const TITLES: Record<string, string> = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  const title = TITLES[pathname] ?? TITLES[Object.keys(TITLES).find((k) => k !== "/" && pathname.startsWith(k)) ?? "/"] ?? "Shark";
+  const rawTitle = TITLES[pathname] ?? TITLES[Object.keys(TITLES).find((k) => k !== "/" && pathname.startsWith(k)) ?? "/"] ?? "Shark";
+  const title = rawTitle === "Dashboard" ? "" : rawTitle;
   const [open, setOpen] = useState(false);
 
   return (
@@ -36,16 +38,21 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SidebarTrigger className="md:hidden -ml-1" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
-              <span className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70 sm:inline">
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
                 Shark
               </span>
-              <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>/</span>
-              <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gradient-sunset">
-                {title}
-              </h1>
+              {title ? (
+                <>
+                  <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>/</span>
+                  <h1 className="hidden truncate font-display text-[15px] font-semibold tracking-tight text-gradient-sunset sm:block">
+                    {title}
+                  </h1>
+                </>
+              ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md">
+          <HeaderLivePnl />
+          <div className="hidden items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md sm:flex">
             <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
               <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
               <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_theme(colors.emerald.400)]" />

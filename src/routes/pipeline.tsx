@@ -292,9 +292,12 @@ function PipelinePage() {
       const matrix = {
         source, symbols, timeframes: tfs as Timeframe[],
         strategyPresetIds: strats, execPresetIds: execs,
-        displayTimezone: displayTz, strategyTimezone: strategyTz,
+        displayTimezone: displayTz,
+        strategyTimezone: (stratTzs[0] ?? "London") as Timezone,
+        strategyTimezones: stratTzs as Timezone[],
         mode, lookbackDays, riskUsdPerTrade: riskUsd,
       };
+
       const { runId: id } = await startFn({ data: { matrix, total } });
       setRunId(id);
 

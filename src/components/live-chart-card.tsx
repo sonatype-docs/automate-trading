@@ -675,6 +675,7 @@ function AllRunnersStatusPanel({
 
             return { r, open, statusText, tone, StatusIcon, subDetail, sortKey };
           })
+          .filter(({ tone }) => showAll || tone !== "dim")
           .sort((a, b) => a.sortKey - b.sortKey || a.r.label.localeCompare(b.r.label))
           .map(({ r, open, statusText, tone, StatusIcon, subDetail }) => {
           const isDim = tone === "dim";

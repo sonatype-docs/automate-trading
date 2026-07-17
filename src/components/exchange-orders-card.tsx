@@ -124,11 +124,18 @@ export function ExchangeOrdersCard() {
     onError: (e) => toast.error(e instanceof Error ? e.message : String(e)),
   });
 
+  // Hard cutoff: ignore trades/fills before the switch to the current runner
+  // set. Losses from decommissioned runners were polluting today's stats.
+  // 17 Jul 2026 17:40 IST == 12:10 UTC.
+  const TRADE_CUTOFF_MS = Date.UTC(2026, 6, 17, 12, 10, 0);
+  const afterCutoffTs = (iso: string | null | undefined) =>
+    !!iso && new Date(iso).getTime() >= TRADE_CUTOFF_MS;
+
   const data = q.data;
   const pending = data?.pending ?? [];
   const executed = data?.executed ?? [];
-  const exchangeFills = data?.closed ?? [];
-  const allTrades = tradesQ.data ?? [];
+  const exchangeFills = (data?.closed ?? []).filter((t) => afterCutoffTs(t.time));
+  const allTrades = (tradesQ.data ?? []).filter((t) => afterCutoffTs(t.entry_ts));
   const serverQueued = allTrades.filter((t) => t.status === "queued");
   const liveRunning = allTrades.filter((t) => t.status === "open");
   // Our own runner attempts that have finished. Rows with net_pnl=null are

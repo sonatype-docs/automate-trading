@@ -79,7 +79,7 @@ export function HeaderLivePnl() {
       }
     >
       <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold hidden sm:inline">P&amp;L</span>
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">P&amp;L</span>
       <span className="text-base sm:text-xl">{hasPos ? `$${fmtUsd(total)}` : "$0.00"}</span>
       {hasPos && (
         <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground/80 font-semibold sm:inline">

@@ -27,6 +27,7 @@ import {
   type IstWindow,
 } from "@/lib/session-windows";
 import { LiveChartCard } from "@/components/live-chart-card";
+import { TopRunnersVerificationCard } from "@/components/top-runners-verification";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
 export const Route = createFileRoute("/live-trading")({

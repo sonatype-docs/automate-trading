@@ -137,6 +137,29 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .maybeSingle();
   if (existing) return { placed: 0, reconciled };
 
+  // Cancel-and-replace: if a still-PENDING limit order exists for this runner
+  // (parent not yet filled) with a different signalId, cancel it on the
+  // exchange and mark the DB row cancelled before placing the new one.
+  const { data: stalePendings } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, client_order_id")
+    .eq("runner_id", r.id)
+    .eq("status", "pending");
+  for (const sp of stalePendings ?? []) {
+    if (sp.client_order_id) {
+      await client.cancelOrder(sp.client_order_id).catch(() => undefined);
+    }
+    await supabaseAdmin
+      .from("live_trades")
+      .update({
+        status: "closed",
+        exit_ts: new Date().toISOString(),
+        exit_reason: "cancelled_replaced",
+      })
+      .eq("id", sp.id);
+  }
+
+
   // Contradictory-entry rule (LIVE, IMMEDIATE):
   // If a still-open live_trade exists for this runner on the same symbol
   // but the opposite direction, DON'T wait for a candle close.

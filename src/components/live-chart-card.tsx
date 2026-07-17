@@ -583,12 +583,16 @@ function AllRunnersStatusPanel({
   const statusByRunner = new Map<string, RunnerStatusDTO>();
   for (const st of statuses) statusByRunner.set(st.runner_id, st);
 
+  const [showAll, setShowAll] = useState(false);
+
   const runningCount = runners.filter((r) => r.running).length;
   const openCount = openByRunner.size;
   const errorCount = runners.filter((r) => !!r.last_tick_error).length
     + statuses.filter((s) => s.state === "error" && !runners.find((r) => r.id === s.runner_id)?.last_tick_error).length;
   const readyCount = statuses.filter((s) => s.state === "setup_ready").length;
   const stoppedCount = runners.length - runningCount;
+  const closedCount = statuses.filter((s) => s.state === "session_closed").length;
+
 
   return (
     <div className="rounded-lg border border-gradient-sunset bg-gradient-sunset-soft p-3 sm:p-4 space-y-3 shadow-lg">
@@ -606,9 +610,21 @@ function AllRunnersStatusPanel({
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
             </Button>
           )}
+          {closedCount > 0 && (
+            <Button
+              variant={showAll ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[10px] font-semibold uppercase tracking-wider ml-1"
+              onClick={() => setShowAll((v) => !v)}
+              title={showAll ? "Hide session-closed runners" : "Show session-closed runners"}
+            >
+              All {showAll ? `(${runners.length})` : `(+${closedCount})`}
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
           <StatPill icon={<Circle className="h-3 w-3" />} label="Total" value={runners.length} tone="neutral" />
+
           <StatPill icon={<Zap className="h-3 w-3" />} label="Running" value={runningCount} tone="success" />
           <StatPill icon={<Pause className="h-3 w-3" />} label="Stopped" value={stoppedCount} tone="muted" />
           <StatPill icon={<Target className="h-3 w-3" />} label="Ready" value={readyCount} tone={readyCount ? "success" : "muted"} />
@@ -659,6 +675,7 @@ function AllRunnersStatusPanel({
 
             return { r, open, statusText, tone, StatusIcon, subDetail, sortKey };
           })
+          .filter(({ tone }) => showAll || tone !== "dim")
           .sort((a, b) => a.sortKey - b.sortKey || a.r.label.localeCompare(b.r.label))
           .map(({ r, open, statusText, tone, StatusIcon, subDetail }) => {
           const isDim = tone === "dim";

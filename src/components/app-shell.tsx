@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           Skip to main content
         </a>
-        <header className="sticky top-0 z-40 flex h-11 items-center gap-3 border-b border-border/60 bg-background/95 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/80 sm:px-4">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border/60 bg-background/95 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/80 sm:px-4">
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-sunset-vivid opacity-90" />
           <SidebarTrigger className="md:hidden -ml-1" />
           <div className="min-w-0 flex-1">
@@ -51,7 +51,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
           </div>
-          <HeaderLivePnl />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+            <div className="pointer-events-auto">
+              <HeaderLivePnl />
+            </div>
+          </div>
           <div className="hidden items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md sm:flex">
             <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
               <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
@@ -65,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           key={pathname}
-          className="min-h-[calc(100dvh-2.75rem)] animate-fade-in pb-20 md:pb-0"
+          className="min-h-[calc(100dvh-3.5rem)] animate-fade-in pb-20 md:pb-0"
         >
           {children}
         </main>

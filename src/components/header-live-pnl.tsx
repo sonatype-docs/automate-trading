@@ -66,7 +66,7 @@ export function HeaderLivePnl() {
 
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums transition-colors ${tone}`}
+      className={`flex items-center gap-2 rounded-full border-2 px-4 py-1.5 font-mono text-base font-bold tabular-nums shadow-lg transition-colors sm:text-lg ${tone}`}
       title={
         hasPos
           ? rows
@@ -78,12 +78,12 @@ export function HeaderLivePnl() {
           : "No open positions"
       }
     >
-      <Icon className="h-3 w-3" aria-hidden />
-      <span className="hidden sm:inline text-muted-foreground font-normal">P&amp;L</span>
-      <span>{hasPos ? `$${fmtUsd(total)}` : "$0.00"}</span>
+      <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold hidden sm:inline">P&amp;L</span>
+      <span className="text-base sm:text-xl">{hasPos ? `$${fmtUsd(total)}` : "$0.00"}</span>
       {hasPos && (
-        <span className="hidden sm:inline text-muted-foreground/70 font-normal">
-          · {rows.length} pos
+        <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground/80 font-semibold sm:inline">
+          {rows.length} pos
         </span>
       )}
     </div>

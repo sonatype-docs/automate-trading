@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
-import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { RefreshCw, Activity, TrendingUp, TrendingDown, CheckCircle2, XCircle, Clock, Zap, AlertTriangle, Pause, Radar, Bitcoin, Coins, Circle, Target, Shield } from "lucide-react";
 import {
   getLiveChartData, getLastPrice, listLiveRunners, listLiveTrades,
   getRunnersStatusSummary,

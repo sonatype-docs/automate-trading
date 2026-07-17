@@ -88,6 +88,14 @@ export interface EditOrderParams {
   quantity?: number;
 }
 
+export interface OpenPositionRow {
+  symbol: string;
+  side: "LONG" | "SHORT" | string;
+  qty: number;
+  entryPrice: number | null;
+  raw: unknown;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
@@ -95,6 +103,7 @@ export interface ExchangeClient {
   updateLeverage(symbol: string, leverage: number): Promise<{ ok: boolean; status: number; body: string; json: unknown }>;
   getOpenOrderIds(symbol?: string): Promise<string[]>;
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
+  getOpenPositions(symbol?: string): Promise<OpenPositionRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
@@ -334,6 +343,35 @@ export function createSharkClient(): ExchangeClient {
 
     async getOpenOrders(symbol) {
       return fetchOpenOrders(symbol);
+    },
+
+    async getOpenPositions(symbol) {
+      const { apiKey, apiSecret } = requireCreds();
+      const params: Record<string, string | number> = { sortOrder: "desc", pageSize: "100" };
+      if (symbol) params.symbol = symbol.toUpperCase();
+      const res = await signedGet(apiKey, apiSecret, "/v1/positions/OPEN", params);
+      if (!res.ok) return [];
+      const rows =
+        (res.json as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(res.json) ? (res.json as unknown[]) : []);
+      const out: OpenPositionRow[] = [];
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      for (const r of rows) {
+        const o = r as Record<string, unknown>;
+        const qty = num(o.positionAmt ?? o.quantity ?? o.qty ?? o.size);
+        if (qty == null || qty === 0) continue;
+        out.push({
+          symbol: String(o.symbol ?? o.contractName ?? ""),
+          side: String(o.side ?? o.positionSide ?? (qty > 0 ? "LONG" : "SHORT")).toUpperCase(),
+          qty: Math.abs(qty),
+          entryPrice: num(o.entryPrice ?? o.avgEntryPrice ?? o.avgPrice),
+          raw: o,
+        });
+      }
+      return out;
     },
 
     async getFillForClientOrderId(clientOrderId) {

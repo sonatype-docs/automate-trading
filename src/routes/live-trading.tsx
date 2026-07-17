@@ -27,6 +27,7 @@ import {
   type IstWindow,
 } from "@/lib/session-windows";
 import { LiveChartCard, AllRunnersStatusCard } from "@/components/live-chart-card";
+import { ExchangeOrdersCard } from "@/components/exchange-orders-card";
 import { TopRunnersVerificationCard } from "@/components/top-runners-verification";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
@@ -159,6 +160,9 @@ function LiveTradingPage() {
         <TabsContent value="dashboard" className="space-y-6">
 
         <AllRunnersStatusCard />
+
+        <ExchangeOrdersCard />
+
 
         <Card>
           <CardHeader>

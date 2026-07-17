@@ -170,7 +170,7 @@ export function ExchangeOrdersCard() {
               <TabsTrigger value="closed" className="whitespace-nowrap">
                 <span className="sm:hidden">Closed</span>
                 <span className="hidden sm:inline">Executed &amp; Closed</span>
-                <Badge variant="outline" className="ml-2">{closed.length}</Badge>
+                <Badge variant="outline" className="ml-2">{closedTrades.length}</Badge>
               </TabsTrigger>
             </TabsList>
           </div>

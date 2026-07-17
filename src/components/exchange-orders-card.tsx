@@ -13,12 +13,21 @@ import {
   cancelExchangeOrder,
   listLiveTrades,
   type ExchangePendingOrder,
+  type ExchangeClosedTrade,
   type LiveTradeDTO,
 } from "@/lib/live-trading.functions";
 
 function fmtNum(n: number | null | undefined, d = 2): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return Number(n).toFixed(d);
+}
+function fmtMoney(n: number | null | undefined, suffix = "USDT"): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${n >= 0 ? "+" : "-"}${Math.abs(n).toFixed(2)} ${suffix}`;
+}
+function fmtInr(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${n >= 0 ? "+" : "-"}₹${Math.abs(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
@@ -65,6 +74,26 @@ function pnlText(t: LiveTradeDTO): string {
   if (noFillReason(t.exit_reason)) return "No fill";
   return "—";
 }
+function isRealizedExchangeClose(t: ExchangeClosedTrade): boolean {
+  return t.realizedPnl != null && Number.isFinite(Number(t.realizedPnl)) && Math.abs(Number(t.realizedPnl)) > 0;
+}
+function sumExchange(rows: ExchangeClosedTrade[]) {
+  let gross = 0;
+  let fees = 0;
+  let grossInr = 0;
+  let feesInr = 0;
+  let hasInr = false;
+  for (const r of rows) {
+    gross += Number(r.realizedPnl ?? 0);
+    fees += Math.abs(Number(r.fee ?? 0));
+    if (r.realizedPnlInMarginAsset != null || r.feeInMarginAsset != null) {
+      hasInr = true;
+      grossInr += Number(r.realizedPnlInMarginAsset ?? 0);
+      feesInr += Math.abs(Number(r.feeInMarginAsset ?? 0));
+    }
+  }
+  return { gross, fees, net: gross - fees, grossInr, feesInr, netInr: grossInr - feesInr, hasInr };
+}
 
 export function ExchangeOrdersCard() {
   const fn = useServerFn(listLiveExchangeOrders);
@@ -98,6 +127,7 @@ export function ExchangeOrdersCard() {
   const data = q.data;
   const pending = data?.pending ?? [];
   const executed = data?.executed ?? [];
+  const exchangeFills = data?.closed ?? [];
   const allTrades = tradesQ.data ?? [];
   const serverQueued = allTrades.filter((t) => t.status === "queued");
   const liveRunning = allTrades.filter((t) => t.status === "open");
@@ -116,17 +146,25 @@ export function ExchangeOrdersCard() {
     return ts >= startOfTodayMs;
   };
   const finishedToday = finishedTrades.filter(isTodayAttempt);
-  let overallPnl = 0;
-  let todayPnl = 0;
+  const exchangeFillsToday = exchangeFills.filter((t) => {
+    const ts = t.time ? new Date(t.time).getTime() : 0;
+    return ts >= startOfTodayMs;
+  });
+  const exchangeClosesToday = exchangeFillsToday.filter(isRealizedExchangeClose);
+  const exchangeSummary = sumExchange(exchangeFills);
+  const todayExchangeSummary = sumExchange(exchangeFillsToday);
+  const riskPerTradeUsd = 20;
+  const closeNetValues = exchangeClosesToday.map((r) => Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)));
+  const todayWins = closeNetValues.filter((v) => v > 0).length;
+  const todayLosses = closeNetValues.filter((v) => v < 0).length;
+  const todayWinRate = closeNetValues.length > 0 ? (todayWins / closeNetValues.length) * 100 : null;
+  const avgR = closeNetValues.length > 0
+    ? closeNetValues.reduce((s, v) => s + v / riskPerTradeUsd, 0) / closeNetValues.length
+    : null;
   let todayRealizedCount = 0;
   let todayAttempts = 0;
   let todayNoFill = 0;
   let todayErrors = 0;
-  let todayWins = 0;
-  for (const t of realizedTrades) {
-    const p = Number(t.net_pnl ?? 0);
-    overallPnl += p;
-  }
   for (const t of finishedTrades) {
     const tsSrc = t.exit_ts ?? t.entry_ts;
     const ts = tsSrc ? new Date(tsSrc).getTime() : 0;
@@ -135,14 +173,10 @@ export function ExchangeOrdersCard() {
       if (t.status === "error") todayErrors += 1;
       else if (!hasRealizedPnl(t)) todayNoFill += 1;
       else {
-        const p = Number(t.net_pnl ?? 0);
-        todayPnl += p;
         todayRealizedCount += 1;
-        if (p > 0) todayWins += 1;
       }
     }
   }
-  const todayWinRate = todayRealizedCount > 0 ? (todayWins / todayRealizedCount) * 100 : null;
   const pnlTone = (v: number) =>
     v > 0 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
       : v < 0 ? "border-destructive/40 bg-destructive/10 text-destructive"
@@ -159,19 +193,22 @@ export function ExchangeOrdersCard() {
           <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-base">Exchange orders · live</CardTitle>
             <span
-              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(overallPnl)}`}
-              title="Sum of runner rows that have confirmed realized P&L. Expired/cancelled no-fill attempts are excluded."
+              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(exchangeSummary.net)}`}
+              title="Exchange truth from trade history: realized P&L minus exchange fees for the current runner symbols."
             >
-              Overall {realizedTrades.length > 0 ? `${overallPnl >= 0 ? "+" : ""}${fmtNum(overallPnl)} USDT` : "—"}
+              Overall {exchangeFills.length > 0 ? fmtMoney(exchangeSummary.net) : "—"}
+              {exchangeSummary.hasInr ? ` · ${fmtInr(exchangeSummary.netInr)}` : ""}
             </span>
             <span
-              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(todayPnl)}`}
-              title="Confirmed realized P&L since midnight local. No-fill and failed attempts are shown separately."
+              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(todayExchangeSummary.net)}`}
+              title="Today uses exchange fills since midnight local. R:R is net P&L divided by the configured $20 risk per trade."
             >
-              Today {todayRealizedCount > 0 ? `${todayPnl >= 0 ? "+" : ""}${fmtNum(todayPnl)}` : "—"}
-              {" · "}{todayRealizedCount} filled
-              {todayAttempts > todayRealizedCount ? ` · ${todayNoFill} no-fill${todayErrors ? ` · ${todayErrors} error` : ""}` : ""}
+              Today {exchangeFillsToday.length > 0 ? fmtMoney(todayExchangeSummary.net) : "—"}
+              {todayExchangeSummary.hasInr ? ` · ${fmtInr(todayExchangeSummary.netInr)}` : ""}
+              {" · "}{todayWins}W/{todayLosses}L
               {" · "}{todayWinRate == null ? "—" : `${todayWinRate.toFixed(0)}%`} win
+              {" · R:R "}{avgR == null ? "—" : `${avgR.toFixed(2)}R`}
+              {todayAttempts > todayRealizedCount ? ` · ${todayNoFill} no-fill${todayErrors ? ` · ${todayErrors} error` : ""}` : ""}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -219,7 +256,7 @@ export function ExchangeOrdersCard() {
               <TabsTrigger value="closed" className="whitespace-nowrap">
                 <span className="sm:hidden">Closed</span>
                 <span className="hidden sm:inline">Executed &amp; Closed</span>
-                <Badge variant="outline" className="ml-2">{finishedToday.length}</Badge>
+                <Badge variant="outline" className="ml-2">{exchangeFillsToday.length || finishedToday.length}</Badge>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -385,29 +422,84 @@ export function ExchangeOrdersCard() {
             )}
           </TabsContent>
 
-          {/* Closed: our runner trades that finished today or recently */}
+          {/* Closed: exchange fills first, then no-fill runner attempts */}
           <TabsContent value="closed" className="mt-3">
-            {finishedToday.length === 0 ? (
-              <EmptyRow text="No finished runner attempts today." />
+            {exchangeFillsToday.length === 0 && finishedToday.length === 0 ? (
+              <EmptyRow text="No exchange fills or finished runner attempts today." />
             ) : (
-              <div className="rounded border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Exit time</TableHead>
-                      <TableHead>Symbol</TableHead>
-                      <TableHead>TF</TableHead>
-                      <TableHead>Side</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Entry</TableHead>
-                      <TableHead className="text-right">Exit</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Outcome</TableHead>
-                      <TableHead className="text-right">Net PnL</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {finishedToday.map((t) => {
+              <div className="space-y-3">
+                {exchangeFillsToday.length > 0 && (
+                  <div className="rounded border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">Realized</TableHead>
+                          <TableHead className="text-right">Fee</TableHead>
+                          <TableHead className="text-right">Net</TableHead>
+                          <TableHead className="text-right">R:R</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {exchangeFillsToday.map((f) => {
+                          const realized = Number(f.realizedPnl ?? 0);
+                          const fee = Math.abs(Number(f.fee ?? 0));
+                          const net = realized - fee;
+                          const isClose = isRealizedExchangeClose(f);
+                          const pnlCls = !isClose
+                            ? "text-muted-foreground"
+                            : net > 0
+                              ? "text-emerald-500"
+                              : net < 0
+                                ? "text-destructive"
+                                : "text-muted-foreground";
+                          return (
+                            <TableRow key={f.id}>
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtTime(f.time)}</TableCell>
+                              <TableCell className="font-medium">{f.symbol}</TableCell>
+                              <TableCell>{sideBadge(f.side)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{f.type || "—"}</TableCell>
+                              <TableCell className="text-right font-mono">{fmtNum(f.quantity, 3)}</TableCell>
+                              <TableCell className="text-right font-mono">{fmtNum(f.price)}</TableCell>
+                              <TableCell className={`text-right font-mono ${pnlCls}`}>{isClose ? fmtMoney(realized, "") : "—"}</TableCell>
+                              <TableCell className="text-right font-mono text-muted-foreground">{fee ? fmtNum(fee) : "—"}</TableCell>
+                              <TableCell className={`text-right font-mono ${pnlCls}`}>{isClose || fee ? fmtMoney(net, "") : "—"}</TableCell>
+                              <TableCell className={`text-right font-mono ${pnlCls}`}>{isClose ? `${(net / riskPerTradeUsd).toFixed(2)}R` : "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {finishedToday.length > 0 && (
+                  <div className="rounded border overflow-x-auto">
+                    <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                      Runner attempts without exchange P&amp;L
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Exit time</TableHead>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>TF</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Entry</TableHead>
+                          <TableHead className="text-right">Exit</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Outcome</TableHead>
+                          <TableHead className="text-right">Net PnL</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {finishedToday.map((t) => {
                       const pnl = Number(t.net_pnl ?? 0);
                       const realized = hasRealizedPnl(t);
                       const pnlCls =
@@ -421,29 +513,31 @@ export function ExchangeOrdersCard() {
                       const reason = t.status === "error"
                         ? (t.error ? `error: ${t.error.slice(0, 40)}` : "error")
                         : (t.exit_reason || "—");
-                      return (
-                        <TableRow key={t.id}>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {fmtTime(t.exit_ts ?? t.entry_ts)}
-                          </TableCell>
-                          <TableCell className="font-medium">{t.symbol}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{t.timeframe}</TableCell>
-                          <TableCell>{sideBadge(t.direction)}</TableCell>
-                          <TableCell className="text-right font-mono">{fmtNum(t.qty, 3)}</TableCell>
-                          <TableCell className="text-right font-mono">
-                            {fmtNum(t.fill_price ?? t.entry_price)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">{fmtNum(t.exit_price)}</TableCell>
-                          <TableCell className="text-xs">{reason}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{outcomeForTrade(t)}</TableCell>
-                          <TableCell className={`text-right font-mono ${pnlCls}`}>
-                            {pnlText(t)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                          return (
+                            <TableRow key={t.id}>
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                {fmtTime(t.exit_ts ?? t.entry_ts)}
+                              </TableCell>
+                              <TableCell className="font-medium">{t.symbol}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{t.timeframe}</TableCell>
+                              <TableCell>{sideBadge(t.direction)}</TableCell>
+                              <TableCell className="text-right font-mono">{fmtNum(t.qty, 3)}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {fmtNum(t.fill_price ?? t.entry_price)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">{fmtNum(t.exit_price)}</TableCell>
+                              <TableCell className="text-xs">{reason}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{outcomeForTrade(t)}</TableCell>
+                              <TableCell className={`text-right font-mono ${pnlCls}`}>
+                                {pnlText(t)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

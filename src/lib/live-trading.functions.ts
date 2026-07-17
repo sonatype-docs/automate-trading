@@ -1110,10 +1110,17 @@ export interface ExchangeClosedTrade {
   symbol: string;
   side: string;
   type: string;
+  role: string | null;
   price: number | null;
   quantity: number | null;
   fee: number | null;
+  feeInMarginAsset: number | null;
   realizedPnl: number | null;
+  realizedPnlInMarginAsset: number | null;
+  netPnl: number | null;
+  netPnlInMarginAsset: number | null;
+  marginAsset: string | null;
+  positionId: string | null;
   time: string | null;
 }
 export interface ExchangeOrdersDTO {
@@ -1192,6 +1199,12 @@ export const listLiveExchangeOrders = createServerFn({ method: "GET" }).handler(
       for (const r of historyRaw as Record<string, unknown>[]) {
         const sym = String(r.symbol ?? r.contractName ?? "").toUpperCase();
         if (symbolSet.size > 0 && !symbolSet.has(sym)) continue;
+        const fee = num(r.fee ?? r.takerFee ?? r.makerFee ?? r.commission);
+        const feeInMarginAsset = num(r.feeInMarginAsset ?? r.commissionInMarginAsset);
+        const realizedPnl = num(r.realizedProfit ?? r.realizedPnl ?? r.realisedPnl ?? r.pnl ?? r.profit);
+        const realizedPnlInMarginAsset = num(
+          r.realizedProfitInMarginAsset ?? r.realizedPnlInMarginAsset ?? r.realisedPnlInMarginAsset,
+        );
         closed.push({
           id: String(r.id ?? r.tradeId ?? r.orderId ?? r.clientOrderId ?? Math.random()),
           clientOrderId:
@@ -1201,10 +1214,19 @@ export const listLiveExchangeOrders = createServerFn({ method: "GET" }).handler(
           symbol: sym,
           side: String(r.side ?? ""),
           type: String(r.type ?? r.orderType ?? ""),
+          role: (r.role as string | undefined) ?? null,
           price: num(r.price ?? r.fillPrice ?? r.avgPrice),
           quantity: num(r.qty ?? r.quantity ?? r.filledAmount),
-          fee: num(r.fee ?? r.takerFee ?? r.makerFee ?? r.commission),
-          realizedPnl: num(r.realizedPnl ?? r.pnl ?? r.profit),
+          fee,
+          feeInMarginAsset,
+          realizedPnl,
+          realizedPnlInMarginAsset,
+          netPnl: realizedPnl == null ? null : realizedPnl - Math.abs(fee ?? 0),
+          netPnlInMarginAsset: realizedPnlInMarginAsset == null
+            ? null
+            : realizedPnlInMarginAsset - Math.abs(feeInMarginAsset ?? 0),
+          marginAsset: (r.marginAsset as string | undefined) ?? null,
+          positionId: (r.positionId as string | undefined) ?? null,
           time:
             (r.time as string | undefined) ??
             (r.createdAt as string | undefined) ??

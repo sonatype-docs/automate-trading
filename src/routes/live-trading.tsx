@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   listLiveRunners, listLiveTrades, setLiveRunnerRunning,
   runLiveTickNow, updateLiveRunner, cancelLiveOrder, testLiveConnection,
-  diagnoseLiveRunners, importTopPaperRunnersToLive, listLiveExchangeOrders,
+  diagnoseLiveRunners, importTopPaperRunnersToLive,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical, Download } from "lucide-react";
@@ -41,18 +41,7 @@ export const Route = createFileRoute("/live-trading")({
   component: LiveTradingPage,
 });
 
-const fmtUsd = (n: number | null | undefined) =>
-  n == null ? "—" : `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
 const fmtTs = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
-const hasRealizedPnl = (t: LiveTradeDTO) => t.net_pnl != null && Number.isFinite(Number(t.net_pnl));
-const noFillReason = (reason: string | null | undefined) =>
-  reason === "expired" || reason === "cancelled" || reason === "cancelled_replaced" || reason === "expired_queue";
-const pnlDisplay = (t: LiveTradeDTO) => {
-  if (hasRealizedPnl(t)) return fmtUsd(Number(t.net_pnl));
-  if (t.status === "error") return "Failed";
-  if (noFillReason(t.exit_reason)) return "No fill";
-  return "—";
-};
 
 function LiveTradingPage() {
   const qc = useQueryClient();
@@ -85,11 +74,6 @@ function LiveTradingPage() {
   const trades = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5000,
   });
-  const exchOrdersFn = useServerFn(listLiveExchangeOrders);
-  const exchOrders = useQuery({
-    queryKey: ["exchange-orders"], queryFn: () => exchOrdersFn(), refetchInterval: 5000,
-  });
-
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["live-runners"] });
     qc.invalidateQueries({ queryKey: ["live-trades"] });
@@ -113,26 +97,6 @@ function LiveTradingPage() {
   const tradesList = trades.data ?? [];
   useNewTradeToasts(tradesList, "Live");
   const openTrades = tradesList.filter((t) => t.status === "open" || t.status === "pending");
-  const closedTrades = tradesList.filter((t) => t.status === "closed" || t.status === "cancelled");
-  const errorTrades = tradesList.filter((t) => t.status === "error");
-  const realizedClosedTrades = closedTrades.filter(hasRealizedPnl);
-  const noFillClosedTrades = closedTrades.filter((t) => !hasRealizedPnl(t));
-  const totalPnl = realizedClosedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
-
-  // Exchange-truth realised P&L (from Shark trade history). Includes fills
-  // that never made it into our live_trades table (manual orders, historical).
-  const exchClosedRows = exchOrders.data?.closed ?? [];
-  const exchRealizedFills = exchClosedRows.filter(
-    (r) => r.realizedPnl != null && r.realizedPnl !== 0,
-  );
-  const exchTotalPnl = exchRealizedFills.reduce(
-    (s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)),
-    0,
-  );
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  const exchTodayPnl = exchRealizedFills
-    .filter((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime())
-    .reduce((s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)), 0);
 
 
   // Multi-select for bulk start / stop.
@@ -327,41 +291,6 @@ function LiveTradingPage() {
         <CollapsedShell title="Why isn't a trade triggering? (diagnostics)" open={showDiag} onToggle={() => setShowDiag((v) => !v)}>
           <DiagnosticsCard />
         </CollapsedShell>
-
-
-
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle>Finished live attempts</CardTitle>
-            <div className="flex flex-wrap gap-3 text-sm items-center">
-              <span className={`font-medium ${exchTotalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                Realised (exchange): {exchRealizedFills.length ? fmtUsd(exchTotalPnl) : "—"}
-              </span>
-              <span className={`text-xs ${exchTodayPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                Today: {exchRealizedFills.some((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime()) ? fmtUsd(exchTodayPnl) : "—"}
-              </span>
-              <span className="text-xs text-muted-foreground">·</span>
-              <span className={`text-xs ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                Runners' fills: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill · {exchRealizedFills.length} exch fills
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ClosedTable trades={closedTrades} />
-          </CardContent>
-        </Card>
-
-        {errorTrades.length > 0 && (
-          <Card>
-            <CardHeader><CardTitle className="text-destructive">Order errors</CardTitle></CardHeader>
-            <CardContent>
-              <ErrorsTable trades={errorTrades} />
-            </CardContent>
-          </Card>
-        )}
         </TabsContent>
         <TabsContent value="performance">
           <div className="space-y-6">
@@ -783,60 +712,6 @@ function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id
                 <X className="h-3.5 w-3.5" />
               </Button>
             </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function ClosedTable({ trades }: { trades: LiveTradeDTO[] }) {
-  if (!trades.length) return <p className="text-sm text-muted-foreground">No finished live attempts yet.</p>;
-  return (
-    <div className="max-h-[500px] overflow-auto">
-      <Table>
-        <TableHeader><TableRow>
-          <TableHead>Symbol</TableHead><TableHead>Dir</TableHead>
-          <TableHead>Entry</TableHead><TableHead>Exit</TableHead><TableHead>Reason</TableHead>
-          <TableHead>RR</TableHead><TableHead>Outcome</TableHead><TableHead className="text-right">Net PnL</TableHead><TableHead>Closed</TableHead>
-        </TableRow></TableHeader>
-        <TableBody>
-          {trades.map((t) => (
-            <TableRow key={t.id}>
-              <TableCell>{t.symbol}</TableCell>
-              <TableCell><Badge variant={t.direction === "long" ? "default" : "destructive"}>{t.direction}</Badge></TableCell>
-              <TableCell>{Number(t.fill_price ?? t.entry_price).toFixed(2)}</TableCell>
-              <TableCell>{t.exit_price != null ? Number(t.exit_price).toFixed(2) : "—"}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{t.exit_reason ?? "—"}</TableCell>
-              <TableCell>{t.rr != null ? Number(t.rr).toFixed(2) : "—"}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {hasRealizedPnl(t) ? "Filled" : noFillReason(t.exit_reason) ? "No fill" : t.status}
-              </TableCell>
-              <TableCell className={`text-right font-medium ${!hasRealizedPnl(t) ? "text-muted-foreground" : Number(t.net_pnl) >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                {pnlDisplay(t)}
-              </TableCell>
-              <TableCell className="text-xs">{fmtTs(t.exit_ts)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function ErrorsTable({ trades }: { trades: LiveTradeDTO[] }) {
-  return (
-    <Table>
-      <TableHeader><TableRow>
-        <TableHead>When</TableHead><TableHead>Symbol</TableHead><TableHead>Dir</TableHead><TableHead>Error</TableHead>
-      </TableRow></TableHeader>
-      <TableBody>
-        {trades.map((t) => (
-          <TableRow key={t.id}>
-            <TableCell className="text-xs">{fmtTs(t.entry_ts)}</TableCell>
-            <TableCell>{t.symbol}</TableCell>
-            <TableCell>{t.direction}</TableCell>
-            <TableCell className="text-xs text-destructive">{t.error}</TableCell>
           </TableRow>
         ))}
       </TableBody>

@@ -636,18 +636,22 @@ function PipelinePage() {
             <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
               Matrix
               <Badge variant="outline" className="text-[9px]">
-                {symbols.length} × {tfs.length} × {strats.length} × {execs.length} = {totalCombos} combos
+                {symbols.length} × {tfs.length} × {strats.length} × {execs.length} × {stratTzs.length} = {totalCombos} combos
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <MatrixGroup title="Symbols"
               options={ALL_SYMBOLS.map((v) => ({ value: v }))}
               selected={symbols} onChange={setSymbols} />
             <MatrixGroup title="Timeframes"
               options={PIPELINE_TFS.map((v) => ({ value: v }))}
               selected={tfs} onChange={setTfs} />
+            <MatrixGroup title="Strategy TZ"
+              options={TIMEZONES.map((v) => ({ value: v }))}
+              selected={stratTzs} onChange={setStratTzs} />
             <MatrixGroup title="Strategy presets"
+
               options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
               selected={strats} onChange={setStrats} />
             <MatrixGroup title="Execution presets"

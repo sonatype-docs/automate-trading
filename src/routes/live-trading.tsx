@@ -44,6 +44,15 @@ export const Route = createFileRoute("/live-trading")({
 const fmtUsd = (n: number | null | undefined) =>
   n == null ? "—" : `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
 const fmtTs = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
+const hasRealizedPnl = (t: LiveTradeDTO) => t.net_pnl != null && Number.isFinite(Number(t.net_pnl));
+const noFillReason = (reason: string | null | undefined) =>
+  reason === "expired" || reason === "cancelled" || reason === "cancelled_replaced" || reason === "expired_queue";
+const pnlDisplay = (t: LiveTradeDTO) => {
+  if (hasRealizedPnl(t)) return fmtUsd(Number(t.net_pnl));
+  if (t.status === "error") return "Failed";
+  if (noFillReason(t.exit_reason)) return "No fill";
+  return "—";
+};
 
 function LiveTradingPage() {
   const qc = useQueryClient();
@@ -102,7 +111,9 @@ function LiveTradingPage() {
   const openTrades = tradesList.filter((t) => t.status === "open" || t.status === "pending");
   const closedTrades = tradesList.filter((t) => t.status === "closed" || t.status === "cancelled");
   const errorTrades = tradesList.filter((t) => t.status === "error");
-  const totalPnl = closedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
+  const realizedClosedTrades = closedTrades.filter(hasRealizedPnl);
+  const noFillClosedTrades = closedTrades.filter((t) => !hasRealizedPnl(t));
+  const totalPnl = realizedClosedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
   // Multi-select for bulk start / stop.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -284,8 +295,8 @@ function LiveTradingPage() {
               onSave={(v) => upd.mutate(v)}
             />
             <p className="text-xs text-muted-foreground mt-3">
-              A background job polls every minute. When the strategy fires an entry, a market order is sent to SharkExchange
-              with the stop &amp; target attached. Exits are detected on the next tick.
+              A background job polls every minute. When the strategy fires an entry, a limit order is sent to SharkExchange
+              with the stop &amp; target attached after the symbol slot is free. Exits are detected on the next tick.
             </p>
           </CardContent>
         </Card>
@@ -301,10 +312,15 @@ function LiveTradingPage() {
 
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle>Closed live trades</CardTitle>
-            <span className={`text-sm font-medium ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-              Total realised: {fmtUsd(totalPnl)}
-            </span>
+            <CardTitle>Finished live attempts</CardTitle>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span className={`font-medium ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Realised: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
+              </span>
+              <span className="text-muted-foreground">
+                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <ClosedTable trades={closedTrades} />

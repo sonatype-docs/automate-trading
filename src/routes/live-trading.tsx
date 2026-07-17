@@ -144,7 +144,6 @@ function LiveTradingPage() {
     onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
   });
 
-  const [showTick, setShowTick] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
   const [showRunners, setShowRunners] = useState(false);

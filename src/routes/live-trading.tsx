@@ -144,6 +144,10 @@ function LiveTradingPage() {
     onError: (e: unknown) => alert(e instanceof Error ? e.message : String(e)),
   });
 
+  const [showTick, setShowTick] = useState(false);
+  const [showChart, setShowChart] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+
   return (
     <div className="p-4 sm:p-6">
       <Tabs defaultValue="dashboard" className="space-y-6">
@@ -153,11 +157,16 @@ function LiveTradingPage() {
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
 
-        <TickStatusCard runners={runnersList} />
+        <CollapsedShell title="Why isn't a trade triggering?" open={showTick} onToggle={() => setShowTick((v) => !v)}>
+          <TickStatusCard runners={runnersList} />
+        </CollapsedShell>
 
         <TopRunnersVerificationCard />
 
-        <LiveChartCard />
+        <CollapsedShell title="Live chart" open={showChart} onToggle={() => setShowChart((v) => !v)}>
+          <LiveChartCard />
+        </CollapsedShell>
+
 
 
 

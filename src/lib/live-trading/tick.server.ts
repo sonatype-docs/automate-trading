@@ -248,7 +248,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   //    THEN place the reverse.
   const { data: openOpposite } = await supabaseAdmin
     .from("live_trades")
-    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price, fill_ts, entry_ts, status")
     .eq("runner_id", r.id)
     .eq("symbol", r.symbol)
     .in("status", ["open", "pending"])

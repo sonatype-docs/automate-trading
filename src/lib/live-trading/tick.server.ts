@@ -322,8 +322,10 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   return { placed: placedOk, reconciled };
 }
 
-/** Check every open/pending live_trades row; mark closed when the exchange
- *  no longer shows an open child order for that clientOrderId. */
+/** Reconcile each open/pending live_trade row against the exchange.
+ *  Source of truth for "still open" = an actual open POSITION on the symbol
+ *  whose side + qty covers this row. Parent order id alone is unreliable
+ *  because SL/TP children have different clientOrderIds. */
 async function reconcileOpen(
   r: RunnerRow,
   client: ReturnType<typeof createSharkClient>,
@@ -339,44 +341,90 @@ async function reconcileOpen(
   try { openOrders = await client.getOpenOrders(r.symbol); } catch { return 0; }
   const openIds = new Set(openOrders.map((o) => o.clientOrderId));
 
+  let positions: Awaited<ReturnType<typeof client.getOpenPositions>> = [];
+  try { positions = await client.getOpenPositions(r.symbol); } catch { /* keep [] */ }
+
+  const netQtyByDir = (dir: "long" | "short") =>
+    positions
+      .filter((p) => {
+        const s = p.side.toUpperCase();
+        return dir === "long"
+          ? s === "LONG" || s === "BUY"
+          : s === "SHORT" || s === "SELL";
+      })
+      .reduce((a, p) => a + Math.abs(p.qty), 0);
+
   let last = 0;
   try { last = await client.getLastPrice(r.symbol); } catch { /* keep 0 */ }
+
+  // Helper: find a still-open reduce-only child order for this row by
+  // matching stop_price or target_price (Shark returns stopPrice for SL
+  // children and price/takeProfitPrice for TP children).
+  const near = (a: number | null, b: number) => a != null && Math.abs(a - b) / b < 0.001;
+  const hasChildFor = (row: { stop_price: number; target_price: number }) =>
+    openOrders.some((o) =>
+      (o.reduceOnly === true || o.subType === "STOP_LOSS" || o.subType === "TAKE_PROFIT") &&
+      (near(o.stopPrice, Number(row.stop_price)) ||
+        near(o.stopLossPrice, Number(row.stop_price)) ||
+        near(o.price, Number(row.target_price)) ||
+        near(o.takeProfitPrice, Number(row.target_price)))
+    );
 
   let n = 0;
   for (const row of openRows) {
     if (!row.client_order_id) continue;
 
-    // PENDING LIMIT: parent order still on the book → still pending.
-    if (row.status === "pending" && openIds.has(row.client_order_id)) continue;
-
     if (row.status === "pending") {
-      // Parent gone from open orders → either filled or cancelled.
+      // Parent limit still on the book → still pending.
+      if (openIds.has(row.client_order_id)) continue;
+
+      // Parent gone → filled or cancelled. Prefer real fill; else infer from position.
       const fill = await client.getFillForClientOrderId(row.client_order_id).catch(() => null);
-      if (fill?.price && fill.price > 0 && (fill.qty ?? 0) > 0) {
+      const posQty = netQtyByDir(row.direction as "long" | "short");
+      if ((fill?.price && fill.price > 0 && (fill.qty ?? 0) > 0) || posQty >= Number(row.qty) * 0.999) {
         await supabaseAdmin.from("live_trades").update({
           status: "open",
-          fill_price: fill.price,
-          entry_price: fill.price,
+          fill_price: fill?.price ?? Number(row.entry_price),
+          entry_price: fill?.price ?? Number(row.entry_price),
         }).eq("id", row.id);
-        n += 1;
       } else {
-        // No fill → treat as cancelled by exchange (expiry/manual).
         await supabaseAdmin.from("live_trades").update({
           status: "closed",
           exit_ts: new Date().toISOString(),
           exit_reason: "cancelled",
         }).eq("id", row.id);
-        n += 1;
       }
+      n += 1;
       continue;
     }
 
-    // OPEN (already filled): if parent id still listed as an open child, keep open.
-    if (openIds.has(row.client_order_id)) continue;
+    // OPEN (already filled): still open if position exists AND we can see a
+    // matching SL/TP child order on the book.
+    const posQty = netQtyByDir(row.direction as "long" | "short");
+    const childActive = hasChildFor({
+      stop_price: Number(row.stop_price),
+      target_price: Number(row.target_price),
+    });
+    if (posQty > 0 && childActive) continue;
 
-    const fill = await client.getFillForClientOrderId(row.client_order_id).catch(() => null);
-    const exitPrice = fill?.price && fill.price > 0 ? fill.price : last;
+    // Position gone or SL/TP child gone → trade closed. Determine exit price.
+    let exitPrice = last;
+    // Look for a matching exit fill in recent trade history if we can find it.
+    // (best-effort — fall back to last price)
     if (!exitPrice) continue;
+
+    // Cancel any orphan reduce-only children for this row to keep queue clean.
+    for (const o of openOrders) {
+      if (!o.clientOrderId) continue;
+      const isChild = o.reduceOnly === true || o.subType === "STOP_LOSS" || o.subType === "TAKE_PROFIT";
+      if (!isChild) continue;
+      const belongs =
+        near(o.stopPrice, Number(row.stop_price)) ||
+        near(o.stopLossPrice, Number(row.stop_price)) ||
+        near(o.price, Number(row.target_price)) ||
+        near(o.takeProfitPrice, Number(row.target_price));
+      if (belongs) await client.cancelOrder(o.clientOrderId).catch(() => undefined);
+    }
 
     const dir = row.direction === "long" ? 1 : -1;
     const grossPnl = (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);

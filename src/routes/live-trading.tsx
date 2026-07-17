@@ -158,6 +158,8 @@ function LiveTradingPage() {
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
 
+        <AllRunnersStatusCard />
+
         <CollapsedShell title="Why isn't a trade triggering?" open={showTick} onToggle={() => setShowTick((v) => !v)}>
           <TickStatusCard runners={runnersList} />
         </CollapsedShell>
@@ -167,6 +169,9 @@ function LiveTradingPage() {
         <CollapsedShell title="Live chart" open={showChart} onToggle={() => setShowChart((v) => !v)}>
           <LiveChartCard />
         </CollapsedShell>
+
+
+        <CollapsedShell title="Live runners" open={showRunners} onToggle={() => setShowRunners((v) => !v)}>
 
 
 

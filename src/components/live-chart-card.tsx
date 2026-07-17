@@ -583,12 +583,16 @@ function AllRunnersStatusPanel({
   const statusByRunner = new Map<string, RunnerStatusDTO>();
   for (const st of statuses) statusByRunner.set(st.runner_id, st);
 
+  const [showAll, setShowAll] = useState(false);
+
   const runningCount = runners.filter((r) => r.running).length;
   const openCount = openByRunner.size;
   const errorCount = runners.filter((r) => !!r.last_tick_error).length
     + statuses.filter((s) => s.state === "error" && !runners.find((r) => r.id === s.runner_id)?.last_tick_error).length;
   const readyCount = statuses.filter((s) => s.state === "setup_ready").length;
   const stoppedCount = runners.length - runningCount;
+  const closedCount = statuses.filter((s) => s.state === "session_closed").length;
+
 
   return (
     <div className="rounded-lg border border-gradient-sunset bg-gradient-sunset-soft p-3 sm:p-4 space-y-3 shadow-lg">

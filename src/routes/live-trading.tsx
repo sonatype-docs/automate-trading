@@ -155,7 +155,10 @@ function LiveTradingPage() {
 
         <TickStatusCard runners={runnersList} />
 
+        <TopRunnersVerificationCard />
+
         <LiveChartCard />
+
 
 
         <Card>

@@ -110,18 +110,59 @@ export function ExchangeOrdersCard() {
       <CardContent>
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
-            <TabsTrigger value="pending">
-              Pending <Badge variant="outline" className="ml-2">{pending.length}</Badge>
+            <TabsTrigger value="server">
+              Pending in server <Badge variant="outline" className="ml-2">{serverQueued.length}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="executed">
-              Executed <Badge variant="outline" className="ml-2">{executed.length}</Badge>
+            <TabsTrigger value="pending">
+              Pending in exchange <Badge variant="outline" className="ml-2">{pending.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="live">
+              Live running <Badge variant="outline" className="ml-2">{Math.max(liveRunning.length, executed.length)}</Badge>
             </TabsTrigger>
             <TabsTrigger value="closed">
-              Closed <Badge variant="outline" className="ml-2">{closed.length}</Badge>
+              Executed &amp; Closed <Badge variant="outline" className="ml-2">{closed.length}</Badge>
             </TabsTrigger>
           </TabsList>
 
-          {/* Pending: open orders on the book (limit, SL, TP) */}
+          {/* Pending in server: signals queued locally, not yet sent to exchange */}
+          <TabsContent value="server" className="mt-3">
+            {serverQueued.length === 0 ? (
+              <EmptyRow text="No signals queued on the server." />
+            ) : (
+              <div className="rounded border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Symbol</TableHead>
+                      <TableHead>TF</TableHead>
+                      <TableHead>Side</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Entry</TableHead>
+                      <TableHead className="text-right">Stop</TableHead>
+                      <TableHead className="text-right">Target</TableHead>
+                      <TableHead>Queued</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {serverQueued.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.symbol}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{t.timeframe}</TableCell>
+                        <TableCell>{sideBadge(t.direction)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmtNum(t.qty, 3)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmtNum(t.entry_price)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmtNum(t.stop_price)}</TableCell>
+                        <TableCell className="text-right font-mono">{fmtNum(t.target_price)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{fmtTime(t.entry_ts)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Pending in exchange: open orders on the book (limit, SL, TP) */}
           <TabsContent value="pending" className="mt-3">
             {pending.length === 0 ? (
               <EmptyRow text="No pending orders on the exchange." />

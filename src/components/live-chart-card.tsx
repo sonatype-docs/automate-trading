@@ -70,7 +70,9 @@ export function LiveChartCard() {
 
   // Default to first running runner, else first runner.
   useEffect(() => {
-    if (runnerId || !runners.data?.length) return;
+    if (!runners.data?.length) return;
+    const stillExists = runnerId && runners.data.some((r) => r.id === runnerId);
+    if (stillExists) return;
     const running = runners.data.find((r) => r.running);
     setRunnerId((running ?? runners.data[0])?.id ?? null);
   }, [runners.data, runnerId]);

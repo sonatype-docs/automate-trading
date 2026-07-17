@@ -309,7 +309,7 @@ async function reconcileOpen(
 ): Promise<number> {
   const { data: openRows } = await supabaseAdmin
     .from("live_trades")
-    .select("id, client_order_id, direction, qty, entry_price, stop_price, target_price")
+    .select("id, status, client_order_id, direction, qty, entry_price, stop_price, target_price")
     .eq("runner_id", r.id)
     .in("status", ["open", "pending"]);
   if (!openRows?.length) return 0;
@@ -324,14 +324,38 @@ async function reconcileOpen(
   let n = 0;
   for (const row of openRows) {
     if (!row.client_order_id) continue;
-    // If the placed order's ID is still listed as open (or any of its children),
-    // consider the trade still open.
+
+    // PENDING LIMIT: parent order still on the book → still pending.
+    if (row.status === "pending" && openIds.has(row.client_order_id)) continue;
+
+    if (row.status === "pending") {
+      // Parent gone from open orders → either filled or cancelled.
+      const fill = await client.getFillForClientOrderId(row.client_order_id).catch(() => null);
+      if (fill?.price && fill.price > 0 && (fill.qty ?? 0) > 0) {
+        await supabaseAdmin.from("live_trades").update({
+          status: "open",
+          fill_price: fill.price,
+          entry_price: fill.price,
+        }).eq("id", row.id);
+        n += 1;
+      } else {
+        // No fill → treat as cancelled by exchange (expiry/manual).
+        await supabaseAdmin.from("live_trades").update({
+          status: "closed",
+          exit_ts: new Date().toISOString(),
+          exit_reason: "cancelled",
+        }).eq("id", row.id);
+        n += 1;
+      }
+      continue;
+    }
+
+    // OPEN (already filled): if parent id still listed as an open child, keep open.
     if (openIds.has(row.client_order_id)) continue;
 
-    // Try to fetch a real fill to know exit price.
     const fill = await client.getFillForClientOrderId(row.client_order_id).catch(() => null);
     const exitPrice = fill?.price && fill.price > 0 ? fill.price : last;
-    if (!exitPrice) continue; // no data — skip until next tick
+    if (!exitPrice) continue;
 
     const dir = row.direction === "long" ? 1 : -1;
     const grossPnl = (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
@@ -351,7 +375,7 @@ async function reconcileOpen(
       exit_reason: exitReason,
       rr,
       gross_pnl: grossPnl,
-      net_pnl: grossPnl, // fees not fetched separately
+      net_pnl: grossPnl,
       fees: 0,
     }).eq("id", row.id);
     n += 1;

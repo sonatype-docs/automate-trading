@@ -325,11 +325,16 @@ function PipelinePage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = row.matrix as any;
     const rebuilt: ComboSpec[] = [];
+    const tzList: string[] = Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0
+      ? m.strategyTimezones
+      : [m.strategyTimezone ?? "London"];
     for (const symbol of m.symbols) {
       for (const tf of m.timeframes) {
         for (const strategyPresetId of m.strategyPresetIds) {
           for (const execPresetId of m.execPresetIds) {
-            rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId });
+            for (const tz of tzList) {
+              rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId, strategyTimezone: tz as Timezone });
+            }
           }
         }
       }
@@ -339,7 +344,8 @@ function PipelinePage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logArr = (Array.isArray((row as any).log) ? (row as any).log : []) as Array<any>;
     // Index the log by combo signature so we can hydrate per-combo trade counts.
-    const key = (c: ComboSpec) => `${c.symbol}|${c.timeframe}|${c.strategyPresetId}|${c.execPresetId}`;
+    const key = (c: ComboSpec) => `${c.symbol}|${c.timeframe}|${c.strategyPresetId}|${c.execPresetId}|${c.strategyTimezone ?? ""}`;
+
     const logByCombo = new Map<string, { trades: number; inserted: number; elapsedMs: number; status: string }>();
     for (const entry of logArr) {
       if (!entry?.combo) continue;

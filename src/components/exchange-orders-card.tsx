@@ -296,6 +296,19 @@ export function ExchangeOrdersCard() {
             </Button>
           </div>
         </div>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {stats.map((s) => (
+            <div
+              key={s.label}
+              className="rounded-md border bg-muted/20 px-2.5 py-2 flex flex-col gap-0.5"
+              title={s.hint}
+            >
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</div>
+              <div className={`text-sm font-mono font-semibold leading-tight ${s.tone ?? ""}`}>{s.value}</div>
+              {s.hint && <div className="text-[10px] text-muted-foreground truncate">{s.hint}</div>}
+            </div>
+          ))}
+        </div>
         {data?.error && (
           <div className="mt-2 text-xs text-destructive">{data.error}</div>
         )}

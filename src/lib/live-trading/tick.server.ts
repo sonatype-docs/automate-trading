@@ -102,8 +102,29 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
 
   const client = createSharkClient();
 
+  // 0) Sweep stale PENDING limits older than 15 min — prevents orphan queue buildup.
+  const STALE_MS = 15 * 60 * 1000;
+  const cutoff = new Date(Date.now() - STALE_MS).toISOString();
+  const { data: stale } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, client_order_id")
+    .eq("runner_id", r.id)
+    .eq("status", "pending")
+    .lt("entry_ts", cutoff);
+  for (const sp of stale ?? []) {
+    if (sp.client_order_id) {
+      await client.cancelOrder(sp.client_order_id).catch(() => undefined);
+    }
+    await supabaseAdmin.from("live_trades").update({
+      status: "closed",
+      exit_ts: new Date().toISOString(),
+      exit_reason: "expired",
+    }).eq("id", sp.id);
+  }
+
   // 1) Reconcile still-open live trades against the exchange.
   const reconciled = await reconcileOpen(r, client);
+
 
   // 2) Load fresh candles and run the strategy.
   const toMs = Date.now();

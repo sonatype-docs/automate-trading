@@ -349,7 +349,7 @@ function PipelinePage() {
     const logByCombo = new Map<string, { trades: number; inserted: number; elapsedMs: number; status: string }>();
     for (const entry of logArr) {
       if (!entry?.combo) continue;
-      const k = `${entry.combo.symbol}|${entry.combo.timeframe}|${entry.combo.strategyPresetId}|${entry.combo.execPresetId}`;
+      const k = `${entry.combo.symbol}|${entry.combo.timeframe}|${entry.combo.strategyPresetId}|${entry.combo.execPresetId}|${entry.combo.strategyTimezone ?? ""}`;
       logByCombo.set(k, {
         trades: Number(entry.trades ?? 0),
         inserted: Number(entry.inserted ?? 0),

@@ -591,101 +591,153 @@ function AllRunnersStatusPanel({
   const stoppedCount = runners.length - runningCount;
 
   return (
-    <div className="rounded-md border p-3 space-y-3">
+    <div className="rounded-lg border border-gradient-sunset bg-gradient-sunset-soft p-3 sm:p-4 space-y-3 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="text-sm font-medium">All runners · live status</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-sunset-vivid shadow-md glow-sunset">
+            <Radar className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold tracking-tight">All runners · live status</div>
+            <div className="text-[10px] text-muted-foreground font-mono uppercase">Realtime · auto-refresh 60s</div>
+          </div>
           {onRefresh && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRefresh} disabled={isFetching} title="Refresh">
-              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            <Button variant="ghost" size="icon" className="h-7 w-7 ml-1" onClick={onRefresh} disabled={isFetching} title="Refresh now">
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-xs text-muted-foreground">
-          <span>Total: <b className="text-foreground">{runners.length}</b></span>
-          <span>Running: <b className="text-emerald-500">{runningCount}</b></span>
-          <span>Stopped: <b className="text-foreground">{stoppedCount}</b></span>
-          <span>Ready: <b className={readyCount ? "text-emerald-500" : "text-foreground"}>{readyCount}</b></span>
-          <span>Open trades: <b className="text-foreground">{openCount}</b></span>
-          <span>Errors: <b className={errorCount ? "text-destructive" : "text-foreground"}>{errorCount}</b></span>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
+          <StatPill icon={<Circle className="h-3 w-3" />} label="Total" value={runners.length} tone="neutral" />
+          <StatPill icon={<Zap className="h-3 w-3" />} label="Running" value={runningCount} tone="success" />
+          <StatPill icon={<Pause className="h-3 w-3" />} label="Stopped" value={stoppedCount} tone="muted" />
+          <StatPill icon={<Target className="h-3 w-3" />} label="Ready" value={readyCount} tone={readyCount ? "success" : "muted"} />
+          <StatPill icon={<Activity className="h-3 w-3" />} label="Open" value={openCount} tone={openCount ? "primary" : "muted"} />
+          <StatPill icon={<AlertTriangle className="h-3 w-3" />} label="Errors" value={errorCount} tone={errorCount ? "destructive" : "muted"} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
         {runners.map((r) => {
           const open = openByRunner.get(r.id);
           const st = statusByRunner.get(r.id);
 
           let statusText: string;
-          let toneCls: string;
+          let tone: "success" | "warning" | "destructive" | "muted" | "primary";
+          let StatusIcon = Activity;
           let subDetail: string | null = null;
 
           if (r.last_tick_error) {
-            statusText = "Error";
-            toneCls = "border-destructive/40 bg-destructive/10 text-destructive";
+            statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
           } else if (open) {
-            statusText = `Trade open · ${open.direction.toUpperCase()}`;
-            toneCls = "border-emerald-500/40 bg-emerald-500/10 text-emerald-500";
+            statusText = `Trade ${open.status} · ${open.direction.toUpperCase()}`;
+            tone = "primary";
+            StatusIcon = open.direction === "long" ? TrendingUp : TrendingDown;
           } else if (!r.running) {
-            statusText = "Stopped";
-            toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+            statusText = "Stopped"; tone = "muted"; StatusIcon = Pause;
           } else if (st?.state === "setup_ready") {
-            statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`;
-            toneCls = "border-emerald-500/40 bg-emerald-500/10 text-emerald-500";
+            statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`; tone = "success"; StatusIcon = Target;
             subDetail = st.detail;
           } else if (st?.state === "session_closed") {
-            statusText = "Session closed";
-            toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+            statusText = "Session closed"; tone = "muted"; StatusIcon = Clock;
           } else if (st?.state === "blocked") {
-            statusText = "Filters blocking";
-            toneCls = "border-amber-500/40 bg-amber-500/10 text-amber-500";
+            statusText = "Filters blocking"; tone = "warning"; StatusIcon = Shield;
             subDetail = st.detail;
           } else if (st?.state === "error") {
-            statusText = "Error";
-            toneCls = "border-destructive/40 bg-destructive/10 text-destructive";
+            statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
             subDetail = st.detail;
           } else if (!st) {
-            statusText = "Loading…";
-            toneCls = "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+            statusText = "Loading…"; tone = "muted"; StatusIcon = Circle;
           } else {
-            statusText = "Scanning";
-            toneCls = "border-amber-500/40 bg-amber-500/10 text-amber-500";
+            statusText = "Scanning"; tone = "warning"; StatusIcon = Radar;
           }
 
+          const toneWrap =
+            tone === "success" ? "border-l-[3px] border-l-success bg-success/5"
+            : tone === "primary" ? "border-l-[3px] border-l-primary bg-primary/5 ring-1 ring-primary/20"
+            : tone === "warning" ? "border-l-[3px] border-l-warning bg-warning/5"
+            : tone === "destructive" ? "border-l-[3px] border-l-destructive bg-destructive/10"
+            : "border-l-[3px] border-l-muted-foreground/30 bg-muted/20";
+
+          const toneBadge =
+            tone === "success" ? "bg-success/15 text-success border-success/30"
+            : tone === "primary" ? "bg-primary/15 text-primary border-primary/30"
+            : tone === "warning" ? "bg-warning/15 text-warning border-warning/30"
+            : tone === "destructive" ? "bg-destructive/15 text-destructive border-destructive/30"
+            : "bg-muted text-muted-foreground border-border";
+
+          const isBtc = r.symbol.toUpperCase().startsWith("BTC");
+          const SymbolIcon = isBtc ? Bitcoin : Coins;
+          const symbolColor = isBtc ? "text-brand-ember" : "text-brand-copper";
+
           return (
-            <div key={r.id} className="rounded border p-2 flex items-start justify-between gap-2 text-xs">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${toneCls} font-medium`}>{statusText}</span>
-                  <span className="font-medium truncate">{r.label}</span>
+            <div key={r.id} className={`rounded-md border p-2.5 flex flex-col gap-1.5 text-xs card-hover ${toneWrap}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <SymbolIcon className={`h-4 w-4 shrink-0 ${symbolColor}`} />
+                  <span className="font-semibold truncate">{r.label}</span>
                 </div>
-                <div className="mt-1 text-muted-foreground font-mono truncate">
-                  {r.symbol} · {r.timeframe} · {r.strategy_preset}
+                <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
+                  r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow" : "bg-accent/40 text-accent-foreground border-accent"
+                }`}>
+                  {r.leverage}×
+                </span>
+              </div>
+
+              <div className={`inline-flex items-center gap-1 self-start text-[10px] px-1.5 py-0.5 rounded-md border font-medium ${toneBadge}`}>
+                <StatusIcon className="h-3 w-3" />
+                <span>{statusText}</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 text-muted-foreground font-mono text-[10.5px]">
+                <span className="truncate">{r.symbol} · {r.timeframe} · {r.strategy_preset}</span>
+                <span className="shrink-0 flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" />
+                  {r.last_tick_at ? new Date(r.last_tick_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                </span>
+              </div>
+
+              {open && (
+                <div className="mt-0.5 grid grid-cols-3 gap-1 rounded-sm bg-background/50 p-1.5 font-mono text-[10px]">
+                  <div><div className="text-muted-foreground">Entry</div><div className="font-semibold">{Number(open.entry_price).toFixed(2)}</div></div>
+                  {open.stop_price != null && <div><div className="text-muted-foreground">SL</div><div className="text-destructive font-semibold">{Number(open.stop_price).toFixed(2)}</div></div>}
+                  {open.target_price != null && <div><div className="text-muted-foreground">TP</div><div className="text-success font-semibold">{Number(open.target_price).toFixed(2)}</div></div>}
                 </div>
-                {open && (
-                  <div className="mt-0.5 text-muted-foreground font-mono">
-                    entry {Number(open.entry_price).toFixed(2)} · qty {Number(open.qty)}
-                    {open.stop_price != null ? ` · SL ${Number(open.stop_price).toFixed(2)}` : ""}
-                    {open.target_price != null ? ` · TP ${Number(open.target_price).toFixed(2)}` : ""}
-                  </div>
-                )}
-                {!open && subDetail && (
-                  <div className="mt-0.5 text-muted-foreground truncate" title={subDetail}>{subDetail}</div>
-                )}
-                {r.last_tick_error && (
-                  <div className="mt-0.5 text-destructive truncate" title={r.last_tick_error}>
-                    {r.last_tick_error}
-                  </div>
-                )}
-              </div>
-              <div className="text-right text-[10px] text-muted-foreground whitespace-nowrap">
-                <div>lev {r.leverage}x</div>
-                <div>{r.last_tick_at ? new Date(r.last_tick_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
-              </div>
+              )}
+              {!open && subDetail && (
+                <div className="text-muted-foreground truncate text-[10.5px]" title={subDetail}>· {subDetail}</div>
+              )}
+              {r.last_tick_error && (
+                <div className="text-destructive truncate text-[10.5px]" title={r.last_tick_error}>
+                  ⚠ {r.last_tick_error}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function StatPill({ icon, label, value, tone }: {
+  icon: React.ReactNode; label: string; value: number;
+  tone: "success" | "destructive" | "primary" | "warning" | "muted" | "neutral";
+}) {
+  const cls =
+    tone === "success" ? "bg-success/15 text-success border-success/30"
+    : tone === "destructive" ? "bg-destructive/15 text-destructive border-destructive/30"
+    : tone === "primary" ? "bg-primary/15 text-primary border-primary/30"
+    : tone === "warning" ? "bg-warning/15 text-warning border-warning/30"
+    : tone === "neutral" ? "bg-gradient-sunset-vivid text-white border-transparent"
+    : "bg-muted/50 text-muted-foreground border-border";
+  return (
+    <div className={`flex items-center justify-between gap-1 rounded-md border px-1.5 py-1 ${cls}`}>
+      <div className="flex items-center gap-1 min-w-0">
+        {icon}
+        <span className="uppercase font-mono tracking-wider truncate">{label}</span>
+      </div>
+      <span className="font-bold tabular-nums">{value}</span>
     </div>
   );
 }

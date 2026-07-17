@@ -412,6 +412,51 @@ export function createSharkClient(): ExchangeClient {
       return null;
     },
 
+    async getRecentFills(symbol) {
+      const { apiKey, apiSecret } = requireCreds();
+      const params: Record<string, string | number> = { sortOrder: "desc", pageSize: "200" };
+      if (symbol) params.symbol = symbol.toUpperCase();
+      const res = await signedGet(apiKey, apiSecret, "/v1/user-data/trade-history", params);
+      if (!res.ok) return [];
+      const rows =
+        (res.json as { data?: unknown[] } | null)?.data ??
+        (Array.isArray(res.json) ? (res.json as unknown[]) : []);
+      const num = (v: unknown): number => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const out: FillRow[] = [];
+      for (const r of rows) {
+        const o = r as Record<string, unknown>;
+        const price = num(o.price ?? o.fillPrice ?? o.avgPrice);
+        if (!(price > 0)) continue;
+        const timeRaw = o.time ?? o.createdAt ?? o.updatedAt ?? o.timestamp;
+        const timeMs =
+          typeof timeRaw === "number"
+            ? timeRaw
+            : timeRaw
+              ? Date.parse(String(timeRaw))
+              : 0;
+        out.push({
+          clientOrderId:
+            (o.clientOrderId as string | undefined) ??
+            (o.orderId as string | undefined) ??
+            null,
+          symbol: String(o.symbol ?? ""),
+          side: String(o.side ?? "").toUpperCase(),
+          qty: num(o.qty ?? o.quantity ?? o.filledAmount ?? o.orderAmount),
+          price,
+          fee: num(o.fee ?? o.commission ?? o.tradeFee),
+          realizedPnl: num(o.realizedPnl ?? o.realisedPnl ?? o.pnl),
+          reduceOnly:
+            typeof o.reduceOnly === "boolean" ? (o.reduceOnly as boolean) : null,
+          timeMs: Number.isFinite(timeMs) ? timeMs : 0,
+          raw: o,
+        });
+      }
+      return out;
+    },
+
     async testConnection() {
       const { apiKey, apiSecret } = requireCreds();
       // Matches the Python example in SharkExchange docs and rules out

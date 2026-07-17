@@ -198,54 +198,28 @@
     color: var(--color-foreground);
   }
 
-  /* Ambient — vivid 4-stop sunset glow */
+  /* Solid ambient background */
   body {
-    background-image:
-      radial-gradient(900px 560px at 4% -14%, color-mix(in oklch, var(--brand-flame) 22%, transparent), transparent 60%),
-      radial-gradient(880px 520px at 100% 4%, color-mix(in oklch, var(--brand-copper) 18%, transparent), transparent 55%),
-      radial-gradient(1000px 600px at 50% 110%, color-mix(in oklch, var(--brand-violet) 16%, transparent), transparent 60%),
-      radial-gradient(700px 420px at 50% 40%, color-mix(in oklch, var(--brand-ember) 10%, transparent), transparent 65%);
-    background-attachment: fixed;
+    background-color: var(--color-background);
+    background-image: none;
   }
   .dark body {
-    background-image:
-      radial-gradient(1100px 680px at 4% -14%, color-mix(in oklch, var(--brand-flame) 26%, transparent), transparent 60%),
-      radial-gradient(1000px 620px at 100% 4%, color-mix(in oklch, var(--brand-copper) 24%, transparent), transparent 55%),
-      radial-gradient(1200px 720px at 50% 115%, color-mix(in oklch, var(--brand-violet) 22%, transparent), transparent 60%),
-      radial-gradient(800px 480px at 50% 40%, color-mix(in oklch, var(--brand-ember) 14%, transparent), transparent 65%),
-      linear-gradient(180deg, transparent, color-mix(in oklch, var(--brand-charcoal) 30%, transparent));
-    background-attachment: fixed;
+    background-color: var(--color-background);
+    background-image: none;
   }
 
-  /* Bento card — subtle sunset tint always visible */
+  /* Bento card — solid tinted surface */
   [data-slot="card"] {
     position: relative;
-    background:
-      linear-gradient(135deg,
-        color-mix(in oklch, var(--brand-flame) 5%, transparent),
-        color-mix(in oklch, var(--brand-copper) 5%, transparent) 55%,
-        color-mix(in oklch, var(--brand-violet) 5%, transparent)),
-      color-mix(in oklch, var(--color-card) 96%, transparent);
+    background: color-mix(in oklch, var(--brand-copper) 4%, var(--color-card));
     border-color: color-mix(in oklch, var(--brand-copper) 22%, var(--color-border));
     border-radius: var(--radius-lg);
-    box-shadow:
-      0 1px 0 0 color-mix(in oklch, white 6%, transparent) inset,
-      0 1px 2px 0 color-mix(in oklch, black 20%, transparent);
+    box-shadow: 0 1px 2px 0 color-mix(in oklch, black 15%, transparent);
   }
   .dark [data-slot="card"] {
-    background:
-      linear-gradient(135deg,
-        color-mix(in oklch, var(--brand-flame) 8%, transparent),
-        color-mix(in oklch, var(--brand-copper) 8%, transparent) 55%,
-        color-mix(in oklch, var(--brand-violet) 8%, transparent)),
-      linear-gradient(180deg,
-        color-mix(in oklch, var(--color-card) 100%, transparent),
-        color-mix(in oklch, var(--color-card) 88%, transparent));
+    background: color-mix(in oklch, var(--brand-copper) 6%, var(--color-card));
     border-color: color-mix(in oklch, var(--brand-copper) 28%, var(--color-border));
-    box-shadow:
-      0 1px 0 0 color-mix(in oklch, white 6%, transparent) inset,
-      0 10px 30px -18px color-mix(in oklch, var(--brand-copper) 45%, transparent),
-      0 8px 24px -14px color-mix(in oklch, black 90%, transparent);
+    box-shadow: 0 1px 2px 0 color-mix(in oklch, black 30%, transparent);
   }
 
   /* Solid sunset accent strip on every card */
@@ -382,11 +356,11 @@
   }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--brand-flame), var(--brand-copper) 55%, var(--brand-violet));
+    background: var(--brand-copper);
     border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--brand-ember), var(--brand-copper) 45%, var(--brand-violet));
+    background: var(--brand-ember);
   }
 
   /* Route transitions */
@@ -428,47 +402,32 @@
     0 20px 50px -28px color-mix(in oklch, var(--color-primary) 50%, transparent);
 }
 @utility text-gradient-primary {
-  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 35%, var(--brand-copper) 65%, var(--brand-violet));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--brand-ember);
 }
 @utility text-gradient-sunset {
-  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 30%, var(--brand-copper) 65%, var(--brand-violet));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--brand-ember);
 }
 @utility bg-gradient-sunset {
-  background-image: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 30%, var(--brand-copper) 65%, var(--brand-violet));
+  background-image: none;
+  background-color: var(--brand-copper);
 }
 @utility bg-gradient-sunset-vivid {
-  background-image: linear-gradient(120deg, var(--brand-flame) 0%, var(--brand-ember) 28%, var(--brand-copper) 62%, var(--brand-violet) 100%);
+  background-image: none;
+  background-color: var(--brand-copper);
   color: white;
 }
 @utility bg-gradient-sunset-soft {
-  background-image: linear-gradient(120deg,
-    color-mix(in oklch, var(--brand-flame) 18%, transparent),
-    color-mix(in oklch, var(--brand-ember) 20%, transparent) 30%,
-    color-mix(in oklch, var(--brand-copper) 18%, transparent) 65%,
-    color-mix(in oklch, var(--brand-violet) 16%, transparent));
+  background-image: none;
+  background-color: color-mix(in oklch, var(--brand-copper) 8%, var(--color-card));
 }
 @utility ring-sunset {
-  box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--brand-copper) 55%, transparent),
-    0 12px 34px -18px color-mix(in oklch, var(--brand-copper) 65%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--brand-copper) 45%, transparent);
 }
 @utility glow-sunset {
-  box-shadow:
-    0 6px 20px -8px color-mix(in oklch, var(--brand-flame) 55%, transparent),
-    0 10px 30px -12px color-mix(in oklch, var(--brand-copper) 55%, transparent),
-    0 14px 40px -18px color-mix(in oklch, var(--brand-violet) 50%, transparent);
+  box-shadow: none;
 }
 @utility border-gradient-sunset {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--color-card), var(--color-card)) padding-box,
-    linear-gradient(120deg, var(--brand-flame), var(--brand-copper) 55%, var(--brand-violet)) border-box;
+  border: 1px solid color-mix(in oklch, var(--brand-copper) 40%, var(--color-border));
 }
 @utility hairline {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);

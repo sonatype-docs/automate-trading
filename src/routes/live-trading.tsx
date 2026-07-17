@@ -320,6 +320,23 @@ function LiveTradingPage() {
   );
 }
 
+function CollapsedShell({ title, open, onToggle, children }: {
+  title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        className="flex flex-row items-center justify-between gap-2 cursor-pointer select-none py-3"
+        onClick={onToggle}
+      >
+        <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </CardHeader>
+      {open && <CardContent className="pt-0">{children}</CardContent>}
+    </Card>
+  );
+}
+
 function RunnersTable({ runners, selected, onSelectToggle, onSelectAll, onClearSelection, onToggle, onSave }: {
   runners: LiveRunnerDTO[];
   selected: Set<string>;

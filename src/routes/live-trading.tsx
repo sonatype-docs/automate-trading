@@ -272,7 +272,9 @@ function LiveTradingPage() {
           </CardContent>
         </Card>
 
-        <DiagnosticsCard />
+        <CollapsedShell title="Why isn't a trade triggering? (diagnostics)" open={showDiag} onToggle={() => setShowDiag((v) => !v)}>
+          <DiagnosticsCard />
+        </CollapsedShell>
 
 
         <Card>

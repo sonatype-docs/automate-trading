@@ -333,12 +333,19 @@ function LiveTradingPage() {
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Finished live attempts</CardTitle>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <span className={`font-medium ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-                Realised: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
+            <div className="flex flex-wrap gap-3 text-sm items-center">
+              <span className={`font-medium ${exchTotalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Realised (exchange): {exchRealizedFills.length ? fmtUsd(exchTotalPnl) : "—"}
               </span>
-              <span className="text-muted-foreground">
-                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill
+              <span className={`text-xs ${exchTodayPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Today: {exchRealizedFills.some((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime()) ? fmtUsd(exchTodayPnl) : "—"}
+              </span>
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className={`text-xs ${totalPnl >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                Runners' fills: {realizedClosedTrades.length ? fmtUsd(totalPnl) : "—"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {realizedClosedTrades.length} filled · {noFillClosedTrades.length} no-fill · {exchRealizedFills.length} exch fills
               </span>
             </div>
           </CardHeader>

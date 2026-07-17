@@ -5,7 +5,7 @@
 // - Setup / signal markers overlaid on the chart.
 // - Right panel shows live P&L, R multiple, direction, qty, elapsed.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   createChart, CandlestickSeries, HistogramSeries, LineSeries,

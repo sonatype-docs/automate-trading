@@ -119,6 +119,22 @@ function LiveTradingPage() {
   const noFillClosedTrades = closedTrades.filter((t) => !hasRealizedPnl(t));
   const totalPnl = realizedClosedTrades.reduce((s, t) => s + Number(t.net_pnl ?? 0), 0);
 
+  // Exchange-truth realised P&L (from Shark trade history). Includes fills
+  // that never made it into our live_trades table (manual orders, historical).
+  const exchClosedRows = exchOrders.data?.closed ?? [];
+  const exchRealizedFills = exchClosedRows.filter(
+    (r) => r.realizedPnl != null && r.realizedPnl !== 0,
+  );
+  const exchTotalPnl = exchRealizedFills.reduce(
+    (s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)),
+    0,
+  );
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const exchTodayPnl = exchRealizedFills
+    .filter((r) => r.time && new Date(r.time).getTime() >= startOfToday.getTime())
+    .reduce((s, r) => s + Number(r.realizedPnl ?? 0) - Math.abs(Number(r.fee ?? 0)), 0);
+
+
   // Multi-select for bulk start / stop.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Prune ids that no longer exist (e.g. after import/refresh).

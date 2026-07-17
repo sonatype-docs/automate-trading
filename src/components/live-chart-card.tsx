@@ -539,11 +539,19 @@ export function AllRunnersStatusCard() {
   const statusQ = useQuery({
     queryKey: ["live-runners-status"], queryFn: () => statusFn(), refetchInterval: 30_000,
   });
+  const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
+  const onRefresh = () => {
+    runnersQ.refetch();
+    tradesQ.refetch();
+    statusQ.refetch();
+  };
   return (
     <AllRunnersStatusPanel
       runners={runnersQ.data ?? []}
       trades={tradesQ.data ?? []}
       statuses={statusQ.data ?? []}
+      onRefresh={onRefresh}
+      isFetching={isFetching}
     />
   );
 }

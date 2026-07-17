@@ -296,49 +296,54 @@ export function ExchangeOrdersCard() {
             )}
           </TabsContent>
 
-          {/* Closed: recent trade history (fills) */}
+          {/* Closed: our runner trades that finished today or recently */}
           <TabsContent value="closed" className="mt-3">
-            {closed.length === 0 ? (
-              <EmptyRow text="No recent trade history on the exchange." />
+            {closedTrades.length === 0 ? (
+              <EmptyRow text="No closed runner trades yet." />
             ) : (
               <div className="rounded border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Time</TableHead>
+                      <TableHead>Exit time</TableHead>
                       <TableHead>Symbol</TableHead>
+                      <TableHead>TF</TableHead>
                       <TableHead>Side</TableHead>
-                      <TableHead>Type</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Fee</TableHead>
-                      <TableHead className="text-right">Realized PnL</TableHead>
+                      <TableHead className="text-right">Entry</TableHead>
+                      <TableHead className="text-right">Exit</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead className="text-right">Net PnL</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {closed.map((t) => {
-                      const pnl = t.realizedPnl ?? 0;
+                    {closedTrades.map((t) => {
+                      const pnl = t.net_pnl ?? 0;
                       const pnlCls =
                         pnl > 0
                           ? "text-emerald-500"
                           : pnl < 0
                             ? "text-destructive"
                             : "text-muted-foreground";
+                      const reason = t.status === "error"
+                        ? (t.error ? `error: ${t.error.slice(0, 40)}` : "error")
+                        : (t.exit_reason || "—");
                       return (
                         <TableRow key={t.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {fmtTime(t.time)}
+                            {fmtTime(t.exit_ts ?? t.entry_ts)}
                           </TableCell>
                           <TableCell className="font-medium">{t.symbol}</TableCell>
-                          <TableCell>{sideBadge(t.side)}</TableCell>
-                          <TableCell className="text-xs">{t.type || "—"}</TableCell>
-                          <TableCell className="text-right font-mono">{fmtNum(t.quantity, 3)}</TableCell>
-                          <TableCell className="text-right font-mono">{fmtNum(t.price)}</TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">
-                            {fmtNum(t.fee, 4)}
+                          <TableCell className="text-xs text-muted-foreground">{t.timeframe}</TableCell>
+                          <TableCell>{sideBadge(t.direction)}</TableCell>
+                          <TableCell className="text-right font-mono">{fmtNum(t.qty, 3)}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            {fmtNum(t.fill_price ?? t.entry_price)}
                           </TableCell>
+                          <TableCell className="text-right font-mono">{fmtNum(t.exit_price)}</TableCell>
+                          <TableCell className="text-xs">{reason}</TableCell>
                           <TableCell className={`text-right font-mono ${pnlCls}`}>
-                            {fmtNum(t.realizedPnl)}
+                            {fmtNum(t.net_pnl)}
                           </TableCell>
                         </TableRow>
                       );

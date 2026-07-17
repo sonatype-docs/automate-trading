@@ -26,7 +26,7 @@ import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
   type IstWindow,
 } from "@/lib/session-windows";
-import { LiveChartCard } from "@/components/live-chart-card";
+import { LiveChartCard, AllRunnersStatusCard } from "@/components/live-chart-card";
 import { TopRunnersVerificationCard } from "@/components/top-runners-verification";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
@@ -147,6 +147,7 @@ function LiveTradingPage() {
   const [showTick, setShowTick] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
+  const [showRunners, setShowRunners] = useState(false);
 
   return (
     <div className="p-4 sm:p-6">
@@ -157,6 +158,8 @@ function LiveTradingPage() {
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
 
+        <AllRunnersStatusCard />
+
         <CollapsedShell title="Why isn't a trade triggering?" open={showTick} onToggle={() => setShowTick((v) => !v)}>
           <TickStatusCard runners={runnersList} />
         </CollapsedShell>
@@ -166,6 +169,9 @@ function LiveTradingPage() {
         <CollapsedShell title="Live chart" open={showChart} onToggle={() => setShowChart((v) => !v)}>
           <LiveChartCard />
         </CollapsedShell>
+
+
+        <CollapsedShell title="Live runners" open={showRunners} onToggle={() => setShowRunners((v) => !v)}>
 
 
 
@@ -271,6 +277,9 @@ function LiveTradingPage() {
             </p>
           </CardContent>
         </Card>
+        </CollapsedShell>
+
+
 
         <CollapsedShell title="Why isn't a trade triggering? (diagnostics)" open={showDiag} onToggle={() => setShowDiag((v) => !v)}>
           <DiagnosticsCard />

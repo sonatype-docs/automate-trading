@@ -231,7 +231,6 @@ export function LiveChartCard() {
               <TradeSidePanel data={chartQ.data} livePrice={livePrice} />
             </div>
             <RecentTradesStrip trades={recentTrades} loading={tradesLoading} source={usingBacktest ? "backtest" : "live"} />
-            <AllRunnersStatusPanel runners={runners.data ?? []} trades={tradesQ.data ?? []} statuses={statusQ.data ?? []} />
 
           </div>
         )}
@@ -524,6 +523,28 @@ function Row({ k, v, tone, bold }: {
       <span className="text-muted-foreground">{k}</span>
       <span className={`font-mono ${cls} ${bold ? "font-semibold" : ""}`}>{v}</span>
     </div>
+  );
+}
+
+export function AllRunnersStatusCard() {
+  const runnersFn = useServerFn(listLiveRunners);
+  const tradesFn = useServerFn(listLiveTrades);
+  const statusFn = useServerFn(getRunnersStatusSummary);
+  const runnersQ = useQuery({
+    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5_000,
+  });
+  const tradesQ = useQuery({
+    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5_000,
+  });
+  const statusQ = useQuery({
+    queryKey: ["live-runners-status"], queryFn: () => statusFn(), refetchInterval: 30_000,
+  });
+  return (
+    <AllRunnersStatusPanel
+      runners={runnersQ.data ?? []}
+      trades={tradesQ.data ?? []}
+      statuses={statusQ.data ?? []}
+    />
   );
 }
 

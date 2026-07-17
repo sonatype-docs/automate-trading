@@ -526,6 +526,28 @@ function Row({ k, v, tone, bold }: {
   );
 }
 
+export function AllRunnersStatusCard() {
+  const runnersFn = useServerFn(listLiveRunners);
+  const tradesFn = useServerFn(listLiveTrades);
+  const statusFn = useServerFn(getRunnersStatusSummary);
+  const runnersQ = useQuery({
+    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5_000,
+  });
+  const tradesQ = useQuery({
+    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5_000,
+  });
+  const statusQ = useQuery({
+    queryKey: ["live-runners-status"], queryFn: () => statusFn(), refetchInterval: 30_000,
+  });
+  return (
+    <AllRunnersStatusPanel
+      runners={runnersQ.data ?? []}
+      trades={tradesQ.data ?? []}
+      statuses={statusQ.data ?? []}
+    />
+  );
+}
+
 function AllRunnersStatusPanel({
   runners, trades, statuses,
 }: { runners: LiveRunnerDTO[]; trades: LiveTradeDTO[]; statuses: RunnerStatusDTO[] }) {

@@ -340,7 +340,7 @@ export function createSharkClient(): ExchangeClient {
 
     async updateLeverage(symbol, leverage) {
       const { apiKey, apiSecret } = requireCreds();
-      const lev = Math.max(1, Math.min(125, Math.floor(leverage)));
+      const lev = Math.max(1, Math.min(200, Math.floor(leverage)));
       const body = {
         contractName: symbol.toUpperCase(),
         leverage: lev,

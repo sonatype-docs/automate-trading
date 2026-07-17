@@ -321,7 +321,7 @@ function LiveTradingPage() {
 }
 
 function CollapsedShell({ title, open, onToggle, children }: {
-  title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+  title: string; open: boolean; onToggle: () => void; children: ReactNode;
 }) {
   return (
     <Card>

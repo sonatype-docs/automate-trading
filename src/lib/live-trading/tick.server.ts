@@ -396,13 +396,15 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   return { placed: placedOk, reconciled };
 }
 
-/** 14-minute exit-type rule: MARKET is fee-free under 14 minutes since
- *  entry fill; beyond that use LIMIT reduce-only at the target price. */
+/** 30-minute exit-type rule (Shark Exchange zero-fee scalping offer):
+ *  Closing trades within 30 minutes of entry fill are fee-free regardless
+ *  of order type, so use MARKET (avoid slippage risk from unfilled limits).
+ *  Beyond 30 minutes, taker fees apply — use LIMIT reduce-only at the level. */
 function pickExitOrderType(
   fillTsIso: string | null | undefined,
   levelPrice: number,
 ): { type: "market" } | { type: "limit"; price: number } {
-  const FREE_WINDOW_MS = 14 * 60 * 1000;
+  const FREE_WINDOW_MS = 30 * 60 * 1000;
   const t = fillTsIso ? new Date(fillTsIso).getTime() : NaN;
   if (!Number.isFinite(t)) return { type: "limit", price: levelPrice };
   const ageMs = Date.now() - t;

@@ -535,13 +535,16 @@ export function AllRunnersStatusCard() {
   const tradesFn = useServerFn(listLiveTrades);
   const statusFn = useServerFn(getRunnersStatusSummary);
   const runnersQ = useQuery({
-    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5_000,
+    queryKey: ["live-runners"], queryFn: () => runnersFn(),
+    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
   const tradesQ = useQuery({
-    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5_000,
+    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
+    refetchInterval: 10_000, staleTime: 8_000, placeholderData: keepPreviousData,
   });
   const statusQ = useQuery({
-    queryKey: ["live-runners-status"], queryFn: () => statusFn(), refetchInterval: 30_000,
+    queryKey: ["live-runners-status"], queryFn: () => statusFn(),
+    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
   });
   const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
   const onRefresh = () => {

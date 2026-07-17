@@ -38,18 +38,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SidebarTrigger className="md:hidden -ml-1" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
-                Shark
-              </span>
               {title ? (
-                <>
-                  <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>/</span>
-                  <h1 className="hidden truncate font-display text-[15px] font-semibold tracking-tight text-gradient-sunset sm:block">
-                    {title}
-                  </h1>
-                </>
+                <h1 className="hidden truncate font-display text-[15px] font-semibold tracking-tight text-gradient-sunset sm:block">
+                  {title}
+                </h1>
               ) : null}
             </div>
+
           </div>
           <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
             <div className="pointer-events-auto">

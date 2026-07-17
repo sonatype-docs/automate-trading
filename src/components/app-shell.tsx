@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           key={pathname}
-          className="min-h-[calc(100dvh-2.75rem)] animate-fade-in pb-20 md:pb-0"
+          className="min-h-[calc(100dvh-3.5rem)] animate-fade-in pb-20 md:pb-0"
         >
           {children}
         </main>

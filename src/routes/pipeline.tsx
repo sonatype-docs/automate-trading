@@ -754,8 +754,10 @@ function PipelinePage() {
                     <th className="py-1 pr-3">Status</th>
                     <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">TZ</th>
                     <th className="py-1 pr-3">Strategy</th>
                     <th className="py-1 pr-3">Exec</th>
+
                     <th className="py-1 pr-3">Stages</th>
                     <th className="py-1 pr-3 text-right">Trades</th>
                     <th className="py-1 pr-3 text-right">Inserted</th>

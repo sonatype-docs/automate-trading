@@ -156,7 +156,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
         qty: Number(q.qty),
         type: "limit",
         price: Number(q.entry_price),
-        // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
+        // SL/TP are NOT attached at entry — engine manages exits based on age (30-min rule).
       });
       const filled = res.status === "filled";
       await supabaseAdmin.from("live_trades").update({
@@ -276,7 +276,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
           }
         }
       } catch { /* ignore */ }
-      // 2) Reduce-only close in the opposite side. Use MARKET if <14m
+      // 2) Reduce-only close in the opposite side. Use MARKET if <30m
       //    since fill (fee-free), else LIMIT reduce-only at last price.
       const closeSide: "buy" | "sell" = openOpposite.direction === "long" ? "sell" : "buy";
       let exitPrice = last;
@@ -372,7 +372,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       qty,
       type: "limit",
       price: openFlush.fillPrice,
-      // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
+      // SL/TP are NOT attached at entry — engine manages exits based on age (30-min rule).
     });
     const filled = res.status === "filled";
     await supabaseAdmin.from("live_trades").insert({
@@ -495,7 +495,7 @@ async function reconcileOpen(
 
     // OPEN (already filled). SL/TP are NOT attached at entry anymore — the
     // engine watches price and sends the exit itself, picking MARKET or LIMIT
-    // by the 14-minute rule (market is fee-free under 14m).
+    // by the 14-minute rule (market is fee-free under 30m).
     const posQty = netQtyByDir(row.direction as "long" | "short");
 
     // If the position is gone, try to match a real exit fill and close the row.

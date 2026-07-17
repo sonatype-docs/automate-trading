@@ -174,9 +174,8 @@ function LiveTradingPage() {
         <TopRunnersVerificationCard />
 
 
-        <CollapsedShell title="Live chart" open={showChart} onToggle={() => setShowChart((v) => !v)}>
-          <LiveChartCard />
-        </CollapsedShell>
+
+
 
 
         <CollapsedShell title="Live runners" open={showRunners} onToggle={() => setShowRunners((v) => !v)}>

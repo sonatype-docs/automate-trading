@@ -89,7 +89,6 @@ type Control = "idle" | "running" | "paused" | "stopping";
 function PipelinePage() {
   const [source, setSource] = useState<"yahoo" | "shark">("shark");
   const [displayTz, setDisplayTz] = useState<Timezone>("IST");
-  const [strategyTz, setStrategyTz] = useState<Timezone>("London");
   const [mode] = useState<"historical">("historical");
   const [lookbackDays, setLookbackDays] = useState<number>(500);
   const [riskUsd, setRiskUsd] = useState<number>(DEFAULT_RISK_USD_PER_TRADE);
@@ -98,6 +97,8 @@ function PipelinePage() {
   const [tfs, setTfs] = useState<string[]>(PIPELINE_TFS);
   const [strats, setStrats] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [execs, setExecs] = useState<string[]>(ALL_EXEC_PRESETS);
+  const [stratTzs, setStratTzs] = useState<string[]>([...TIMEZONES]);
+
 
   const [results, setResults] = useState<ComboResult[]>([]);
   const [progress, setProgress] = useState<PipelineProgress>({
@@ -125,17 +126,27 @@ function PipelinePage() {
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];
+    const tzList = stratTzs.length > 0 ? stratTzs : ["London"];
     for (const symbol of symbols) {
       for (const tf of tfs) {
         for (const strategyPresetId of strats) {
           for (const execPresetId of execs) {
-            out.push({ symbol, timeframe: tf as Timeframe, strategyPresetId, execPresetId });
+            for (const tz of tzList) {
+              out.push({
+                symbol,
+                timeframe: tf as Timeframe,
+                strategyPresetId,
+                execPresetId,
+                strategyTimezone: tz as Timezone,
+              });
+            }
           }
         }
       }
     }
     return out;
-  }, [symbols, tfs, strats, execs]);
+  }, [symbols, tfs, strats, execs, stratTzs]);
+
 
   // Wait while paused; return false if user asked to stop.
   async function waitIfPaused(): Promise<boolean> {
@@ -189,7 +200,8 @@ function PipelinePage() {
           const res = await runFn({
             data: {
               source, symbol: spec.symbol, timeframe: spec.timeframe,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              displayTimezone: displayTz, strategyTimezone: (spec.strategyTimezone ?? "London") as Timezone,
+
               fromMs, toMs,
               strategyPresetId: spec.strategyPresetId,
               execPresetId: spec.execPresetId,
@@ -280,9 +292,12 @@ function PipelinePage() {
       const matrix = {
         source, symbols, timeframes: tfs as Timeframe[],
         strategyPresetIds: strats, execPresetIds: execs,
-        displayTimezone: displayTz, strategyTimezone: strategyTz,
+        displayTimezone: displayTz,
+        strategyTimezone: (stratTzs[0] ?? "London") as Timezone,
+        strategyTimezones: stratTzs as Timezone[],
         mode, lookbackDays, riskUsdPerTrade: riskUsd,
       };
+
       const { runId: id } = await startFn({ data: { matrix, total } });
       setRunId(id);
 
@@ -310,11 +325,16 @@ function PipelinePage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = row.matrix as any;
     const rebuilt: ComboSpec[] = [];
+    const tzList: string[] = Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0
+      ? m.strategyTimezones
+      : [m.strategyTimezone ?? "London"];
     for (const symbol of m.symbols) {
       for (const tf of m.timeframes) {
         for (const strategyPresetId of m.strategyPresetIds) {
           for (const execPresetId of m.execPresetIds) {
-            rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId });
+            for (const tz of tzList) {
+              rebuilt.push({ symbol, timeframe: tf, strategyPresetId, execPresetId, strategyTimezone: tz as Timezone });
+            }
           }
         }
       }
@@ -324,11 +344,12 @@ function PipelinePage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const logArr = (Array.isArray((row as any).log) ? (row as any).log : []) as Array<any>;
     // Index the log by combo signature so we can hydrate per-combo trade counts.
-    const key = (c: ComboSpec) => `${c.symbol}|${c.timeframe}|${c.strategyPresetId}|${c.execPresetId}`;
+    const key = (c: ComboSpec) => `${c.symbol}|${c.timeframe}|${c.strategyPresetId}|${c.execPresetId}|${c.strategyTimezone ?? ""}`;
+
     const logByCombo = new Map<string, { trades: number; inserted: number; elapsedMs: number; status: string }>();
     for (const entry of logArr) {
       if (!entry?.combo) continue;
-      const k = `${entry.combo.symbol}|${entry.combo.timeframe}|${entry.combo.strategyPresetId}|${entry.combo.execPresetId}`;
+      const k = `${entry.combo.symbol}|${entry.combo.timeframe}|${entry.combo.strategyPresetId}|${entry.combo.execPresetId}|${entry.combo.strategyTimezone ?? ""}`;
       logByCombo.set(k, {
         trades: Number(entry.trades ?? 0),
         inserted: Number(entry.inserted ?? 0),
@@ -384,7 +405,7 @@ function PipelinePage() {
     setStrats(m.strategyPresetIds);
     setExecs(m.execPresetIds);
     setDisplayTz(m.displayTimezone);
-    setStrategyTz(m.strategyTimezone);
+    setStratTzs(Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0 ? m.strategyTimezones : [m.strategyTimezone ?? "London"]);
     setLookbackDays(m.lookbackDays);
     setRiskUsd(m.riskUsdPerTrade);
 
@@ -579,11 +600,11 @@ function PipelinePage() {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Strategy TZ</Label>
-              <Select value={strategyTz} onValueChange={(v) => setStrategyTz(v as Timezone)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="text-[11px] font-mono text-muted-foreground px-2 py-1.5 rounded border border-dashed border-border/60">
+                Moved to matrix ({stratTzs.length} selected)
+              </div>
             </div>
+
             <div className="flex flex-col gap-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Lookback (days)</Label>
               <Input type="number" min={1} max={2000} value={lookbackDays}
@@ -615,18 +636,22 @@ function PipelinePage() {
             <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
               Matrix
               <Badge variant="outline" className="text-[9px]">
-                {symbols.length} × {tfs.length} × {strats.length} × {execs.length} = {totalCombos} combos
+                {symbols.length} × {tfs.length} × {strats.length} × {execs.length} × {stratTzs.length} = {totalCombos} combos
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <MatrixGroup title="Symbols"
               options={ALL_SYMBOLS.map((v) => ({ value: v }))}
               selected={symbols} onChange={setSymbols} />
             <MatrixGroup title="Timeframes"
               options={PIPELINE_TFS.map((v) => ({ value: v }))}
               selected={tfs} onChange={setTfs} />
+            <MatrixGroup title="Strategy TZ"
+              options={TIMEZONES.map((v) => ({ value: v }))}
+              selected={stratTzs} onChange={setStratTzs} />
             <MatrixGroup title="Strategy presets"
+
               options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}
               selected={strats} onChange={setStrats} />
             <MatrixGroup title="Execution presets"
@@ -702,7 +727,7 @@ function PipelinePage() {
                     {control === "paused" ? "Paused" : control === "stopping" ? "Stopping" : control === "running" ? "In progress" : "Complete"}
                     {progress.currentCombo && control === "running" && (
                       <span className="ml-2 text-foreground/80 normal-case">
-                        {progress.currentCombo.symbol} · {progress.currentCombo.timeframe} · {progress.currentCombo.strategyPresetId} / {progress.currentCombo.execPresetId}
+                        {progress.currentCombo.symbol} · {progress.currentCombo.timeframe} · {progress.currentCombo.strategyPresetId} / {progress.currentCombo.execPresetId} · tz:{progress.currentCombo.strategyTimezone ?? "—"}
                         {progress.currentStage && <span className="ml-1 text-primary">[{progress.currentStage}]</span>}
                       </span>
                     )}
@@ -729,8 +754,10 @@ function PipelinePage() {
                     <th className="py-1 pr-3">Status</th>
                     <th className="py-1 pr-3">Symbol</th>
                     <th className="py-1 pr-3">TF</th>
+                    <th className="py-1 pr-3">TZ</th>
                     <th className="py-1 pr-3">Strategy</th>
                     <th className="py-1 pr-3">Exec</th>
+
                     <th className="py-1 pr-3">Stages</th>
                     <th className="py-1 pr-3 text-right">Trades</th>
                     <th className="py-1 pr-3 text-right">Inserted</th>
@@ -740,7 +767,7 @@ function PipelinePage() {
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${i}`} className="border-t border-border/40">
+                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${r.spec.strategyTimezone ?? ""}-${i}`} className="border-t border-border/40">
                       <td className="py-1 pr-3">
                         {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
                         {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
@@ -749,8 +776,10 @@ function PipelinePage() {
                       </td>
                       <td className="py-1 pr-3">{r.spec.symbol}</td>
                       <td className="py-1 pr-3">{r.spec.timeframe}</td>
+                      <td className="py-1 pr-3">{r.spec.strategyTimezone ?? "—"}</td>
                       <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
                       <td className="py-1 pr-3">{r.spec.execPresetId}</td>
+
                       <td className="py-1 pr-3">
                         <div className="flex gap-2">
                           <StageDot stage="data" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["strategy","execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "data"} />

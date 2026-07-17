@@ -16,7 +16,8 @@ export interface PipelineMatrix {
   strategyPresetIds: string[];
   execPresetIds: string[];
   displayTimezone: Timezone;
-  strategyTimezone: Timezone;
+  strategyTimezone: Timezone;              // kept for backwards-compat with older runs
+  strategyTimezones?: Timezone[];          // new: full matrix axis
   mode: "historical" | "live" | "replay" | "paper";
   lookbackDays: number;
   riskUsdPerTrade: number;
@@ -27,7 +28,9 @@ export interface ComboSpec {
   timeframe: Timeframe;
   strategyPresetId: string;
   execPresetId: string;
+  strategyTimezone?: Timezone;
 }
+
 
 export interface ComboResult {
   spec: ComboSpec;

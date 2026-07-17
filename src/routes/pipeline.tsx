@@ -727,7 +727,7 @@ function PipelinePage() {
                     {control === "paused" ? "Paused" : control === "stopping" ? "Stopping" : control === "running" ? "In progress" : "Complete"}
                     {progress.currentCombo && control === "running" && (
                       <span className="ml-2 text-foreground/80 normal-case">
-                        {progress.currentCombo.symbol} · {progress.currentCombo.timeframe} · {progress.currentCombo.strategyPresetId} / {progress.currentCombo.execPresetId}
+                        {progress.currentCombo.symbol} · {progress.currentCombo.timeframe} · {progress.currentCombo.strategyPresetId} / {progress.currentCombo.execPresetId} · tz:{progress.currentCombo.strategyTimezone ?? "—"}
                         {progress.currentStage && <span className="ml-1 text-primary">[{progress.currentStage}]</span>}
                       </span>
                     )}

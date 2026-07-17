@@ -338,11 +338,27 @@ async function reconcileOpen(
   if (!openRows?.length) return 0;
 
   let openOrders: Awaited<ReturnType<typeof client.getOpenOrders>> = [];
-  try { openOrders = await client.getOpenOrders(r.symbol); } catch { return 0; }
+  let openOrdersOk = false;
+  try {
+    openOrders = await client.getOpenOrders(r.symbol);
+    openOrdersOk = true;
+  } catch {
+    // API hiccup — don't guess anything this tick.
+    return 0;
+  }
+  if (!openOrdersOk) return 0;
   const openIds = new Set(openOrders.map((o) => o.clientOrderId));
 
   let positions: Awaited<ReturnType<typeof client.getOpenPositions>> = [];
-  try { positions = await client.getOpenPositions(r.symbol); } catch { /* keep [] */ }
+  let positionsOk = false;
+  try {
+    positions = await client.getOpenPositions(r.symbol);
+    positionsOk = true;
+  } catch {
+    // Position endpoint failed — do NOT close anything without truth.
+    return 0;
+  }
+  if (!positionsOk) return 0;
 
   const netQtyByDir = (dir: "long" | "short") =>
     positions
@@ -354,8 +370,9 @@ async function reconcileOpen(
       })
       .reduce((a, p) => a + Math.abs(p.qty), 0);
 
-  let last = 0;
-  try { last = await client.getLastPrice(r.symbol); } catch { /* keep 0 */ }
+  // Pull recent fills once so we can match real SL/TP exits.
+  let recentFills: Awaited<ReturnType<typeof client.getRecentFills>> = [];
+  try { recentFills = await client.getRecentFills(r.symbol); } catch { /* keep [] */ }
 
   // Helper: find a still-open reduce-only child order for this row by
   // matching stop_price or target_price (Shark returns stopPrice for SL
@@ -407,11 +424,30 @@ async function reconcileOpen(
     });
     if (posQty > 0 && childActive) continue;
 
-    // Position gone or SL/TP child gone → trade closed. Determine exit price.
-    let exitPrice = last;
-    // Look for a matching exit fill in recent trade history if we can find it.
-    // (best-effort — fall back to last price)
-    if (!exitPrice) continue;
+    // Position/child gone → find the REAL exit fill in trade history.
+    // A close for a long is a SELL reduceOnly; for a short is a BUY reduceOnly.
+    // We match on qty within 5% and time after entry_ts, price at/near stop or target.
+    const entryMs = Date.now(); // conservative fallback
+    // Prefer entry_ts if available on row (not selected earlier — fall back to 0)
+    const closeSide = row.direction === "long" ? "SELL" : "BUY";
+    const qtyTarget = Number(row.qty);
+    const candidates = recentFills.filter((f) =>
+      f.symbol.toUpperCase() === r.symbol.toUpperCase() &&
+      f.side === closeSide &&
+      (f.reduceOnly === true || f.reduceOnly === null) &&
+      f.qty > 0 &&
+      Math.abs(f.qty - qtyTarget) / qtyTarget < 0.1 &&
+      (near(f.price, Number(row.stop_price)) || near(f.price, Number(row.target_price)))
+    );
+    if (candidates.length === 0) {
+      // No confirmed close fill on the exchange yet — leave open, retry next tick.
+      // (Prevents fake "closed at last price" wins polluting performance.)
+      continue;
+    }
+    // Pick the most recent matching fill.
+    candidates.sort((a, b) => b.timeMs - a.timeMs);
+    const exit = candidates[0];
+    void entryMs;
 
     // Cancel any orphan reduce-only children for this row to keep queue clean.
     for (const o of openOrders) {
@@ -427,25 +463,28 @@ async function reconcileOpen(
     }
 
     const dir = row.direction === "long" ? 1 : -1;
-    const grossPnl = (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
+    const exitPrice = exit.price;
+    const grossPnl = exit.realizedPnl !== 0
+      ? exit.realizedPnl
+      : (exitPrice - Number(row.entry_price)) * dir * Number(row.qty);
+    const fees = Math.abs(exit.fee);
+    const netPnl = grossPnl - fees;
     const stopDist = Math.abs(Number(row.entry_price) - Number(row.stop_price));
     const rr = stopDist > 0 ? ((exitPrice - Number(row.entry_price)) * dir) / stopDist : 0;
     const exitReason =
-      dir === 1
-        ? exitPrice <= Number(row.stop_price) * 1.001 ? "stop"
-        : exitPrice >= Number(row.target_price) * 0.999 ? "target" : "closed"
-        : exitPrice >= Number(row.stop_price) * 0.999 ? "stop"
-        : exitPrice <= Number(row.target_price) * 1.001 ? "target" : "closed";
+      near(exit.price, Number(row.stop_price)) ? "stop"
+      : near(exit.price, Number(row.target_price)) ? "target"
+      : "closed";
 
     await supabaseAdmin.from("live_trades").update({
       status: "closed",
-      exit_ts: new Date().toISOString(),
+      exit_ts: new Date(exit.timeMs || Date.now()).toISOString(),
       exit_price: exitPrice,
       exit_reason: exitReason,
       rr,
       gross_pnl: grossPnl,
-      net_pnl: grossPnl,
-      fees: 0,
+      net_pnl: netPnl,
+      fees,
     }).eq("id", row.id);
     n += 1;
   }

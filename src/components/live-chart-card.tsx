@@ -586,7 +586,14 @@ function AllRunnersStatusPanel({
   return (
     <div className="rounded-md border p-3 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div className="text-sm font-medium">All runners · live status</div>
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium">All runners · live status</div>
+          {onRefresh && (
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRefresh} disabled={isFetching} title="Refresh">
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-xs text-muted-foreground">
           <span>Total: <b className="text-foreground">{runners.length}</b></span>
           <span>Running: <b className="text-emerald-500">{runningCount}</b></span>

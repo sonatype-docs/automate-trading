@@ -20,6 +20,7 @@ export function TopRunnersVerificationCard() {
   const replaceFn = useServerFn(replaceLiveRunnersWithTopSelection);
   const [startImmediately, setStartImmediately] = useState(false);
   const [report, setReport] = useState<ReplaceReportDTO | null>(null);
+  const [open, setOpen] = useState(false);
 
   const preview = useQuery({
     queryKey: ["top-runners-preview"],

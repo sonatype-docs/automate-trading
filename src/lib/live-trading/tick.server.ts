@@ -276,15 +276,21 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
           }
         }
       } catch { /* ignore */ }
-      // 2) Reduce-only market close in the opposite side.
+      // 2) Reduce-only close in the opposite side. Use MARKET if <14m
+      //    since fill (fee-free), else LIMIT reduce-only at last price.
       const closeSide: "buy" | "sell" = openOpposite.direction === "long" ? "sell" : "buy";
       let exitPrice = last;
+      const exitPick = pickExitOrderType(
+        openOpposite.fill_ts ?? openOpposite.entry_ts,
+        last,
+      );
       try {
         const closeRes = await client.placeOrder({
           symbol: r.symbol,
           side: closeSide,
           qty: Number(openOpposite.qty),
-          type: "market",
+          type: exitPick.type,
+          price: exitPick.type === "limit" ? exitPick.price : undefined,
           reduceOnly: true,
         });
         if (closeRes.filledPrice && closeRes.filledPrice > 0) exitPrice = closeRes.filledPrice;

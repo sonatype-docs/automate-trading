@@ -372,14 +372,15 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       qty,
       type: "limit",
       price: openFlush.fillPrice,
-      stopLossPrice: openFlush.stopPrice,
-      takeProfitPrice: openFlush.targetPrice,
+      // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
     });
+    const filled = res.status === "filled";
     await supabaseAdmin.from("live_trades").insert({
       ...insertBase,
       client_order_id: res.exchangeOrderId || null,
       fill_price: res.filledPrice ?? null,
-      status: res.status === "filled" ? "open" : "pending",
+      status: filled ? "open" : "pending",
+      fill_ts: filled ? new Date().toISOString() : null,
       raw_place: res.raw as never,
     });
     placedOk = 1;
@@ -393,6 +394,19 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     throw e;
   }
   return { placed: placedOk, reconciled };
+}
+
+/** 14-minute exit-type rule: MARKET is fee-free under 14 minutes since
+ *  entry fill; beyond that use LIMIT reduce-only at the target price. */
+function pickExitOrderType(
+  fillTsIso: string | null | undefined,
+  levelPrice: number,
+): { type: "market" } | { type: "limit"; price: number } {
+  const FREE_WINDOW_MS = 14 * 60 * 1000;
+  const t = fillTsIso ? new Date(fillTsIso).getTime() : NaN;
+  if (!Number.isFinite(t)) return { type: "limit", price: levelPrice };
+  const ageMs = Date.now() - t;
+  return ageMs < FREE_WINDOW_MS ? { type: "market" } : { type: "limit", price: levelPrice };
 }
 
 /** Reconcile each open/pending live_trade row against the exchange.

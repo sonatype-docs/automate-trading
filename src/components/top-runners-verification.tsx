@@ -223,6 +223,7 @@ export function TopRunnersVerificationCard() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

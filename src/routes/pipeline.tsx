@@ -405,7 +405,7 @@ function PipelinePage() {
     setStrats(m.strategyPresetIds);
     setExecs(m.execPresetIds);
     setDisplayTz(m.displayTimezone);
-    setStrategyTz(m.strategyTimezone);
+    setStratTzs(Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0 ? m.strategyTimezones : [m.strategyTimezone ?? "London"]);
     setLookbackDays(m.lookbackDays);
     setRiskUsd(m.riskUsdPerTrade);
 

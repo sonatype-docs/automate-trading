@@ -380,30 +380,47 @@
     0 20px 50px -28px color-mix(in oklch, var(--color-primary) 50%, transparent);
 }
 @utility text-gradient-primary {
-  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 55%, var(--brand-copper));
+  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 35%, var(--brand-copper) 65%, var(--brand-violet));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 @utility text-gradient-sunset {
-  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 60%, var(--brand-copper));
+  background: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 30%, var(--brand-copper) 65%, var(--brand-violet));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 @utility bg-gradient-sunset {
-  background-image: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 55%, var(--brand-copper));
+  background-image: linear-gradient(120deg, var(--brand-flame), var(--brand-ember) 30%, var(--brand-copper) 65%, var(--brand-violet));
+}
+@utility bg-gradient-sunset-vivid {
+  background-image: linear-gradient(120deg, var(--brand-flame) 0%, var(--brand-ember) 28%, var(--brand-copper) 62%, var(--brand-violet) 100%);
+  color: white;
 }
 @utility bg-gradient-sunset-soft {
   background-image: linear-gradient(120deg,
-    color-mix(in oklch, var(--brand-flame) 16%, transparent),
-    color-mix(in oklch, var(--brand-ember) 18%, transparent) 55%,
-    color-mix(in oklch, var(--brand-copper) 14%, transparent));
+    color-mix(in oklch, var(--brand-flame) 18%, transparent),
+    color-mix(in oklch, var(--brand-ember) 20%, transparent) 30%,
+    color-mix(in oklch, var(--brand-copper) 18%, transparent) 65%,
+    color-mix(in oklch, var(--brand-violet) 16%, transparent));
 }
 @utility ring-sunset {
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--brand-ember) 45%, transparent),
-    0 12px 34px -18px color-mix(in oklch, var(--brand-ember) 55%, transparent);
+    0 0 0 1px color-mix(in oklch, var(--brand-copper) 55%, transparent),
+    0 12px 34px -18px color-mix(in oklch, var(--brand-copper) 65%, transparent);
+}
+@utility glow-sunset {
+  box-shadow:
+    0 6px 20px -8px color-mix(in oklch, var(--brand-flame) 55%, transparent),
+    0 10px 30px -12px color-mix(in oklch, var(--brand-copper) 55%, transparent),
+    0 14px 40px -18px color-mix(in oklch, var(--brand-violet) 50%, transparent);
+}
+@utility border-gradient-sunset {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--color-card), var(--color-card)) padding-box,
+    linear-gradient(120deg, var(--brand-flame), var(--brand-copper) 55%, var(--brand-violet)) border-box;
 }
 @utility hairline {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);

@@ -495,7 +495,7 @@ async function reconcileOpen(
 
     // OPEN (already filled). SL/TP are NOT attached at entry anymore — the
     // engine watches price and sends the exit itself, picking MARKET or LIMIT
-    // by the 14-minute rule (market is fee-free under 30m).
+    // by the 30-minute rule (market is fee-free under 30m).
     const posQty = netQtyByDir(row.direction as "long" | "short");
 
     // If the position is gone, try to match a real exit fill and close the row.

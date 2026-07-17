@@ -334,11 +334,11 @@
   }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-thumb {
-    background: color-mix(in oklch, var(--color-primary) 32%, transparent);
+    background: linear-gradient(180deg, var(--brand-flame), var(--brand-copper) 55%, var(--brand-violet));
     border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklch, var(--color-primary) 55%, transparent);
+    background: linear-gradient(180deg, var(--brand-ember), var(--brand-copper) 45%, var(--brand-violet));
   }
 
   /* Route transitions */

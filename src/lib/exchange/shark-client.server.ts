@@ -268,13 +268,19 @@ export function createSharkClient(): ExchangeClient {
     async placeOrder(p) {
       const { apiKey, apiSecret } = requireCreds();
       const type = (p.type ?? "market").toUpperCase() as "MARKET" | "LIMIT";
-      // Match Shark's own UI payload: round qty 3dp, price 2dp; do NOT send marginAsset.
+      const symU = p.symbol.toUpperCase();
+      // Per-symbol price precision. Shark error 3007 = "Price precision should be less than 2"
+      // means for BTCUSDT max 1 decimal is allowed. XAUUSDT accepts 2 decimals.
+      const priceDp = symU.startsWith("BTC") || symU.startsWith("ETH") ? 1 : 2;
+      const priceFactor = Math.pow(10, priceDp);
+      const roundPrice = (v: number) => Math.round(v * priceFactor) / priceFactor;
+      // Match Shark's own UI payload: round qty 3dp; do NOT send marginAsset.
       const qtyRounded = Math.round(p.qty * 1000) / 1000;
       const body: Record<string, unknown> = {
         placeType: "ORDER_FORM",
         quantity: qtyRounded,
         side: p.side.toUpperCase(),
-        symbol: p.symbol.toUpperCase(),
+        symbol: symU,
         reduceOnly: p.reduceOnly ?? false,
         type,
       };
@@ -282,21 +288,33 @@ export function createSharkClient(): ExchangeClient {
         if (!p.price || p.price <= 0) {
           throw new Error("LIMIT orders require a positive price.");
         }
-        body.price = Math.round(p.price * 100) / 100;
+        body.price = roundPrice(p.price);
       }
       if (p.stopLossPrice && p.stopLossPrice > 0) {
-        body.stopLossPrice = Math.round(p.stopLossPrice * 100) / 100;
+        body.stopLossPrice = roundPrice(p.stopLossPrice);
       }
       if (p.takeProfitPrice && p.takeProfitPrice > 0) {
-        body.takeProfitPrice = Math.round(p.takeProfitPrice * 100) / 100;
+        body.takeProfitPrice = roundPrice(p.takeProfitPrice);
       }
       // marginAsset intentionally omitted — Shark's UI doesn't send it and sending it triggers 3029.
 
       const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/place-order", body);
       if (!res.ok) {
-        throw new Error(
-          `SharkExchange placeOrder failed [${res.status}] body=${JSON.stringify(body)} resp=${res.body}`,
-        );
+        // Detailed error log — includes HTTP status, full request body, and full response body.
+        const detail = `SharkExchange placeOrder failed [${res.status}] body=${JSON.stringify(body)} resp=${res.body}`;
+        console.error("[SharkExchange][placeOrder]", {
+          status: res.status,
+          symbol: symU,
+          side: body.side,
+          type,
+          qty: qtyRounded,
+          price: body.price,
+          stopLossPrice: body.stopLossPrice,
+          takeProfitPrice: body.takeProfitPrice,
+          priceDp,
+          resp: res.body,
+        });
+        throw new Error(detail);
       }
       const data = (res.json ?? {}) as {
         clientOrderId?: string;

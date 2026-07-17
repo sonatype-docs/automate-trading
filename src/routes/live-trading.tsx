@@ -160,6 +160,9 @@ function LiveTradingPage() {
 
         <AllRunnersStatusCard />
 
+        <ExchangeOrdersCard />
+
+
         <Card>
           <CardHeader>
             <CardTitle>Open live orders ({openTrades.length})</CardTitle>

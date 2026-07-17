@@ -270,24 +270,6 @@ export function ExchangeOrdersCard() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-base">Exchange orders · live</CardTitle>
-            <span
-              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(exchangeSummary.net)}`}
-              title="Exchange truth from trade history: realized P&L minus exchange fees for the current runner symbols."
-            >
-              Overall {exchangeFills.length > 0 ? fmtMoney(exchangeSummary.net) : "—"}
-              {exchangeSummary.hasInr ? ` · ${fmtInr(exchangeSummary.netInr)}` : ""}
-            </span>
-            <span
-              className={`text-[11px] px-2 py-0.5 rounded border font-medium font-mono ${pnlTone(todayExchangeSummary.net)}`}
-              title="Today uses exchange fills since midnight local. R:R is net P&L divided by the configured $20 risk per trade."
-            >
-              Today {exchangeFillsToday.length > 0 ? fmtMoney(todayExchangeSummary.net) : "—"}
-              {todayExchangeSummary.hasInr ? ` · ${fmtInr(todayExchangeSummary.netInr)}` : ""}
-              {" · "}{todayWins}W/{todayLosses}L
-              {" · "}{todayWinRate == null ? "—" : `${todayWinRate.toFixed(0)}%`} win
-              {" · R:R "}{avgR == null ? "—" : `${avgR.toFixed(2)}R`}
-              {todayAttempts > todayRealizedCount ? ` · ${todayNoFill} no-fill${todayErrors ? ` · ${todayErrors} error` : ""}` : ""}
-            </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {data?.fetchedAt && <span>updated {fmtTime(data.fetchedAt)}</span>}

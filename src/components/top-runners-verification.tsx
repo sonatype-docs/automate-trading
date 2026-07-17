@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import {
   previewTopSelection, replaceLiveRunnersWithTopSelection,
   type ReplaceReportDTO,
@@ -20,6 +20,7 @@ export function TopRunnersVerificationCard() {
   const replaceFn = useServerFn(replaceLiveRunnersWithTopSelection);
   const [startImmediately, setStartImmediately] = useState(false);
   const [report, setReport] = useState<ReplaceReportDTO | null>(null);
+  const [open, setOpen] = useState(false);
 
   const preview = useQuery({
     queryKey: ["top-runners-preview"],
@@ -55,12 +56,16 @@ export function TopRunnersVerificationCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <CardHeader
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none"
+        onClick={() => setOpen((v) => !v)}
+      >
         <div className="flex items-center gap-2 min-w-0">
+          <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
           <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
           <CardTitle className="truncate">Verify curated top 10</CardTitle>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
           <Badge variant="outline" className="font-mono">BTC × {btcCount}</Badge>
           <Badge variant="outline" className="font-mono">XAU × {xauCount}</Badge>
           <Button size="sm" variant="ghost" onClick={() => preview.refetch()} disabled={preview.isFetching}>
@@ -68,7 +73,9 @@ export function TopRunnersVerificationCard() {
           </Button>
         </div>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-4">
+
         {preview.isLoading && <div className="text-sm text-muted-foreground">Loading selection…</div>}
         {preview.error && (
           <div className="text-sm text-destructive">
@@ -216,6 +223,7 @@ export function TopRunnersVerificationCard() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

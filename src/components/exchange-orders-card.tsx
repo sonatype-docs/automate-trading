@@ -216,7 +216,7 @@ export function ExchangeOrdersCard() {
           </TabsContent>
 
           {/* Executed: currently open positions on the exchange */}
-          <TabsContent value="executed" className="mt-3">
+          <TabsContent value="live" className="mt-3">
             {executed.length === 0 ? (
               <EmptyRow text="No open positions on the exchange." />
             ) : (

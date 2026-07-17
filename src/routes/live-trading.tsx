@@ -85,6 +85,10 @@ function LiveTradingPage() {
   const trades = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5000,
   });
+  const exchOrdersFn = useServerFn(listLiveExchangeOrders);
+  const exchOrders = useQuery({
+    queryKey: ["exchange-orders"], queryFn: () => exchOrdersFn(), refetchInterval: 5000,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["live-runners"] });

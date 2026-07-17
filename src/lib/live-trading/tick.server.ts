@@ -341,6 +341,23 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     stop_price: openFlush.stopPrice,
     target_price: openFlush.targetPrice,
   };
+
+  // Symbol-level lock: only ONE live position per symbol across all runners.
+  // If the symbol is busy, QUEUE this signal locally (not sent to exchange).
+  // The queue-promote block at the top of tickOne will place it once the
+  // current position closes, as long as it's still fresh (< 15 min old).
+  const { count: symbolBusy } = await supabaseAdmin
+    .from("live_trades")
+    .select("id", { count: "exact", head: true })
+    .eq("symbol", r.symbol)
+    .in("status", ["open", "pending"]);
+  if ((symbolBusy ?? 0) > 0) {
+    await supabaseAdmin.from("live_trades").insert({
+      ...insertBase,
+      status: "queued",
+    });
+    return { placed: 0, reconciled };
+  }
   try {
     const res = await client.placeOrder({
       symbol: r.symbol,

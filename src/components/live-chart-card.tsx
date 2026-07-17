@@ -610,9 +610,21 @@ function AllRunnersStatusPanel({
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
             </Button>
           )}
+          {closedCount > 0 && (
+            <Button
+              variant={showAll ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[10px] font-semibold uppercase tracking-wider ml-1"
+              onClick={() => setShowAll((v) => !v)}
+              title={showAll ? "Hide session-closed runners" : "Show session-closed runners"}
+            >
+              All {showAll ? `(${runners.length})` : `(+${closedCount})`}
+            </Button>
+          )}
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
           <StatPill icon={<Circle className="h-3 w-3" />} label="Total" value={runners.length} tone="neutral" />
+
           <StatPill icon={<Zap className="h-3 w-3" />} label="Running" value={runningCount} tone="success" />
           <StatPill icon={<Pause className="h-3 w-3" />} label="Stopped" value={stoppedCount} tone="muted" />
           <StatPill icon={<Target className="h-3 w-3" />} label="Ready" value={readyCount} tone={readyCount ? "success" : "muted"} />

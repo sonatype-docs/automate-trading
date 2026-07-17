@@ -146,20 +146,30 @@ export function ExchangeOrdersCard() {
       </CardHeader>
       <CardContent>
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
-            <TabsTrigger value="server">
-              Pending in server <Badge variant="outline" className="ml-2">{serverQueued.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="pending">
-              Pending in exchange <Badge variant="outline" className="ml-2">{pending.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="live">
-              Live running <Badge variant="outline" className="ml-2">{Math.max(liveRunning.length, executed.length)}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="closed">
-              Executed &amp; Closed <Badge variant="outline" className="ml-2">{closed.length}</Badge>
-            </TabsTrigger>
-          </TabsList>
+          <div className="-mx-2 px-2 overflow-x-auto scrollbar-none">
+            <TabsList className="w-max min-w-full flex-nowrap justify-start">
+              <TabsTrigger value="server" className="whitespace-nowrap">
+                <span className="sm:hidden">Server</span>
+                <span className="hidden sm:inline">Pending in server</span>
+                <Badge variant="outline" className="ml-2">{serverQueued.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="whitespace-nowrap">
+                <span className="sm:hidden">Exchange</span>
+                <span className="hidden sm:inline">Pending in exchange</span>
+                <Badge variant="outline" className="ml-2">{pending.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="live" className="whitespace-nowrap">
+                <span className="sm:hidden">Live</span>
+                <span className="hidden sm:inline">Live running</span>
+                <Badge variant="outline" className="ml-2">{Math.max(liveRunning.length, executed.length)}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="closed" className="whitespace-nowrap">
+                <span className="sm:hidden">Closed</span>
+                <span className="hidden sm:inline">Executed &amp; Closed</span>
+                <Badge variant="outline" className="ml-2">{closed.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Pending in server: signals queued locally, not yet sent to exchange */}
           <TabsContent value="server" className="mt-3">

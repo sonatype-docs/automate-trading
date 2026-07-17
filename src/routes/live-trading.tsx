@@ -160,6 +160,17 @@ function LiveTradingPage() {
 
         <AllRunnersStatusCard />
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Open live orders ({openTrades.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OpenTable trades={openTrades} onCancel={(id) => {
+              if (confirm("Cancel this live order on the exchange?")) cx.mutate(id);
+            }} />
+          </CardContent>
+        </Card>
+
         <CollapsedShell title="Why isn't a trade triggering?" open={showTick} onToggle={() => setShowTick((v) => !v)}>
           <TickStatusCard runners={runnersList} />
         </CollapsedShell>
@@ -286,16 +297,6 @@ function LiveTradingPage() {
         </CollapsedShell>
 
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Open live orders ({openTrades.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <OpenTable trades={openTrades} onCancel={(id) => {
-              if (confirm("Cancel this live order on the exchange?")) cx.mutate(id);
-            }} />
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

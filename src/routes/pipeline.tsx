@@ -200,7 +200,8 @@ function PipelinePage() {
           const res = await runFn({
             data: {
               source, symbol: spec.symbol, timeframe: spec.timeframe,
-              displayTimezone: displayTz, strategyTimezone: strategyTz,
+              displayTimezone: displayTz, strategyTimezone: (spec.strategyTimezone ?? "London") as Timezone,
+
               fromMs, toMs,
               strategyPresetId: spec.strategyPresetId,
               execPresetId: spec.execPresetId,

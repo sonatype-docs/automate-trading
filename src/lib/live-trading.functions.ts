@@ -996,13 +996,13 @@ export interface TopRunnerSpec {
 export const TOP_RUNNER_SELECTION: TopRunnerSpec[] = [
   { label: "BTC 1h London ORB (live)",   source: "shark", symbol: "BTCUSDT", timeframe: "1h",  strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 150, robustness: 89 },
   { label: "BTC 5m VWAP (live)",         source: "shark", symbol: "BTCUSDT", timeframe: "5m",  strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 150, robustness: 87 },
-  { label: "XAU 30m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "30m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 75,  robustness: 85 },
-  { label: "XAU 10m VWAP (live)",        source: "yahoo", symbol: "XAUUSDT", timeframe: "10m", strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 75,  robustness: 84 },
+  { label: "XAU 30m London ORB (live)",  source: "shark", symbol: "XAUUSDT", timeframe: "30m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 75,  robustness: 85 },
+  { label: "XAU 10m VWAP (live)",        source: "shark", symbol: "XAUUSDT", timeframe: "10m", strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 75,  robustness: 84 },
   { label: "BTC 15m VWAP (live)",        source: "shark", symbol: "BTCUSDT", timeframe: "15m", strategy_preset: "vwap_mean_revert", exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 150, robustness: 84 },
   { label: "BTC 45m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "45m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 150, robustness: 82 },
-  { label: "XAU 45m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "45m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 75,  robustness: 79 },
+  { label: "XAU 45m London ORB (live)",  source: "shark", symbol: "XAUUSDT", timeframe: "45m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 75,  robustness: 79 },
   { label: "BTC 15m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "15m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 150, robustness: 77 },
-  { label: "XAU 15m London ORB (live)",  source: "yahoo", symbol: "XAUUSDT", timeframe: "15m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 75,  robustness: 74 },
+  { label: "XAU 15m London ORB (live)",  source: "shark", symbol: "XAUUSDT", timeframe: "15m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 5,  leverage: 75,  robustness: 74 },
   { label: "BTC 30m London ORB (live)",  source: "shark", symbol: "BTCUSDT", timeframe: "30m", strategy_preset: "london_orb",       exec_preset: "conservative_default", risk_usd: 20, lookback_days: 10, leverage: 150, robustness: 73 },
 ];
 

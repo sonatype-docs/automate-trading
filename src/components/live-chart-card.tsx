@@ -557,8 +557,8 @@ export function AllRunnersStatusCard() {
 }
 
 function AllRunnersStatusPanel({
-  runners, trades, statuses,
-}: { runners: LiveRunnerDTO[]; trades: LiveTradeDTO[]; statuses: RunnerStatusDTO[] }) {
+  runners, trades, statuses, onRefresh, isFetching,
+}: { runners: LiveRunnerDTO[]; trades: LiveTradeDTO[]; statuses: RunnerStatusDTO[]; onRefresh?: () => void; isFetching?: boolean }) {
   if (!runners.length) {
     return (
       <div className="rounded-md border p-3 text-sm text-muted-foreground">

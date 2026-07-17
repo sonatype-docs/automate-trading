@@ -89,7 +89,6 @@ type Control = "idle" | "running" | "paused" | "stopping";
 function PipelinePage() {
   const [source, setSource] = useState<"yahoo" | "shark">("shark");
   const [displayTz, setDisplayTz] = useState<Timezone>("IST");
-  const [strategyTz, setStrategyTz] = useState<Timezone>("London");
   const [mode] = useState<"historical">("historical");
   const [lookbackDays, setLookbackDays] = useState<number>(500);
   const [riskUsd, setRiskUsd] = useState<number>(DEFAULT_RISK_USD_PER_TRADE);
@@ -98,6 +97,8 @@ function PipelinePage() {
   const [tfs, setTfs] = useState<string[]>(PIPELINE_TFS);
   const [strats, setStrats] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [execs, setExecs] = useState<string[]>(ALL_EXEC_PRESETS);
+  const [stratTzs, setStratTzs] = useState<string[]>([...TIMEZONES]);
+
 
   const [results, setResults] = useState<ComboResult[]>([]);
   const [progress, setProgress] = useState<PipelineProgress>({

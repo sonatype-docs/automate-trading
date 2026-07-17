@@ -17,16 +17,18 @@ export function HeaderLivePnl() {
   const ordersQ = useQuery({
     queryKey: ["header-live-orders"],
     queryFn: () => listFn({}),
-    refetchInterval: 5_000,
-    staleTime: 4_000,
+    // Poll slowly when idle; the price query below ramps to 5s once a position is open.
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   const positions = ordersQ.data?.executed ?? [];
   const symbols = Array.from(new Set(positions.map((p) => p.symbol)));
+  const hasOpen = symbols.length > 0;
 
   const pricesQ = useQuery({
     queryKey: ["header-live-prices", symbols.join(",")],
-    enabled: symbols.length > 0,
+    enabled: hasOpen,
     queryFn: async () => {
       const out: Record<string, number> = {};
       await Promise.all(
@@ -41,9 +43,11 @@ export function HeaderLivePnl() {
       );
       return out;
     },
-    refetchInterval: 3_000,
-    staleTime: 2_500,
+    // Only tick fast while there is live P&L to refresh.
+    refetchInterval: hasOpen ? 5_000 : false,
+    staleTime: 4_000,
   });
+
 
   const rows = positions
     .map((p) => {

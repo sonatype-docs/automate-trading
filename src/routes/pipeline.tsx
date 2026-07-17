@@ -600,11 +600,11 @@ function PipelinePage() {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Strategy TZ</Label>
-              <Select value={strategyTz} onValueChange={(v) => setStrategyTz(v as Timezone)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{TIMEZONES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="text-[11px] font-mono text-muted-foreground px-2 py-1.5 rounded border border-dashed border-border/60">
+                Moved to matrix ({stratTzs.length} selected)
+              </div>
             </div>
+
             <div className="flex flex-col gap-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Lookback (days)</Label>
               <Input type="number" min={1} max={2000} value={lookbackDays}

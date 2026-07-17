@@ -285,9 +285,21 @@
     background: color-mix(in oklch, var(--brand-copper) 8%, var(--color-muted));
     border: 1px solid color-mix(in oklch, var(--brand-copper) 22%, var(--color-border));
   }
+  [data-slot="tabs-trigger"] {
+    color: color-mix(in oklch, var(--color-muted-foreground) 70%, transparent);
+    filter: grayscale(1);
+    opacity: 0.6;
+    transition: opacity 0.15s ease, filter 0.15s ease, color 0.15s ease;
+  }
+  [data-slot="tabs-trigger"]:hover:not([data-state="active"]) {
+    opacity: 0.85;
+    color: var(--color-foreground);
+  }
   [data-slot="tabs-trigger"][data-state="active"] {
     background: linear-gradient(120deg, var(--brand-flame), var(--brand-copper) 60%, var(--brand-violet));
     color: white !important;
+    filter: none;
+    opacity: 1;
     box-shadow: 0 6px 18px -8px color-mix(in oklch, var(--brand-copper) 60%, transparent);
   }
 

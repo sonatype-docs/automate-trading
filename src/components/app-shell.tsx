@@ -27,11 +27,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarInset>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-gradient-sunset-vivid focus:px-3 focus:py-2 focus:text-white"
         >
           Skip to main content
         </a>
         <header className="sticky top-0 z-40 flex h-11 items-center gap-3 border-b border-border/60 bg-background/95 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/80 sm:px-4">
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-sunset-vivid opacity-90" />
           <SidebarTrigger className="md:hidden -ml-1" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
@@ -39,17 +40,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Shark
               </span>
               <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>/</span>
-              <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-foreground">
+              <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gradient-sunset">
                 {title}
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border/50 bg-card/50 px-2.5 py-1 backdrop-blur-md">
+          <div className="flex items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md">
             <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
               <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
               <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_theme(colors.emerald.400)]" />
             </span>
-            <span className="text-[11px] font-medium tracking-wide text-muted-foreground">Live</span>
+            <span className="text-[11px] font-medium tracking-wide text-foreground/80">Live</span>
           </div>
           <ThemeToggle />
         </header>

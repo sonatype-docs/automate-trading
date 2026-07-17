@@ -903,3 +903,22 @@ function GateChip({ label, pass, hint }: { label: string; pass: boolean; hint?: 
     </div>
   );
 }
+
+function OpenOrdersMiniWidget({ trades }: { trades: LiveTradeDTO[] }) {
+  const open = trades.filter((t) => t.status === "open").length;
+  const pending = trades.filter((t) => t.status === "pending").length;
+  const total = trades.length;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 shadow-sm">
+      <div className="flex items-center gap-2 min-w-0">
+        <Activity className="h-4 w-4 text-primary shrink-0" />
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Open live orders</span>
+        <span className="text-lg font-semibold tabular-nums">{total}</span>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Badge variant="outline" className="text-[10px] font-mono">Open {open}</Badge>
+        <Badge variant="outline" className="text-[10px] font-mono">Pending {pending}</Badge>
+      </div>
+    </div>
+  );
+}

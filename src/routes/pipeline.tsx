@@ -126,17 +126,27 @@ function PipelinePage() {
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];
+    const tzList = stratTzs.length > 0 ? stratTzs : ["London"];
     for (const symbol of symbols) {
       for (const tf of tfs) {
         for (const strategyPresetId of strats) {
           for (const execPresetId of execs) {
-            out.push({ symbol, timeframe: tf as Timeframe, strategyPresetId, execPresetId });
+            for (const tz of tzList) {
+              out.push({
+                symbol,
+                timeframe: tf as Timeframe,
+                strategyPresetId,
+                execPresetId,
+                strategyTimezone: tz as Timezone,
+              });
+            }
           }
         }
       }
     }
     return out;
-  }, [symbols, tfs, strats, execs]);
+  }, [symbols, tfs, strats, execs, stratTzs]);
+
 
   // Wait while paused; return false if user asked to stop.
   async function waitIfPaused(): Promise<boolean> {

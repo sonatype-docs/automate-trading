@@ -96,6 +96,19 @@ export interface OpenPositionRow {
   raw: unknown;
 }
 
+export interface FillRow {
+  clientOrderId: string | null;
+  symbol: string;
+  side: string;
+  qty: number;
+  price: number;
+  fee: number;
+  realizedPnl: number;
+  reduceOnly: boolean | null;
+  timeMs: number;
+  raw: unknown;
+}
+
 export interface ExchangeClient {
   placeOrder(p: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(clientOrderId: string, symbol?: string): Promise<{ ok: boolean; status: number; body: string }>;
@@ -105,6 +118,7 @@ export interface ExchangeClient {
   getOpenOrders(symbol?: string): Promise<OpenOrderRow[]>;
   getOpenPositions(symbol?: string): Promise<OpenPositionRow[]>;
   getFillForClientOrderId(clientOrderId: string): Promise<{ price: number; qty: number } | null>;
+  getRecentFills(symbol?: string): Promise<FillRow[]>;
   testConnection(): Promise<TestConnectionResult>;
   getAccountSnapshot(): Promise<AccountSnapshot>;
   getKlines(

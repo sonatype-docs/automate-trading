@@ -375,14 +375,6 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       status: res.status === "filled" ? "open" : "pending",
       raw_place: res.raw as never,
     });
-
-    await supabaseAdmin.from("live_trades").insert({
-      ...insertBase,
-      client_order_id: res.exchangeOrderId || null,
-      fill_price: res.filledPrice ?? null,
-      status: res.status === "filled" ? "open" : "pending",
-      raw_place: res.raw as never,
-    });
     placedOk = 1;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

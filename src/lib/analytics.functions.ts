@@ -52,6 +52,7 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
         .from("paper_trades")
         .select("symbol, net_pnl, exit_ts")
         .not("exit_ts", "is", null)
+        .not("net_pnl", "is", null)
         .gte("exit_ts", startUtc)
         .lt("exit_ts", endUtc);
       if (data.symbol) q = q.eq("symbol", data.symbol);
@@ -72,6 +73,7 @@ export const getPnlCalendar = createServerFn({ method: "GET" })
         .from("live_trades")
         .select("symbol, net_pnl, exit_ts")
         .not("exit_ts", "is", null)
+        .not("net_pnl", "is", null)
         .gte("exit_ts", startUtc)
         .lt("exit_ts", endUtc);
       if (data.symbol) q = q.eq("symbol", data.symbol);
@@ -274,6 +276,7 @@ export const getStrategyPerformance = createServerFn({ method: "GET" })
 
     if (data.mode !== "live") {
       let q = supabase.from("paper_trades").select("symbol, timeframe, strategy_preset, direction, net_pnl, gross_pnl, fees, exit_ts");
+      q = q.not("net_pnl", "is", null);
       if (startUtc) q = q.gte("exit_ts", startUtc);
       if (endUtc) q = q.lt("exit_ts", endUtc);
       const { data: rows, error } = await q;
@@ -296,7 +299,8 @@ export const getStrategyPerformance = createServerFn({ method: "GET" })
     if (data.mode !== "paper") {
       let q = supabase.from("live_trades")
         .select("symbol, timeframe, strategy_preset, direction, net_pnl, gross_pnl, fees, exit_ts")
-        .not("exit_ts", "is", null);
+        .not("exit_ts", "is", null)
+        .not("net_pnl", "is", null);
       if (startUtc) q = q.gte("exit_ts", startUtc);
       if (endUtc) q = q.lt("exit_ts", endUtc);
       const { data: rows, error } = await q;

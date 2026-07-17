@@ -767,7 +767,7 @@ function PipelinePage() {
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${i}`} className="border-t border-border/40">
+                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${r.spec.strategyTimezone ?? ""}-${i}`} className="border-t border-border/40">
                       <td className="py-1 pr-3">
                         {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
                         {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
@@ -776,8 +776,10 @@ function PipelinePage() {
                       </td>
                       <td className="py-1 pr-3">{r.spec.symbol}</td>
                       <td className="py-1 pr-3">{r.spec.timeframe}</td>
+                      <td className="py-1 pr-3">{r.spec.strategyTimezone ?? "—"}</td>
                       <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
                       <td className="py-1 pr-3">{r.spec.execPresetId}</td>
+
                       <td className="py-1 pr-3">
                         <div className="flex gap-2">
                           <StageDot stage="data" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["strategy","execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "data"} />

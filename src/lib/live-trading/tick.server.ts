@@ -156,13 +156,14 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
         qty: Number(q.qty),
         type: "limit",
         price: Number(q.entry_price),
-        stopLossPrice: Number(q.stop_price),
-        takeProfitPrice: Number(q.target_price),
+        // SL/TP are NOT attached at entry — engine manages exits based on age (14-min rule).
       });
+      const filled = res.status === "filled";
       await supabaseAdmin.from("live_trades").update({
         client_order_id: res.exchangeOrderId || null,
         fill_price: res.filledPrice ?? null,
-        status: res.status === "filled" ? "open" : "pending",
+        status: filled ? "open" : "pending",
+        fill_ts: filled ? new Date().toISOString() : null,
         raw_place: res.raw as never,
       }).eq("id", q.id);
       break; // symbol slot now taken — remaining queued rows wait

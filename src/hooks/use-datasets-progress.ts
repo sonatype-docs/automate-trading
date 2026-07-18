@@ -9,15 +9,99 @@ import type { TradeRecord } from "@/lib/trade-intelligence/types";
 const cache = new Map<string, TradeRecord[]>();
 const partialCache = new Map<string, TradeRecord[]>();
 
+const DB_NAME = "research-dataset-checkpoints";
+const DB_VERSION = 1;
+const CHUNK_STORE = "chunks";
+
+type StoredChunk = { key: string; dataset: string; index: number; rows: TradeRecord[]; updatedAt: number };
+
+function openCheckpointDb(): Promise<IDBDatabase | null> {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(CHUNK_STORE)) {
+        const store = db.createObjectStore(CHUNK_STORE, { keyPath: "key" });
+        store.createIndex("dataset", "dataset", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function loadPersistedRows(dataset: string): Promise<TradeRecord[]> {
+  const db = await openCheckpointDb();
+  if (!db) return [];
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readonly");
+    const index = tx.objectStore(CHUNK_STORE).index("dataset");
+    const req = index.getAll(IDBKeyRange.only(dataset));
+    req.onsuccess = () => {
+      const chunks = (req.result as StoredChunk[]).sort((a, b) => a.index - b.index);
+      resolve(chunks.flatMap((c) => c.rows));
+      db.close();
+    };
+    req.onerror = () => { resolve([]); db.close(); };
+  });
+}
+
+async function savePersistedChunk(dataset: string, index: number, rows: TradeRecord[]): Promise<void> {
+  if (!rows.length) return;
+  const db = await openCheckpointDb();
+  if (!db) return;
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readwrite");
+    tx.objectStore(CHUNK_STORE).put({
+      key: `${dataset}::${index}`,
+      dataset,
+      index,
+      rows,
+      updatedAt: Date.now(),
+    } satisfies StoredChunk);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); resolve(); };
+  });
+}
+
+async function clearPersistedRows(datasets?: string[]): Promise<void> {
+  const db = await openCheckpointDb();
+  if (!db) return;
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readwrite");
+    const store = tx.objectStore(CHUNK_STORE);
+    if (!datasets) {
+      store.clear();
+    } else {
+      for (const dataset of datasets) {
+        const req = store.index("dataset").openKeyCursor(IDBKeyRange.only(dataset));
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          store.delete(cursor.primaryKey);
+          cursor.continue();
+        };
+      }
+    }
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); resolve(); };
+  });
+}
+
 export function clearDatasetsCache(datasets?: string[], options: { keepPartial?: boolean } = {}) {
   if (!datasets) {
     cache.clear();
-    if (!options.keepPartial) partialCache.clear();
+    if (!options.keepPartial) {
+      partialCache.clear();
+      void clearPersistedRows();
+    }
   } else {
     for (const d of datasets) {
       cache.delete(d);
       if (!options.keepPartial) partialCache.delete(d);
     }
+    if (!options.keepPartial) void clearPersistedRows(datasets);
   }
 }
 
@@ -81,7 +165,8 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
     let cancelled = false;
     setError(undefined);
 
-    // Seed from cache immediately
+    // Seed from memory immediately. IndexedDB checkpoints are loaded below
+    // before network fetching starts, so reloads/crashes do not go back to 0.
     const seedData: Record<string, TradeRecord[]> = {};
     const seedProg: Record<string, DatasetProgress> = {};
     for (const ds of datasets) {
@@ -118,7 +203,30 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
       for (const ds of datasets) {
         if (cancelled || runRef.current !== runId) return;
         if (cache.has(ds)) continue;
-        const acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
+        let acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
+        if (acc.length === 0) {
+          const persisted = await loadPersistedRows(ds);
+          if (cancelled || runRef.current !== runId) return;
+          if (persisted.length) {
+            acc = persisted;
+            partialCache.set(ds, persisted);
+            setData((d) => ({ ...d, [ds]: persisted }));
+            setProgress((p) => ({
+              ...p,
+              [ds]: {
+                ...(p[ds] ?? makeProgress({ loaded: persisted.length, done: false, status: "queued" })),
+                loaded: persisted.length,
+                done: false,
+                cached: false,
+                status: "queued",
+                wavesFetched: Math.floor(persisted.length / PAGE),
+                chunksFetched: Math.floor(persisted.length / ROWS_PER_CHUNK),
+                updatedAt: Date.now(),
+                error: `Resuming from saved checkpoint at row ${persisted.length.toLocaleString()}.`,
+              },
+            }));
+          }
+        }
         const seen = new Set(acc.map((r) => r.tradeId));
         let wave = 0;
         let done = false;
@@ -197,6 +305,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
               waveLoaded += 1;
             }
             chunksFetched += 1;
+            await savePersistedChunk(ds, chunksFetched, rows);
             partialCache.set(ds, acc.slice());
             setData((d) => ({ ...d, [ds]: acc.slice() }));
             setProgress((p) => ({

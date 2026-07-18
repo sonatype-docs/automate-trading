@@ -199,7 +199,7 @@ export const queryTrades = createServerFn({ method: "POST" })
         if (transient) throw new Error(`Database is still busy fetching ${data.dataset ?? "live"}; retry or resync in a moment.`);
         throw new Error(msg);
       }
-      const got = (rows ?? []) as Record<string, unknown>[];
+      const got = (rows ?? []) as unknown as Record<string, unknown>[];
       return { rows: got, short: got.length < size };
     };
 
@@ -254,7 +254,7 @@ export const exportTrades = createServerFn({ method: "POST" })
         throw new Error(msg);
       }
       if (!rows || rows.length === 0) break;
-      allRows.push(...(rows as Record<string, unknown>[]));
+      allRows.push(...(rows as unknown as Record<string, unknown>[]));
       if (rows.length < CHUNK) break;
     }
     const records = allRows.map((r) => rowToRecord(r));

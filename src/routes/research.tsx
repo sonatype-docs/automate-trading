@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDatasetsProgress, clearDatasetsCache } from "@/hooks/use-datasets-progress";
+import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useState } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart,
@@ -21,7 +23,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw, Layers } from "lucide-react";
-import { queryTrades, listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
+import { listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
 import {
@@ -212,7 +214,7 @@ function ResearchPage() {
     try { window.localStorage.setItem("research-nav-collapsed", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
-  const queryFn = useServerFn(queryTrades);
+  // queryTrades is called via useDatasetsProgress hook.
   const snapshotsFn = useServerFn(listSnapshots);
   const renameFn = useServerFn(renameSnapshot);
   const deleteFn = useServerFn(deleteSnapshot);
@@ -234,22 +236,17 @@ function ResearchPage() {
     [dataset, extraDatasets],
   );
 
-  const datasetQueries = useQueries({
-    queries: activeDatasets.map((ds) => ({
-      queryKey: ["research", "all-trades", ds],
-      queryFn: () => queryFn({ data: { limit: 2_000_000, orderBy: "entry_time", order: "asc", dataset: ds } }),
-    })),
-  });
-  const isLoading = datasetQueries.some((q) => q.isLoading);
-  const error = datasetQueries.find((q) => q.error)?.error as Error | undefined;
+  const [resyncKey, setResyncKey] = useState(0);
+  const { data: datasetData, progress: datasetProgress, isLoading, totalLoaded, error } =
+    useDatasetsProgress(activeDatasets, resyncKey);
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
     staleTime: 60_000,
   });
   const rawCombined: TradeRecord[] = useMemo(
-    () => datasetQueries.flatMap((q) => q.data?.rows ?? []),
-    [datasetQueries],
+    () => activeDatasets.flatMap((ds) => datasetData[ds] ?? []),
+    [datasetData, activeDatasets],
   );
   const duplicateCount = useMemo(() => {
     if (activeDatasets.length < 2) return 0;
@@ -351,7 +348,9 @@ function ResearchPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Quantitative Research</h1>
             <p className="text-xs text-muted-foreground">
-              {isLoading ? "Loading…" : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
+              {isLoading
+                ? `Loading… ${totalLoaded.toLocaleString()} rows fetched`
+                : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
               {activeDatasets.length > 1 ? ` · ${activeDatasets.length} datasets${dedupe ? ` (deduped, ${duplicateCount.toLocaleString()} removed)` : ""}` : ""}
               {error ? ` — ${error.message}` : ""}
             </p>
@@ -426,14 +425,10 @@ function ResearchPage() {
                 onClick={async () => {
                   setResyncing(true);
                   try {
-                    await Promise.all([
-                      qc.invalidateQueries({ queryKey: ["research", "all-trades"] }),
-                      qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] }),
-                    ]);
-                    await Promise.all([
-                      qc.refetchQueries({ queryKey: ["research", "all-trades"] }),
-                      snapshotList.refetch(),
-                    ]);
+                    clearDatasetsCache(activeDatasets);
+                    await qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] });
+                    await snapshotList.refetch();
+                    setResyncKey((k) => k + 1);
                   } finally {
                     setResyncing(false);
                   }
@@ -528,6 +523,38 @@ function ResearchPage() {
 
           </div>
         </header>
+
+        {isLoading && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Fetching trades from {activeDatasets.length} dataset{activeDatasets.length > 1 ? "s" : ""}…</span>
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {totalLoaded.toLocaleString()} rows loaded
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {activeDatasets.map((ds) => {
+                  const p = datasetProgress[ds] ?? { loaded: 0, done: false };
+                  const pct = p.done ? 100 : Math.min(95, (p.loaded / Math.max(p.loaded + 8000, 1)) * 100);
+                  return (
+                    <div key={ds} className="text-[11px] space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate flex-1">{ds}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {p.loaded.toLocaleString()}{p.done ? " ✓" : p.cached ? " (cached)" : "…"}
+                        </span>
+                      </div>
+                      <Progress value={pct} className="h-1" />
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
 
         {section === "Overview" && <OverviewSection trades={trades} />}
         {section === "Performance" && <PerformanceSection trades={trades} />}

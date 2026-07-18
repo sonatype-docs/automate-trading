@@ -355,7 +355,7 @@ function PipelinePage() {
       if (runId) finishFn({ data: { runId, status: "failed", error: msg } }).catch(() => {});
       setControl("idle");
     },
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
   async function beginResume(restart: boolean) {
@@ -471,11 +471,11 @@ function PipelinePage() {
 
   const resumeMut = useMutation({
     mutationFn: () => beginResume(false),
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
   const restartMut = useMutation({
     mutationFn: () => beginResume(true),
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
   // Re-record trades for every completed combo in the resume row's log.
@@ -519,7 +519,7 @@ function PipelinePage() {
         setReRecordState({ done: i + 1, total: completed.length, inserted });
       }
     },
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
 

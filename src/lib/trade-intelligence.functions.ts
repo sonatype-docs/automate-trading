@@ -176,7 +176,8 @@ export const queryTrades = createServerFn({ method: "POST" })
       );
     };
 
-    const applyLightFilters = (q: ReturnType<typeof supabase.from> extends { select: (...args: infer A) => infer R } ? R : never) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const applyLightFilters = (q: any) => {
       let query = q;
       if (snapshotName) query = query.eq("snapshot_name", snapshotName);
       if (spec.strategyId) query = query.eq("strategy_id", spec.strategyId);
@@ -210,7 +211,8 @@ export const queryTrades = createServerFn({ method: "POST" })
       // cursor into two simple indexed predicates keeps resume checkpoints fast:
       // 1) remaining rows at the same timestamp, then 2) later timestamps.
       if (cursorTradeId) {
-        const sameTimestampQuery = applyLightFilters(supabase.from(table).select(columns))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sameTimestampQuery = applyLightFilters((supabase as any).from(table).select(columns))
           .eq("entry_time", cursorIso)
           .gt("trade_id", cursorTradeId)
           .order("trade_id", { ascending: true })
@@ -222,7 +224,8 @@ export const queryTrades = createServerFn({ method: "POST" })
 
       if (out.length < size) {
         const remaining = size - out.length;
-        const laterTimestampQuery = applyLightFilters(supabase.from(table).select(columns))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const laterTimestampQuery = applyLightFilters((supabase as any).from(table).select(columns))
           .gt("entry_time", cursorIso)
           .order("entry_time", { ascending: true })
           .order("trade_id", { ascending: true })

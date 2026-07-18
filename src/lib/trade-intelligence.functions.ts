@@ -200,7 +200,7 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const { table, snapshotName } = resolveTable(data.dataset);
     const CHUNK = 1000;
-    const MAX = 20000;
+    const MAX = 2_000_000;
     const allRows: Record<string, unknown>[] = [];
     for (let offset = 0; offset < MAX; offset += CHUNK) {
       const spec: TradeQuerySpec & { snapshotName?: string } = { ...data, snapshotName, limit: CHUNK, offset };

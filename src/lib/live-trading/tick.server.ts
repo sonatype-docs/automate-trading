@@ -366,22 +366,26 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     return { placed: 0, reconciled };
   }
   try {
-    const res = await client.placeOrder({
+    const attempt = await placeWithMarginRetry(client, {
       symbol: r.symbol,
       side: openFlush.direction === "long" ? "buy" : "sell",
       qty,
-      type: "limit",
       price: openFlush.fillPrice,
-      // SL/TP are NOT attached at entry — engine manages exits based on age (30-min rule).
+      stopDist,
+      riskUsd: Number(r.risk_usd),
+      minRiskUsd: 15,
     });
+    const res = attempt.res;
     const filled = res.status === "filled";
     await supabaseAdmin.from("live_trades").insert({
       ...insertBase,
+      qty: attempt.qty,
       client_order_id: res.exchangeOrderId || null,
       fill_price: res.filledPrice ?? null,
       status: filled ? "open" : "pending",
       fill_ts: filled ? new Date().toISOString() : null,
       raw_place: res.raw as never,
+      error: attempt.note ?? null,
     });
     placedOk = 1;
   } catch (e) {
@@ -394,6 +398,53 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     throw e;
   }
   return { placed: placedOk, reconciled };
+}
+
+/** Try a limit order; on "insufficient margin" (Shark error 3018), reduce risk
+ *  to `minRiskUsd` (default $15), recompute qty, and retry ONCE — but only if
+ *  the last traded price is still within the original stop distance of the
+ *  planned entry (i.e. our setup zone is still valid). */
+async function placeWithMarginRetry(
+  client: ReturnType<typeof createSharkClient>,
+  args: {
+    symbol: string;
+    side: "buy" | "sell";
+    qty: number;
+    price: number;
+    stopDist: number;
+    riskUsd: number;
+    minRiskUsd: number;
+  },
+): Promise<{ res: Awaited<ReturnType<ReturnType<typeof createSharkClient>["placeOrder"]>>; qty: number; note?: string }> {
+  try {
+    const res = await client.placeOrder({
+      symbol: args.symbol, side: args.side, qty: args.qty,
+      type: "limit", price: args.price,
+    });
+    return { res, qty: args.qty };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const isMargin = /3018|insufficient\s*margin/i.test(msg);
+    if (!isMargin || args.riskUsd <= args.minRiskUsd) throw e;
+
+    // Zone check: is price still within our planned entry zone?
+    let last = 0;
+    try { last = await client.getLastPrice(args.symbol); } catch { /* noop */ }
+    if (last > 0 && Math.abs(last - args.price) > args.stopDist) {
+      throw new Error(`${msg} — skipped retry: price ${last} out of zone (entry ${args.price} ± ${args.stopDist.toFixed(4)})`);
+    }
+
+    const reducedQty = Math.max(0.001, Number((args.minRiskUsd / args.stopDist).toFixed(3)));
+    const res = await client.placeOrder({
+      symbol: args.symbol, side: args.side, qty: reducedQty,
+      type: "limit", price: args.price,
+    });
+    return {
+      res,
+      qty: reducedQty,
+      note: `margin_retry: risk $${args.riskUsd}→$${args.minRiskUsd}, qty ${args.qty}→${reducedQty}`,
+    };
+  }
 }
 
 /** 30-minute exit-type rule (Shark Exchange zero-fee scalping offer):

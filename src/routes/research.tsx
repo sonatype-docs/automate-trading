@@ -395,7 +395,79 @@ function ResearchPage() {
                   : <RefreshCw className="h-3.5 w-3.5" />}
                 Resync
               </Button>
-            </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1"
+                    title="Combine multiple datasets"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    {extraDatasets.length > 0 ? `+${extraDatasets.length} more` : "Combine"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-3" align="end">
+                  <div className="text-xs font-semibold mb-2">Add datasets to combine</div>
+                  <div className="max-h-64 overflow-y-auto space-y-1.5">
+                    {[
+                      { name: "live", count: null as number | null, label: "Live (current)" },
+                      ...(snapshotList.data?.snapshots ?? []).map((s) => ({
+                        name: s.name, count: s.count, label: s.name,
+                      })),
+                    ]
+                      .filter((opt) => opt.name !== dataset)
+                      .map((opt) => {
+                        const checked = extraDatasets.includes(opt.name);
+                        return (
+                          <label
+                            key={opt.name}
+                            className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1.5 py-1"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                setExtraDatasets((prev) =>
+                                  v ? [...prev, opt.name] : prev.filter((d) => d !== opt.name),
+                                );
+                              }}
+                            />
+                            <span className="flex-1 truncate">{opt.label}</span>
+                            {opt.count != null && (
+                              <span className="text-muted-foreground tabular-nums">
+                                {opt.count.toLocaleString()}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-border/60 space-y-2">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={dedupe}
+                        onCheckedChange={(v) => setDedupe(!!v)}
+                      />
+                      <span className="flex-1">Remove duplicates</span>
+                      {activeDatasets.length > 1 && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {duplicateCount.toLocaleString()} dup
+                        </span>
+                      )}
+                    </label>
+                    {extraDatasets.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs w-full"
+                        onClick={() => setExtraDatasets([])}
+                      >
+                        Clear extras
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
 
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>

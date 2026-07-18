@@ -423,14 +423,10 @@ function ResearchPage() {
                 onClick={async () => {
                   setResyncing(true);
                   try {
-                    await Promise.all([
-                      qc.invalidateQueries({ queryKey: ["research", "all-trades"] }),
-                      qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] }),
-                    ]);
-                    await Promise.all([
-                      qc.refetchQueries({ queryKey: ["research", "all-trades"] }),
-                      snapshotList.refetch(),
-                    ]);
+                    clearDatasetsCache(activeDatasets);
+                    await qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] });
+                    await snapshotList.refetch();
+                    setResyncKey((k) => k + 1);
                   } finally {
                     setResyncing(false);
                   }

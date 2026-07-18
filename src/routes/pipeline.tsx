@@ -71,8 +71,10 @@ function defaultDatasetName(now = new Date()): string {
   const d = pad(now.getDate());
   const h = pad(now.getHours());
   const mi = pad(now.getMinutes());
-  return `pipeline-${y}-${mo}-${d}_${h}-${mi}`;
+  const s = pad(now.getSeconds());
+  return `pipeline-${y}-${mo}-${d}_${h}-${mi}-${s}`;
 }
+
 
 // Timestamped fallback for legacy pipeline_runs rows that don't carry a
 // snapshotName in their matrix. Uses the run's started_at so re-opening the

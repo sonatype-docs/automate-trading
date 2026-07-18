@@ -136,10 +136,28 @@ function PipelinePage() {
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
   const snapshotsFn = useServerFn(listSnapshots);
+  const previewFn = useServerFn(getSnapshotPreview);
+  const deleteSnapFn = useServerFn(deleteSnapshot);
+  const [deletingSnap, setDeletingSnap] = useState(false);
 
   const snapshotList = useQuery({
     queryKey: ["pipeline", "snapshots"],
     queryFn: () => snapshotsFn(),
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Preview the currently-targeted dataset (append target, or a "new" name that
+  // happens to collide with an existing snapshot).
+  const previewTarget = datasetMode === "append"
+    ? appendTo
+    : (snapshotList.data?.snapshots ?? []).some((s) => s.name === newDatasetName)
+      ? newDatasetName
+      : "";
+  const previewQ = useQuery({
+    queryKey: ["pipeline", "snapshot-preview", previewTarget],
+    queryFn: () => previewFn({ data: { name: previewTarget } }),
+    enabled: !!previewTarget,
     staleTime: 10_000,
     refetchOnWindowFocus: false,
   });

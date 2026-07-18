@@ -561,42 +561,6 @@ function Metric({
   );
 }
 
-function PositionPnLCell({
-  symbol,
-  side,
-  qty,
-  entry,
-  nativePnl,
-}: {
-  symbol: string;
-  side: string;
-  qty: number;
-  entry: number;
-  nativePnl: number;
-}) {
-  const getTicker = useServerFn(getMarketTicker);
-  const q = useQuery({
-    queryKey: ["pos-ticker", symbol],
-    queryFn: () => getTicker({ data: { symbol } }),
-    staleTime: 60_000,
-    enabled: !!symbol,
-  });
-  const last = Number(q.data?.lastPrice ?? NaN);
-  let pnl = Number.isFinite(nativePnl) ? nativePnl : NaN;
-  if (!Number.isFinite(pnl) && Number.isFinite(last) && Number.isFinite(entry) && Number.isFinite(qty)) {
-    const dir = side === "LONG" ? 1 : side === "SHORT" ? -1 : 0;
-    pnl = dir * (last - entry) * qty;
-  }
-  const good = Number.isFinite(pnl) && pnl >= 0;
-  return (
-    <td className={`text-right ${good ? "text-long" : "text-short"}`}>
-      {Number.isFinite(pnl)
-        ? `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : "—"}
-      {q.isFetching && <span className="ml-1 text-[9px] text-muted-foreground">•</span>}
-    </td>
-  );
-}
 
 
 

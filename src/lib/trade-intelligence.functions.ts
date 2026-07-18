@@ -153,36 +153,37 @@ export const queryTrades = createServerFn({ method: "POST" })
     const requestedLimit = Math.min(spec.limit ?? 100, 2_000_000);
     const baseOffset = spec.offset ?? 0;
     const CHUNK = 1000; // PostgREST default max_rows cap
+    const CONCURRENCY = 8; // parallel chunk fetches per wave
     const allRows: Record<string, unknown>[] = [];
-    let total = 0;
-    for (let fetched = 0; fetched < requestedLimit; fetched += CHUNK) {
-      const remaining = requestedLimit - fetched;
-      const chunkSize = Math.min(CHUNK, remaining);
-      const q = applyQuery(supabase, table, {
-        ...spec,
-        snapshotName,
-        limit: chunkSize,
-        offset: baseOffset + fetched,
-      });
-      const { data: rows, error } = await q;
-      if (error) {
-        // When a dataset is actively being appended, PostgREST can briefly
-        // reject a later page with 416 even though earlier pages loaded. Also
-        // deep-offset scans on large snapshots can hit Postgres's
-        // statement_timeout (57014). In both cases, keep the already-loaded
-        // rows instead of blanking the whole Research view.
-        const msg = error.message || "";
-        if (
-          error.code === "PGRST103" ||
-          error.code === "57014" ||
-          /range not satisfiable/i.test(msg) ||
-          /statement timeout/i.test(msg)
-        ) break;
-        throw new Error(msg);
+    let done = false;
+    let fetched = 0;
+    while (!done && fetched < requestedLimit) {
+      const waveOffsets: number[] = [];
+      for (let i = 0; i < CONCURRENCY && fetched + i * CHUNK < requestedLimit; i++) {
+        waveOffsets.push(baseOffset + fetched + i * CHUNK);
       }
-      if (!rows || rows.length === 0) break;
-      allRows.push(...(rows as Record<string, unknown>[]));
-      if (rows.length < chunkSize) break;
+      const results = await Promise.all(waveOffsets.map(async (off) => {
+        const remaining = requestedLimit - (off - baseOffset);
+        const chunkSize = Math.min(CHUNK, remaining);
+        const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: chunkSize, offset: off });
+        const { data: rows, error } = await q;
+        if (error) {
+          const msg = error.message || "";
+          if (
+            error.code === "PGRST103" ||
+            error.code === "57014" ||
+            /range not satisfiable/i.test(msg) ||
+            /statement timeout/i.test(msg)
+          ) return { rows: [] as Record<string, unknown>[], short: true };
+          throw new Error(msg);
+        }
+        return { rows: (rows ?? []) as Record<string, unknown>[], short: (rows?.length ?? 0) < chunkSize };
+      }));
+      for (const r of results) {
+        allRows.push(...r.rows);
+        if (r.short) done = true;
+      }
+      fetched += waveOffsets.length * CHUNK;
     }
     return {
       rows: allRows.map((r) => rowToRecord(r)),

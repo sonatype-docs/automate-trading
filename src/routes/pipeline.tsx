@@ -22,8 +22,9 @@ import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { recordTradesFromExecution, listSnapshots, getSnapshotPreview, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import {
-  startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
+  startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun, getLastFailedRun,
 } from "@/lib/pipeline.functions";
+
 import { runComboBatch } from "@/lib/pipeline-batch.functions";
 import { useKeepAlive } from "@/hooks/use-keep-alive";
 import type {

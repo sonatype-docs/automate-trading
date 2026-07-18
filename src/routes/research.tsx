@@ -1464,10 +1464,12 @@ function rankAsc(values: number[]): number[] {
 
 function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   const [strategyFocus, setStrategyFocus] = useState<string>("all");
-  // Snapshot the input trades — only recomputed when the user clicks "Run".
-  const [snapshot, setSnapshot] = useState<TradeRecord[]>(() => trades);
   const [ranAt, setRanAt] = useState<number>(() => Date.now());
-  const stale = snapshot !== trades;
+  // Auto-recompute whenever the filtered trades change. The Run button just
+  // re-stamps the "last run" timestamp so the user has explicit feedback.
+  const snapshot = trades;
+
+  useEffect(() => { setRanAt(Date.now()); }, [trades]);
 
   const strategies = useMemo(
     () => Array.from(new Set(snapshot.map((t) => t.strategyId))).sort(),
@@ -1475,6 +1477,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   );
 
   const rows: TfRow[] = useMemo(() => {
+
     // Group by strategy + symbol + timeframe + timezone (so multi-tz runs compete)
     const map = new Map<string, TradeRecord[]>();
     for (const t of snapshot) {
@@ -1572,7 +1575,6 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
     score >= 70 ? "text-emerald-500" : score >= 50 ? "text-amber-500" : "text-rose-500";
 
   const runOptimization = () => {
-    setSnapshot(trades);
     setRanAt(Date.now());
   };
 
@@ -1586,11 +1588,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
               Ranks every timeframe within each strategy. Robustness = 35% PF · 25% Sample · 20% Net Profit · 10% Win Rate · 10% Drawdown.
             </p>
             <p className="text-[11px] text-muted-foreground mt-1">
-              {stale ? (
-                <span className="text-amber-500">Filters changed — click Run to refresh.</span>
-              ) : (
-                <>Last run: {new Date(ranAt).toLocaleTimeString()} · {snapshot.length.toLocaleString()} trades</>
-              )}
+              Auto-refreshes with filters · Last run: {new Date(ranAt).toLocaleTimeString()} · {snapshot.length.toLocaleString()} trades
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1603,7 +1601,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
             </Select>
             <Button
               size="sm"
-              variant={stale ? "default" : "outline"}
+              variant="outline"
               onClick={runOptimization}
               className="h-8"
             >
@@ -1613,6 +1611,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
           </div>
         </CardHeader>
       </Card>
+
 
       <Card>
         <CardHeader><CardTitle className="text-sm">Best Timeframe per Strategy</CardTitle></CardHeader>

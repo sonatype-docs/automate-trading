@@ -317,6 +317,16 @@ function PipelinePage() {
       };
       setProgress(initialProgress);
 
+      // Resolve target dataset name.
+      const chosenName = datasetMode === "append"
+        ? (appendTo || "").trim()
+        : (newDatasetName || "").trim() || defaultDatasetName();
+      if (datasetMode === "append" && !chosenName) {
+        setControl("idle");
+        throw new Error("Pick a dataset to append to, or switch to 'New dataset'.");
+      }
+      activeSnapshotRef.current = chosenName;
+
       const matrix = {
         source, symbols, timeframes: tfs as Timeframe[],
         strategyPresetIds: strats, execPresetIds: execs,
@@ -324,10 +334,12 @@ function PipelinePage() {
         strategyTimezone: (stratTzs[0] ?? "London") as Timezone,
         strategyTimezones: stratTzs as Timezone[],
         mode, lookbackDays, riskUsdPerTrade: riskUsd,
+        snapshotName: chosenName,
       };
 
       const { runId: id } = await startFn({ data: { matrix, total } });
       setRunId(id);
+
 
       const toMs = Date.now();
       const fromMs = toMs - lookbackDays * 86_400_000;

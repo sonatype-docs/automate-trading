@@ -1668,6 +1668,99 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_intelligence_research: {
+        Row: {
+          actual_rr: number | null
+          created_at: string
+          custom: Json
+          direction: string
+          duration_ms: number | null
+          entry_price: number | null
+          entry_time: string
+          exit_price: number | null
+          exit_reason: string | null
+          exit_time: string
+          fees: number | null
+          gross_pnl: number | null
+          holding_bars: number | null
+          month: number | null
+          net_pnl: number
+          quarter: number | null
+          session: string | null
+          snapshot_name: string
+          status: string
+          strategy_id: string
+          symbol: string
+          tags: string[]
+          timeframe: string | null
+          trade_id: string
+          updated_at: string
+          week_number: number | null
+          weekday: number | null
+          year: number | null
+        }
+        Insert: {
+          actual_rr?: number | null
+          created_at?: string
+          custom?: Json
+          direction: string
+          duration_ms?: number | null
+          entry_price?: number | null
+          entry_time: string
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_time: string
+          fees?: number | null
+          gross_pnl?: number | null
+          holding_bars?: number | null
+          month?: number | null
+          net_pnl?: number
+          quarter?: number | null
+          session?: string | null
+          snapshot_name: string
+          status: string
+          strategy_id: string
+          symbol: string
+          tags?: string[]
+          timeframe?: string | null
+          trade_id: string
+          updated_at?: string
+          week_number?: number | null
+          weekday?: number | null
+          year?: number | null
+        }
+        Update: {
+          actual_rr?: number | null
+          created_at?: string
+          custom?: Json
+          direction?: string
+          duration_ms?: number | null
+          entry_price?: number | null
+          entry_time?: string
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_time?: string
+          fees?: number | null
+          gross_pnl?: number | null
+          holding_bars?: number | null
+          month?: number | null
+          net_pnl?: number
+          quarter?: number | null
+          session?: string | null
+          snapshot_name?: string
+          status?: string
+          strategy_id?: string
+          symbol?: string
+          tags?: string[]
+          timeframe?: string | null
+          trade_id?: string
+          updated_at?: string
+          week_number?: number | null
+          weekday?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
       trade_snapshot_stats: {
         Row: {
           last_updated: string
@@ -1758,6 +1851,41 @@ export type Database = {
     }
     Functions: {
       claim_ownership: { Args: never; Returns: boolean }
+      get_trade_research_page: {
+        Args: {
+          _cursor_entry_time?: string
+          _cursor_trade_id?: string
+          _limit?: number
+          _snapshot_name: string
+        }
+        Returns: {
+          actual_rr: number
+          custom: Json
+          direction: string
+          duration_ms: number
+          entry_price: number
+          entry_time: string
+          exit_price: number
+          exit_reason: string
+          exit_time: string
+          fees: number
+          gross_pnl: number
+          holding_bars: number
+          month: number
+          net_pnl: number
+          quarter: number
+          session: string
+          status: string
+          strategy_id: string
+          symbol: string
+          tags: string[]
+          timeframe: string
+          trade_id: string
+          week_number: number
+          weekday: number
+          year: number
+        }[]
+      }
       is_owner: { Args: never; Returns: boolean }
       list_trade_snapshots: {
         Args: never

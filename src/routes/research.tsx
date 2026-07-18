@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart,
@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2 } from "lucide-react";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw } from "lucide-react";
 import { queryTrades, listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
@@ -169,6 +169,9 @@ function ResearchPage() {
   const [dataset, setDataset] = useDataset();
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const qc = useQueryClient();
+  const [resyncing, setResyncing] = useState(false);
+
 
 
   const { data, isLoading, error } = useQuery({
@@ -323,7 +326,35 @@ function ResearchPage() {
               >
                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1"
+                disabled={resyncing || isLoading}
+                title="Refetch trades and snapshot list from the server"
+                onClick={async () => {
+                  setResyncing(true);
+                  try {
+                    await Promise.all([
+                      qc.invalidateQueries({ queryKey: ["research", "all-trades"] }),
+                      qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] }),
+                    ]);
+                    await Promise.all([
+                      qc.refetchQueries({ queryKey: ["research", "all-trades", dataset] }),
+                      snapshotList.refetch(),
+                    ]);
+                  } finally {
+                    setResyncing(false);
+                  }
+                }}
+              >
+                {resyncing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <RefreshCw className="h-3.5 w-3.5" />}
+                Resync
+              </Button>
             </div>
+
 
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>

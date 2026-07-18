@@ -14,9 +14,12 @@ function read(): string {
 }
 
 export function useDataset(): [string, (v: string) => void] {
-  const [value, setValue] = useState<string>(() => read());
+  // Always initialize to "live" for SSR-safe hydration. Read persisted value
+  // in an effect so the first client render matches the server output.
+  const [value, setValue] = useState<string>("live");
 
   useEffect(() => {
+    setValue(read());
     const sync = () => setValue(read());
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
@@ -25,6 +28,7 @@ export function useDataset(): [string, (v: string) => void] {
       window.removeEventListener("storage", sync);
     };
   }, []);
+
 
   const update = (v: string) => {
     try { window.localStorage.setItem(STORAGE_KEY, v); } catch { /* quota */ }

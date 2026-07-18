@@ -18,8 +18,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge } from "lucide-react";
-import { queryTrades, listSnapshots } from "@/lib/trade-intelligence.functions";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2 } from "lucide-react";
+import { queryTrades, listSnapshots, renameSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
 import {
@@ -164,7 +164,10 @@ function ResearchPage() {
   });
   const queryFn = useServerFn(queryTrades);
   const snapshotsFn = useServerFn(listSnapshots);
+  const renameFn = useServerFn(renameSnapshot);
   const [dataset, setDataset] = useDataset();
+  const [renaming, setRenaming] = useState(false);
+
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["research", "all-trades", dataset],
@@ -258,17 +261,44 @@ function ResearchPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            <Select value={dataset} onValueChange={setDataset}>
-              <SelectTrigger className="h-8 w-56 text-xs"><SelectValue placeholder="Dataset" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="live">Live (current)</SelectItem>
-                {(snapshotList.data?.snapshots ?? []).map((s) => (
-                  <SelectItem key={s.name} value={s.name}>
-                    Snapshot · {s.name} ({s.count.toLocaleString()})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1">
+              <Select value={dataset} onValueChange={setDataset}>
+                <SelectTrigger className="h-8 w-56 text-xs"><SelectValue placeholder="Dataset" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live">Live (current)</SelectItem>
+                  {(snapshotList.data?.snapshots ?? []).map((s) => (
+                    <SelectItem key={s.name} value={s.name}>
+                      Snapshot · {s.name} ({s.count.toLocaleString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={dataset === "live" || renaming}
+                title={dataset === "live" ? "Only saved snapshots can be renamed" : "Rename this dataset"}
+                onClick={async () => {
+                  const current = dataset;
+                  const next = window.prompt("Rename dataset", current)?.trim();
+                  if (!next || next === current) return;
+                  setRenaming(true);
+                  try {
+                    await renameFn({ data: { from: current, to: next } });
+                    setDataset(next);
+                    await snapshotList.refetch();
+                  } catch (e) {
+                    window.alert((e as Error).message || "Rename failed");
+                  } finally {
+                    setRenaming(false);
+                  }
+                }}
+              >
+                {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>
               <SelectContent>

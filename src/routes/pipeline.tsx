@@ -20,7 +20,7 @@ import { MatrixGroup } from "@/components/matrix-picker";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
-import { recordTradesFromExecution } from "@/lib/trade-intelligence.functions";
+import { recordTradesFromExecution, listSnapshots } from "@/lib/trade-intelligence.functions";
 import {
   startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
 } from "@/lib/pipeline.functions";
@@ -63,6 +63,17 @@ function fmt(n: number, d = 2): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
 }
 function fmtMoney(n: number): string { return `${n < 0 ? "-" : ""}$${fmt(Math.abs(n))}`; }
+
+function defaultDatasetName(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = now.getFullYear();
+  const mo = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const h = pad(now.getHours());
+  const mi = pad(now.getMinutes());
+  return `pipeline-${y}-${mo}-${d}_${h}-${mi}`;
+}
+
 
 function StageDot({ stage, current, done, failed }: {
   stage: PipelineStage; current: PipelineStage | null; done: boolean; failed: boolean;
@@ -111,11 +122,27 @@ function PipelinePage() {
   const controlRef = useRef<Control>("idle");
   useEffect(() => { controlRef.current = control; }, [control]);
 
+  // Dataset targeting: new vs append.
+  const [datasetMode, setDatasetMode] = useState<"new" | "append">("new");
+  const [newDatasetName, setNewDatasetName] = useState<string>(() => defaultDatasetName());
+  const [appendTo, setAppendTo] = useState<string>("");
+  // Active snapshot name used by the currently running loop (kept in a ref
+  // so rerecord/resume can read it even before state updates propagate).
+  const activeSnapshotRef = useRef<string>("");
+
   const runFn = useServerFn(recordTradesFromExecution);
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
+  const snapshotsFn = useServerFn(listSnapshots);
+
+  const snapshotList = useQuery({
+    queryKey: ["pipeline", "snapshots"],
+    queryFn: () => snapshotsFn(),
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
 
   const resumable = useQuery({
     queryKey: ["pipeline", "resumable"],
@@ -123,6 +150,7 @@ function PipelinePage() {
     staleTime: 5_000,
     refetchOnWindowFocus: false,
   });
+
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];
@@ -207,7 +235,7 @@ function PipelinePage() {
               execPresetId: spec.execPresetId,
               tags: ["pipeline", `run:${id}`, `tz:${(spec.strategyTimezone ?? "London")}`],
               riskUsdOverride: riskUsd,
-              snapshotName: `pipeline-${id.slice(0, 8)}`,
+              snapshotName: activeSnapshotRef.current || `pipeline-${id.slice(0, 8)}`,
             },
           });
           inserted = res.inserted ?? 0;
@@ -289,6 +317,16 @@ function PipelinePage() {
       };
       setProgress(initialProgress);
 
+      // Resolve target dataset name.
+      const chosenName = datasetMode === "append"
+        ? (appendTo || "").trim()
+        : (newDatasetName || "").trim() || defaultDatasetName();
+      if (datasetMode === "append" && !chosenName) {
+        setControl("idle");
+        throw new Error("Pick a dataset to append to, or switch to 'New dataset'.");
+      }
+      activeSnapshotRef.current = chosenName;
+
       const matrix = {
         source, symbols, timeframes: tfs as Timeframe[],
         strategyPresetIds: strats, execPresetIds: execs,
@@ -296,10 +334,12 @@ function PipelinePage() {
         strategyTimezone: (stratTzs[0] ?? "London") as Timezone,
         strategyTimezones: stratTzs as Timezone[],
         mode, lookbackDays, riskUsdPerTrade: riskUsd,
+        snapshotName: chosenName,
       };
 
       const { runId: id } = await startFn({ data: { matrix, total } });
       setRunId(id);
+
 
       const toMs = Date.now();
       const fromMs = toMs - lookbackDays * 86_400_000;
@@ -315,7 +355,7 @@ function PipelinePage() {
       if (runId) finishFn({ data: { runId, status: "failed", error: msg } }).catch(() => {});
       setControl("idle");
     },
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
   async function beginResume(restart: boolean) {
@@ -324,6 +364,10 @@ function PipelinePage() {
     setControl("running");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = row.matrix as any;
+    activeSnapshotRef.current = (typeof m.snapshotName === "string" && m.snapshotName)
+      ? m.snapshotName
+      : `pipeline-${String(row.id).slice(0, 8)}`;
+
     const rebuilt: ComboSpec[] = [];
     const tzList: string[] = Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0
       ? m.strategyTimezones
@@ -427,11 +471,11 @@ function PipelinePage() {
 
   const resumeMut = useMutation({
     mutationFn: () => beginResume(false),
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
   const restartMut = useMutation({
     mutationFn: () => beginResume(true),
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
   // Re-record trades for every completed combo in the resume row's log.
@@ -465,7 +509,7 @@ function PipelinePage() {
               execPresetId: c.execPresetId,
               tags: ["pipeline", `run:${row.id}`, "rerecord", `tz:${(c.strategyTimezone ?? m.strategyTimezone)}`],
               riskUsdOverride: Number(m.riskUsdPerTrade),
-              snapshotName: `pipeline-${String(row.id).slice(0, 8)}`,
+              snapshotName: (typeof m.snapshotName === "string" && m.snapshotName) ? m.snapshotName : `pipeline-${String(row.id).slice(0, 8)}`,
             },
           });
           inserted += res.inserted ?? 0;
@@ -475,7 +519,7 @@ function PipelinePage() {
         setReRecordState({ done: i + 1, total: completed.length, inserted });
       }
     },
-    onSettled: () => { resumable.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
 
@@ -631,6 +675,80 @@ function PipelinePage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
+              Dataset
+              <Badge variant="outline" className="text-[9px] uppercase">
+                {datasetMode === "new" ? "New" : "Append"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Target</Label>
+              <Select value={datasetMode} onValueChange={(v) => setDatasetMode(v as "new" | "append")} disabled={isRunning}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">Create new dataset</SelectItem>
+                  <SelectItem value="append">Append to existing</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-muted-foreground">
+                Trades upsert by trade_id — safe to re-run into the same dataset.
+              </span>
+            </div>
+
+            {datasetMode === "new" ? (
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">New dataset name</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newDatasetName}
+                    onChange={(e) => setNewDatasetName(e.target.value)}
+                    disabled={isRunning}
+                    placeholder="pipeline-YYYY-MM-DD_HH-mm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isRunning}
+                    onClick={() => setNewDatasetName(defaultDatasetName())}
+                    title="Regenerate timestamped name"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </Button>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  Timestamped by default. Rename later from Quantitative Research.
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Append into</Label>
+                <Select value={appendTo} onValueChange={setAppendTo} disabled={isRunning}>
+                  <SelectTrigger><SelectValue placeholder="Pick existing dataset…" /></SelectTrigger>
+                  <SelectContent>
+                    {(snapshotList.data?.snapshots ?? []).length === 0 && (
+                      <SelectItem value="__none__" disabled>No datasets yet — run a new one first</SelectItem>
+                    )}
+                    {(snapshotList.data?.snapshots ?? []).map((s) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name} ({s.count.toLocaleString()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-[10px] text-muted-foreground">
+                  New combos add to this dataset; existing rows update in place.
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
 
         <Card>
           <CardHeader>

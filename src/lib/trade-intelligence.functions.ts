@@ -363,3 +363,30 @@ export const listSnapshots = createServerFn({ method: "POST" }).handler(async ()
   };
 });
 
+const RenameInput = z.object({
+  from: z.string().min(1).max(120),
+  to: z.string().min(1).max(120).regex(/^[A-Za-z0-9_\-.: ]+$/, "Only letters, numbers, spaces and _-.: allowed"),
+});
+export const renameSnapshot = createServerFn({ method: "POST" })
+  .inputValidator((raw) => RenameInput.parse(raw))
+  .handler(async ({ data }) => {
+    if (data.from === data.to) return { updated: 0 };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
+    const { data: existing, error: existErr } = await supabase
+      .from("trade_intelligence_archive")
+      .select("snapshot_name")
+      .eq("snapshot_name", data.to)
+      .limit(1);
+    if (existErr) throw new Error(existErr.message);
+    if (existing && existing.length > 0) throw new Error(`Dataset "${data.to}" already exists`);
+    const { error, count } = await supabase
+      .from("trade_intelligence_archive")
+      .update({ snapshot_name: data.to }, { count: "exact" })
+      .eq("snapshot_name", data.from);
+    if (error) throw new Error(error.message);
+    return { updated: count ?? 0 };
+  });
+
+

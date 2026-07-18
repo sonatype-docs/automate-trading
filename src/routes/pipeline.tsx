@@ -261,7 +261,7 @@ function PipelinePage() {
               execPresetId: spec.execPresetId,
               tags: ["pipeline", `run:${id}`, `tz:${(spec.strategyTimezone ?? "London")}`],
               riskUsdOverride: riskUsd,
-              snapshotName: activeSnapshotRef.current || `pipeline-${id.slice(0, 8)}`,
+              snapshotName: activeSnapshotRef.current || defaultDatasetName(),
             },
           });
           inserted = res.inserted ?? 0;

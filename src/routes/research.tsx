@@ -180,6 +180,7 @@ function ResearchPage() {
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
   const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
+  const [timezoneFilter, setTimezoneFilter] = useState<string>("all");
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [customRules, setCustomRules] = useState<Rule[]>([]);
 
@@ -188,14 +189,16 @@ function ResearchPage() {
     if (strategyFilter !== "all") t = t.filter((r) => r.strategyId === strategyFilter);
     if (symbolFilter !== "all") t = t.filter((r) => r.symbol === symbolFilter);
     if (timeframeFilter !== "all") t = t.filter((r) => (r.timeframe ?? "—") === timeframeFilter);
+    if (timezoneFilter !== "all") t = t.filter((r) => (tradeTz(r) ?? "—") === timezoneFilter);
     if (directionFilter !== "all") t = t.filter((r) => r.direction === directionFilter);
     if (customRules.length) t = applyRules(t, customRules);
     return t;
-  }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, directionFilter, customRules]);
+  }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, timezoneFilter, directionFilter, customRules]);
 
   const strategies = Array.from(new Set(allTrades.map((r) => r.strategyId)));
   const symbols = Array.from(new Set(allTrades.map((r) => r.symbol)));
   const timeframes = Array.from(new Set(allTrades.map((r) => r.timeframe ?? "—"))).sort();
+  const timezones = Array.from(new Set(allTrades.map((r) => tradeTz(r) ?? "—"))).sort();
 
   return (
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">

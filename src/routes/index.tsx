@@ -362,7 +362,7 @@ function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
 
-        <LiveTicker defaultSymbol="XAUUSDT" />
+        
 
 
         <StrategyCard />

@@ -299,6 +299,30 @@ function ResearchPage() {
               >
                 {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                disabled={dataset === "live" || deleting}
+                title={dataset === "live" ? "The live dataset cannot be deleted" : "Delete this dataset"}
+                onClick={async () => {
+                  const current = dataset;
+                  if (!window.confirm(`Delete dataset "${current}"? This permanently removes all its archived trades.`)) return;
+                  setDeleting(true);
+                  try {
+                    const res = await deleteFn({ data: { name: current } });
+                    setDataset("live");
+                    await snapshotList.refetch();
+                    window.alert(`Deleted ${res.deleted.toLocaleString()} rows from "${current}".`);
+                  } catch (e) {
+                    window.alert((e as Error).message || "Delete failed");
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
             </div>
 
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>

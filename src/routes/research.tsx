@@ -165,8 +165,10 @@ function ResearchPage() {
   const queryFn = useServerFn(queryTrades);
   const snapshotsFn = useServerFn(listSnapshots);
   const renameFn = useServerFn(renameSnapshot);
+  const deleteFn = useServerFn(deleteSnapshot);
   const [dataset, setDataset] = useDataset();
   const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
 
   const { data, isLoading, error } = useQuery({

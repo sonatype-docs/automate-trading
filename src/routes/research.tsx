@@ -290,6 +290,13 @@ function ResearchPage() {
                 {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={timezoneFilter} onValueChange={setTimezoneFilter}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All timezones</SelectItem>
+                {timezones.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={directionFilter} onValueChange={setDirectionFilter}>
               <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Direction" /></SelectTrigger>
               <SelectContent>

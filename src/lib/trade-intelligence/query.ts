@@ -8,10 +8,12 @@ export function applyQuery(
   table: string,
   spec: TradeQuerySpec & { snapshotName?: string },
 ) {
-  // Use "planned" (cheap pg planner estimate) instead of "exact" — an exact
-  // COUNT over the full trade_intelligence table on every chunk causes
-  // Postgres statement timeouts once the table grows past ~10k rows.
-  let q = client.from(table).select("*", { count: "planned" });
+  // Do not request PostgREST counts here. Planned counts can badly
+  // underestimate filtered snapshot rows while a pipeline is appending, which
+  // makes later chunks return 416 "Requested range not satisfiable" even when
+  // rows exist. The Research page only needs the rows; snapshot counts come
+  // from listSnapshots().
+  let q = client.from(table).select("*");
   if (spec.snapshotName) q = q.eq("snapshot_name", spec.snapshotName);
   if (spec.strategyId) q = q.eq("strategy_id", spec.strategyId);
   if (spec.symbol) q = q.eq("symbol", spec.symbol);

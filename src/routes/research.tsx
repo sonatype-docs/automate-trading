@@ -189,7 +189,7 @@ function ResearchPage() {
   const datasetQueries = useQueries({
     queries: activeDatasets.map((ds) => ({
       queryKey: ["research", "all-trades", ds],
-      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset: ds } }),
+      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "entry_time", order: "asc", dataset: ds } }),
     })),
   });
   const isLoading = datasetQueries.some((q) => q.isLoading);
@@ -383,7 +383,7 @@ function ResearchPage() {
                       qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] }),
                     ]);
                     await Promise.all([
-                      qc.refetchQueries({ queryKey: ["research", "all-trades", dataset] }),
+                      qc.refetchQueries({ queryKey: ["research", "all-trades"] }),
                       snapshotList.refetch(),
                     ]);
                   } finally {

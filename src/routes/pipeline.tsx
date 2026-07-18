@@ -27,8 +27,9 @@ import {
 import { runComboBatch } from "@/lib/pipeline-batch.functions";
 import { useKeepAlive } from "@/hooks/use-keep-alive";
 import type {
-  ComboResult, ComboSpec, PipelineProgress, PipelineStage,
+  ComboResult, ComboSpec, PipelineProgress, PipelineStage, SliceProgress,
 } from "@/lib/pipeline/types";
+
 
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
 const PIPELINE_TFS: Timeframe[] = ["1m", "2m", "3m", "5m", "10m", "15m", "30m", "45m", "1h"];
@@ -65,6 +66,18 @@ function fmt(n: number, d = 2): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
 }
 function fmtMoney(n: number): string { return `${n < 0 ? "-" : ""}$${fmt(Math.abs(n))}`; }
+function fmtDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  if (m < 60) return `${m}m ${rs}s`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return `${h}h ${rm}m`;
+}
+
 
 function defaultDatasetName(now = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -152,10 +165,16 @@ function PipelinePage() {
   const previewFn = useServerFn(getSnapshotPreview);
   const deleteSnapFn = useServerFn(deleteSnapshot);
   const [deletingSnap, setDeletingSnap] = useState(false);
-  // Batch/parallel tuning. Kept modest so a single batch stays under Worker
-  // CPU limits and we can still pause/stop responsively.
+  // Batch/parallel tuning. Adaptive limiter can lower this ceiling automatically
+  // when the DB slows down or errors spike.
   const [batchSize, setBatchSize] = useState<number>(12);   // combos per data-slice request
-  const [parallelism, setParallelism] = useState<number>(3); // concurrent slice batches
+  const [parallelism, setParallelism] = useState<number>(4); // MAX concurrent slice batches (ceiling)
+  const [adaptive, setAdaptive] = useState<boolean>(true);
+  const [effectiveParallelism, setEffectiveParallelism] = useState<number>(4);
+  const [sliceStats, setSliceStats] = useState<SliceProgress[]>([]);
+  const [etaMs, setEtaMs] = useState<number>(0);
+  const [runElapsedMs, setRunElapsedMs] = useState<number>(0);
+
 
   const snapshotList = useQuery({
     queryKey: ["pipeline", "snapshots"],
@@ -230,14 +249,17 @@ function PipelinePage() {
   }) {
     const { id, combosToRun, startIndex, fromMs, toMs } = opts;
     const nextResults = [...opts.initialResults];
-    const prog = { ...opts.initialProgress };
+    const prog: PipelineProgress = { ...opts.initialProgress };
+    const completedSlices = new Set<string>(prog.completedSlices ?? []);
+    const runStartedAt = Date.now() - (prog.elapsedMs ?? 0);
 
-    // Index remaining combos and group them by data-slice key so we can
-    // load candles once per (symbol, tf, tz) and iterate combos in memory.
+    const sliceKey = (s: ComboSpec) => `${s.symbol}|${s.timeframe}|${s.strategyTimezone ?? "London"}`;
+
+    // Skip combos whose slice was already fully completed in a previous run.
     const remaining = combosToRun
       .map((spec, idx) => ({ spec, idx }))
-      .filter((c) => c.idx >= startIndex);
-    const sliceKey = (s: ComboSpec) => `${s.symbol}|${s.timeframe}|${s.strategyTimezone ?? "London"}`;
+      .filter((c) => c.idx >= startIndex && !completedSlices.has(sliceKey(c.spec)));
+
     const bySlice = new Map<string, Array<{ spec: ComboSpec; idx: number }>>();
     for (const c of remaining) {
       const k = sliceKey(c.spec);
@@ -245,12 +267,90 @@ function PipelinePage() {
       arr.push(c);
       bySlice.set(k, arr);
     }
-    // Chunk each slice into batches (protects worker CPU / request size).
+
+    // Per-slice tracker (drives progress bars + checkpointing).
+    const sliceMap = new Map<string, SliceProgress>();
+    for (const [k, items] of bySlice.entries()) {
+      const s = items[0].spec;
+      sliceMap.set(k, {
+        key: k,
+        symbol: s.symbol,
+        timeframe: s.timeframe,
+        strategyTimezone: s.strategyTimezone,
+        total: items.length,
+        done: 0,
+        failed: 0,
+        elapsedMs: 0,
+        status: "pending",
+      });
+    }
+    const pushSliceUI = () => setSliceStats(Array.from(sliceMap.values()));
+    pushSliceUI();
+
+    // Batches (each retains its slice key so we can update the tracker).
     const batches: Array<{ key: string; items: Array<{ spec: ComboSpec; idx: number }> }> = [];
     for (const [key, items] of bySlice.entries()) {
       for (let i = 0; i < items.length; i += batchSize) {
         batches.push({ key, items: items.slice(i, i + batchSize) });
       }
+    }
+
+    // ── Adaptive concurrency state ──
+    let effective = Math.max(1, Math.min(parallelism, adaptive ? Math.min(3, parallelism) : parallelism));
+    const ceiling = Math.max(1, parallelism);
+    const recentDurations: number[] = [];   // rolling window (last 8 batches)
+    let consecutiveErrors = 0;
+    let fastStreak = 0;
+    setEffectiveParallelism(effective);
+
+    function noteBatchOutcome(durationMs: number, ok: boolean) {
+      recentDurations.push(durationMs);
+      if (recentDurations.length > 8) recentDurations.shift();
+      if (!adaptive) return;
+      if (!ok) {
+        consecutiveErrors += 1;
+        fastStreak = 0;
+        // Halve on repeated errors — DB is likely under pressure.
+        if (consecutiveErrors >= 2 && effective > 1) {
+          effective = Math.max(1, Math.floor(effective / 2));
+          setEffectiveParallelism(effective);
+        }
+        return;
+      }
+      consecutiveErrors = 0;
+      const avg = recentDurations.reduce((a, b) => a + b, 0) / recentDurations.length;
+      // Back off if batches are slow or the most recent one spiked.
+      if (avg > 45_000 || durationMs > 90_000) {
+        if (effective > 1) {
+          effective = Math.max(1, effective - 1);
+          setEffectiveParallelism(effective);
+        }
+        fastStreak = 0;
+        return;
+      }
+      // Grow if we've had a healthy streak and still below the ceiling.
+      if (durationMs < 20_000) fastStreak += 1; else fastStreak = 0;
+      if (fastStreak >= 4 && effective < ceiling && recentDurations.length >= 4) {
+        effective = Math.min(ceiling, effective + 1);
+        setEffectiveParallelism(effective);
+        fastStreak = 0;
+      }
+    }
+
+    function recomputeEta() {
+      const elapsed = Date.now() - runStartedAt;
+      setRunElapsedMs(elapsed);
+      prog.elapsedMs = elapsed;
+      if (prog.completed > 0 && prog.completed < prog.total) {
+        const perCombo = elapsed / prog.completed;
+        const eta = perCombo * (prog.total - prog.completed);
+        setEtaMs(eta);
+        prog.etaMs = eta;
+      } else {
+        setEtaMs(0);
+        prog.etaMs = 0;
+      }
+      prog.effectiveParallelism = effective;
     }
 
     let batchCursor = 0;
@@ -262,7 +362,9 @@ function PipelinePage() {
       const first = batch.items[0].spec;
       const startedBatch = Date.now();
 
-      // Mark all combos in batch as running (data stage first).
+      const slice = sliceMap.get(batch.key);
+      if (slice) { slice.status = "running"; pushSliceUI(); }
+
       for (const it of batch.items) {
         prog.currentCombo = it.spec;
         prog.currentStage = "data";
@@ -301,26 +403,41 @@ function PipelinePage() {
         }
       }
 
+      const batchDuration = Date.now() - startedBatch;
+
       if (!batchOk) {
-        // Whole batch failed — mark every combo as failed and update progress.
+        noteBatchOutcome(batchDuration, false);
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
         for (const it of batch.items) {
           nextResults[it.idx] = {
             ...nextResults[it.idx], status: "failed", error: msg,
-            elapsedMs: Date.now() - startedBatch,
+            elapsedMs: batchDuration,
           };
           prog.failed += 1;
           prog.completed += 1;
         }
+        if (slice) {
+          slice.failed += batch.items.length;
+          slice.done += batch.items.length;
+          slice.elapsedMs += batchDuration;
+          if (slice.done >= slice.total) slice.status = "failed";
+          pushSliceUI();
+        }
+        recomputeEta();
         setResults([...nextResults]);
         setProgress({ ...prog });
         await updateFn({
           data: {
             runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
+            progress: {
+              ...prog,
+              currentCombo: null, currentStage: null,
+              completedSlices: Array.from(completedSlices),
+              sliceStats: Array.from(sliceMap.values()),
+            },
             logEntry: {
               ts: Date.now(), combo: first, stage: "execution", status: "failed",
-              error: msg, elapsedMs: Date.now() - startedBatch,
+              error: msg, elapsedMs: batchDuration,
             },
           },
         }).catch(() => {});
@@ -328,7 +445,9 @@ function PipelinePage() {
         return;
       }
 
-      // Merge per-combo results (order matches batch.items).
+      noteBatchOutcome(batchDuration, true);
+
+      let batchAllOk = true;
       for (let i = 0; i < batch.items.length; i++) {
         const it = batch.items[i];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -349,28 +468,49 @@ function PipelinePage() {
             elapsedMs: r?.elapsedMs ?? 0,
           };
           prog.failed += 1;
+          batchAllOk = false;
         }
         prog.completed += 1;
       }
+
+      if (slice) {
+        slice.done += batch.items.length;
+        slice.elapsedMs += batchDuration;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const failedCount = (res.results as any[]).filter((r) => !r?.ok).length;
+        slice.failed += failedCount;
+        if (slice.done >= slice.total) {
+          slice.status = slice.failed > 0 ? "failed" : "ok";
+          if (slice.failed === 0) completedSlices.add(slice.key);
+        }
+        pushSliceUI();
+      }
+
+      recomputeEta();
       setResults([...nextResults]);
       setProgress({ ...prog });
 
-      // Persist a single log entry per batch — enough for resume/replay.
+      // Persist a summary log + slice checkpoint.
       await updateFn({
         data: {
           runId: id,
-          progress: { ...prog, currentCombo: null, currentStage: null },
+          progress: {
+            ...prog,
+            currentCombo: null, currentStage: null,
+            completedSlices: Array.from(completedSlices),
+            sliceStats: Array.from(sliceMap.values()),
+          },
           logEntry: {
-            ts: Date.now(), combo: first, stage: "intelligence", status: "ok",
+            ts: Date.now(), combo: first, stage: "intelligence",
+            status: batchAllOk ? "ok" : "failed",
             trades: res.results.reduce((s: number, r: { tradesInRun?: number }) => s + (r.tradesInRun ?? 0), 0),
             inserted: res.results.reduce((s: number, r: { inserted?: number }) => s + (r.inserted ?? 0), 0),
-            elapsedMs: Date.now() - startedBatch,
+            elapsedMs: batchDuration,
           },
         },
       }).catch(() => {});
 
-      // Also persist per-combo log entries so resume can hydrate individual
-      // rows. Keep this best-effort so a log write failure doesn't block.
+      // Per-combo log entries (best-effort — powers Resume hydration).
       for (let i = 0; i < batch.items.length; i++) {
         const it = batch.items[i];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -378,7 +518,11 @@ function PipelinePage() {
         await updateFn({
           data: {
             runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
+            progress: {
+              ...prog,
+              currentCombo: null, currentStage: null,
+              completedSlices: Array.from(completedSlices),
+            },
             logEntry: {
               ts: Date.now(), combo: it.spec,
               stage: r?.ok ? "intelligence" : "execution",
@@ -392,32 +536,56 @@ function PipelinePage() {
       }
     }
 
-    // Worker pool — process `parallelism` batches concurrently.
-    async function worker() {
-      while (!stopped) {
-        const alive = await waitIfPaused();
-        if (!alive) { stopped = true; return; }
-        const my = batchCursor;
-        if (my >= batches.length) return;
-        batchCursor = my + 1;
-        try {
-          await processBatch(batches[my]);
-        } catch (e) {
-          console.error("[pipeline] worker error", e);
+    // Adaptive scheduler — reads `effective` on every dispatch so the ceiling
+    // can shrink/grow dynamically while the run is in flight.
+    let active = 0;
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        if (stopped) { if (active === 0) resolve(); return; }
+        while (active < effective && batchCursor < batches.length) {
+          const my = batchCursor++;
+          active += 1;
+          processBatch(batches[my])
+            .catch((e) => console.error("[pipeline] worker error", e))
+            .finally(() => {
+              active -= 1;
+              if (batchCursor >= batches.length && active === 0) resolve();
+              else tick();
+            });
         }
-      }
-    }
-    const workers = Array.from({ length: Math.max(1, parallelism) }, () => worker());
-    await Promise.all(workers);
+        if (batchCursor >= batches.length && active === 0) resolve();
+      };
+      tick();
+    });
 
     if (stopped) {
-      await finishFn({ data: { runId: id, status: controlRef.current === "stopping" ? "stopped" : "failed", progress: prog } }).catch(() => {});
+      await finishFn({
+        data: {
+          runId: id,
+          status: controlRef.current === "stopping" ? "stopped" : "failed",
+          progress: {
+            ...prog,
+            completedSlices: Array.from(completedSlices),
+            sliceStats: Array.from(sliceMap.values()),
+          },
+        },
+      }).catch(() => {});
       setControl("idle");
       return;
     }
-    await finishFn({ data: { runId: id, status: "done", progress: prog } });
+    await finishFn({
+      data: {
+        runId: id, status: "done",
+        progress: {
+          ...prog,
+          completedSlices: Array.from(completedSlices),
+          sliceStats: Array.from(sliceMap.values()),
+        },
+      },
+    });
     setControl("idle");
   }
+
 
   const runMut = useMutation({
     mutationFn: async () => {
@@ -431,8 +599,13 @@ function PipelinePage() {
       const initialProgress: PipelineProgress = {
         total, completed: 0, currentCombo: null, currentStage: null,
         ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+        completedSlices: [], sliceStats: [], elapsedMs: 0, etaMs: 0,
       };
       setProgress(initialProgress);
+      setSliceStats([]);
+      setEtaMs(0);
+      setRunElapsedMs(0);
+
 
       // Resolve target dataset name.
       const chosenName = datasetMode === "append"
@@ -541,11 +714,14 @@ function PipelinePage() {
       };
     });
     setResults(initialResults);
+    const priorSlices: string[] = Array.isArray(prog0.completedSlices) ? prog0.completedSlices as string[] : [];
+    const priorSliceStats: SliceProgress[] = Array.isArray(prog0.sliceStats) ? prog0.sliceStats as SliceProgress[] : [];
     const initialProgress: PipelineProgress = restart
       ? {
           total: rebuilt.length, completed: 0,
           currentCombo: null, currentStage: null,
           ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+          completedSlices: [], sliceStats: [], elapsedMs: 0, etaMs: 0,
         }
       : {
           total: Number(prog0.total ?? rebuilt.length),
@@ -555,8 +731,15 @@ function PipelinePage() {
           failed: Number(prog0.failed ?? 0),
           totalTrades: Number(prog0.totalTrades ?? 0),
           totalInserted: Number(prog0.totalInserted ?? 0),
+          completedSlices: priorSlices,
+          sliceStats: priorSliceStats,
+          elapsedMs: 0, etaMs: 0,
         };
     setProgress(initialProgress);
+    setSliceStats(restart ? [] : priorSliceStats);
+    setEtaMs(0);
+    setRunElapsedMs(0);
+
     setRunId(row.id as string);
 
     // Restore matrix into UI so users see what will run.
@@ -800,13 +983,32 @@ function PipelinePage() {
               </span>
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Parallel batches</Label>
-              <Input type="number" min={1} max={6} value={parallelism} disabled={isRunning}
-                onChange={(e) => setParallelism(Math.min(6, Math.max(1, Number(e.target.value) || 1)))} />
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                Parallel batches (ceiling)
+                {adaptive && isRunning && (
+                  <span className="ml-2 text-primary normal-case">now: {effectiveParallelism}</span>
+                )}
+              </Label>
+              <Input type="number" min={1} max={12} value={parallelism} disabled={isRunning}
+                onChange={(e) => setParallelism(Math.min(12, Math.max(1, Number(e.target.value) || 1)))} />
               <span className="text-[10px] text-muted-foreground">
-                Slices processed concurrently (screen stays awake while running).
+                Max concurrent slice batches. Adaptive limiter throttles down on slow batches or errors.
               </span>
             </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Adaptive concurrency</Label>
+              <Select value={adaptive ? "on" : "off"} onValueChange={(v) => setAdaptive(v === "on")} disabled={isRunning}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="on">On — auto back-off on slow DB / errors</SelectItem>
+                  <SelectItem value="off">Off — always use ceiling</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-muted-foreground">
+                Starts conservative (3), grows on healthy streaks, halves after repeated errors.
+              </span>
+            </div>
+
           </CardContent>
         </Card>
 
@@ -1048,11 +1250,47 @@ function PipelinePage() {
                       </span>
                     )}
                   </span>
-                  <span>{percent}%</span>
+                  <span className="flex items-center gap-3">
+                    {isRunning && etaMs > 0 && <span className="normal-case text-foreground/80">ETA {fmtDuration(etaMs)}</span>}
+                    {runElapsedMs > 0 && <span className="normal-case">elapsed {fmtDuration(runElapsedMs)}</span>}
+                    {isRunning && adaptive && <span className="normal-case text-primary">×{effectiveParallelism}</span>}
+                    <span>{percent}%</span>
+                  </span>
                 </div>
                 <Progress value={percent} className={control === "running" ? "animate-pulse" : ""} />
+
+                {sliceStats.length > 0 && (
+                  <div className="mt-3 border-t border-border/40 pt-3">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2">
+                      <span>Per-slice progress ({sliceStats.filter((s) => s.status === "ok").length}/{sliceStats.length} done)</span>
+                      <span>slice = symbol · timeframe · strategy TZ</span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto pr-1 space-y-1.5">
+                      {sliceStats.map((s) => {
+                        const pct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+                        const label = `${s.symbol} · ${s.timeframe} · ${s.strategyTimezone ?? "London"}`;
+                        const color =
+                          s.status === "ok" ? "text-emerald-500" :
+                          s.status === "failed" ? "text-rose-500" :
+                          s.status === "running" ? "text-primary" :
+                          "text-muted-foreground";
+                        return (
+                          <div key={s.key} className="grid grid-cols-[minmax(160px,1fr)_60px_1fr_60px] items-center gap-2 text-[10px] font-mono">
+                            <span className={`truncate ${color}`}>{label}</span>
+                            <span className="text-muted-foreground">{s.done}/{s.total}</span>
+                            <Progress value={pct} />
+                            <span className="text-right text-muted-foreground">
+                              {s.status === "ok" ? "✓" : s.status === "failed" ? `✗ ${s.failed}` : s.elapsedMs > 0 ? `${(s.elapsedMs / 1000).toFixed(0)}s` : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
           </CardContent>
         </Card>
 

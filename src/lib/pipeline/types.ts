@@ -45,6 +45,18 @@ export interface ComboResult {
   elapsedMs: number;
 }
 
+export interface SliceProgress {
+  key: string;
+  symbol: string;
+  timeframe: Timeframe;
+  strategyTimezone?: Timezone;
+  total: number;
+  done: number;
+  failed: number;
+  elapsedMs: number;
+  status: "pending" | "running" | "ok" | "failed";
+}
+
 export interface PipelineProgress {
   total: number;
   completed: number;
@@ -54,4 +66,16 @@ export interface PipelineProgress {
   failed: number;
   totalTrades: number;
   totalInserted: number;
+  /** Slice keys that have been fully completed (all batches OK). Used for
+   *  per-slice resume checkpointing. */
+  completedSlices?: string[];
+  /** Per-slice progress snapshots (for UI restoration on resume). */
+  sliceStats?: SliceProgress[];
+  /** Milliseconds since the run started. */
+  elapsedMs?: number;
+  /** Estimated milliseconds remaining. */
+  etaMs?: number;
+  /** Current adaptive concurrency (may differ from user ceiling). */
+  effectiveParallelism?: number;
 }
+

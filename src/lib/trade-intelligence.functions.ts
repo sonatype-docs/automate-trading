@@ -348,7 +348,12 @@ export const summariseTrades = createServerFn({ method: "POST" })
         .range(offset, offset + CHUNK - 1);
       if (snapshotName) q = q.eq("snapshot_name", snapshotName);
       const { data: rowsChunk, error } = await q;
-      if (error) throw new Error(error.message);
+      if (error) {
+        // Timeout (57014) or range not satisfiable (PGRST103) — return partial.
+        const code = (error as { code?: string }).code;
+        if (code === "57014" || code === "PGRST103") break;
+        throw new Error(error.message);
+      }
       if (!rowsChunk || rowsChunk.length === 0) break;
       rows.push(...(rowsChunk as typeof rows));
       if (rowsChunk.length < CHUNK) break;

@@ -189,7 +189,7 @@ export const queryTrades = createServerFn({ method: "POST" })
 
     const withQueryTimeout = async <T,>(
       build: (signal: AbortSignal) => PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>,
-      timeoutMs = 7000,
+      timeoutMs = 20000,
     ) => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);

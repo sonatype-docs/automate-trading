@@ -64,6 +64,17 @@ function fmt(n: number, d = 2): string {
 }
 function fmtMoney(n: number): string { return `${n < 0 ? "-" : ""}$${fmt(Math.abs(n))}`; }
 
+function defaultDatasetName(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = now.getFullYear();
+  const mo = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const h = pad(now.getHours());
+  const mi = pad(now.getMinutes());
+  return `pipeline-${y}-${mo}-${d}_${h}-${mi}`;
+}
+
+
 function StageDot({ stage, current, done, failed }: {
   stage: PipelineStage; current: PipelineStage | null; done: boolean; failed: boolean;
 }) {

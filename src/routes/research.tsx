@@ -150,6 +150,54 @@ function pnlColor(n: number): string {
   return n > 0 ? "text-emerald-500" : n < 0 ? "text-rose-500" : "text-muted-foreground";
 }
 
+function MultiSelectFilter({
+  label, allLabel, options, selected, onChange, width,
+}: {
+  label: string; allLabel: string; options: string[]; selected: string[];
+  onChange: (v: string[]) => void; width: string;
+}) {
+  const summary = selected.length === 0
+    ? allLabel
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} selected`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={`h-8 ${width} justify-between text-xs font-normal`}>
+          <span className="truncate">{summary}</span>
+          <FilterIcon className="h-3 w-3 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="text-xs font-semibold pb-1 px-1">{label}</div>
+        <div className="flex items-center justify-between gap-1 pb-2 px-1">
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange(options.slice())}>All</Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange([])}>Clear</Button>
+        </div>
+        <div className="max-h-64 overflow-auto space-y-1">
+          {options.map((opt) => {
+            const checked = selected.includes(opt);
+            return (
+              <label key={opt} className="flex items-center gap-2 text-xs px-1 py-1 rounded hover:bg-muted cursor-pointer">
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(v) => {
+                    if (v) onChange(Array.from(new Set([...selected, opt])));
+                    else onChange(selected.filter((s) => s !== opt));
+                  }}
+                />
+                <span className="truncate">{opt}</span>
+              </label>
+            );
+          })}
+          {options.length === 0 && <div className="text-xs text-muted-foreground px-1 py-2">No options</div>}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ResearchPage() {
   const [section, setSection] = useState<Section>("Overview");
   // Read from localStorage in an effect so SSR and first client render match.

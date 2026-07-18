@@ -164,16 +164,21 @@ export const queryTrades = createServerFn({ method: "POST" })
         limit: chunkSize,
         offset: baseOffset + fetched,
       });
-      const { data: rows, error, count } = await q;
-      if (error) throw new Error(error.message);
-      total = count ?? total;
+      const { data: rows, error } = await q;
+      if (error) {
+        // When a dataset is actively being appended, PostgREST can briefly
+        // reject a later page with 416 even though earlier pages loaded. Keep
+        // the already-loaded rows instead of blanking the whole Research view.
+        if (error.code === "PGRST103" || /range not satisfiable/i.test(error.message)) break;
+        throw new Error(error.message);
+      }
       if (!rows || rows.length === 0) break;
       allRows.push(...(rows as Record<string, unknown>[]));
       if (rows.length < chunkSize) break;
     }
     return {
       rows: allRows.map((r) => rowToRecord(r)),
-      total,
+      total: allRows.length,
     };
   });
 

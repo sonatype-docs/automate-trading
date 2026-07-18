@@ -61,7 +61,7 @@ export function LiveChartCard() {
   const runnersFn = useServerFn(listLiveRunners);
   const runners = useQuery({
     queryKey: ["live-runners"], queryFn: () => runnersFn(),
-    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const [runnerId, setRunnerId] = useState<string | null>(null);
   const [tf, setTf] = useState<DisplayTf | null>(null);
@@ -86,8 +86,7 @@ export function LiveChartCard() {
       ...(tf ? { timeframe: tf } : {}),
     } }),
     enabled: !!runnerId,
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 
@@ -96,7 +95,7 @@ export function LiveChartCard() {
     queryKey: ["live-price", chartQ.data?.symbol],
     queryFn: () => priceFn({ data: { symbol: chartQ.data!.symbol } }),
     enabled: !!chartQ.data?.symbol,
-    refetchInterval: 3_000,
+    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 
@@ -104,13 +103,13 @@ export function LiveChartCard() {
   const tradesQ = useQuery({
     queryKey: ["live-trades-recent"],
     queryFn: () => tradesFn({ data: { limit: 50 } }),
-    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const statusFn = useServerFn(getRunnersStatusSummary);
   const statusQ = useQuery({
     queryKey: ["live-runners-status"],
     queryFn: () => statusFn(),
-    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const liveRecent = useMemo(() => {
     const rows = (tradesQ.data ?? []).filter((t) => !!t.exit_ts);
@@ -126,7 +125,7 @@ export function LiveChartCard() {
     queryKey: ["bt-trades-recent", symbol, btTf],
     queryFn: () => btFn({ data: { symbol, timeframe: btTf, limit: 10, orderBy: "exit_time", order: "desc" } }),
     enabled: !!symbol && liveRecent.length === 0 && !tradesQ.isPending,
-    refetchInterval: 60_000,
+    staleTime: 60_000,
   });
   const recentTrades: RecentTradeItem[] = useMemo(() => {
     if (liveRecent.length > 0) return liveRecent.map(liveToItem);
@@ -536,15 +535,15 @@ export function AllRunnersStatusCard() {
   const statusFn = useServerFn(getRunnersStatusSummary);
   const runnersQ = useQuery({
     queryKey: ["live-runners"], queryFn: () => runnersFn(),
-    refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const tradesQ = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
-    refetchInterval: 10_000, staleTime: 8_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const statusQ = useQuery({
     queryKey: ["live-runners-status"], queryFn: () => statusFn(),
-    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
+    staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
   const onRefresh = () => {

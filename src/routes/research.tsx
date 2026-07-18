@@ -19,7 +19,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2 } from "lucide-react";
-import { queryTrades, listSnapshots, renameSnapshot } from "@/lib/trade-intelligence.functions";
+import { queryTrades, listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
 import {
@@ -165,8 +165,10 @@ function ResearchPage() {
   const queryFn = useServerFn(queryTrades);
   const snapshotsFn = useServerFn(listSnapshots);
   const renameFn = useServerFn(renameSnapshot);
+  const deleteFn = useServerFn(deleteSnapshot);
   const [dataset, setDataset] = useDataset();
   const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
 
   const { data, isLoading, error } = useQuery({
@@ -296,6 +298,30 @@ function ResearchPage() {
                 }}
               >
                 {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                disabled={dataset === "live" || deleting}
+                title={dataset === "live" ? "The live dataset cannot be deleted" : "Delete this dataset"}
+                onClick={async () => {
+                  const current = dataset;
+                  if (!window.confirm(`Delete dataset "${current}"? This permanently removes all its archived trades.`)) return;
+                  setDeleting(true);
+                  try {
+                    const res = await deleteFn({ data: { name: current } });
+                    setDataset("live");
+                    await snapshotList.refetch();
+                    window.alert(`Deleted ${res.deleted.toLocaleString()} rows from "${current}".`);
+                  } catch (e) {
+                    window.alert((e as Error).message || "Delete failed");
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </div>
 

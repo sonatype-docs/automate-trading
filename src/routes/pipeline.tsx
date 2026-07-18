@@ -14,13 +14,13 @@ import {
 } from "@/components/ui/select";
 import {
   PlayCircle, Loader2, Square, RefreshCw, CheckCircle2, XCircle, Circle,
-  Pause, Play, AlertTriangle,
+  Pause, Play, AlertTriangle, Trash2, Info,
 } from "lucide-react";
 import { MatrixGroup } from "@/components/matrix-picker";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
-import { recordTradesFromExecution, listSnapshots } from "@/lib/trade-intelligence.functions";
+import { recordTradesFromExecution, listSnapshots, getSnapshotPreview, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import {
   startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
 } from "@/lib/pipeline.functions";
@@ -136,10 +136,28 @@ function PipelinePage() {
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
   const snapshotsFn = useServerFn(listSnapshots);
+  const previewFn = useServerFn(getSnapshotPreview);
+  const deleteSnapFn = useServerFn(deleteSnapshot);
+  const [deletingSnap, setDeletingSnap] = useState(false);
 
   const snapshotList = useQuery({
     queryKey: ["pipeline", "snapshots"],
     queryFn: () => snapshotsFn(),
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Preview the currently-targeted dataset (append target, or a "new" name that
+  // happens to collide with an existing snapshot).
+  const previewTarget = datasetMode === "append"
+    ? appendTo
+    : (snapshotList.data?.snapshots ?? []).some((s) => s.name === newDatasetName)
+      ? newDatasetName
+      : "";
+  const previewQ = useQuery({
+    queryKey: ["pipeline", "snapshot-preview", previewTarget],
+    queryFn: () => previewFn({ data: { name: previewTarget } }),
+    enabled: !!previewTarget,
     staleTime: 10_000,
     refetchOnWindowFocus: false,
   });
@@ -743,6 +761,69 @@ function PipelinePage() {
                 <span className="text-[10px] text-muted-foreground">
                   New combos add to this dataset; existing rows update in place.
                 </span>
+              </div>
+            )}
+
+            {previewTarget && (
+              <div className="md:col-span-3 rounded-md border border-border/60 bg-muted/20 p-3 mt-1">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <Info className="h-3.5 w-3.5 text-primary" />
+                    Preview · <span className="font-mono">{previewTarget}</span>
+                    {previewQ.isFetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
+                    disabled={isRunning || deletingSnap}
+                    onClick={async () => {
+                      if (!window.confirm(`Delete dataset "${previewTarget}"? This permanently removes all its archived trades.`)) return;
+                      setDeletingSnap(true);
+                      try {
+                        const res = await deleteSnapFn({ data: { name: previewTarget } });
+                        if (datasetMode === "append") setAppendTo("");
+                        await snapshotList.refetch();
+                        window.alert(`Deleted ${res.deleted.toLocaleString()} rows from "${previewTarget}".`);
+                      } catch (e) {
+                        window.alert((e as Error).message || "Delete failed");
+                      } finally {
+                        setDeletingSnap(false);
+                      }
+                    }}
+                  >
+                    {deletingSnap ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                    Delete
+                  </Button>
+                </div>
+                {previewQ.data ? (
+                  <div className="grid gap-2 md:grid-cols-3 text-[11px]">
+                    <div>
+                      <div className="text-muted-foreground uppercase tracking-widest text-[9px]">Rows</div>
+                      <div className="font-mono">{previewQ.data.count.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground uppercase tracking-widest text-[9px]">Last updated</div>
+                      <div className="font-mono">{previewQ.data.lastUpdated ? new Date(previewQ.data.lastUpdated).toLocaleString() : "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground uppercase tracking-widest text-[9px]">Last trade exit</div>
+                      <div className="font-mono">{previewQ.data.lastExitTime ? new Date(previewQ.data.lastExitTime).toLocaleString() : "—"}</div>
+                    </div>
+                    <div className="md:col-span-3 flex flex-wrap gap-1">
+                      {previewQ.data.symbols.map((s) => <Badge key={`sy-${s}`} variant="secondary" className="text-[9px]">{s}</Badge>)}
+                      {previewQ.data.timeframes.map((t) => <Badge key={`tf-${t}`} variant="outline" className="text-[9px]">{t}</Badge>)}
+                      {previewQ.data.strategies.map((s) => <Badge key={`st-${s}`} variant="outline" className="text-[9px]">{s}</Badge>)}
+                    </div>
+                    <div className="md:col-span-3 text-[10px] text-muted-foreground">
+                      Sampled from the 500 most recently updated rows. Row count is exact.
+                    </div>
+                  </div>
+                ) : previewQ.error ? (
+                  <div className="text-[11px] text-destructive">{(previewQ.error as Error).message}</div>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground">Loading preview…</div>
+                )}
               </div>
             )}
           </CardContent>

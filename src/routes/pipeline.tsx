@@ -143,6 +143,7 @@ function PipelinePage() {
   const activeSnapshotRef = useRef<string>("");
 
   const runFn = useServerFn(recordTradesFromExecution);
+  const batchFn = useServerFn(runComboBatch);
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
@@ -151,6 +152,10 @@ function PipelinePage() {
   const previewFn = useServerFn(getSnapshotPreview);
   const deleteSnapFn = useServerFn(deleteSnapshot);
   const [deletingSnap, setDeletingSnap] = useState(false);
+  // Batch/parallel tuning. Kept modest so a single batch stays under Worker
+  // CPU limits and we can still pause/stop responsively.
+  const [batchSize, setBatchSize] = useState<number>(12);   // combos per data-slice request
+  const [parallelism, setParallelism] = useState<number>(3); // concurrent slice batches
 
   const snapshotList = useQuery({
     queryKey: ["pipeline", "snapshots"],

@@ -535,7 +535,7 @@ function PipelinePage() {
               execPresetId: c.execPresetId,
               tags: ["pipeline", `run:${row.id}`, "rerecord", `tz:${(c.strategyTimezone ?? m.strategyTimezone)}`],
               riskUsdOverride: Number(m.riskUsdPerTrade),
-              snapshotName: (typeof m.snapshotName === "string" && m.snapshotName) ? m.snapshotName : `pipeline-${String(row.id).slice(0, 8)}`,
+              snapshotName: (typeof m.snapshotName === "string" && m.snapshotName) ? m.snapshotName : fallbackSnapshotName(row.started_at as string | null | undefined),
             },
           });
           inserted += res.inserted ?? 0;

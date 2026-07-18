@@ -557,36 +557,8 @@ function ResearchPage() {
           </div>
         </header>
 
-        {isLoading && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="p-3 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                <span>Fetching trades from {activeDatasets.length} dataset{activeDatasets.length > 1 ? "s" : ""}…</span>
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {totalLoaded.toLocaleString()} rows loaded
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {activeDatasets.map((ds) => {
-                  const p = datasetProgress[ds] ?? { loaded: 0, done: false };
-                  const pct = p.done ? 100 : Math.min(95, (p.loaded / Math.max(p.loaded + 8000, 1)) * 100);
-                  return (
-                    <div key={ds} className="text-[11px] space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate flex-1">{ds}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {p.loaded.toLocaleString()}{p.done ? " ✓" : p.cached ? " (cached)" : "…"}
-                        </span>
-                      </div>
-                      <Progress value={pct} className="h-1" />
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
+
 
 
         {section === "Overview" && <OverviewSection trades={trades} />}

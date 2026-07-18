@@ -169,6 +169,9 @@ function ResearchPage() {
   const [dataset, setDataset] = useDataset();
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const qc = useQueryClient();
+  const [resyncing, setResyncing] = useState(false);
+
 
 
   const { data, isLoading, error } = useQuery({

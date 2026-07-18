@@ -1741,6 +1741,14 @@ export type Database = {
     Functions: {
       claim_ownership: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      list_trade_snapshots: {
+        Args: never
+        Returns: {
+          count: number
+          last_updated: string
+          name: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

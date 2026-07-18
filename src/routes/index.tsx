@@ -106,12 +106,12 @@ function Dashboard() {
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDash(),
-    refetchInterval: 5000,
+    staleTime: 60_000,
   });
   const acctQ = useQuery({
     queryKey: ["exchange-account"],
     queryFn: () => getAcct(),
-    refetchInterval: 15000,
+    staleTime: 60_000,
   });
 
   if (!dashQ.data) {
@@ -579,8 +579,7 @@ function PositionPnLCell({
   const q = useQuery({
     queryKey: ["pos-ticker", symbol],
     queryFn: () => getTicker({ data: { symbol } }),
-    refetchInterval: 2000,
-    refetchIntervalInBackground: true,
+    staleTime: 60_000,
     enabled: !!symbol,
   });
   const last = Number(q.data?.lastPrice ?? NaN);
@@ -639,7 +638,7 @@ function ExchangeAccount() {
   const q = useQuery({
     queryKey: ["exchange-account"],
     queryFn: () => getAcct(),
-    refetchInterval: 15000,
+    staleTime: 60_000,
   });
 
   const snap = (q.data?.snapshot ?? null) as Snap | null;

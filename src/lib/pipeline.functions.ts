@@ -144,3 +144,28 @@ export const getResumableRun = createServerFn({ method: "POST" }).handler(async 
   return { row: rows?.[0] ?? null };
 });
 
+// ---------- latest run with failed combos (for retry-after-refresh) ----------
+
+export const getLastFailedRun = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Scan the most recent 10 runs, return the first that has failures.
+  const { data: rows, error } = await supabaseAdmin
+    .from("pipeline_runs")
+    .select("id,status,matrix,progress,log,started_at,finished_at")
+    .order("started_at", { ascending: false })
+    .limit(10);
+  if (error) throw new Error(error.message);
+  for (const row of rows ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const logArr = Array.isArray((row as any).log) ? (row as any).log as Array<Record<string, unknown>> : [];
+    const failedCombos = logArr
+      .filter((e) => e && (e as { status?: string }).status === "failed" && (e as { combo?: unknown }).combo)
+      .map((e) => (e as { combo: Record<string, unknown> }).combo);
+    if (failedCombos.length > 0) {
+      return { row, failedCombos };
+    }
+  }
+  return { row: null, failedCombos: [] as Array<Record<string, unknown>> };
+});
+
+

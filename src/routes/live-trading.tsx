@@ -541,12 +541,6 @@ function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
 
 function EntryWindowCell({ preset }: { preset: string }) {
   const windows = windowsForPreset(preset);
-  // Re-render every minute so active/next-open indicators stay accurate.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => setTick((n) => n + 1), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   if (!windows.length) {
     return <span className="text-xs text-muted-foreground">—</span>;

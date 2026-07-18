@@ -237,14 +237,17 @@ function PipelinePage() {
   }) {
     const { id, combosToRun, startIndex, fromMs, toMs } = opts;
     const nextResults = [...opts.initialResults];
-    const prog = { ...opts.initialProgress };
+    const prog: PipelineProgress = { ...opts.initialProgress };
+    const completedSlices = new Set<string>(prog.completedSlices ?? []);
+    const runStartedAt = Date.now() - (prog.elapsedMs ?? 0);
 
-    // Index remaining combos and group them by data-slice key so we can
-    // load candles once per (symbol, tf, tz) and iterate combos in memory.
+    const sliceKey = (s: ComboSpec) => `${s.symbol}|${s.timeframe}|${s.strategyTimezone ?? "London"}`;
+
+    // Skip combos whose slice was already fully completed in a previous run.
     const remaining = combosToRun
       .map((spec, idx) => ({ spec, idx }))
-      .filter((c) => c.idx >= startIndex);
-    const sliceKey = (s: ComboSpec) => `${s.symbol}|${s.timeframe}|${s.strategyTimezone ?? "London"}`;
+      .filter((c) => c.idx >= startIndex && !completedSlices.has(sliceKey(c.spec)));
+
     const bySlice = new Map<string, Array<{ spec: ComboSpec; idx: number }>>();
     for (const c of remaining) {
       const k = sliceKey(c.spec);
@@ -252,12 +255,90 @@ function PipelinePage() {
       arr.push(c);
       bySlice.set(k, arr);
     }
-    // Chunk each slice into batches (protects worker CPU / request size).
+
+    // Per-slice tracker (drives progress bars + checkpointing).
+    const sliceMap = new Map<string, SliceProgress>();
+    for (const [k, items] of bySlice.entries()) {
+      const s = items[0].spec;
+      sliceMap.set(k, {
+        key: k,
+        symbol: s.symbol,
+        timeframe: s.timeframe,
+        strategyTimezone: s.strategyTimezone,
+        total: items.length,
+        done: 0,
+        failed: 0,
+        elapsedMs: 0,
+        status: "pending",
+      });
+    }
+    const pushSliceUI = () => setSliceStats(Array.from(sliceMap.values()));
+    pushSliceUI();
+
+    // Batches (each retains its slice key so we can update the tracker).
     const batches: Array<{ key: string; items: Array<{ spec: ComboSpec; idx: number }> }> = [];
     for (const [key, items] of bySlice.entries()) {
       for (let i = 0; i < items.length; i += batchSize) {
         batches.push({ key, items: items.slice(i, i + batchSize) });
       }
+    }
+
+    // ── Adaptive concurrency state ──
+    let effective = Math.max(1, Math.min(parallelism, adaptive ? Math.min(3, parallelism) : parallelism));
+    const ceiling = Math.max(1, parallelism);
+    const recentDurations: number[] = [];   // rolling window (last 8 batches)
+    let consecutiveErrors = 0;
+    let fastStreak = 0;
+    setEffectiveParallelism(effective);
+
+    function noteBatchOutcome(durationMs: number, ok: boolean) {
+      recentDurations.push(durationMs);
+      if (recentDurations.length > 8) recentDurations.shift();
+      if (!adaptive) return;
+      if (!ok) {
+        consecutiveErrors += 1;
+        fastStreak = 0;
+        // Halve on repeated errors — DB is likely under pressure.
+        if (consecutiveErrors >= 2 && effective > 1) {
+          effective = Math.max(1, Math.floor(effective / 2));
+          setEffectiveParallelism(effective);
+        }
+        return;
+      }
+      consecutiveErrors = 0;
+      const avg = recentDurations.reduce((a, b) => a + b, 0) / recentDurations.length;
+      // Back off if batches are slow or the most recent one spiked.
+      if (avg > 45_000 || durationMs > 90_000) {
+        if (effective > 1) {
+          effective = Math.max(1, effective - 1);
+          setEffectiveParallelism(effective);
+        }
+        fastStreak = 0;
+        return;
+      }
+      // Grow if we've had a healthy streak and still below the ceiling.
+      if (durationMs < 20_000) fastStreak += 1; else fastStreak = 0;
+      if (fastStreak >= 4 && effective < ceiling && recentDurations.length >= 4) {
+        effective = Math.min(ceiling, effective + 1);
+        setEffectiveParallelism(effective);
+        fastStreak = 0;
+      }
+    }
+
+    function recomputeEta() {
+      const elapsed = Date.now() - runStartedAt;
+      setRunElapsedMs(elapsed);
+      prog.elapsedMs = elapsed;
+      if (prog.completed > 0 && prog.completed < prog.total) {
+        const perCombo = elapsed / prog.completed;
+        const eta = perCombo * (prog.total - prog.completed);
+        setEtaMs(eta);
+        prog.etaMs = eta;
+      } else {
+        setEtaMs(0);
+        prog.etaMs = 0;
+      }
+      prog.effectiveParallelism = effective;
     }
 
     let batchCursor = 0;
@@ -269,7 +350,9 @@ function PipelinePage() {
       const first = batch.items[0].spec;
       const startedBatch = Date.now();
 
-      // Mark all combos in batch as running (data stage first).
+      const slice = sliceMap.get(batch.key);
+      if (slice) { slice.status = "running"; pushSliceUI(); }
+
       for (const it of batch.items) {
         prog.currentCombo = it.spec;
         prog.currentStage = "data";
@@ -308,26 +391,41 @@ function PipelinePage() {
         }
       }
 
+      const batchDuration = Date.now() - startedBatch;
+
       if (!batchOk) {
-        // Whole batch failed — mark every combo as failed and update progress.
+        noteBatchOutcome(batchDuration, false);
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
         for (const it of batch.items) {
           nextResults[it.idx] = {
             ...nextResults[it.idx], status: "failed", error: msg,
-            elapsedMs: Date.now() - startedBatch,
+            elapsedMs: batchDuration,
           };
           prog.failed += 1;
           prog.completed += 1;
         }
+        if (slice) {
+          slice.failed += batch.items.length;
+          slice.done += batch.items.length;
+          slice.elapsedMs += batchDuration;
+          if (slice.done >= slice.total) slice.status = "failed";
+          pushSliceUI();
+        }
+        recomputeEta();
         setResults([...nextResults]);
         setProgress({ ...prog });
         await updateFn({
           data: {
             runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
+            progress: {
+              ...prog,
+              currentCombo: null, currentStage: null,
+              completedSlices: Array.from(completedSlices),
+              sliceStats: Array.from(sliceMap.values()),
+            },
             logEntry: {
               ts: Date.now(), combo: first, stage: "execution", status: "failed",
-              error: msg, elapsedMs: Date.now() - startedBatch,
+              error: msg, elapsedMs: batchDuration,
             },
           },
         }).catch(() => {});
@@ -335,7 +433,9 @@ function PipelinePage() {
         return;
       }
 
-      // Merge per-combo results (order matches batch.items).
+      noteBatchOutcome(batchDuration, true);
+
+      let batchAllOk = true;
       for (let i = 0; i < batch.items.length; i++) {
         const it = batch.items[i];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -356,28 +456,49 @@ function PipelinePage() {
             elapsedMs: r?.elapsedMs ?? 0,
           };
           prog.failed += 1;
+          batchAllOk = false;
         }
         prog.completed += 1;
       }
+
+      if (slice) {
+        slice.done += batch.items.length;
+        slice.elapsedMs += batchDuration;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const failedCount = (res.results as any[]).filter((r) => !r?.ok).length;
+        slice.failed += failedCount;
+        if (slice.done >= slice.total) {
+          slice.status = slice.failed > 0 ? "failed" : "ok";
+          if (slice.failed === 0) completedSlices.add(slice.key);
+        }
+        pushSliceUI();
+      }
+
+      recomputeEta();
       setResults([...nextResults]);
       setProgress({ ...prog });
 
-      // Persist a single log entry per batch — enough for resume/replay.
+      // Persist a summary log + slice checkpoint.
       await updateFn({
         data: {
           runId: id,
-          progress: { ...prog, currentCombo: null, currentStage: null },
+          progress: {
+            ...prog,
+            currentCombo: null, currentStage: null,
+            completedSlices: Array.from(completedSlices),
+            sliceStats: Array.from(sliceMap.values()),
+          },
           logEntry: {
-            ts: Date.now(), combo: first, stage: "intelligence", status: "ok",
+            ts: Date.now(), combo: first, stage: "intelligence",
+            status: batchAllOk ? "ok" : "failed",
             trades: res.results.reduce((s: number, r: { tradesInRun?: number }) => s + (r.tradesInRun ?? 0), 0),
             inserted: res.results.reduce((s: number, r: { inserted?: number }) => s + (r.inserted ?? 0), 0),
-            elapsedMs: Date.now() - startedBatch,
+            elapsedMs: batchDuration,
           },
         },
       }).catch(() => {});
 
-      // Also persist per-combo log entries so resume can hydrate individual
-      // rows. Keep this best-effort so a log write failure doesn't block.
+      // Per-combo log entries (best-effort — powers Resume hydration).
       for (let i = 0; i < batch.items.length; i++) {
         const it = batch.items[i];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -385,7 +506,11 @@ function PipelinePage() {
         await updateFn({
           data: {
             runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
+            progress: {
+              ...prog,
+              currentCombo: null, currentStage: null,
+              completedSlices: Array.from(completedSlices),
+            },
             logEntry: {
               ts: Date.now(), combo: it.spec,
               stage: r?.ok ? "intelligence" : "execution",
@@ -399,32 +524,56 @@ function PipelinePage() {
       }
     }
 
-    // Worker pool — process `parallelism` batches concurrently.
-    async function worker() {
-      while (!stopped) {
-        const alive = await waitIfPaused();
-        if (!alive) { stopped = true; return; }
-        const my = batchCursor;
-        if (my >= batches.length) return;
-        batchCursor = my + 1;
-        try {
-          await processBatch(batches[my]);
-        } catch (e) {
-          console.error("[pipeline] worker error", e);
+    // Adaptive scheduler — reads `effective` on every dispatch so the ceiling
+    // can shrink/grow dynamically while the run is in flight.
+    let active = 0;
+    await new Promise<void>((resolve) => {
+      const tick = () => {
+        if (stopped) { if (active === 0) resolve(); return; }
+        while (active < effective && batchCursor < batches.length) {
+          const my = batchCursor++;
+          active += 1;
+          processBatch(batches[my])
+            .catch((e) => console.error("[pipeline] worker error", e))
+            .finally(() => {
+              active -= 1;
+              if (batchCursor >= batches.length && active === 0) resolve();
+              else tick();
+            });
         }
-      }
-    }
-    const workers = Array.from({ length: Math.max(1, parallelism) }, () => worker());
-    await Promise.all(workers);
+        if (batchCursor >= batches.length && active === 0) resolve();
+      };
+      tick();
+    });
 
     if (stopped) {
-      await finishFn({ data: { runId: id, status: controlRef.current === "stopping" ? "stopped" : "failed", progress: prog } }).catch(() => {});
+      await finishFn({
+        data: {
+          runId: id,
+          status: controlRef.current === "stopping" ? "stopped" : "failed",
+          progress: {
+            ...prog,
+            completedSlices: Array.from(completedSlices),
+            sliceStats: Array.from(sliceMap.values()),
+          },
+        },
+      }).catch(() => {});
       setControl("idle");
       return;
     }
-    await finishFn({ data: { runId: id, status: "done", progress: prog } });
+    await finishFn({
+      data: {
+        runId: id, status: "done",
+        progress: {
+          ...prog,
+          completedSlices: Array.from(completedSlices),
+          sliceStats: Array.from(sliceMap.values()),
+        },
+      },
+    });
     setControl("idle");
   }
+
 
   const runMut = useMutation({
     mutationFn: async () => {

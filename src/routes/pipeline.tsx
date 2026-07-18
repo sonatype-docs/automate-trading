@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import {
   PlayCircle, Loader2, Square, RefreshCw, CheckCircle2, XCircle, Circle,
-  Pause, Play, AlertTriangle,
+  Pause, Play, AlertTriangle, Trash2, Info,
 } from "lucide-react";
 import { MatrixGroup } from "@/components/matrix-picker";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";

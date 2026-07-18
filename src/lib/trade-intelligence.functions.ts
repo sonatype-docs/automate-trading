@@ -230,45 +230,64 @@ export const queryTrades = createServerFn({ method: "POST" })
       return query;
     };
 
+    const PG_MAX = 1000; // PostgREST max_rows cap per response
+
     const fetchCursorPage = async (
       cursorEntryTimeMs: number,
       cursorTradeId: string | undefined,
       size: number,
     ): Promise<{ rows: Record<string, unknown>[]; error?: { code?: string; message?: string } }> => {
-      const cursorIso = new Date(cursorEntryTimeMs).toISOString();
       const out: Record<string, unknown>[] = [];
+      let curTime = cursorEntryTimeMs;
+      let curId = cursorTradeId;
 
-      // Avoid PostgREST `or(...)` for keyset paging. It makes Postgres scan and
-      // filter all earlier rows (the freeze at row 100,500). Splitting the
-      // cursor into two simple indexed predicates keeps resume checkpoints fast:
-      // 1) remaining rows at the same timestamp, then 2) later timestamps.
-      if (cursorTradeId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sameTimestampQuery = applyLightFilters((supabase as any).from(table).select(columns))
-          .eq("entry_time", cursorIso)
-          .gt("trade_id", cursorTradeId)
-          .order("trade_id", { ascending: true })
-          .range(0, size - 1);
-        const { data: sameRows, error } = await withQueryTimeout((signal) => sameTimestampQuery.abortSignal(signal));
-        if (error) return { rows: out, error };
-        out.push(...((sameRows ?? []) as unknown as Record<string, unknown>[]));
-      }
-
-      if (out.length < size) {
+      // PostgREST responses cap at 1000 rows, so loop until we accumulate the
+      // requested `size` (e.g. 4000) or the source runs out. Two indexed
+      // predicates per sub-page (same-timestamp tail, then later timestamps).
+      while (out.length < size) {
         const remaining = size - out.length;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const laterTimestampQuery = applyLightFilters((supabase as any).from(table).select(columns))
-          .gt("entry_time", cursorIso)
-          .order("entry_time", { ascending: true })
-          .order("trade_id", { ascending: true })
-          .range(0, remaining - 1);
-        const { data: laterRows, error } = await withQueryTimeout((signal) => laterTimestampQuery.abortSignal(signal));
-        if (error) return { rows: out, error };
-        out.push(...((laterRows ?? []) as unknown as Record<string, unknown>[]));
+        const chunk = Math.min(PG_MAX, remaining);
+        const cursorIso = new Date(curTime).toISOString();
+        const before = out.length;
+
+        if (curId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const sameQ = applyLightFilters((supabase as any).from(table).select(columns))
+            .eq("entry_time", cursorIso)
+            .gt("trade_id", curId)
+            .order("trade_id", { ascending: true })
+            .range(0, chunk - 1);
+          const { data: sameRows, error } = await withQueryTimeout((signal) => sameQ.abortSignal(signal));
+          if (error) return { rows: out, error };
+          out.push(...((sameRows ?? []) as unknown as Record<string, unknown>[]));
+        }
+
+        if (out.length < size) {
+          const rem2 = size - out.length;
+          const chunk2 = Math.min(PG_MAX, rem2);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const laterQ = applyLightFilters((supabase as any).from(table).select(columns))
+            .gt("entry_time", cursorIso)
+            .order("entry_time", { ascending: true })
+            .order("trade_id", { ascending: true })
+            .range(0, chunk2 - 1);
+          const { data: laterRows, error } = await withQueryTimeout((signal) => laterQ.abortSignal(signal));
+          if (error) return { rows: out, error };
+          out.push(...((laterRows ?? []) as unknown as Record<string, unknown>[]));
+        }
+
+        const added = out.length - before;
+        if (added === 0) break; // source exhausted
+        const last = out[out.length - 1] as { entry_time?: string; trade_id?: string };
+        if (!last?.entry_time || !last?.trade_id) break;
+        curTime = new Date(last.entry_time).getTime();
+        curId = String(last.trade_id);
+        if (added < chunk) break; // last sub-page was short → nothing more
       }
 
       return { rows: out };
     };
+
 
     if (data.tradeIds?.length) {
       const out: Record<string, unknown>[] = [];

@@ -679,6 +679,80 @@ function PipelinePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
+              Dataset
+              <Badge variant="outline" className="text-[9px] uppercase">
+                {datasetMode === "new" ? "New" : "Append"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Target</Label>
+              <Select value={datasetMode} onValueChange={(v) => setDatasetMode(v as "new" | "append")} disabled={isRunning}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">Create new dataset</SelectItem>
+                  <SelectItem value="append">Append to existing</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-muted-foreground">
+                Trades upsert by trade_id — safe to re-run into the same dataset.
+              </span>
+            </div>
+
+            {datasetMode === "new" ? (
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">New dataset name</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newDatasetName}
+                    onChange={(e) => setNewDatasetName(e.target.value)}
+                    disabled={isRunning}
+                    placeholder="pipeline-YYYY-MM-DD_HH-mm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isRunning}
+                    onClick={() => setNewDatasetName(defaultDatasetName())}
+                    title="Regenerate timestamped name"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </Button>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  Timestamped by default. Rename later from Quantitative Research.
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Append into</Label>
+                <Select value={appendTo} onValueChange={setAppendTo} disabled={isRunning}>
+                  <SelectTrigger><SelectValue placeholder="Pick existing dataset…" /></SelectTrigger>
+                  <SelectContent>
+                    {(snapshotList.data?.snapshots ?? []).length === 0 && (
+                      <SelectItem value="__none__" disabled>No datasets yet — run a new one first</SelectItem>
+                    )}
+                    {(snapshotList.data?.snapshots ?? []).map((s) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name} ({s.count.toLocaleString()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-[10px] text-muted-foreground">
+                  New combos add to this dataset; existing rows update in place.
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-mono tracking-widest flex items-center gap-2">
               Matrix
               <Badge variant="outline" className="text-[9px]">
                 {symbols.length} × {tfs.length} × {strats.length} × {execs.length} × {stratTzs.length} = {totalCombos} combos

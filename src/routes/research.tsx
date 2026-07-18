@@ -505,6 +505,40 @@ function ResearchPage() {
                   : <RefreshCw className="h-3.5 w-3.5" />}
                 Resync
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1"
+                disabled={dataset === "live"}
+                title={dataset === "live" ? "Pick a saved snapshot to export" : "Download full CSV (all 68 columns incl. JSONB)"}
+                onClick={async () => {
+                  try {
+                    const { data: sess } = await supabase.auth.getSession();
+                    const token = sess.session?.access_token;
+                    if (!token) { window.alert("Sign in required"); return; }
+                    const url = `/api/export-snapshot?snapshot=${encodeURIComponent(dataset)}`;
+                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                    if (!res.ok) {
+                      window.alert(`Export failed: ${res.status} ${await res.text()}`);
+                      return;
+                    }
+                    const blob = await res.blob();
+                    const a = document.createElement("a");
+                    const href = URL.createObjectURL(blob);
+                    a.href = href;
+                    a.download = `snapshot-${dataset}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(href);
+                  } catch (e) {
+                    window.alert((e as Error).message || "Export failed");
+                  }
+                }}
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Full CSV
+              </Button>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button

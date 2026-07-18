@@ -458,11 +458,12 @@ function PipelinePage() {
           const res = await runFn({
             data: {
               source: m.source, symbol: c.symbol, timeframe: c.timeframe,
-              displayTimezone: m.displayTimezone, strategyTimezone: m.strategyTimezone,
+              displayTimezone: m.displayTimezone,
+              strategyTimezone: (c.strategyTimezone ?? m.strategyTimezone) as Timezone,
               fromMs, toMs,
               strategyPresetId: c.strategyPresetId,
               execPresetId: c.execPresetId,
-              tags: ["pipeline", `run:${row.id}`, "rerecord"],
+              tags: ["pipeline", `run:${row.id}`, "rerecord", `tz:${(c.strategyTimezone ?? m.strategyTimezone)}`],
               riskUsdOverride: Number(m.riskUsdPerTrade),
               snapshotName: `pipeline-${String(row.id).slice(0, 8)}`,
             },

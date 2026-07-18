@@ -244,6 +244,14 @@ function ResearchPage() {
     queryFn: () => snapshotsFn(),
     staleTime: 60_000,
   });
+  const datasetCounts = useMemo(() => {
+    const entries = (snapshotList.data?.snapshots ?? []).map((s) => [s.name, s.count] as const);
+    return new Map<string, number>(entries);
+  }, [snapshotList.data?.snapshots]);
+  const latestProgressUpdate = useMemo(() => {
+    const updates = activeDatasets.map((ds) => datasetProgress[ds]?.updatedAt ?? 0);
+    return Math.max(0, ...updates);
+  }, [activeDatasets, datasetProgress]);
   const rawCombined: TradeRecord[] = useMemo(
     () => activeDatasets.flatMap((ds) => datasetData[ds] ?? []),
     [datasetData, activeDatasets],
@@ -344,39 +352,63 @@ function ResearchPage() {
       </aside>
 
       <main className="flex-1 overflow-auto p-4 space-y-4">
-        {(isLoading || resyncing) && (
-          <Card className="sticky top-0 z-30 border-primary/40 bg-primary/10 backdrop-blur shadow-sm">
-            <CardContent className="p-3 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium">
+        <Card className={`sticky top-0 z-30 backdrop-blur shadow-sm ${isLoading || resyncing ? "border-primary/50 bg-primary/10" : "border-border/70 bg-card/95"}`}>
+          <CardContent className="p-3 space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+              {isLoading || resyncing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                <span>
-                  {resyncing ? "Resyncing " : "Fetching trades from "}
-                  {activeDatasets.length} dataset{activeDatasets.length > 1 ? "s" : ""}…
-                </span>
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {totalLoaded.toLocaleString()} rows loaded
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {activeDatasets.map((ds) => {
-                  const p = datasetProgress[ds] ?? { loaded: 0, done: false };
-                  const pct = p.done ? 100 : Math.min(95, (p.loaded / Math.max(p.loaded + 8000, 1)) * 100);
-                  return (
-                    <div key={ds} className="text-[11px] space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate flex-1">{ds}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {p.loaded.toLocaleString()}{p.done ? " ✓" : p.cached ? " (cached)" : "…"}
-                        </span>
-                      </div>
-                      <Progress value={pct} className="h-1" />
+              ) : (
+                <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span>
+                {resyncing ? "Resyncing" : isLoading ? "Fetching trades" : "Research data ready"}
+                {" · "}{activeDatasets.length} dataset{activeDatasets.length > 1 ? "s" : ""}
+              </span>
+              <span className="ml-auto tabular-nums text-muted-foreground">
+                {totalLoaded.toLocaleString()} rows loaded
+              </span>
+            </div>
+            <div className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-[10px] text-muted-foreground font-mono">
+              useDatasetsProgress.isLoading={String(isLoading)} · resyncing={String(resyncing)} · resyncKey={resyncKey} · active={activeDatasets.join(", ") || "none"} · lastUpdate={latestProgressUpdate ? new Date(latestProgressUpdate).toLocaleTimeString() : "—"}
+            </div>
+            <div className="space-y-2">
+              {activeDatasets.map((ds) => {
+                const p = datasetProgress[ds];
+                const expected = datasetCounts.get(ds);
+                const loaded = p?.loaded ?? 0;
+                const pct = p?.done
+                  ? 100
+                  : expected
+                    ? Math.min(99, (loaded / Math.max(expected, 1)) * 100)
+                    : Math.min(95, (loaded / Math.max(loaded + 8000, 1)) * 100);
+                const status = p?.status ?? "queued";
+                const statusLabel = status === "cached" ? "cached" : status === "done" ? "complete" : status;
+                const wavesText = `${p?.wavesFetched ?? 0}${p?.currentWave && !p.done ? `/${p.currentWave}` : ""}`;
+                return (
+                  <div key={ds} className="text-[11px] space-y-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="truncate min-w-0 flex-1 font-medium">{ds}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        rows {loaded.toLocaleString()}{expected ? ` / ${expected.toLocaleString()}` : ""}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        waves {wavesText} · chunks {(p?.chunksFetched ?? 0).toLocaleString()} · last {(p?.lastBatchRows ?? 0).toLocaleString()}
+                      </span>
+                      <Badge variant={status === "error" ? "destructive" : status === "fetching" ? "default" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                        {statusLabel}
+                      </Badge>
                     </div>
-                  );
-                })}
+                    <Progress value={pct} className="h-1.5" />
+                    {p?.error && <div className="text-[10px] text-destructive">{p.error}</div>}
+                  </div>
+                );
+              })}
+              {activeDatasets.length === 0 && (
+                <div className="text-[11px] text-muted-foreground">No dataset selected.</div>
+              )}
               </div>
-            </CardContent>
-          </Card>
-        )}
+          </CardContent>
+        </Card>
         <header className="flex flex-wrap items-center gap-2 justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Quantitative Research</h1>

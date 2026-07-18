@@ -1238,11 +1238,47 @@ function PipelinePage() {
                       </span>
                     )}
                   </span>
-                  <span>{percent}%</span>
+                  <span className="flex items-center gap-3">
+                    {isRunning && etaMs > 0 && <span className="normal-case text-foreground/80">ETA {fmtDuration(etaMs)}</span>}
+                    {runElapsedMs > 0 && <span className="normal-case">elapsed {fmtDuration(runElapsedMs)}</span>}
+                    {isRunning && adaptive && <span className="normal-case text-primary">×{effectiveParallelism}</span>}
+                    <span>{percent}%</span>
+                  </span>
                 </div>
                 <Progress value={percent} className={control === "running" ? "animate-pulse" : ""} />
+
+                {sliceStats.length > 0 && (
+                  <div className="mt-3 border-t border-border/40 pt-3">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2">
+                      <span>Per-slice progress ({sliceStats.filter((s) => s.status === "ok").length}/{sliceStats.length} done)</span>
+                      <span>slice = symbol · timeframe · strategy TZ</span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto pr-1 space-y-1.5">
+                      {sliceStats.map((s) => {
+                        const pct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+                        const label = `${s.symbol} · ${s.timeframe} · ${s.strategyTimezone ?? "London"}`;
+                        const color =
+                          s.status === "ok" ? "text-emerald-500" :
+                          s.status === "failed" ? "text-rose-500" :
+                          s.status === "running" ? "text-primary" :
+                          "text-muted-foreground";
+                        return (
+                          <div key={s.key} className="grid grid-cols-[minmax(160px,1fr)_60px_1fr_60px] items-center gap-2 text-[10px] font-mono">
+                            <span className={`truncate ${color}`}>{label}</span>
+                            <span className="text-muted-foreground">{s.done}/{s.total}</span>
+                            <Progress value={pct} />
+                            <span className="text-right text-muted-foreground">
+                              {s.status === "ok" ? "✓" : s.status === "failed" ? `✗ ${s.failed}` : s.elapsedMs > 0 ? `${(s.elapsedMs / 1000).toFixed(0)}s` : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
           </CardContent>
         </Card>
 

@@ -266,62 +266,15 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 updatedAt: Date.now(),
               },
             }));
-            const idRes = await queryFn({
+            const res = await queryFn({
               data: {
                 limit: pageSize,
                 orderBy: "entry_time",
                 order: "asc",
                 dataset: ds,
-                mode: "ids",
+                projection: "research",
                 cursorEntryTimeMs: cursor?.entryTime ?? 0,
                 ...(cursor ? { cursorTradeId: cursor.tradeId } : {}),
-              },
-            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean; hasMore?: boolean };
-
-            const idRows = normaliseRows(idRes.rows ?? []);
-            if (idRes.transientError) {
-              retryCount += 1;
-              const firstError = new Error(idRes.transientError);
-              setError(firstError);
-              pageSize = Math.max(250, Math.floor(pageSize / 2));
-              const delayMs = Math.min(30_000, 1500 * retryCount);
-              setProgress((p) => ({
-                ...p,
-                [ds]: {
-                  ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "retrying" })),
-                  loaded: acc.length,
-                  done: false,
-                  cached: false,
-                  status: "retrying",
-                  pageSize,
-                  rowsPerChunk: pageSize,
-                  chunksPerWave,
-                  currentWave: wave,
-                  wavesFetched: Math.max(0, wave - 1),
-                  chunksFetched,
-                  lastBatchRows: 0,
-                  startedAt,
-                  updatedAt: Date.now(),
-                  error: `${firstError.message} Checkpoint remains at row ${acc.length.toLocaleString()}; retrying in ${Math.round(delayMs / 1000)}s.`,
-                },
-              }));
-              await wait(delayMs);
-              continue;
-            }
-
-            if (!idRows.length) {
-              done = true;
-              continue;
-            }
-
-            const res = await queryFn({
-              data: {
-                limit: idRows.length,
-                orderBy: "entry_time",
-                order: "asc",
-                dataset: ds,
-                projection: "research",
-                tradeIds: idRows.map((r) => r.tradeId),
               },
             }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean; hasMore?: boolean };
 
@@ -340,41 +293,17 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
               setData((d) => ({ ...d, [ds]: acc.slice() }));
             }
 
-            if (res.transientError) {
-              retryCount += 1;
-              const firstError = new Error(res.transientError);
-              setError(firstError);
-              pageSize = Math.max(250, Math.floor(pageSize / 2));
-              const delayMs = Math.min(30_000, 1500 * retryCount);
-              setProgress((p) => ({
-                ...p,
-                [ds]: {
-                  ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "retrying" })),
-                  loaded: acc.length,
-                  done: false,
-                  cached: false,
-                  status: "retrying",
-                  pageSize,
-                  rowsPerChunk: pageSize,
-                  chunksPerWave,
-                  currentWave: wave,
-                  wavesFetched: Math.max(0, wave - 1),
-                  chunksFetched,
-                  lastBatchRows: waveLoaded,
-                  startedAt,
-                  updatedAt: Date.now(),
-                  error: `${firstError.message} Retrying from row ${acc.length.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
-                },
-              }));
-              await wait(delayMs);
+            if (!rows.length && !res.transientError) {
+              done = true;
               continue;
             }
 
-            if (rows.length < idRows.length) {
-              retryCount += 1;
-              const missing = idRows.length - rows.length;
-              pageSize = Math.max(250, Math.min(pageSize, rows.length || 250));
-              const delayMs = Math.min(30_000, 1500 * retryCount);
+            if (res.transientError) {
+              retryCount = waveLoaded ? 0 : retryCount + 1;
+              const firstError = new Error(res.transientError);
+              setError(firstError);
+              pageSize = Math.max(250, Math.floor(pageSize / 2));
+              const delayMs = waveLoaded ? 750 : Math.min(30_000, 1500 * retryCount);
               setProgress((p) => ({
                 ...p,
                 [ds]: {
@@ -392,7 +321,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                   lastBatchRows: waveLoaded,
                   startedAt,
                   updatedAt: Date.now(),
-                  error: `Saved ${waveLoaded.toLocaleString()} rows, ${missing.toLocaleString()} rows still pending from this page. Retrying from row ${acc.length.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
+                  error: `${firstError.message} ${waveLoaded ? "Saved this partial page; " : ""}Retrying from row ${acc.length.toLocaleString()} in ${Math.max(1, Math.round(delayMs / 1000))}s.`,
                 },
               }));
               await wait(delayMs);
@@ -429,9 +358,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
             retryCount = 0;
             setError(undefined);
             if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
-            if (idRes.hasMore === false) {
-              done = true;
-            } else if (idRes.hasMore !== true && idRows.length < pageSize) {
+            if (res.hasMore === false) {
               done = true;
             }
           }

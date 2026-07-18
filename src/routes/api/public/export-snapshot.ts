@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 
 // Streams the FULL snapshot (all 68 columns, including JSONB) as CSV.
 // JSONB / array fields are serialized as JSON strings so nothing is lost.
-// Auth: Bearer token of an owner user.
+// Public route (single-owner app): no sign-in required.
 
 const ALL_COLUMNS = [
   "id","trade_id","strategy_id","strategy_version","symbol","timeframe","direction",
@@ -34,7 +33,7 @@ function csvEscape(v: unknown): string {
   return s;
 }
 
-export const Route = createFileRoute("/api/export-snapshot")({
+export const Route = createFileRoute("/api/public/export-snapshot")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -42,40 +41,9 @@ export const Route = createFileRoute("/api/export-snapshot")({
         const snapshot = url.searchParams.get("snapshot");
         if (!snapshot) return new Response("Missing snapshot", { status: 400 });
 
-        const authHeader = request.headers.get("authorization") || "";
-        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-        if (!token) return new Response("Unauthorized", { status: 401 });
-
-        const SUPABASE_URL = process.env.SUPABASE_URL!;
-        const PUB = process.env.SUPABASE_PUBLISHABLE_KEY!;
-        const isNewKey = PUB.startsWith("sb_publishable_") || PUB.startsWith("sb_secret_");
-        const shim: typeof fetch = (input, init) => {
-          const h = new Headers(init?.headers);
-          if (isNewKey && h.get("Authorization") === `Bearer ${PUB}`) h.delete("Authorization");
-          h.set("apikey", PUB);
-          return fetch(input, { ...init, headers: h });
-        };
-        const userClient = createClient(SUPABASE_URL, PUB, {
-          auth: { persistSession: false },
-          global: {
-            fetch: shim,
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        });
-        const { data: userData, error: userErr } = await userClient.auth.getUser(token);
-        if (userErr || !userData.user) return new Response("Unauthorized", { status: 401 });
-
-        // Owner check
-        const { data: ownerRow } = await userClient
-          .from("owner")
-          .select("user_id")
-          .eq("user_id", userData.user.id)
-          .maybeSingle();
-        if (!ownerRow) return new Response("Forbidden", { status: 403 });
-
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const PAGE = 500;
+        const PAGE = 2000;
         const header = ALL_COLUMNS.join(",") + "\n";
         const encoder = new TextEncoder();
 
@@ -96,12 +64,10 @@ export const Route = createFileRoute("/api/export-snapshot")({
                   .order("trade_id", { ascending: true })
                   .limit(PAGE);
                 if (cursorTime !== null && cursorId !== null) {
-                  // Keyset: rows strictly after (cursorTime, cursorId)
                   q = q.or(
                     `and(entry_time.eq.${cursorTime},trade_id.gt.${cursorId}),entry_time.gt.${cursorTime}`,
                   );
                 } else if (cursorTime === null && cursorId !== null) {
-                  // Advance past NULL entry_time rows by trade_id
                   q = q.is("entry_time", null).gt("trade_id", cursorId);
                 }
                 const { data, error } = await q;

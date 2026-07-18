@@ -37,9 +37,9 @@ import { Route as BacktestPdhPdlSweepRouteImport } from './routes/backtest.pdh-p
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
-import { Route as ApiExportSnapshotRouteImport } from './routes/api/export-snapshot'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
 import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
+import { Route as ApiPublicExportSnapshotRouteImport } from './routes/api/public/export-snapshot'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
@@ -185,11 +185,6 @@ const BacktestAsianSweepRoute = BacktestAsianSweepRouteImport.update({
   path: '/backtest/asian-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiExportSnapshotRoute = ApiExportSnapshotRouteImport.update({
-  id: '/api/export-snapshot',
-  path: '/api/export-snapshot',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const HandbookVolumeIndexRoute = HandbookVolumeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -199,6 +194,11 @@ const HandbookVolumeStrategyRoute = HandbookVolumeStrategyRouteImport.update({
   id: '/$strategy',
   path: '/$strategy',
   getParentRoute: () => HandbookVolumeRoute,
+} as any)
+const ApiPublicExportSnapshotRoute = ApiPublicExportSnapshotRouteImport.update({
+  id: '/api/public/export-snapshot',
+  path: '/api/public/export-snapshot',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
   ApiPublicWebhookTradingviewRouteImport.update({
@@ -244,7 +244,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/api/export-snapshot': typeof ApiExportSnapshotRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -253,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
+  '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -280,7 +280,6 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/api/export-snapshot': typeof ApiExportSnapshotRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -288,6 +287,7 @@ export interface FileRoutesByTo {
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/backtest': typeof BacktestIndexRoute
   '/handbook': typeof HandbookIndexRoute
+  '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -317,7 +317,6 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/strategy-engine': typeof StrategyEngineRoute
   '/trade-intelligence': typeof TradeIntelligenceRoute
-  '/api/export-snapshot': typeof ApiExportSnapshotRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
   '/backtest/orb': typeof BacktestOrbRoute
@@ -326,6 +325,7 @@ export interface FileRoutesById {
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
+  '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -356,7 +356,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/api/export-snapshot'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -365,6 +364,7 @@ export interface FileRouteTypes {
     | '/handbook/$volume'
     | '/backtest/'
     | '/handbook/'
+    | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -392,7 +392,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/api/export-snapshot'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -400,6 +399,7 @@ export interface FileRouteTypes {
     | '/backtest/silver-bullet'
     | '/backtest'
     | '/handbook'
+    | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
     | '/api/public/hooks/live-tick'
@@ -428,7 +428,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/strategy-engine'
     | '/trade-intelligence'
-    | '/api/export-snapshot'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
     | '/backtest/orb'
@@ -437,6 +436,7 @@ export interface FileRouteTypes {
     | '/handbook/$volume'
     | '/backtest/'
     | '/handbook/'
+    | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -466,13 +466,13 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StrategyEngineRoute: typeof StrategyEngineRoute
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
-  ApiExportSnapshotRoute: typeof ApiExportSnapshotRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
   BacktestPdhPdlSweepRoute: typeof BacktestPdhPdlSweepRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
+  ApiPublicExportSnapshotRoute: typeof ApiPublicExportSnapshotRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksPaperTickRoute: typeof ApiPublicHooksPaperTickRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
@@ -677,13 +677,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestAsianSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/export-snapshot': {
-      id: '/api/export-snapshot'
-      path: '/api/export-snapshot'
-      fullPath: '/api/export-snapshot'
-      preLoaderRoute: typeof ApiExportSnapshotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/handbook/$volume/': {
       id: '/handbook/$volume/'
       path: '/'
@@ -697,6 +690,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/handbook/$volume/$strategy'
       preLoaderRoute: typeof HandbookVolumeStrategyRouteImport
       parentRoute: typeof HandbookVolumeRoute
+    }
+    '/api/public/export-snapshot': {
+      id: '/api/public/export-snapshot'
+      path: '/api/public/export-snapshot'
+      fullPath: '/api/public/export-snapshot'
+      preLoaderRoute: typeof ApiPublicExportSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/webhook/tradingview': {
       id: '/api/public/webhook/tradingview'
@@ -778,13 +778,13 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StrategyEngineRoute: StrategyEngineRoute,
   TradeIntelligenceRoute: TradeIntelligenceRoute,
-  ApiExportSnapshotRoute: ApiExportSnapshotRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
   BacktestOrbRoute: BacktestOrbRoute,
   BacktestPdhPdlSweepRoute: BacktestPdhPdlSweepRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
+  ApiPublicExportSnapshotRoute: ApiPublicExportSnapshotRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksPaperTickRoute: ApiPublicHooksPaperTickRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,

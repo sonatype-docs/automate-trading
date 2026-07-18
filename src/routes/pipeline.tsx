@@ -232,50 +232,68 @@ function PipelinePage() {
     const nextResults = [...opts.initialResults];
     const prog = { ...opts.initialProgress };
 
-    for (let i = startIndex; i < combosToRun.length; i++) {
-      const alive = await waitIfPaused();
-      if (!alive) {
-        await finishFn({ data: { runId: id, status: "stopped", progress: prog } }).catch(() => {});
-        setControl("idle");
-        return;
+    // Index remaining combos and group them by data-slice key so we can
+    // load candles once per (symbol, tf, tz) and iterate combos in memory.
+    const remaining = combosToRun
+      .map((spec, idx) => ({ spec, idx }))
+      .filter((c) => c.idx >= startIndex);
+    const sliceKey = (s: ComboSpec) => `${s.symbol}|${s.timeframe}|${s.strategyTimezone ?? "London"}`;
+    const bySlice = new Map<string, Array<{ spec: ComboSpec; idx: number }>>();
+    for (const c of remaining) {
+      const k = sliceKey(c.spec);
+      const arr = bySlice.get(k) ?? [];
+      arr.push(c);
+      bySlice.set(k, arr);
+    }
+    // Chunk each slice into batches (protects worker CPU / request size).
+    const batches: Array<{ key: string; items: Array<{ spec: ComboSpec; idx: number }> }> = [];
+    for (const [key, items] of bySlice.entries()) {
+      for (let i = 0; i < items.length; i += batchSize) {
+        batches.push({ key, items: items.slice(i, i + batchSize) });
       }
-      const spec = combosToRun[i];
-      const started = Date.now();
-      prog.currentCombo = spec;
-      prog.currentStage = "data";
-      nextResults[i] = { ...nextResults[i], status: "running", stage: "data" };
+    }
+
+    let batchCursor = 0;
+    let stopped = false;
+
+    async function processBatch(batch: { key: string; items: Array<{ spec: ComboSpec; idx: number }> }) {
+      const alive = await waitIfPaused();
+      if (!alive) { stopped = true; return; }
+      const first = batch.items[0].spec;
+      const startedBatch = Date.now();
+
+      // Mark all combos in batch as running (data stage first).
+      for (const it of batch.items) {
+        prog.currentCombo = it.spec;
+        prog.currentStage = "data";
+        nextResults[it.idx] = { ...nextResults[it.idx], status: "running", stage: "data" };
+      }
       setResults([...nextResults]);
       setProgress({ ...prog });
 
-      // one automatic retry — reduces mid-run flakiness (network blips, brief
-      // upstream 5xx, statement-timeout retries at the DB layer).
       let attempt = 0;
       let lastErr: unknown = null;
-      let ok = false;
-      let inserted = 0;
-      let trades = 0;
-      while (attempt < 2 && !ok) {
+      let batchOk = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let res: any = null;
+      while (attempt < 2 && !batchOk) {
         try {
-          prog.currentStage = "execution";
-          nextResults[i] = { ...nextResults[i], stage: "execution" };
-          setResults([...nextResults]);
-          setProgress({ ...prog });
-          const res = await runFn({
+          res = await batchFn({
             data: {
-              source, symbol: spec.symbol, timeframe: spec.timeframe,
-              displayTimezone: displayTz, strategyTimezone: (spec.strategyTimezone ?? "London") as Timezone,
-
+              source, symbol: first.symbol, timeframe: first.timeframe,
+              displayTimezone: displayTz,
+              strategyTimezone: (first.strategyTimezone ?? "London") as Timezone,
               fromMs, toMs,
-              strategyPresetId: spec.strategyPresetId,
-              execPresetId: spec.execPresetId,
-              tags: ["pipeline", `run:${id}`, `tz:${(spec.strategyTimezone ?? "London")}`],
+              combos: batch.items.map((it) => ({
+                strategyPresetId: it.spec.strategyPresetId,
+                execPresetId: it.spec.execPresetId,
+              })),
+              tags: ["pipeline", `run:${id}`, `tz:${first.strategyTimezone ?? "London"}`],
               riskUsdOverride: riskUsd,
               snapshotName: activeSnapshotRef.current || defaultDatasetName(),
             },
           });
-          inserted = res.inserted ?? 0;
-          trades = res.tradesInRun ?? 0;
-          ok = true;
+          batchOk = true;
         } catch (e) {
           lastErr = e;
           attempt += 1;
@@ -283,36 +301,17 @@ function PipelinePage() {
         }
       }
 
-      if (ok) {
-        prog.currentStage = "intelligence";
-        nextResults[i] = {
-          ...nextResults[i], status: "ok", stage: "intelligence",
-          trades, inserted, netPnl: 0, elapsedMs: Date.now() - started,
-        };
-        prog.ok += 1;
-        prog.totalTrades += trades;
-        prog.totalInserted += inserted;
-        prog.completed += 1;
-        setResults([...nextResults]);
-        setProgress({ ...prog });
-        await updateFn({
-          data: {
-            runId: id,
-            progress: { ...prog, currentCombo: null, currentStage: null },
-            logEntry: {
-              ts: Date.now(), combo: spec, stage: "intelligence", status: "ok",
-              trades, inserted, elapsedMs: Date.now() - started,
-            },
-          },
-        }).catch(() => {});
-      } else {
+      if (!batchOk) {
+        // Whole batch failed — mark every combo as failed and update progress.
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-        nextResults[i] = {
-          ...nextResults[i], status: "failed",
-          error: msg, elapsedMs: Date.now() - started,
-        };
-        prog.failed += 1;
-        prog.completed += 1;
+        for (const it of batch.items) {
+          nextResults[it.idx] = {
+            ...nextResults[it.idx], status: "failed", error: msg,
+            elapsedMs: Date.now() - startedBatch,
+          };
+          prog.failed += 1;
+          prog.completed += 1;
+        }
         setResults([...nextResults]);
         setProgress({ ...prog });
         await updateFn({
@@ -320,19 +319,102 @@ function PipelinePage() {
             runId: id,
             progress: { ...prog, currentCombo: null, currentStage: null },
             logEntry: {
-              ts: Date.now(), combo: spec, stage: "execution", status: "failed",
-              error: msg, elapsedMs: Date.now() - started,
+              ts: Date.now(), combo: first, stage: "execution", status: "failed",
+              error: msg, elapsedMs: Date.now() - startedBatch,
             },
           },
         }).catch(() => {});
-        if (failFast) {
-          await finishFn({ data: { runId: id, status: "failed", error: `${spec.symbol} ${spec.timeframe} ${spec.strategyPresetId}/${spec.execPresetId}: ${msg}`, progress: prog } });
-          setControl("idle");
-          return;
+        if (failFast) stopped = true;
+        return;
+      }
+
+      // Merge per-combo results (order matches batch.items).
+      for (let i = 0; i < batch.items.length; i++) {
+        const it = batch.items[i];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = res.results[i] as any;
+        if (r?.ok) {
+          nextResults[it.idx] = {
+            ...nextResults[it.idx], status: "ok", stage: "intelligence",
+            trades: r.tradesInRun ?? 0, inserted: r.inserted ?? 0, netPnl: 0,
+            elapsedMs: r.elapsedMs ?? 0,
+          };
+          prog.ok += 1;
+          prog.totalTrades += r.tradesInRun ?? 0;
+          prog.totalInserted += r.inserted ?? 0;
+        } else {
+          nextResults[it.idx] = {
+            ...nextResults[it.idx], status: "failed",
+            error: r?.error ?? "batch error",
+            elapsedMs: r?.elapsedMs ?? 0,
+          };
+          prog.failed += 1;
         }
+        prog.completed += 1;
+      }
+      setResults([...nextResults]);
+      setProgress({ ...prog });
+
+      // Persist a single log entry per batch — enough for resume/replay.
+      await updateFn({
+        data: {
+          runId: id,
+          progress: { ...prog, currentCombo: null, currentStage: null },
+          logEntry: {
+            ts: Date.now(), combo: first, stage: "intelligence", status: "ok",
+            trades: res.results.reduce((s: number, r: { tradesInRun?: number }) => s + (r.tradesInRun ?? 0), 0),
+            inserted: res.results.reduce((s: number, r: { inserted?: number }) => s + (r.inserted ?? 0), 0),
+            elapsedMs: Date.now() - startedBatch,
+          },
+        },
+      }).catch(() => {});
+
+      // Also persist per-combo log entries so resume can hydrate individual
+      // rows. Keep this best-effort so a log write failure doesn't block.
+      for (let i = 0; i < batch.items.length; i++) {
+        const it = batch.items[i];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = res.results[i] as any;
+        await updateFn({
+          data: {
+            runId: id,
+            progress: { ...prog, currentCombo: null, currentStage: null },
+            logEntry: {
+              ts: Date.now(), combo: it.spec,
+              stage: r?.ok ? "intelligence" : "execution",
+              status: r?.ok ? "ok" : "failed",
+              trades: r?.tradesInRun ?? 0, inserted: r?.inserted ?? 0,
+              elapsedMs: r?.elapsedMs ?? 0,
+              error: r?.ok ? null : (r?.error ?? "batch error"),
+            },
+          },
+        }).catch(() => {});
       }
     }
 
+    // Worker pool — process `parallelism` batches concurrently.
+    async function worker() {
+      while (!stopped) {
+        const alive = await waitIfPaused();
+        if (!alive) { stopped = true; return; }
+        const my = batchCursor;
+        if (my >= batches.length) return;
+        batchCursor = my + 1;
+        try {
+          await processBatch(batches[my]);
+        } catch (e) {
+          console.error("[pipeline] worker error", e);
+        }
+      }
+    }
+    const workers = Array.from({ length: Math.max(1, parallelism) }, () => worker());
+    await Promise.all(workers);
+
+    if (stopped) {
+      await finishFn({ data: { runId: id, status: controlRef.current === "stopping" ? "stopped" : "failed", progress: prog } }).catch(() => {});
+      setControl("idle");
+      return;
+    }
     await finishFn({ data: { runId: id, status: "done", progress: prog } });
     setControl("idle");
   }

@@ -186,12 +186,13 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
         seedData[ds] = rows;
         seedProg[ds] = makeProgress({
           loaded: rows.length,
-          done: true,
+          done: false,
           cached: true,
-          status: "cached",
+          status: "queued",
           wavesFetched: Math.ceil(rows.length / PAGE),
           chunksFetched: Math.ceil(rows.length / ROWS_PER_CHUNK),
           lastBatchRows: rows.length,
+          error: `Resuming from memory checkpoint at row ${rows.length.toLocaleString()}.`,
         });
       } else {
         const partialRows = partialCache.get(ds) ?? [];
@@ -213,8 +214,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
     (async () => {
       for (const ds of datasets) {
         if (cancelled || runRef.current !== runId) return;
-        if (cache.has(ds)) continue;
-        let acc: TradeRecord[] = normaliseRows(partialCache.get(ds)?.slice() ?? []);
+        let acc: TradeRecord[] = normaliseRows((cache.get(ds) ?? partialCache.get(ds) ?? []).slice());
         if (acc.length === 0) {
           const persisted = await loadPersistedRows(ds);
           if (cancelled || runRef.current !== runId) return;
@@ -275,7 +275,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 projection: "research",
                 ...(cursor ? { cursorEntryTimeMs: cursor.entryTime, cursorTradeId: cursor.tradeId } : {}),
               },
-            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean };
+            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean; hasMore?: boolean };
 
             const rows = normaliseRows(res.rows ?? []);
             let waveLoaded = 0;
@@ -352,7 +352,11 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
             retryCount = 0;
             setError(undefined);
             if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
-            if (rows.length < pageSize || waveLoaded === 0) done = true;
+            if (res.hasMore === false) {
+              done = true;
+            } else if (res.hasMore !== true && (rows.length < pageSize || waveLoaded === 0)) {
+              done = true;
+            }
           }
           if (cancelled || runRef.current !== runId) return;
           cache.set(ds, acc);

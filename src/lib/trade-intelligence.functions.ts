@@ -211,9 +211,46 @@ export const queryTrades = createServerFn({ method: "POST" })
         if (page.length < size) break;
       }
 
+      const last = got.length ? got[got.length - 1] : undefined;
+      let hasMore = got.length >= requestedLimit;
+      if (!hasMore) {
+        const nextCursorEntryTimeMs = last
+          ? new Date(String(last.entry_time)).getTime()
+          : spec.cursorEntryTimeMs;
+        const nextCursorTradeId = last ? String(last.trade_id) : cursorTradeId;
+        const probe = applyQuery(
+          supabase,
+          table,
+          { ...spec, snapshotName, limit: 1, offset: 0, cursorEntryTimeMs: nextCursorEntryTimeMs, cursorTradeId: nextCursorTradeId },
+          "trade_id,entry_time",
+        );
+        const { data: probeRows, error: probeError } = await probe;
+        if (probeError) {
+          const msg = probeError.message || "";
+          const transient =
+            probeError.code === "PGRST103" ||
+            probeError.code === "57014" ||
+            /range not satisfiable/i.test(msg) ||
+            /statement timeout/i.test(msg) ||
+            /canceling statement/i.test(msg);
+          if (transient) {
+            return {
+              rows: got.map((r) => rowToRecord(r)),
+              total: got.length,
+              partial: true,
+              hasMore: true,
+              transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+            };
+          }
+          throw new Error(msg);
+        }
+        hasMore = Boolean(probeRows?.length);
+      }
+
       return {
         rows: got.map((r) => rowToRecord(r)),
         total: got.length,
+        hasMore,
       };
     }
 

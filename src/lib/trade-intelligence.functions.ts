@@ -343,28 +343,16 @@ export const listSnapshots = createServerFn({ method: "POST" }).handler(async ()
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = supabaseAdmin as any;
-  const CHUNK = 1000;
-  const counts = new Map<string, number>();
-  const lastUpdated = new Map<string, string>();
-  for (let offset = 0; ; offset += CHUNK) {
-    const { data, error } = await supabase
-      .from("trade_intelligence_archive")
-      .select("snapshot_name, updated_at")
-      .range(offset, offset + CHUNK - 1);
-    if (error) throw new Error(error.message);
-    if (!data || data.length === 0) break;
-    for (const r of data as { snapshot_name: string; updated_at: string | null }[]) {
-      counts.set(r.snapshot_name, (counts.get(r.snapshot_name) ?? 0) + 1);
-      if (r.updated_at) {
-        const prev = lastUpdated.get(r.snapshot_name);
-        if (!prev || r.updated_at > prev) lastUpdated.set(r.snapshot_name, r.updated_at);
-      }
-    }
-    if (data.length < CHUNK) break;
-  }
+  const { data, error } = await supabase.rpc("list_trade_snapshots");
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { name: string; count: number | string; last_updated: string | null }[];
   return {
-    snapshots: Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count, lastUpdated: lastUpdated.get(name) ?? null }))
+    snapshots: rows
+      .map((r) => ({
+        name: r.name,
+        count: Number(r.count) || 0,
+        lastUpdated: r.last_updated ?? null,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
 });

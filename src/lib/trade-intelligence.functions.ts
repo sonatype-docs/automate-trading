@@ -167,10 +167,18 @@ export const queryTrades = createServerFn({ method: "POST" })
       const { data: rows, error } = await q;
       if (error) {
         // When a dataset is actively being appended, PostgREST can briefly
-        // reject a later page with 416 even though earlier pages loaded. Keep
-        // the already-loaded rows instead of blanking the whole Research view.
-        if (error.code === "PGRST103" || /range not satisfiable/i.test(error.message)) break;
-        throw new Error(error.message);
+        // reject a later page with 416 even though earlier pages loaded. Also
+        // deep-offset scans on large snapshots can hit Postgres's
+        // statement_timeout (57014). In both cases, keep the already-loaded
+        // rows instead of blanking the whole Research view.
+        const msg = error.message || "";
+        if (
+          error.code === "PGRST103" ||
+          error.code === "57014" ||
+          /range not satisfiable/i.test(msg) ||
+          /statement timeout/i.test(msg)
+        ) break;
+        throw new Error(msg);
       }
       if (!rows || rows.length === 0) break;
       allRows.push(...(rows as Record<string, unknown>[]));

@@ -1170,21 +1170,22 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   );
 
   const rows: TfRow[] = useMemo(() => {
-    // Group by strategy + symbol + timeframe
+    // Group by strategy + symbol + timeframe + timezone (so multi-tz runs compete)
     const map = new Map<string, TradeRecord[]>();
     for (const t of snapshot) {
-      const key = `${t.strategyId}||${t.symbol ?? "—"}||${t.timeframe ?? "—"}`;
+      const key = `${t.strategyId}||${t.symbol ?? "—"}||${t.timeframe ?? "—"}||${tradeTz(t) ?? "—"}`;
       const arr = map.get(key) ?? [];
       arr.push(t);
       map.set(key, arr);
     }
     const raw = Array.from(map.entries()).map(([key, rs]) => {
-      const [strategyId, symbol, timeframe] = key.split("||");
+      const [strategyId, symbol, timeframe, timezone] = key.split("||");
       const k = computeKpis(rs);
       return {
         strategyId,
         symbol,
         timeframe,
+        timezone,
         trades: k.total,
         netProfit: k.netProfit,
         profitFactor: Number.isFinite(k.profitFactor) ? k.profitFactor : 999,

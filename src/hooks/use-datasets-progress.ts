@@ -275,7 +275,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 projection: "research",
                 ...(cursor ? { cursorEntryTimeMs: cursor.entryTime, cursorTradeId: cursor.tradeId } : {}),
               },
-            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean };
+            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean; hasMore?: boolean };
 
             const rows = normaliseRows(res.rows ?? []);
             let waveLoaded = 0;
@@ -352,7 +352,11 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
             retryCount = 0;
             setError(undefined);
             if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
-            if (rows.length < pageSize || waveLoaded === 0) done = true;
+            if (res.hasMore === false) {
+              done = true;
+            } else if (res.hasMore !== true && (rows.length < pageSize || waveLoaded === 0)) {
+              done = true;
+            }
           }
           if (cancelled || runRef.current !== runId) return;
           cache.set(ds, acc);

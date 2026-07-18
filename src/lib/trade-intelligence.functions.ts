@@ -130,7 +130,7 @@ const QueryInput = z.object({
   filtersContains: z.record(z.string(), z.unknown()).optional(),
   orderBy: z.enum(["entry_time", "exit_time", "net_pnl", "actual_rr"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
-  limit: z.number().int().positive().max(100000).optional(),
+  limit: z.number().int().positive().max(2_000_000).optional(),
   offset: z.number().int().min(0).optional(),
   /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
   dataset: z.string().optional(),

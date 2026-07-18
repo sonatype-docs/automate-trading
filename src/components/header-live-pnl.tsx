@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { listLiveExchangeOrders, getLastPrice } from "@/lib/live-trading.functions";
+import { listLiveExchangeOrders, getLastPrice, listLiveRunners } from "@/lib/live-trading.functions";
 
 function fmtUsd(n: number) {
   const sign = n > 0 ? "+" : n < 0 ? "" : "";

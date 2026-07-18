@@ -12,9 +12,11 @@ import {
   listLiveExchangeOrders,
   cancelExchangeOrder,
   listLiveTrades,
+  listLiveRunners,
   type ExchangePendingOrder,
   type ExchangeClosedTrade,
   type LiveTradeDTO,
+
 } from "@/lib/live-trading.functions";
 
 function fmtNum(n: number | null | undefined, d = 2): string {
@@ -99,13 +101,23 @@ export function ExchangeOrdersCard() {
   const fn = useServerFn(listLiveExchangeOrders);
   const cancelFn = useServerFn(cancelExchangeOrder);
   const tradesFn = useServerFn(listLiveTrades);
+  const runnersFn = useServerFn(listLiveRunners);
   const qc = useQueryClient();
   const [tab, setTab] = useState<"server" | "pending" | "closed" | "live">("server");
+
+  const runnersQ = useQuery({
+    queryKey: ["live-runners"],
+    queryFn: () => runnersFn(),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+  });
+  const anyRunning = (runnersQ.data ?? []).some((r) => r.running);
 
   const q = useQuery({
     queryKey: ["exchange-orders"],
     queryFn: () => fn(),
-    refetchInterval: 15_000,
+    refetchInterval: anyRunning ? 15_000 : false,
     staleTime: 10_000,
     placeholderData: keepPreviousData,
   });
@@ -113,10 +125,11 @@ export function ExchangeOrdersCard() {
   const tradesQ = useQuery({
     queryKey: ["live-trades-card"],
     queryFn: () => tradesFn({ data: { limit: 2000 } }),
-    refetchInterval: 10_000,
+    refetchInterval: anyRunning ? 10_000 : false,
     staleTime: 8_000,
     placeholderData: keepPreviousData,
   });
+
 
   const cancelMut = useMutation({
     mutationFn: (clientOrderId: string) => cancelFn({ data: { clientOrderId } }),

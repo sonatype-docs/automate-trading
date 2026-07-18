@@ -1340,6 +1340,19 @@ function PipelinePage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
                 </Button>
               )}
+              {!isRunning && progress.failed > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() => retryFailedMut.mutate()}
+                  disabled={retryFailedMut.isPending}
+                  title={`Re-run ${progress.failed} failed combos into "${activeSnapshotRef.current || (datasetMode === "append" ? appendTo : newDatasetName) || "current dataset"}"`}
+                >
+                  {retryFailedMut.isPending
+                    ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    : <RefreshCw className="w-4 h-4 mr-2" />}
+                  Retry {progress.failed} failed
+                </Button>
+              )}
               {!isRunning && results.length > 0 && (
                 <Button variant="ghost" onClick={() => {
                   setResults([]);
@@ -1349,6 +1362,7 @@ function PipelinePage() {
                   <RefreshCw className="w-4 h-4 mr-2" />Clear
                 </Button>
               )}
+
               {runId && <Badge variant="outline" className="text-[10px] font-mono">run {runId.slice(0, 8)}</Badge>}
               <div className="ml-auto flex flex-wrap items-center gap-3 text-xs font-mono">
                 <span className="text-emerald-500">✓ {progress.ok}</span>

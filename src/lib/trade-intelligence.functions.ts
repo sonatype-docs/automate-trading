@@ -157,28 +157,50 @@ export const queryTrades = createServerFn({ method: "POST" })
     const allRows: Record<string, unknown>[] = [];
     let done = false;
     let fetched = 0;
+
+    // Fetch one offset with adaptive shrinking on timeouts. Timeouts do NOT
+    // signal "end of data" — we recurse with smaller sizes so a slow chunk
+    // never truncates the dataset (previous bug: 181k rows returned as 3k).
+    const fetchOffset = async (
+      off: number,
+      size: number,
+    ): Promise<{ rows: Record<string, unknown>[]; short: boolean }> => {
+      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: size, offset: off });
+      const { data: rows, error } = await q;
+      if (error) {
+        const msg = error.message || "";
+        const transient =
+          error.code === "PGRST103" ||
+          error.code === "57014" ||
+          /range not satisfiable/i.test(msg) ||
+          /statement timeout/i.test(msg) ||
+          /canceling statement/i.test(msg);
+        if (transient && size > 100) {
+          const half = Math.max(100, Math.floor(size / 2));
+          const a = await fetchOffset(off, half);
+          if (a.short) return a;
+          const b = await fetchOffset(off + half, size - half);
+          return { rows: [...a.rows, ...b.rows], short: b.short };
+        }
+        if (transient) return { rows: [], short: false };
+        throw new Error(msg);
+      }
+      const got = (rows ?? []) as Record<string, unknown>[];
+      return { rows: got, short: got.length < size };
+    };
+
     while (!done && fetched < requestedLimit) {
       const waveOffsets: number[] = [];
+      const waveSizes: number[] = [];
       for (let i = 0; i < CONCURRENCY && fetched + i * CHUNK < requestedLimit; i++) {
-        waveOffsets.push(baseOffset + fetched + i * CHUNK);
-      }
-      const results = await Promise.all(waveOffsets.map(async (off) => {
+        const off = baseOffset + fetched + i * CHUNK;
         const remaining = requestedLimit - (off - baseOffset);
-        const chunkSize = Math.min(CHUNK, remaining);
-        const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: chunkSize, offset: off });
-        const { data: rows, error } = await q;
-        if (error) {
-          const msg = error.message || "";
-          if (
-            error.code === "PGRST103" ||
-            error.code === "57014" ||
-            /range not satisfiable/i.test(msg) ||
-            /statement timeout/i.test(msg)
-          ) return { rows: [] as Record<string, unknown>[], short: true };
-          throw new Error(msg);
-        }
-        return { rows: (rows ?? []) as Record<string, unknown>[], short: (rows?.length ?? 0) < chunkSize };
-      }));
+        waveOffsets.push(off);
+        waveSizes.push(Math.min(CHUNK, remaining));
+      }
+      const results = await Promise.all(
+        waveOffsets.map((off, i) => fetchOffset(off, waveSizes[i]!)),
+      );
       for (const r of results) {
         allRows.push(...r.rows);
         if (r.short) done = true;

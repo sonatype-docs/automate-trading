@@ -344,24 +344,86 @@ export const listSnapshots = createServerFn({ method: "POST" }).handler(async ()
   const supabase = supabaseAdmin as any;
   const CHUNK = 1000;
   const counts = new Map<string, number>();
+  const lastUpdated = new Map<string, string>();
   for (let offset = 0; ; offset += CHUNK) {
     const { data, error } = await supabase
       .from("trade_intelligence_archive")
-      .select("snapshot_name")
+      .select("snapshot_name, updated_at")
       .range(offset, offset + CHUNK - 1);
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
-    for (const r of data as { snapshot_name: string }[]) {
+    for (const r of data as { snapshot_name: string; updated_at: string | null }[]) {
       counts.set(r.snapshot_name, (counts.get(r.snapshot_name) ?? 0) + 1);
+      if (r.updated_at) {
+        const prev = lastUpdated.get(r.snapshot_name);
+        if (!prev || r.updated_at > prev) lastUpdated.set(r.snapshot_name, r.updated_at);
+      }
     }
     if (data.length < CHUNK) break;
   }
   return {
     snapshots: Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, count]) => ({ name, count, lastUpdated: lastUpdated.get(name) ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
 });
+
+const PreviewInput = z.object({ name: z.string().min(1).max(120) });
+export const getSnapshotPreview = createServerFn({ method: "POST" })
+  .inputValidator((raw) => PreviewInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
+    const { count, error: cErr } = await supabase
+      .from("trade_intelligence_archive")
+      .select("trade_id", { count: "exact", head: true })
+      .eq("snapshot_name", data.name);
+    if (cErr) throw new Error(cErr.message);
+    const { data: latest, error: lErr } = await supabase
+      .from("trade_intelligence_archive")
+      .select("updated_at, created_at, exit_time")
+      .eq("snapshot_name", data.name)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (lErr) throw new Error(lErr.message);
+    // Sample recent rows to summarise strategies/symbols without scanning all.
+    const { data: sample, error: sErr } = await supabase
+      .from("trade_intelligence_archive")
+      .select("strategy_id, symbol, timeframe")
+      .eq("snapshot_name", data.name)
+      .order("updated_at", { ascending: false })
+      .limit(500);
+    if (sErr) throw new Error(sErr.message);
+    const rows = (sample ?? []) as { strategy_id: string; symbol: string; timeframe: string | null }[];
+    const strategies = Array.from(new Set(rows.map((r) => r.strategy_id))).slice(0, 12);
+    const symbols = Array.from(new Set(rows.map((r) => r.symbol))).slice(0, 12);
+    const timeframes = Array.from(new Set(rows.map((r) => r.timeframe ?? "—"))).slice(0, 12);
+    const first = (latest?.[0] ?? null) as { updated_at: string | null; created_at: string | null; exit_time: string | null } | null;
+    return {
+      name: data.name,
+      count: count ?? 0,
+      lastUpdated: first?.updated_at ?? null,
+      createdAt: first?.created_at ?? null,
+      lastExitTime: first?.exit_time ?? null,
+      strategies, symbols, timeframes,
+    };
+  });
+
+const DeleteInput = z.object({ name: z.string().min(1).max(120) });
+export const deleteSnapshot = createServerFn({ method: "POST" })
+  .inputValidator((raw) => DeleteInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = supabaseAdmin as any;
+    const { error, count } = await supabase
+      .from("trade_intelligence_archive")
+      .delete({ count: "exact" })
+      .eq("snapshot_name", data.name);
+    if (error) throw new Error(error.message);
+    return { deleted: count ?? 0 };
+  });
 
 const RenameInput = z.object({
   from: z.string().min(1).max(120),

@@ -373,7 +373,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       price: openFlush.fillPrice,
       stopDist,
       riskUsd: Number(r.risk_usd),
-      minRiskUsd: 15,
+      minRiskUsd: 10,
     });
     const res = attempt.res;
     const filled = res.status === "filled";

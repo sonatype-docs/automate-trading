@@ -169,27 +169,48 @@ export const queryTrades = createServerFn({ method: "POST" })
     // this to one indexed request so every page resumes from the last row and
     // never uses slow deep offsets or duplicate fan-out chunks.
     if (spec.cursorEntryTimeMs != null) {
-      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: requestedLimit, offset: 0 }, columns);
-      const { data: rows, error } = await q;
-      if (error) {
-        const msg = error.message || "";
-        const transient =
-          error.code === "PGRST103" ||
-          error.code === "57014" ||
-          /range not satisfiable/i.test(msg) ||
-          /statement timeout/i.test(msg) ||
-          /canceling statement/i.test(msg);
-        if (transient) {
-          return {
-            rows: [],
-            total: 0,
-            partial: true,
-            transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
-          };
+      const CURSOR_PAGE = 1000; // backend row cap per request
+      const got: Record<string, unknown>[] = [];
+      let cursorEntryTimeMs = spec.cursorEntryTimeMs;
+      let cursorTradeId = spec.cursorTradeId;
+
+      while (got.length < requestedLimit) {
+        const size = Math.min(CURSOR_PAGE, requestedLimit - got.length);
+        const q = applyQuery(
+          supabase,
+          table,
+          { ...spec, snapshotName, limit: size, offset: 0, cursorEntryTimeMs, cursorTradeId },
+          columns,
+        );
+        const { data: rows, error } = await q;
+        if (error) {
+          const msg = error.message || "";
+          const transient =
+            error.code === "PGRST103" ||
+            error.code === "57014" ||
+            /range not satisfiable/i.test(msg) ||
+            /statement timeout/i.test(msg) ||
+            /canceling statement/i.test(msg);
+          if (transient) {
+            return {
+              rows: got.map((r) => rowToRecord(r)),
+              total: got.length,
+              partial: true,
+              transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+            };
+          }
+          throw new Error(msg);
         }
-        throw new Error(msg);
+
+        const page = (rows ?? []) as unknown as Record<string, unknown>[];
+        if (page.length === 0) break;
+        got.push(...page);
+        const last = page[page.length - 1];
+        cursorEntryTimeMs = new Date(String(last.entry_time)).getTime();
+        cursorTradeId = String(last.trade_id);
+        if (page.length < size) break;
       }
-      const got = (rows ?? []) as unknown as Record<string, unknown>[];
+
       return {
         rows: got.map((r) => rowToRecord(r)),
         total: got.length,

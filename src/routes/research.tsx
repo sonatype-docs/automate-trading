@@ -173,19 +173,59 @@ function ResearchPage() {
   const [deleting, setDeleting] = useState(false);
   const qc = useQueryClient();
   const [resyncing, setResyncing] = useState(false);
+  const [extraDatasets, setExtraDatasets] = useState<string[]>([]);
+  const [dedupe, setDedupe] = useState(true);
 
+  // Reset extras when primary dataset changes so we don't double-count it.
+  useEffect(() => {
+    setExtraDatasets((prev) => prev.filter((d) => d !== dataset));
+  }, [dataset]);
 
+  const activeDatasets = useMemo(
+    () => Array.from(new Set([dataset, ...extraDatasets])),
+    [dataset, extraDatasets],
+  );
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["research", "all-trades", dataset],
-    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset } }),
+  const datasetQueries = useQueries({
+    queries: activeDatasets.map((ds) => ({
+      queryKey: ["research", "all-trades", ds],
+      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset: ds } }),
+    })),
   });
+  const isLoading = datasetQueries.some((q) => q.isLoading);
+  const error = datasetQueries.find((q) => q.error)?.error as Error | undefined;
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
     staleTime: 60_000,
   });
-  const allTrades: TradeRecord[] = data?.rows ?? [];
+  const rawCombined: TradeRecord[] = useMemo(
+    () => datasetQueries.flatMap((q) => q.data?.rows ?? []),
+    [datasetQueries],
+  );
+  const duplicateCount = useMemo(() => {
+    if (activeDatasets.length < 2) return 0;
+    const seen = new Set<string>();
+    let dups = 0;
+    for (const r of rawCombined) {
+      const key = r.tradeId ?? `${r.strategyId}|${r.symbol}|${r.timeframe ?? ""}|${r.entryTime ?? ""}|${r.exitTime ?? ""}`;
+      if (seen.has(key)) dups++;
+      else seen.add(key);
+    }
+    return dups;
+  }, [rawCombined, activeDatasets.length]);
+  const allTrades: TradeRecord[] = useMemo(() => {
+    if (!dedupe || activeDatasets.length < 2) return rawCombined;
+    const seen = new Set<string>();
+    const out: TradeRecord[] = [];
+    for (const r of rawCombined) {
+      const key = r.tradeId ?? `${r.strategyId}|${r.symbol}|${r.timeframe ?? ""}|${r.entryTime ?? ""}|${r.exitTime ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  }, [rawCombined, dedupe, activeDatasets.length]);
 
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [symbolFilter, setSymbolFilter] = useState<string>("all");

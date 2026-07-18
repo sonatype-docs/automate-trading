@@ -122,11 +122,27 @@ function PipelinePage() {
   const controlRef = useRef<Control>("idle");
   useEffect(() => { controlRef.current = control; }, [control]);
 
+  // Dataset targeting: new vs append.
+  const [datasetMode, setDatasetMode] = useState<"new" | "append">("new");
+  const [newDatasetName, setNewDatasetName] = useState<string>(() => defaultDatasetName());
+  const [appendTo, setAppendTo] = useState<string>("");
+  // Active snapshot name used by the currently running loop (kept in a ref
+  // so rerecord/resume can read it even before state updates propagate).
+  const activeSnapshotRef = useRef<string>("");
+
   const runFn = useServerFn(recordTradesFromExecution);
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
+  const snapshotsFn = useServerFn(listSnapshots);
+
+  const snapshotList = useQuery({
+    queryKey: ["pipeline", "snapshots"],
+    queryFn: () => snapshotsFn(),
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+  });
 
   const resumable = useQuery({
     queryKey: ["pipeline", "resumable"],
@@ -134,6 +150,7 @@ function PipelinePage() {
     staleTime: 5_000,
     refetchOnWindowFocus: false,
   });
+
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];

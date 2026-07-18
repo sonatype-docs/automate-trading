@@ -176,7 +176,11 @@ export const queryTrades = createServerFn({ method: "POST" })
         error.code === "57014" ||
         /range not satisfiable/i.test(msg) ||
         /statement timeout/i.test(msg) ||
-        /canceling statement/i.test(msg)
+        /canceling statement/i.test(msg) ||
+        /schema cache/i.test(msg) ||
+        /connection terminated/i.test(msg) ||
+        /connection timeout/i.test(msg) ||
+        /timeout.*awaiting headers/i.test(msg)
       );
     };
 
@@ -281,47 +285,32 @@ export const queryTrades = createServerFn({ method: "POST" })
     // this on indexed keyset predicates so every page resumes from the last row
     // and never uses slow deep offsets or duplicate fan-out chunks.
     if (spec.cursorEntryTimeMs != null) {
-      // Keep each DB pull small enough to survive a busy database. The server
-      // still accumulates up to the UI-requested 4,000 rows before returning,
-      // but a transient timeout now retries from the saved cursor instead of
-      // redoing the first 100k rows.
-      const CURSOR_PAGE = 250;
-      const got: Record<string, unknown>[] = [];
-      let cursorEntryTimeMs = spec.cursorEntryTimeMs;
-      let cursorTradeId = spec.cursorTradeId;
-
-      while (got.length < requestedLimit) {
-        const size = Math.min(CURSOR_PAGE, requestedLimit - got.length);
-        const { rows, error } = await fetchCursorPage(cursorEntryTimeMs, cursorTradeId, size);
-        if (error) {
-          const msg = error.message || "";
-          if (isTransientDbError(error)) {
-            return {
-              rows: got.map((r) => rowToRecord(r)),
-              total: got.length,
-              partial: true,
-              transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
-            };
-          }
-          throw new Error(msg);
+      // Return one checkpoint page per server call. Previously this looped
+      // internally to accumulate 4,000 rows, so one slow sub-query made the UI
+      // appear frozen at the same checkpoint. Small pages checkpoint visibly.
+      const size = Math.min(requestedLimit, data.projection === "research" ? 500 : 1000);
+      const { rows: got, error } = await fetchCursorPage(spec.cursorEntryTimeMs, spec.cursorTradeId, size);
+      if (error) {
+        const msg = error.message || "";
+        if (isTransientDbError(error)) {
+          return {
+            rows: [],
+            total: 0,
+            partial: true,
+            hasMore: true,
+            transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+          };
         }
-
-        const page = rows;
-        if (page.length === 0) break;
-        got.push(...page);
-        const last = page[page.length - 1];
-        cursorEntryTimeMs = new Date(String(last.entry_time)).getTime();
-        cursorTradeId = String(last.trade_id);
-        if (page.length < size) break;
+        throw new Error(msg);
       }
 
       const last = got.length ? got[got.length - 1] : undefined;
-      let hasMore = got.length >= requestedLimit;
+      let hasMore = got.length >= size;
       if (!hasMore) {
         const nextCursorEntryTimeMs = last
           ? new Date(String(last.entry_time)).getTime()
           : spec.cursorEntryTimeMs;
-        const nextCursorTradeId = last ? String(last.trade_id) : cursorTradeId;
+        const nextCursorTradeId = last ? String(last.trade_id) : spec.cursorTradeId;
         const { rows: probeRows, error: probeError } = await fetchCursorPage(
           nextCursorEntryTimeMs,
           nextCursorTradeId,

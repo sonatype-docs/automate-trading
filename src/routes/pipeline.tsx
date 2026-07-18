@@ -235,6 +235,8 @@ function PipelinePage() {
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
+  const lastFailedFn = useServerFn(getLastFailedRun);
+
   const snapshotsFn = useServerFn(listSnapshots);
   const previewFn = useServerFn(getSnapshotPreview);
   const deleteSnapFn = useServerFn(deleteSnapshot);

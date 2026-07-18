@@ -877,6 +877,71 @@ function PipelinePage() {
     onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
   });
 
+  // Retry only the failed combos from the current results into the SAME
+  // dataset (activeSnapshotRef is set at the start of every run; falls back
+  // to the current dataset selection when nothing has been run yet this session).
+  const retryFailedMut = useMutation({
+    mutationFn: async () => {
+      const failedSpecs = results.filter((r) => r.status === "failed").map((r) => r.spec);
+      if (failedSpecs.length === 0) return;
+
+      let snap = activeSnapshotRef.current;
+      if (!snap) {
+        snap = datasetMode === "append"
+          ? (appendTo || "").trim()
+          : (newDatasetName || "").trim() || defaultDatasetName();
+      }
+      if (!snap) throw new Error("No target dataset — pick one under Dataset first.");
+      activeSnapshotRef.current = snap;
+
+      setControl("running");
+      const initialResults: ComboResult[] = failedSpecs.map((spec) => ({
+        spec, status: "pending", stage: null, bars: 0, signals: 0, trades: 0,
+        inserted: 0, netPnl: 0, error: null, elapsedMs: 0,
+      }));
+      setResults(initialResults);
+      const initialProgress: PipelineProgress = {
+        total: failedSpecs.length, completed: 0, currentCombo: null, currentStage: null,
+        ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+        completedSlices: [], sliceStats: [], elapsedMs: 0, etaMs: 0,
+      };
+      setProgress(initialProgress);
+      setSliceStats([]);
+      setEtaMs(0);
+      setRunElapsedMs(0);
+
+      const matrix = {
+        source,
+        symbols: Array.from(new Set(failedSpecs.map((s) => s.symbol))),
+        timeframes: Array.from(new Set(failedSpecs.map((s) => s.timeframe))) as Timeframe[],
+        strategyPresetIds: Array.from(new Set(failedSpecs.map((s) => s.strategyPresetId))),
+        execPresetIds: Array.from(new Set(failedSpecs.map((s) => s.execPresetId))),
+        displayTimezone: displayTz,
+        strategyTimezone: (failedSpecs[0].strategyTimezone ?? "London") as Timezone,
+        strategyTimezones: Array.from(new Set(failedSpecs.map((s) => s.strategyTimezone ?? "London"))) as Timezone[],
+        mode, lookbackDays, riskUsdPerTrade: riskUsd,
+        snapshotName: snap,
+      };
+      const { runId: id } = await startFn({ data: { matrix, total: failedSpecs.length } });
+      setRunId(id);
+
+      const toMs = Date.now();
+      const fromMs = toMs - lookbackDays * 86_400_000;
+      await runCombosLoop({
+        id, combosToRun: failedSpecs, startIndex: 0, fromMs, toMs,
+        initialProgress, initialResults,
+      });
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[pipeline] retry failed error", msg);
+      setControl("idle");
+    },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
+  });
+
+
+
 
   const totalCombos = combos.length;
   const isRunning = control === "running" || control === "paused" || control === "stopping";
@@ -1275,6 +1340,19 @@ function PipelinePage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
                 </Button>
               )}
+              {!isRunning && progress.failed > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() => retryFailedMut.mutate()}
+                  disabled={retryFailedMut.isPending}
+                  title={`Re-run ${progress.failed} failed combos into "${activeSnapshotRef.current || (datasetMode === "append" ? appendTo : newDatasetName) || "current dataset"}"`}
+                >
+                  {retryFailedMut.isPending
+                    ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    : <RefreshCw className="w-4 h-4 mr-2" />}
+                  Retry {progress.failed} failed
+                </Button>
+              )}
               {!isRunning && results.length > 0 && (
                 <Button variant="ghost" onClick={() => {
                   setResults([]);
@@ -1284,6 +1362,7 @@ function PipelinePage() {
                   <RefreshCw className="w-4 h-4 mr-2" />Clear
                 </Button>
               )}
+
               {runId && <Badge variant="outline" className="text-[10px] font-mono">run {runId.slice(0, 8)}</Badge>}
               <div className="ml-auto flex flex-wrap items-center gap-3 text-xs font-mono">
                 <span className="text-emerald-500">✓ {progress.ok}</span>

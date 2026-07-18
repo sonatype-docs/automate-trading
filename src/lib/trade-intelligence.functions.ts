@@ -312,7 +312,7 @@ export const queryTrades = createServerFn({ method: "POST" })
       // Return one checkpoint page per server call. Previously this looped
       // internally to accumulate 4,000 rows, so one slow sub-query made the UI
       // appear frozen at the same checkpoint. Small pages checkpoint visibly.
-      const size = Math.min(requestedLimit, data.projection === "research" ? 500 : 1000);
+      const size = Math.min(requestedLimit, data.projection === "research" ? 4000 : 2000);
       const { rows: got, error } = await fetchCursorPage(spec.cursorEntryTimeMs, spec.cursorTradeId, size);
       if (error) {
         const msg = error.message || "";

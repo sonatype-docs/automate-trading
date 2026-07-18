@@ -1677,19 +1677,19 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Strategy</TableHead>
-                <TableHead>Symbol</TableHead>
-                <TableHead>TF</TableHead>
-                <TableHead>TZ</TableHead>
-                <TableHead className="text-right">Trades</TableHead>
-                <TableHead className="text-right">Net Profit</TableHead>
-                <TableHead className="text-right">PF</TableHead>
-                <TableHead className="text-right">Win %</TableHead>
-                <TableHead className="text-right">Expectancy</TableHead>
-                <TableHead className="text-right">Max DD</TableHead>
-                <TableHead className="text-right">Stability</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("strategyId")}>Strategy{sortArrow("strategyId")}</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("symbol")}>Symbol{sortArrow("symbol")}</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("timeframe")}>TF{sortArrow("timeframe")}</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("timezone")}>TZ{sortArrow("timezone")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("trades")}>Trades{sortArrow("trades")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("netProfit")}>Net Profit{sortArrow("netProfit")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("profitFactor")}>PF{sortArrow("profitFactor")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("winRate")}>Win %{sortArrow("winRate")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("expectancy")}>Expectancy{sortArrow("expectancy")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("maxDrawdown")}>Max DD{sortArrow("maxDrawdown")}</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("stability")}>Stability{sortArrow("stability")}</TableHead>
                 <TableHead className="text-right">Rank (PF/N/W/E/T/S)</TableHead>
-                <TableHead className="text-right">Robustness</TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort("robustness")}>Robustness{sortArrow("robustness")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1712,6 +1712,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                   <TableCell className={`text-right font-mono font-semibold ${robustColor(r.robustness)}`}>{r.robustness}</TableCell>
                 </TableRow>
               ))}
+
             </TableBody>
           </Table>
         </CardContent>

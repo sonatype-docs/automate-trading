@@ -1318,6 +1318,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                 <TableHead>Strategy</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>Best TF</TableHead>
+                <TableHead>TZ</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net</TableHead>
                 <TableHead className="text-right">PF</TableHead>
@@ -1332,6 +1333,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                   <TableCell className="font-medium">{r.strategyId}</TableCell>
                   <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="secondary">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{r.timezone}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>

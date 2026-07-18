@@ -15,7 +15,7 @@ import {
   diagnoseLiveRunners, importTopPaperRunnersToLive,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Search, ChevronDown, MoreVertical, Download } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Search, ChevronDown, MoreVertical, Download, CheckCircle2, XCircle, Activity } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

@@ -23,7 +23,7 @@ export function HeaderLivePnl() {
   });
 
   const positions = ordersQ.data?.executed ?? [];
-  const symbols = Array.from(new Set(positions.map((p) => p.symbol)));
+  const symbols = Array.from(new Set(positions.map((p) => p.symbol).filter((s): s is string => !!s && s.trim().length > 0)));
   const hasOpen = symbols.length > 0;
 
   const pricesQ = useQuery({

@@ -134,7 +134,9 @@ const QueryInput = z.object({
   offset: z.number().int().min(0).optional(),
   cursorEntryTimeMs: z.number().optional(),
   cursorTradeId: z.string().optional(),
+  tradeIds: z.array(z.string()).max(5000).optional(),
   projection: z.enum(["full", "research"]).optional(),
+  mode: z.enum(["page", "ids"]).optional(),
   /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
   dataset: z.string().optional(),
 });
@@ -155,13 +157,15 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { table, snapshotName } = resolveTable(data.dataset);
     const requestedLimit = Math.min(spec.limit ?? 100, 2_000_000);
     const baseOffset = spec.cursorEntryTimeMs != null ? 0 : (spec.offset ?? 0);
-    const columns = data.projection === "research"
+    const columns = data.mode === "ids"
+      ? "trade_id,entry_time"
+      : data.projection === "research"
       ? [
         "trade_id", "strategy_id", "symbol", "timeframe", "direction", "status", "session",
         "entry_time", "exit_time",
         "weekday", "week_number", "month", "quarter", "year",
         "entry_price", "exit_price", "actual_rr", "gross_pnl", "net_pnl", "fees",
-        "holding_bars", "duration_ms", "exit_reason", "custom", "tags",
+        "holding_bars", "duration_ms", "exit_reason", "tags",
       ].join(",")
       : "*";
 
@@ -238,6 +242,41 @@ export const queryTrades = createServerFn({ method: "POST" })
       return { rows: out };
     };
 
+    if (data.tradeIds?.length) {
+      const out: Record<string, unknown>[] = [];
+      const ID_CHUNK = 100;
+      for (let i = 0; i < data.tradeIds.length; i += ID_CHUNK) {
+        const ids = data.tradeIds.slice(i, i + ID_CHUNK);
+        // Fetch exact rows by snapshot + trade_id instead of continuing the
+        // checkpoint cursor. This uses the primary/indexed identity path and
+        // avoids the deep archive scan that was freezing large datasets.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rows, error } = await applyLightFilters((supabase as any).from(table).select(columns))
+          .in("trade_id", ids)
+          .order("entry_time", { ascending: true })
+          .order("trade_id", { ascending: true });
+        if (error) {
+          if (isTransientDbError(error)) {
+            return {
+              rows: out.map((r) => rowToRecord(r)),
+              total: out.length,
+              partial: true,
+              hasMore: true,
+              transientError: `Database is still busy fetching ${data.dataset ?? "live"}; saved ${out.length.toLocaleString()} rows from this page and will retry the rest.`,
+            };
+          }
+          throw new Error(error.message);
+        }
+        out.push(...((rows ?? []) as unknown as Record<string, unknown>[]));
+      }
+
+      return {
+        rows: out.map((r) => rowToRecord(r)),
+        total: out.length,
+        hasMore: false,
+      };
+    }
+
     // Cursor mode is used by the Research page for very large datasets. Keep
     // this on indexed keyset predicates so every page resumes from the last row
     // and never uses slow deep offsets or duplicate fan-out chunks.
@@ -308,6 +347,21 @@ export const queryTrades = createServerFn({ method: "POST" })
         rows: got.map((r) => rowToRecord(r)),
         total: got.length,
         hasMore,
+      };
+    }
+
+    if (data.mode === "ids") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rows, error } = await applyLightFilters((supabase as any).from(table).select(columns))
+        .order("entry_time", { ascending: true })
+        .order("trade_id", { ascending: true })
+        .range(baseOffset, baseOffset + requestedLimit - 1);
+      if (error) throw new Error(error.message);
+      const got = (rows ?? []) as unknown as Record<string, unknown>[];
+      return {
+        rows: got.map((r) => rowToRecord(r)),
+        total: got.length,
+        hasMore: got.length >= requestedLimit,
       };
     }
 

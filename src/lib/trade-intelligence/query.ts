@@ -24,6 +24,14 @@ export function applyQuery(
   if (spec.weekday != null) q = q.eq("weekday", spec.weekday);
   if (spec.fromMs != null) q = q.gte("entry_time", new Date(spec.fromMs).toISOString());
   if (spec.toMs != null) q = q.lte("entry_time", new Date(spec.toMs).toISOString());
+  if (spec.cursorEntryTimeMs != null) {
+    const cursorIso = new Date(spec.cursorEntryTimeMs).toISOString();
+    if (spec.cursorTradeId) {
+      q = q.or(`entry_time.gt.${cursorIso},and(entry_time.eq.${cursorIso},trade_id.gt.${spec.cursorTradeId})`);
+    } else {
+      q = q.gt("entry_time", cursorIso);
+    }
+  }
   if (spec.minNetPnl != null) q = q.gte("net_pnl", spec.minNetPnl);
   if (spec.maxNetPnl != null) q = q.lte("net_pnl", spec.maxNetPnl);
   if (spec.winnersOnly) q = q.gt("net_pnl", 0);
@@ -33,8 +41,9 @@ export function applyQuery(
   if (spec.filtersContains && Object.keys(spec.filtersContains).length) q = q.contains("filters", spec.filtersContains);
   const orderBy = spec.orderBy ?? "entry_time";
   q = q.order(orderBy, { ascending: spec.order === "asc" });
+  if (orderBy === "entry_time") q = q.order("trade_id", { ascending: spec.order !== "desc" });
   const limit = Math.min(spec.limit ?? 100, 1_000_000);
-  const offset = spec.offset ?? 0;
+  const offset = spec.cursorEntryTimeMs != null ? 0 : (spec.offset ?? 0);
   q = q.range(offset, offset + limit - 1);
   return q;
 }

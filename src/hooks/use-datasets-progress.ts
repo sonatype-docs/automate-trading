@@ -4,18 +4,19 @@ import { queryTrades } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 
 // Module-level cache keyed by dataset name. Survives route navigation within
-// the SPA session (cleared on hard reload / Resync).
+// the SPA session. Partial rows are intentionally kept during Resync so a
+// busy database can continue from the last loaded cursor instead of row 0.
 const cache = new Map<string, TradeRecord[]>();
 const partialCache = new Map<string, TradeRecord[]>();
 
-export function clearDatasetsCache(datasets?: string[]) {
+export function clearDatasetsCache(datasets?: string[], options: { keepPartial?: boolean } = {}) {
   if (!datasets) {
     cache.clear();
-    partialCache.clear();
+    if (!options.keepPartial) partialCache.clear();
   } else {
     for (const d of datasets) {
       cache.delete(d);
-      partialCache.delete(d);
+      if (!options.keepPartial) partialCache.delete(d);
     }
   }
 }
@@ -47,7 +48,7 @@ export interface DatasetsProgressResult {
 
 const PAGE = 1000;
 const ROWS_PER_CHUNK = 1000;
-const CHUNKS_PER_WAVE = 4;
+const CHUNKS_PER_WAVE = 1;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -118,17 +119,18 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
         if (cancelled || runRef.current !== runId) return;
         if (cache.has(ds)) continue;
         const acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
-        let offset = acc.length;
+        const seen = new Set(acc.map((r) => r.tradeId));
         let wave = 0;
         let done = false;
         let pageSize = PAGE;
-        let chunksPerWave = CHUNKS_PER_WAVE;
+        const chunksPerWave = CHUNKS_PER_WAVE;
         let chunksFetched = Math.floor(acc.length / ROWS_PER_CHUNK);
         let retryCount = 0;
         const startedAt = Date.now();
         try {
           while (!done && !cancelled && runRef.current === runId) {
             wave += 1;
+            const cursor = acc.at(-1);
             setProgress((p) => ({
               ...p,
               [ds]: {
@@ -145,75 +147,22 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 updatedAt: Date.now(),
               },
             }));
-            const plans = Array.from({ length: chunksPerWave }, (_, i) => ({
-              index: i,
-              offset: offset + i * pageSize,
-              limit: pageSize,
-            }));
-            const results = await Promise.allSettled(
-              plans.map(async (plan) => {
-                const res = await queryFn({
-                  data: {
-                    limit: plan.limit,
-                    offset: plan.offset,
-                    orderBy: "entry_time",
-                    order: "asc",
-                    dataset: ds,
-                    projection: "research",
-                  },
-                });
-                return { ...plan, rows: res.rows as TradeRecord[] };
-              }),
-            );
+            const res = await queryFn({
+              data: {
+                limit: pageSize,
+                orderBy: "entry_time",
+                order: "asc",
+                dataset: ds,
+                projection: "research",
+                ...(cursor ? { cursorEntryTimeMs: cursor.entryTime, cursorTradeId: cursor.tradeId } : {}),
+              },
+            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean };
 
-            let waveLoaded = 0;
-            let successfulChunks = 0;
-            let firstError: Error | undefined;
-            for (let i = 0; i < results.length; i++) {
-              const result = results[i];
-              const plan = plans[i];
-              if (result.status === "rejected") {
-                firstError = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
-                break;
-              }
-              const rows = result.value.rows;
-              acc.push(...rows);
-              waveLoaded += rows.length;
-              successfulChunks += 1;
-              chunksFetched += 1;
-              offset += rows.length;
-              partialCache.set(ds, acc.slice());
-              setData((d) => ({ ...d, [ds]: acc.slice() }));
-              setProgress((p) => ({
-                ...p,
-                [ds]: {
-                  ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "fetching" })),
-                  loaded: acc.length,
-                  done: false,
-                  cached: false,
-                  status: "fetching",
-                  pageSize,
-                  rowsPerChunk: plan.limit,
-                  chunksPerWave,
-                  currentWave: wave,
-                  wavesFetched: wave - 1,
-                  chunksFetched,
-                  lastBatchRows: rows.length,
-                  startedAt,
-                  updatedAt: Date.now(),
-                },
-              }));
-              if (rows.length < plan.limit) {
-                done = true;
-                break;
-              }
-            }
-
-            if (firstError) {
+            if (res.transientError) {
               retryCount += 1;
+              const firstError = new Error(res.transientError);
               setError(firstError);
               pageSize = Math.max(100, Math.floor(pageSize / 2));
-              chunksPerWave = 1;
               const delayMs = Math.min(30_000, 1500 * retryCount);
               setProgress((p) => ({
                 ...p,
@@ -229,24 +178,31 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                   currentWave: wave,
                   wavesFetched: Math.max(0, wave - 1),
                   chunksFetched,
-                  lastBatchRows: waveLoaded,
+                  lastBatchRows: 0,
                   startedAt,
                   updatedAt: Date.now(),
-                  error: `${firstError.message} Retrying from row ${offset.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
+                  error: `${firstError.message} Retrying from row ${acc.length.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
                 },
               }));
               await wait(delayMs);
               continue;
             }
 
-            retryCount = 0;
-            setError(undefined);
-            if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
-            chunksPerWave = pageSize >= PAGE ? CHUNKS_PER_WAVE : 1;
+            const rows = res.rows ?? [];
+            let waveLoaded = 0;
+            for (const row of rows) {
+              if (seen.has(row.tradeId)) continue;
+              seen.add(row.tradeId);
+              acc.push(row);
+              waveLoaded += 1;
+            }
+            chunksFetched += 1;
+            partialCache.set(ds, acc.slice());
+            setData((d) => ({ ...d, [ds]: acc.slice() }));
             setProgress((p) => ({
               ...p,
               [ds]: {
-                ...(p[ds] ?? makeProgress({ loaded: 0, done: false, status: "fetching" })),
+                ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "fetching" })),
                 loaded: acc.length,
                 done: false,
                 cached: false,
@@ -260,9 +216,14 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 lastBatchRows: waveLoaded,
                 startedAt,
                 updatedAt: Date.now(),
+                error: undefined,
               },
             }));
-            if (successfulChunks === 0 && waveLoaded === 0) done = true;
+
+            retryCount = 0;
+            setError(undefined);
+            if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
+            if (rows.length < pageSize || waveLoaded === 0) done = true;
           }
           if (cancelled || runRef.current !== runId) return;
           cache.set(ds, acc);

@@ -490,7 +490,7 @@ function ResearchPage() {
                 onClick={async () => {
                   setResyncing(true);
                   try {
-                    clearDatasetsCache(activeDatasets);
+                    clearDatasetsCache(activeDatasets, { keepPartial: true });
                     await qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] });
                     await snapshotList.refetch();
                     setResyncKey((k) => k + 1);

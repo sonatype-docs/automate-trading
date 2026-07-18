@@ -100,6 +100,8 @@ export interface TradeQuerySpec {
   order?: "asc" | "desc";
   limit?: number;
   offset?: number;
+  cursorEntryTimeMs?: number;
+  cursorTradeId?: string;
   projection?: "full" | "research";
 }
 

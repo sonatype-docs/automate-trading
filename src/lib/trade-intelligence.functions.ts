@@ -164,6 +164,38 @@ export const queryTrades = createServerFn({ method: "POST" })
         "holding_bars", "duration_ms", "exit_reason", "custom", "tags",
       ].join(",")
       : "*";
+
+    // Cursor mode is used by the Research page for very large datasets. Keep
+    // this to one indexed request so every page resumes from the last row and
+    // never uses slow deep offsets or duplicate fan-out chunks.
+    if (spec.cursorEntryTimeMs != null) {
+      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: requestedLimit, offset: 0 }, columns);
+      const { data: rows, error } = await q;
+      if (error) {
+        const msg = error.message || "";
+        const transient =
+          error.code === "PGRST103" ||
+          error.code === "57014" ||
+          /range not satisfiable/i.test(msg) ||
+          /statement timeout/i.test(msg) ||
+          /canceling statement/i.test(msg);
+        if (transient) {
+          return {
+            rows: [],
+            total: 0,
+            partial: true,
+            transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+          };
+        }
+        throw new Error(msg);
+      }
+      const got = (rows ?? []) as unknown as Record<string, unknown>[];
+      return {
+        rows: got.map((r) => rowToRecord(r)),
+        total: got.length,
+      };
+    }
+
     const CHUNK = 1000; // PostgREST default max_rows cap
     const CONCURRENCY = 8; // parallel chunk fetches per wave
     const allRows: Record<string, unknown>[] = [];

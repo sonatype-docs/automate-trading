@@ -1668,6 +1668,24 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_snapshot_stats: {
+        Row: {
+          last_updated: string
+          name: string
+          trade_count: number
+        }
+        Insert: {
+          last_updated?: string
+          name: string
+          trade_count?: number
+        }
+        Update: {
+          last_updated?: string
+          name?: string
+          trade_count?: number
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           closed_at: string
@@ -1748,6 +1766,10 @@ export type Database = {
           last_updated: string
           name: string
         }[]
+      }
+      refresh_trade_snapshot_stat: {
+        Args: { _name: string }
+        Returns: undefined
       }
     }
     Enums: {

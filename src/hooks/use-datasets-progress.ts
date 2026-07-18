@@ -4,19 +4,104 @@ import { queryTrades } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 
 // Module-level cache keyed by dataset name. Survives route navigation within
-// the SPA session (cleared on hard reload / Resync).
+// the SPA session. Partial rows are intentionally kept during Resync so a
+// busy database can continue from the last loaded cursor instead of row 0.
 const cache = new Map<string, TradeRecord[]>();
 const partialCache = new Map<string, TradeRecord[]>();
 
-export function clearDatasetsCache(datasets?: string[]) {
+const DB_NAME = "research-dataset-checkpoints";
+const DB_VERSION = 1;
+const CHUNK_STORE = "chunks";
+
+type StoredChunk = { key: string; dataset: string; index: number; rows: TradeRecord[]; updatedAt: number };
+
+function openCheckpointDb(): Promise<IDBDatabase | null> {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(CHUNK_STORE)) {
+        const store = db.createObjectStore(CHUNK_STORE, { keyPath: "key" });
+        store.createIndex("dataset", "dataset", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function loadPersistedRows(dataset: string): Promise<TradeRecord[]> {
+  const db = await openCheckpointDb();
+  if (!db) return [];
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readonly");
+    const index = tx.objectStore(CHUNK_STORE).index("dataset");
+    const req = index.getAll(IDBKeyRange.only(dataset));
+    req.onsuccess = () => {
+      const chunks = (req.result as StoredChunk[]).sort((a, b) => a.index - b.index);
+      resolve(chunks.flatMap((c) => c.rows));
+      db.close();
+    };
+    req.onerror = () => { resolve([]); db.close(); };
+  });
+}
+
+async function savePersistedChunk(dataset: string, index: number, rows: TradeRecord[]): Promise<void> {
+  if (!rows.length) return;
+  const db = await openCheckpointDb();
+  if (!db) return;
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readwrite");
+    tx.objectStore(CHUNK_STORE).put({
+      key: `${dataset}::${index}`,
+      dataset,
+      index,
+      rows,
+      updatedAt: Date.now(),
+    } satisfies StoredChunk);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); resolve(); };
+  });
+}
+
+async function clearPersistedRows(datasets?: string[]): Promise<void> {
+  const db = await openCheckpointDb();
+  if (!db) return;
+  return new Promise((resolve) => {
+    const tx = db.transaction(CHUNK_STORE, "readwrite");
+    const store = tx.objectStore(CHUNK_STORE);
+    if (!datasets) {
+      store.clear();
+    } else {
+      for (const dataset of datasets) {
+        const req = store.index("dataset").openKeyCursor(IDBKeyRange.only(dataset));
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          store.delete(cursor.primaryKey);
+          cursor.continue();
+        };
+      }
+    }
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); resolve(); };
+  });
+}
+
+export function clearDatasetsCache(datasets?: string[], options: { keepPartial?: boolean } = {}) {
   if (!datasets) {
     cache.clear();
-    partialCache.clear();
+    if (!options.keepPartial) {
+      partialCache.clear();
+      void clearPersistedRows();
+    }
   } else {
     for (const d of datasets) {
       cache.delete(d);
-      partialCache.delete(d);
+      if (!options.keepPartial) partialCache.delete(d);
     }
+    if (!options.keepPartial) void clearPersistedRows(datasets);
   }
 }
 
@@ -47,7 +132,7 @@ export interface DatasetsProgressResult {
 
 const PAGE = 1000;
 const ROWS_PER_CHUNK = 1000;
-const CHUNKS_PER_WAVE = 4;
+const CHUNKS_PER_WAVE = 1;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -80,7 +165,8 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
     let cancelled = false;
     setError(undefined);
 
-    // Seed from cache immediately
+    // Seed from memory immediately. IndexedDB checkpoints are loaded below
+    // before network fetching starts, so reloads/crashes do not go back to 0.
     const seedData: Record<string, TradeRecord[]> = {};
     const seedProg: Record<string, DatasetProgress> = {};
     for (const ds of datasets) {
@@ -117,18 +203,42 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
       for (const ds of datasets) {
         if (cancelled || runRef.current !== runId) return;
         if (cache.has(ds)) continue;
-        const acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
-        let offset = acc.length;
+        let acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
+        if (acc.length === 0) {
+          const persisted = await loadPersistedRows(ds);
+          if (cancelled || runRef.current !== runId) return;
+          if (persisted.length) {
+            acc = persisted;
+            partialCache.set(ds, persisted);
+            setData((d) => ({ ...d, [ds]: persisted }));
+            setProgress((p) => ({
+              ...p,
+              [ds]: {
+                ...(p[ds] ?? makeProgress({ loaded: persisted.length, done: false, status: "queued" })),
+                loaded: persisted.length,
+                done: false,
+                cached: false,
+                status: "queued",
+                wavesFetched: Math.floor(persisted.length / PAGE),
+                chunksFetched: Math.floor(persisted.length / ROWS_PER_CHUNK),
+                updatedAt: Date.now(),
+                error: `Resuming from saved checkpoint at row ${persisted.length.toLocaleString()}.`,
+              },
+            }));
+          }
+        }
+        const seen = new Set(acc.map((r) => r.tradeId));
         let wave = 0;
         let done = false;
         let pageSize = PAGE;
-        let chunksPerWave = CHUNKS_PER_WAVE;
+        const chunksPerWave = CHUNKS_PER_WAVE;
         let chunksFetched = Math.floor(acc.length / ROWS_PER_CHUNK);
         let retryCount = 0;
         const startedAt = Date.now();
         try {
           while (!done && !cancelled && runRef.current === runId) {
             wave += 1;
+            const cursor = acc.at(-1);
             setProgress((p) => ({
               ...p,
               [ds]: {
@@ -145,75 +255,22 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 updatedAt: Date.now(),
               },
             }));
-            const plans = Array.from({ length: chunksPerWave }, (_, i) => ({
-              index: i,
-              offset: offset + i * pageSize,
-              limit: pageSize,
-            }));
-            const results = await Promise.allSettled(
-              plans.map(async (plan) => {
-                const res = await queryFn({
-                  data: {
-                    limit: plan.limit,
-                    offset: plan.offset,
-                    orderBy: "entry_time",
-                    order: "asc",
-                    dataset: ds,
-                    projection: "research",
-                  },
-                });
-                return { ...plan, rows: res.rows as TradeRecord[] };
-              }),
-            );
+            const res = await queryFn({
+              data: {
+                limit: pageSize,
+                orderBy: "entry_time",
+                order: "asc",
+                dataset: ds,
+                projection: "research",
+                ...(cursor ? { cursorEntryTimeMs: cursor.entryTime, cursorTradeId: cursor.tradeId } : {}),
+              },
+            }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean };
 
-            let waveLoaded = 0;
-            let successfulChunks = 0;
-            let firstError: Error | undefined;
-            for (let i = 0; i < results.length; i++) {
-              const result = results[i];
-              const plan = plans[i];
-              if (result.status === "rejected") {
-                firstError = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
-                break;
-              }
-              const rows = result.value.rows;
-              acc.push(...rows);
-              waveLoaded += rows.length;
-              successfulChunks += 1;
-              chunksFetched += 1;
-              offset += rows.length;
-              partialCache.set(ds, acc.slice());
-              setData((d) => ({ ...d, [ds]: acc.slice() }));
-              setProgress((p) => ({
-                ...p,
-                [ds]: {
-                  ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "fetching" })),
-                  loaded: acc.length,
-                  done: false,
-                  cached: false,
-                  status: "fetching",
-                  pageSize,
-                  rowsPerChunk: plan.limit,
-                  chunksPerWave,
-                  currentWave: wave,
-                  wavesFetched: wave - 1,
-                  chunksFetched,
-                  lastBatchRows: rows.length,
-                  startedAt,
-                  updatedAt: Date.now(),
-                },
-              }));
-              if (rows.length < plan.limit) {
-                done = true;
-                break;
-              }
-            }
-
-            if (firstError) {
+            if (res.transientError) {
               retryCount += 1;
+              const firstError = new Error(res.transientError);
               setError(firstError);
               pageSize = Math.max(100, Math.floor(pageSize / 2));
-              chunksPerWave = 1;
               const delayMs = Math.min(30_000, 1500 * retryCount);
               setProgress((p) => ({
                 ...p,
@@ -229,24 +286,32 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                   currentWave: wave,
                   wavesFetched: Math.max(0, wave - 1),
                   chunksFetched,
-                  lastBatchRows: waveLoaded,
+                  lastBatchRows: 0,
                   startedAt,
                   updatedAt: Date.now(),
-                  error: `${firstError.message} Retrying from row ${offset.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
+                  error: `${firstError.message} Retrying from row ${acc.length.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
                 },
               }));
               await wait(delayMs);
               continue;
             }
 
-            retryCount = 0;
-            setError(undefined);
-            if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
-            chunksPerWave = pageSize >= PAGE ? CHUNKS_PER_WAVE : 1;
+            const rows = res.rows ?? [];
+            let waveLoaded = 0;
+            for (const row of rows) {
+              if (seen.has(row.tradeId)) continue;
+              seen.add(row.tradeId);
+              acc.push(row);
+              waveLoaded += 1;
+            }
+            chunksFetched += 1;
+            await savePersistedChunk(ds, chunksFetched, rows);
+            partialCache.set(ds, acc.slice());
+            setData((d) => ({ ...d, [ds]: acc.slice() }));
             setProgress((p) => ({
               ...p,
               [ds]: {
-                ...(p[ds] ?? makeProgress({ loaded: 0, done: false, status: "fetching" })),
+                ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "fetching" })),
                 loaded: acc.length,
                 done: false,
                 cached: false,
@@ -260,9 +325,14 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 lastBatchRows: waveLoaded,
                 startedAt,
                 updatedAt: Date.now(),
+                error: undefined,
               },
             }));
-            if (successfulChunks === 0 && waveLoaded === 0) done = true;
+
+            retryCount = 0;
+            setError(undefined);
+            if (pageSize < PAGE) pageSize = Math.min(PAGE, pageSize * 2);
+            if (rows.length < pageSize || waveLoaded === 0) done = true;
           }
           if (cancelled || runRef.current !== runId) return;
           cache.set(ds, acc);

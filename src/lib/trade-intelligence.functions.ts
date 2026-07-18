@@ -132,6 +132,8 @@ const QueryInput = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   limit: z.number().int().positive().max(2_000_000).optional(),
   offset: z.number().int().min(0).optional(),
+  cursorEntryTimeMs: z.number().optional(),
+  cursorTradeId: z.string().optional(),
   projection: z.enum(["full", "research"]).optional(),
   /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
   dataset: z.string().optional(),
@@ -152,7 +154,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const spec = data as TradeQuerySpec;
     const { table, snapshotName } = resolveTable(data.dataset);
     const requestedLimit = Math.min(spec.limit ?? 100, 2_000_000);
-    const baseOffset = spec.offset ?? 0;
+    const baseOffset = spec.cursorEntryTimeMs != null ? 0 : (spec.offset ?? 0);
     const columns = data.projection === "research"
       ? [
         "trade_id", "strategy_id", "symbol", "timeframe", "direction", "status", "session",
@@ -162,6 +164,38 @@ export const queryTrades = createServerFn({ method: "POST" })
         "holding_bars", "duration_ms", "exit_reason", "custom", "tags",
       ].join(",")
       : "*";
+
+    // Cursor mode is used by the Research page for very large datasets. Keep
+    // this to one indexed request so every page resumes from the last row and
+    // never uses slow deep offsets or duplicate fan-out chunks.
+    if (spec.cursorEntryTimeMs != null) {
+      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: requestedLimit, offset: 0 }, columns);
+      const { data: rows, error } = await q;
+      if (error) {
+        const msg = error.message || "";
+        const transient =
+          error.code === "PGRST103" ||
+          error.code === "57014" ||
+          /range not satisfiable/i.test(msg) ||
+          /statement timeout/i.test(msg) ||
+          /canceling statement/i.test(msg);
+        if (transient) {
+          return {
+            rows: [],
+            total: 0,
+            partial: true,
+            transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+          };
+        }
+        throw new Error(msg);
+      }
+      const got = (rows ?? []) as unknown as Record<string, unknown>[];
+      return {
+        rows: got.map((r) => rowToRecord(r)),
+        total: got.length,
+      };
+    }
+
     const CHUNK = 1000; // PostgREST default max_rows cap
     const CONCURRENCY = 8; // parallel chunk fetches per wave
     const allRows: Record<string, unknown>[] = [];
@@ -174,7 +208,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const fetchOffset = async (
       off: number,
       size: number,
-    ): Promise<{ rows: Record<string, unknown>[]; short: boolean }> => {
+    ): Promise<{ rows: Record<string, unknown>[]; short: boolean; transientError?: string }> => {
       const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: size, offset: off }, columns);
       const { data: rows, error } = await q;
       if (error) {
@@ -185,14 +219,13 @@ export const queryTrades = createServerFn({ method: "POST" })
           /range not satisfiable/i.test(msg) ||
           /statement timeout/i.test(msg) ||
           /canceling statement/i.test(msg);
-        if (transient && size > 100) {
-          const half = Math.max(100, Math.floor(size / 2));
-          const a = await fetchOffset(off, half);
-          if (a.short) return a;
-          const b = await fetchOffset(off + half, size - half);
-          return { rows: [...a.rows, ...b.rows], short: b.short };
+        if (transient) {
+          return {
+            rows: [],
+            short: false,
+            transientError: `Database is still busy fetching ${data.dataset ?? "live"}; continuing from the last saved row.`,
+          };
         }
-        if (transient) throw new Error(`Database is still busy fetching ${data.dataset ?? "live"}; retry or resync in a moment.`);
         throw new Error(msg);
       }
       const got = (rows ?? []) as unknown as Record<string, unknown>[];
@@ -211,9 +244,19 @@ export const queryTrades = createServerFn({ method: "POST" })
       const results = await Promise.all(
         waveOffsets.map((off, i) => fetchOffset(off, waveSizes[i]!)),
       );
+      const transient = results.find((r) => r.transientError);
       for (const r of results) {
+        if (r.transientError) continue;
         allRows.push(...r.rows);
         if (r.short) done = true;
+      }
+      if (transient) {
+        return {
+          rows: allRows.map((r) => rowToRecord(r)),
+          total: allRows.length,
+          partial: true,
+          transientError: transient.transientError,
+        };
       }
       fetched += waveOffsets.length * CHUNK;
     }

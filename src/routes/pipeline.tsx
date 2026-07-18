@@ -587,8 +587,13 @@ function PipelinePage() {
       const initialProgress: PipelineProgress = {
         total, completed: 0, currentCombo: null, currentStage: null,
         ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+        completedSlices: [], sliceStats: [], elapsedMs: 0, etaMs: 0,
       };
       setProgress(initialProgress);
+      setSliceStats([]);
+      setEtaMs(0);
+      setRunElapsedMs(0);
+
 
       // Resolve target dataset name.
       const chosenName = datasetMode === "append"

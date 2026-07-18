@@ -472,42 +472,12 @@ function ResearchPage() {
             </div>
 
 
-            <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All strategies</SelectItem>
-                {strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={symbolFilter} onValueChange={setSymbolFilter}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Symbol" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All symbols</SelectItem>
-                {symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
-              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Timeframe" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All timeframes</SelectItem>
-                {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={timezoneFilter} onValueChange={setTimezoneFilter}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All timezones</SelectItem>
-                {timezones.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={directionFilter} onValueChange={setDirectionFilter}>
-              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Direction" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Both</SelectItem>
-                <SelectItem value="long">Long</SelectItem>
-                <SelectItem value="short">Short</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter label="Strategy" allLabel="All strategies" options={strategies} selected={strategyFilter} onChange={setStrategyFilter} width="w-40" />
+            <MultiSelectFilter label="Symbol" allLabel="All symbols" options={symbols} selected={symbolFilter} onChange={setSymbolFilter} width="w-32" />
+            <MultiSelectFilter label="Timeframe" allLabel="All timeframes" options={timeframes} selected={timeframeFilter} onChange={setTimeframeFilter} width="w-28" />
+            <MultiSelectFilter label="Timezone" allLabel="All timezones" options={timezones} selected={timezoneFilter} onChange={setTimezoneFilter} width="w-32" />
+            <MultiSelectFilter label="Direction" allLabel="Both" options={["long","short"]} selected={directionFilter} onChange={setDirectionFilter} width="w-28" />
+
           </div>
         </header>
 

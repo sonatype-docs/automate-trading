@@ -144,3 +144,51 @@ export const getResumableRun = createServerFn({ method: "POST" }).handler(async 
   return { row: rows?.[0] ?? null };
 });
 
+// ---------- latest run with failed combos (for retry-after-refresh) ----------
+
+export const getLastFailedRun = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: rows, error } = await supabaseAdmin
+    .from("pipeline_runs")
+    .select("id,status,matrix,progress,log,started_at,finished_at")
+    .order("started_at", { ascending: false })
+    .limit(10);
+  if (error) throw new Error(error.message);
+  interface FailedCombo {
+    symbol: string; timeframe: string;
+    strategyPresetId: string; execPresetId: string;
+    strategyTimezone?: string | null;
+  }
+  for (const row of rows ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const logArr = Array.isArray((row as any).log) ? (row as any).log as Array<any> : [];
+    const failedCombos: FailedCombo[] = logArr
+      .filter((e) => e && e.status === "failed" && e.combo)
+      .map((e) => ({
+        symbol: String(e.combo.symbol ?? ""),
+        timeframe: String(e.combo.timeframe ?? ""),
+        strategyPresetId: String(e.combo.strategyPresetId ?? ""),
+        execPresetId: String(e.combo.execPresetId ?? ""),
+        strategyTimezone: e.combo.strategyTimezone == null ? null : String(e.combo.strategyTimezone),
+      }));
+    if (failedCombos.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = (row as any).matrix as Record<string, unknown> | null;
+      return {
+        runId: row.id as string,
+        startedAt: row.started_at as string,
+        status: row.status as string,
+        snapshotName: (m && typeof m.snapshotName === "string") ? m.snapshotName as string : null,
+        source: (m && typeof m.source === "string") ? m.source as string : "shark",
+        displayTimezone: (m && typeof m.displayTimezone === "string") ? m.displayTimezone as string : "IST",
+        lookbackDays: (m && typeof m.lookbackDays === "number") ? m.lookbackDays as number : 500,
+        riskUsdPerTrade: (m && typeof m.riskUsdPerTrade === "number") ? m.riskUsdPerTrade as number : 20,
+        failedCombos,
+      };
+    }
+  }
+  return null;
+});
+
+
+

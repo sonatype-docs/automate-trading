@@ -22,8 +22,9 @@ import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { recordTradesFromExecution, listSnapshots, getSnapshotPreview, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import {
-  startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
+  startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun, getLastFailedRun,
 } from "@/lib/pipeline.functions";
+
 import { runComboBatch } from "@/lib/pipeline-batch.functions";
 import { useKeepAlive } from "@/hooks/use-keep-alive";
 import type {
@@ -234,6 +235,8 @@ function PipelinePage() {
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
   const resumableFn = useServerFn(getResumableRun);
+  const lastFailedFn = useServerFn(getLastFailedRun);
+
   const snapshotsFn = useServerFn(listSnapshots);
   const previewFn = useServerFn(getSnapshotPreview);
   const deleteSnapFn = useServerFn(deleteSnapshot);
@@ -277,6 +280,17 @@ function PipelinePage() {
     staleTime: 5_000,
     refetchOnWindowFocus: false,
   });
+
+  // Fetch the most recent run that had failed combos so we can offer a
+  // retry-after-refresh even when local results state is empty.
+  const lastFailed = useQuery({
+    queryKey: ["pipeline", "last-failed"],
+    queryFn: () => lastFailedFn(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+
 
 
   const combos: ComboSpec[] = useMemo(() => {
@@ -882,10 +896,36 @@ function PipelinePage() {
   // to the current dataset selection when nothing has been run yet this session).
   const retryFailedMut = useMutation({
     mutationFn: async () => {
-      const failedSpecs = results.filter((r) => r.status === "failed").map((r) => r.spec);
-      if (failedSpecs.length === 0) return;
-
+      // Prefer in-memory failures; fall back to the most recent DB run's log
+      // (so retry survives a page refresh).
+      let failedSpecs: ComboSpec[] = results
+        .filter((r) => r.status === "failed")
+        .map((r) => r.spec);
       let snap = activeSnapshotRef.current;
+      let effSource = source;
+      let effDisplayTz: Timezone = displayTz;
+      let effLookback = lookbackDays;
+      let effRisk = riskUsd;
+
+      if (failedSpecs.length === 0) {
+        const fetched = await lastFailedFn();
+        if (!fetched || fetched.failedCombos.length === 0) {
+          throw new Error("No failed combos found in the last 10 pipeline runs.");
+        }
+        failedSpecs = fetched.failedCombos.map((c) => ({
+          symbol: c.symbol,
+          timeframe: c.timeframe as Timeframe,
+          strategyPresetId: c.strategyPresetId,
+          execPresetId: c.execPresetId,
+          strategyTimezone: (c.strategyTimezone ?? "London") as Timezone,
+        }));
+        if (!snap) snap = fetched.snapshotName ?? "";
+        effSource = (fetched.source === "yahoo" ? "yahoo" : "shark");
+        effDisplayTz = fetched.displayTimezone as Timezone;
+        effLookback = fetched.lookbackDays;
+        effRisk = fetched.riskUsdPerTrade;
+      }
+
       if (!snap) {
         snap = datasetMode === "append"
           ? (appendTo || "").trim()
@@ -911,22 +951,22 @@ function PipelinePage() {
       setRunElapsedMs(0);
 
       const matrix = {
-        source,
+        source: effSource,
         symbols: Array.from(new Set(failedSpecs.map((s) => s.symbol))),
         timeframes: Array.from(new Set(failedSpecs.map((s) => s.timeframe))) as Timeframe[],
         strategyPresetIds: Array.from(new Set(failedSpecs.map((s) => s.strategyPresetId))),
         execPresetIds: Array.from(new Set(failedSpecs.map((s) => s.execPresetId))),
-        displayTimezone: displayTz,
+        displayTimezone: effDisplayTz,
         strategyTimezone: (failedSpecs[0].strategyTimezone ?? "London") as Timezone,
         strategyTimezones: Array.from(new Set(failedSpecs.map((s) => s.strategyTimezone ?? "London"))) as Timezone[],
-        mode, lookbackDays, riskUsdPerTrade: riskUsd,
+        mode, lookbackDays: effLookback, riskUsdPerTrade: effRisk,
         snapshotName: snap,
       };
       const { runId: id } = await startFn({ data: { matrix, total: failedSpecs.length } });
       setRunId(id);
 
       const toMs = Date.now();
-      const fromMs = toMs - lookbackDays * 86_400_000;
+      const fromMs = toMs - effLookback * 86_400_000;
       await runCombosLoop({
         id, combosToRun: failedSpecs, startIndex: 0, fromMs, toMs,
         initialProgress, initialResults,
@@ -937,8 +977,9 @@ function PipelinePage() {
       console.error("[pipeline] retry failed error", msg);
       setControl("idle");
     },
-    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); lastFailed.refetch(); },
   });
+
 
 
 
@@ -1340,19 +1381,29 @@ function PipelinePage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
                 </Button>
               )}
-              {!isRunning && progress.failed > 0 && (
-                <Button
-                  variant="secondary"
-                  onClick={() => retryFailedMut.mutate()}
-                  disabled={retryFailedMut.isPending}
-                  title={`Re-run ${progress.failed} failed combos into "${activeSnapshotRef.current || (datasetMode === "append" ? appendTo : newDatasetName) || "current dataset"}"`}
-                >
-                  {retryFailedMut.isPending
-                    ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    : <RefreshCw className="w-4 h-4 mr-2" />}
-                  Retry {progress.failed} failed
-                </Button>
-              )}
+              {!isRunning && (progress.failed > 0 || (lastFailed.data?.failedCombos.length ?? 0) > 0) && (() => {
+                const localCount = progress.failed;
+                const dbCount = lastFailed.data?.failedCombos.length ?? 0;
+                const count = localCount > 0 ? localCount : dbCount;
+                const snapLabel = activeSnapshotRef.current
+                  || lastFailed.data?.snapshotName
+                  || (datasetMode === "append" ? appendTo : newDatasetName)
+                  || "current dataset";
+                return (
+                  <Button
+                    variant="secondary"
+                    onClick={() => retryFailedMut.mutate()}
+                    disabled={retryFailedMut.isPending}
+                    title={`Re-run ${count} failed combos into "${snapLabel}"`}
+                  >
+                    {retryFailedMut.isPending
+                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      : <RefreshCw className="w-4 h-4 mr-2" />}
+                    Retry {count} failed{localCount === 0 ? " (from last run)" : ""}
+                  </Button>
+                );
+              })()}
+
               {!isRunning && results.length > 0 && (
                 <Button variant="ghost" onClick={() => {
                   setResults([]);

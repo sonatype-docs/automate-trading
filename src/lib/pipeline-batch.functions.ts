@@ -78,10 +78,6 @@ export const runComboBatch = createServerFn({ method: "POST" })
       import("@/lib/trade-intelligence/mapper"),
       import("@/lib/trade-intelligence/recorder"),
     ]);
-    // (mapper exports recordToRow / rowToRecord; recorder exports toTradeRecord)
-    void 0;
-    const _batchImportsReady = true; void _batchImportsReady; ([
-    ]);
 
     // ── 1) Data slice loaded ONCE for the whole batch ──
     const dataStart = Date.now();

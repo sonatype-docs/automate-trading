@@ -153,10 +153,16 @@ function PipelinePage() {
   const previewFn = useServerFn(getSnapshotPreview);
   const deleteSnapFn = useServerFn(deleteSnapshot);
   const [deletingSnap, setDeletingSnap] = useState(false);
-  // Batch/parallel tuning. Kept modest so a single batch stays under Worker
-  // CPU limits and we can still pause/stop responsively.
+  // Batch/parallel tuning. Adaptive limiter can lower this ceiling automatically
+  // when the DB slows down or errors spike.
   const [batchSize, setBatchSize] = useState<number>(12);   // combos per data-slice request
-  const [parallelism, setParallelism] = useState<number>(3); // concurrent slice batches
+  const [parallelism, setParallelism] = useState<number>(4); // MAX concurrent slice batches (ceiling)
+  const [adaptive, setAdaptive] = useState<boolean>(true);
+  const [effectiveParallelism, setEffectiveParallelism] = useState<number>(4);
+  const [sliceStats, setSliceStats] = useState<SliceProgress[]>([]);
+  const [etaMs, setEtaMs] = useState<number>(0);
+  const [runElapsedMs, setRunElapsedMs] = useState<number>(0);
+
 
   const snapshotList = useQuery({
     queryKey: ["pipeline", "snapshots"],

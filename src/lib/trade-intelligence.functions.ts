@@ -172,6 +172,9 @@ export const queryTrades = createServerFn({ method: "POST" })
     const isTransientDbError = (error: { code?: string; message?: string }) => {
       const msg = error.message || "";
       return (
+        error.code === "20" ||
+        /abort/i.test(error.code ?? "") ||
+        /abort/i.test(msg) ||
         error.code === "PGRST103" ||
         error.code === "57014" ||
         /range not satisfiable/i.test(msg) ||
@@ -182,6 +185,27 @@ export const queryTrades = createServerFn({ method: "POST" })
         /connection timeout/i.test(msg) ||
         /timeout.*awaiting headers/i.test(msg)
       );
+    };
+
+    const withQueryTimeout = async <T,>(
+      build: (signal: AbortSignal) => PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>,
+      timeoutMs = 7000,
+    ) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await build(controller.signal);
+      } catch (error) {
+        return {
+          data: null,
+          error: {
+            code: "20",
+            message: error instanceof Error ? error.message : "Database request timed out before a checkpoint page returned.",
+          },
+        };
+      } finally {
+        clearTimeout(timer);
+      }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -225,7 +249,7 @@ export const queryTrades = createServerFn({ method: "POST" })
           .gt("trade_id", cursorTradeId)
           .order("trade_id", { ascending: true })
           .range(0, size - 1);
-        const { data: sameRows, error } = await sameTimestampQuery;
+        const { data: sameRows, error } = await withQueryTimeout((signal) => sameTimestampQuery.abortSignal(signal));
         if (error) return { rows: out, error };
         out.push(...((sameRows ?? []) as unknown as Record<string, unknown>[]));
       }
@@ -238,7 +262,7 @@ export const queryTrades = createServerFn({ method: "POST" })
           .order("entry_time", { ascending: true })
           .order("trade_id", { ascending: true })
           .range(0, remaining - 1);
-        const { data: laterRows, error } = await laterTimestampQuery;
+        const { data: laterRows, error } = await withQueryTimeout((signal) => laterTimestampQuery.abortSignal(signal));
         if (error) return { rows: out, error };
         out.push(...((laterRows ?? []) as unknown as Record<string, unknown>[]));
       }

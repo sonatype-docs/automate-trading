@@ -15,19 +15,15 @@ import {
   diagnoseLiveRunners, importTopPaperRunnersToLive,
   type LiveRunnerDTO, type LiveTradeDTO, type RunnerDiagnosticsDTO,
 } from "@/lib/live-trading.functions";
-import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Activity, CheckCircle2, XCircle, Search, ChevronDown, MoreVertical, Download } from "lucide-react";
+import { PlayCircle, StopCircle, RefreshCw, AlertTriangle, X, Plug, Clock, Info, Search, ChevronDown, MoreVertical, Download, CheckCircle2, XCircle, Activity } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
-import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 import { StrategyDetailsDialog } from "@/components/strategy-details-dialog";
 import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
   type IstWindow,
 } from "@/lib/session-windows";
-import { AllRunnersStatusCard } from "@/components/live-chart-card";
-import { ExchangeOrdersCard } from "@/components/exchange-orders-card";
 import { TopRunnersVerificationCard } from "@/components/top-runners-verification";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 
@@ -69,10 +65,10 @@ function LiveTradingPage() {
   });
 
   const runners = useQuery({
-    queryKey: ["live-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,
+    queryKey: ["live-runners"], queryFn: () => runnersFn(), staleTime: 60_000,
   });
   const trades = useQuery({
-    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 5000,
+    queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), staleTime: 60_000,
   });
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["live-runners"] });
@@ -147,19 +143,12 @@ function LiveTradingPage() {
   return (
     <div className="p-4 sm:p-6 space-y-4">
       <OpenOrdersMiniWidget trades={openTrades} />
-      <TickStatusCard runners={runnersList} />
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="performance">Strategy performance</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
-
-        <AllRunnersStatusCard />
-
-        <ExchangeOrdersCard />
-
-
         <Card>
           <CardHeader>
             <CardTitle>Open live orders ({openTrades.length})</CardTitle>
@@ -293,10 +282,11 @@ function LiveTradingPage() {
         </CollapsedShell>
         </TabsContent>
         <TabsContent value="performance">
-          <div className="space-y-6">
-            <StrategyPerformanceCard defaultMode="live" lockMode showStrategyFilter />
-            <PnlCalendarCard defaultMode="live" lockMode showStrategyFilter={false} showToday />
-          </div>
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              Live performance auto-refresh sections were removed to reduce page load.
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
@@ -551,12 +541,6 @@ function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
 
 function EntryWindowCell({ preset }: { preset: string }) {
   const windows = windowsForPreset(preset);
-  // Re-render every minute so active/next-open indicators stay accurate.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => setTick((n) => n + 1), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   if (!windows.length) {
     return <span className="text-xs text-muted-foreground">—</span>;
@@ -599,94 +583,6 @@ function EntryWindowCell({ preset }: { preset: string }) {
   );
 }
 
-function TickStatusCard({ runners }: { runners: LiveRunnerDTO[] }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const hook = useQuery({
-    queryKey: ["live-tick-hook-health"],
-    queryFn: async () => {
-      const t0 = performance.now();
-      const res = await fetch("/api/public/hooks/live-tick", { method: "GET" });
-      return { ok: res.ok, status: res.status, ms: Math.round(performance.now() - t0) };
-    },
-    refetchInterval: 30_000,
-    retry: false,
-  });
-
-  // Most recent tick across all runners.
-  const lastTickMs = runners.reduce<number | null>((best, r) => {
-    if (!r.last_tick_at) return best;
-    const t = new Date(r.last_tick_at).getTime();
-    return best == null || t > best ? t : best;
-  }, null);
-  const ageMin = lastTickMs == null ? null : Math.floor((now - lastTickMs) / 60_000);
-  const tickFresh = ageMin != null && ageMin <= 2;
-  const tickStale = ageMin != null && ageMin > 5;
-
-  // Aggregated window state across running runners (fall back to all if none running).
-  const active = runners.length ? runners.filter((r) => r.running) : [];
-  const source = active.length ? active : runners;
-  const allWindows = source.flatMap((r) => windowsForPreset(r.strategy_preset));
-  const anyActive = allWindows.some((w) => isWindowActive(w));
-  const nextOpenMin = anyActive
-    ? null
-    : allWindows.reduce<number | null>((best, w) => {
-        const m = minutesUntilOpen(w);
-        return best == null || m < best ? m : best;
-      }, null);
-
-  const hookOk = hook.data?.ok === true;
-  const hookLoading = hook.isPending;
-
-  const lastTickLabel = ageMin == null ? "never" : ageMin < 1 ? "just now" : `${ageMin}m ago`;
-  const windowLabel =
-    allWindows.length === 0 ? "—"
-    : anyActive ? "open now"
-    : nextOpenMin != null ? `opens in ${fmtDuration(nextOpenMin)}`
-    : "closed";
-
-  return (
-    <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-1.5 text-xs bg-card ring-1 ring-[color-mix(in_oklch,var(--brand-copper)_25%,transparent)]">
-      <div className="flex items-center gap-1.5">
-        <Activity className="h-3 w-3 text-muted-foreground" />
-        <span className="text-muted-foreground">Tick</span>
-      </div>
-      <div className="flex items-center gap-1.5" title={lastTickMs ? new Date(lastTickMs).toLocaleString() : "no ticks yet"}>
-        <span className={`h-1.5 w-1.5 rounded-full ${tickFresh ? "bg-emerald-500" : tickStale ? "bg-destructive" : "bg-amber-500"}`} />
-        <span>last {lastTickLabel}</span>
-      </div>
-      <div className="flex items-center gap-1.5" title={hook.data ? `HTTP ${hook.data.status} · ${hook.data.ms}ms` : "GET /api/public/hooks/live-tick"}>
-        {hookLoading ? (
-          <span className="h-1.5 w-1.5 rounded-full bg-muted animate-pulse" />
-        ) : hookOk ? (
-          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-        ) : (
-          <XCircle className="h-3 w-3 text-destructive" />
-        )}
-        <span className={hookOk ? "" : "text-destructive"}>
-          hook {hookLoading ? "…" : hookOk ? "ok" : "down"}
-        </span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${anyActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
-        <span>window {windowLabel}</span>
-      </div>
-      {active.length > 0 && (
-        <span className="text-muted-foreground ml-auto">
-          {active.length} running
-        </span>
-      )}
-    </div>
-  );
-}
-
-
-
-
 function OpenTable({ trades, onCancel }: { trades: LiveTradeDTO[]; onCancel: (id: string) => void }) {
   if (!trades.length) return <p className="text-sm text-muted-foreground">No open live orders.</p>;
   return (
@@ -724,7 +620,7 @@ function DiagnosticsCard() {
   const q = useQuery({
     queryKey: ["live-diagnostics"],
     queryFn: () => diagnoseFn(),
-    refetchInterval: 15_000,
+    staleTime: 60_000,
   });
   const rows = q.data ?? [];
   return (

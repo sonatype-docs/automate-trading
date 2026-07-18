@@ -54,12 +54,12 @@ function BotPage() {
   const stateQ = useQuery({
     queryKey: ["bot-state"],
     queryFn: () => getState(),
-    refetchInterval: 5000,
+    staleTime: 60_000,
   });
   const dashQ = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => getDash(),
-    refetchInterval: 10000,
+    staleTime: 60_000,
   });
 
   const settings = stateQ.data?.settings;

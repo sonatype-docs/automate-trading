@@ -165,9 +165,79 @@ export const queryTrades = createServerFn({ method: "POST" })
       ].join(",")
       : "*";
 
+    const isTransientDbError = (error: { code?: string; message?: string }) => {
+      const msg = error.message || "";
+      return (
+        error.code === "PGRST103" ||
+        error.code === "57014" ||
+        /range not satisfiable/i.test(msg) ||
+        /statement timeout/i.test(msg) ||
+        /canceling statement/i.test(msg)
+      );
+    };
+
+    const applyLightFilters = (q: ReturnType<typeof supabase.from> extends { select: (...args: infer A) => infer R } ? R : never) => {
+      let query = q;
+      if (snapshotName) query = query.eq("snapshot_name", snapshotName);
+      if (spec.strategyId) query = query.eq("strategy_id", spec.strategyId);
+      if (spec.symbol) query = query.eq("symbol", spec.symbol);
+      if (spec.timeframe) query = query.eq("timeframe", spec.timeframe);
+      if (spec.direction) query = query.eq("direction", spec.direction);
+      if (spec.session) query = query.eq("session", spec.session);
+      if (spec.weekday != null) query = query.eq("weekday", spec.weekday);
+      if (spec.fromMs != null) query = query.gte("entry_time", new Date(spec.fromMs).toISOString());
+      if (spec.toMs != null) query = query.lte("entry_time", new Date(spec.toMs).toISOString());
+      if (spec.minNetPnl != null) query = query.gte("net_pnl", spec.minNetPnl);
+      if (spec.maxNetPnl != null) query = query.lte("net_pnl", spec.maxNetPnl);
+      if (spec.winnersOnly) query = query.gt("net_pnl", 0);
+      if (spec.losersOnly) query = query.lt("net_pnl", 0);
+      if (spec.tags?.length) query = query.contains("tags", spec.tags);
+      if (spec.customContains && Object.keys(spec.customContains).length) query = query.contains("custom", spec.customContains);
+      if (spec.filtersContains && Object.keys(spec.filtersContains).length) query = query.contains("filters", spec.filtersContains);
+      return query;
+    };
+
+    const fetchCursorPage = async (
+      cursorEntryTimeMs: number,
+      cursorTradeId: string | undefined,
+      size: number,
+    ): Promise<{ rows: Record<string, unknown>[]; error?: { code?: string; message?: string } }> => {
+      const cursorIso = new Date(cursorEntryTimeMs).toISOString();
+      const out: Record<string, unknown>[] = [];
+
+      // Avoid PostgREST `or(...)` for keyset paging. It makes Postgres scan and
+      // filter all earlier rows (the freeze at row 100,500). Splitting the
+      // cursor into two simple indexed predicates keeps resume checkpoints fast:
+      // 1) remaining rows at the same timestamp, then 2) later timestamps.
+      if (cursorTradeId) {
+        const sameTimestampQuery = applyLightFilters(supabase.from(table).select(columns))
+          .eq("entry_time", cursorIso)
+          .gt("trade_id", cursorTradeId)
+          .order("trade_id", { ascending: true })
+          .range(0, size - 1);
+        const { data: sameRows, error } = await sameTimestampQuery;
+        if (error) return { rows: out, error };
+        out.push(...((sameRows ?? []) as unknown as Record<string, unknown>[]));
+      }
+
+      if (out.length < size) {
+        const remaining = size - out.length;
+        const laterTimestampQuery = applyLightFilters(supabase.from(table).select(columns))
+          .gt("entry_time", cursorIso)
+          .order("entry_time", { ascending: true })
+          .order("trade_id", { ascending: true })
+          .range(0, remaining - 1);
+        const { data: laterRows, error } = await laterTimestampQuery;
+        if (error) return { rows: out, error };
+        out.push(...((laterRows ?? []) as unknown as Record<string, unknown>[]));
+      }
+
+      return { rows: out };
+    };
+
     // Cursor mode is used by the Research page for very large datasets. Keep
-    // this to one indexed request so every page resumes from the last row and
-    // never uses slow deep offsets or duplicate fan-out chunks.
+    // this on indexed keyset predicates so every page resumes from the last row
+    // and never uses slow deep offsets or duplicate fan-out chunks.
     if (spec.cursorEntryTimeMs != null) {
       const CURSOR_PAGE = 1000; // backend row cap per request
       const got: Record<string, unknown>[] = [];
@@ -176,22 +246,10 @@ export const queryTrades = createServerFn({ method: "POST" })
 
       while (got.length < requestedLimit) {
         const size = Math.min(CURSOR_PAGE, requestedLimit - got.length);
-        const q = applyQuery(
-          supabase,
-          table,
-          { ...spec, snapshotName, limit: size, offset: 0, cursorEntryTimeMs, cursorTradeId },
-          columns,
-        );
-        const { data: rows, error } = await q;
+        const { rows, error } = await fetchCursorPage(cursorEntryTimeMs, cursorTradeId, size);
         if (error) {
           const msg = error.message || "";
-          const transient =
-            error.code === "PGRST103" ||
-            error.code === "57014" ||
-            /range not satisfiable/i.test(msg) ||
-            /statement timeout/i.test(msg) ||
-            /canceling statement/i.test(msg);
-          if (transient) {
+          if (isTransientDbError(error)) {
             return {
               rows: got.map((r) => rowToRecord(r)),
               total: got.length,
@@ -202,7 +260,7 @@ export const queryTrades = createServerFn({ method: "POST" })
           throw new Error(msg);
         }
 
-        const page = (rows ?? []) as unknown as Record<string, unknown>[];
+        const page = rows;
         if (page.length === 0) break;
         got.push(...page);
         const last = page[page.length - 1];
@@ -227,13 +285,7 @@ export const queryTrades = createServerFn({ method: "POST" })
         const { data: probeRows, error: probeError } = await probe;
         if (probeError) {
           const msg = probeError.message || "";
-          const transient =
-            probeError.code === "PGRST103" ||
-            probeError.code === "57014" ||
-            /range not satisfiable/i.test(msg) ||
-            /statement timeout/i.test(msg) ||
-            /canceling statement/i.test(msg);
-          if (transient) {
+          if (isTransientDbError(probeError)) {
             return {
               rows: got.map((r) => rowToRecord(r)),
               total: got.length,

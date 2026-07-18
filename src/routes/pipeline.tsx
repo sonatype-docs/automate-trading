@@ -1276,70 +1276,7 @@ function PipelinePage() {
           </CardContent>
         </Card>
 
-        {results.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-widest">
-                Run log ({progress.completed}/{progress.total})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-xs font-mono">
-                <thead className="text-muted-foreground">
-                  <tr className="text-left">
-                    <th className="py-1 pr-3">Status</th>
-                    <th className="py-1 pr-3">Symbol</th>
-                    <th className="py-1 pr-3">TF</th>
-                    <th className="py-1 pr-3">TZ</th>
-                    <th className="py-1 pr-3">Strategy</th>
-                    <th className="py-1 pr-3">Exec</th>
-
-                    <th className="py-1 pr-3">Stages</th>
-                    <th className="py-1 pr-3 text-right">Trades</th>
-                    <th className="py-1 pr-3 text-right">Inserted</th>
-                    <th className="py-1 pr-3 text-right">Elapsed</th>
-                    <th className="py-1 pr-3">Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => (
-                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${r.spec.strategyTimezone ?? ""}-${i}`} className="border-t border-border/40">
-                      <td className="py-1 pr-3">
-                        {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
-                        {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
-                        {r.status === "running" && <Badge variant="secondary" className="text-[9px]"><Loader2 className="w-3 h-3 mr-1 animate-spin inline" />RUN</Badge>}
-                        {r.status === "pending" && <Badge variant="outline" className="text-[9px]">…</Badge>}
-                      </td>
-                      <td className="py-1 pr-3">{r.spec.symbol}</td>
-                      <td className="py-1 pr-3">{r.spec.timeframe}</td>
-                      <td className="py-1 pr-3">{r.spec.strategyTimezone ?? "—"}</td>
-                      <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
-                      <td className="py-1 pr-3">{r.spec.execPresetId}</td>
-
-                      <td className="py-1 pr-3">
-                        <div className="flex gap-2">
-                          <StageDot stage="data" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["strategy","execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "data"} />
-                          <StageDot stage="strategy" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "strategy"} />
-                          <StageDot stage="execution" current={r.stage} done={r.status === "ok" || r.stage === "intelligence"} failed={r.status === "failed" && r.stage === "execution"} />
-                          <StageDot stage="intelligence" current={r.stage} done={r.status === "ok"} failed={r.status === "failed" && r.stage === "intelligence"} />
-                        </div>
-                      </td>
-                      <td className="py-1 pr-3 text-right">{r.trades.toLocaleString()}</td>
-                      <td className="py-1 pr-3 text-right">{r.inserted.toLocaleString()}</td>
-                      <td className="py-1 pr-3 text-right">{r.elapsedMs > 0 ? `${(r.elapsedMs / 1000).toFixed(1)}s` : "—"}</td>
-                      <td className="py-1 pr-3 text-rose-500 truncate max-w-md" title={r.error ?? ""}>{r.error ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {progress.failed === 0 && progress.completed === progress.total && progress.total > 0 && (
-                <div className="mt-4 text-xs text-emerald-500">
-                  Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Risk per trade was {fmtMoney(riskUsd)}.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        {results.length > 0 && <RunLog results={results} progress={progress} riskUsd={riskUsd} />}
       </main>
     </div>
   );

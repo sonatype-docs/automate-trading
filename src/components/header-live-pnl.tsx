@@ -13,12 +13,21 @@ function fmtUsd(n: number) {
 export function HeaderLivePnl() {
   const listFn = useServerFn(listLiveExchangeOrders);
   const priceFn = useServerFn(getLastPrice);
+  const runnersFn = useServerFn(listLiveRunners);
+
+  const runnersQ = useQuery({
+    queryKey: ["live-runners"],
+    queryFn: () => runnersFn(),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+  const anyRunning = (runnersQ.data ?? []).some((r) => r.running);
 
   const ordersQ = useQuery({
     queryKey: ["header-live-orders"],
     queryFn: () => listFn({}),
-    // Poll slowly when idle; the price query below ramps to 5s once a position is open.
-    refetchInterval: 30_000,
+    // Only poll while at least one runner is running.
+    refetchInterval: anyRunning ? 30_000 : false,
     staleTime: 15_000,
   });
 

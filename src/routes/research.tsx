@@ -15,10 +15,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw } from "lucide-react";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw, Layers } from "lucide-react";
 import { queryTrades, listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";

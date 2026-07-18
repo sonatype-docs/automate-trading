@@ -45,13 +45,13 @@ function PaperTradingPage() {
 
 
   const runners = useQuery({
-    queryKey: ["paper-runners"], queryFn: () => runnersFn(), staleTime: 60_000,
+    queryKey: ["paper-runners"], queryFn: () => runnersFn(), refetchInterval: 5000,
   });
   const positions = useQuery({
-    queryKey: ["paper-positions"], queryFn: () => positionsFn(), staleTime: 60_000,
+    queryKey: ["paper-positions"], queryFn: () => positionsFn(), refetchInterval: 5000,
   });
   const trades = useQuery({
-    queryKey: ["paper-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), staleTime: 60_000,
+    queryKey: ["paper-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }), refetchInterval: 10_000,
   });
 
   const invalidate = () => {

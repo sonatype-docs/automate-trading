@@ -124,12 +124,12 @@ function JournalPage() {
   const acctQ = useQuery({
     queryKey: ["exchange-account"],
     queryFn: () => getAcct(),
-    staleTime: 60_000,
+    refetchInterval: 15_000,
   });
   const pendingQ = useQuery({
     queryKey: ["shark", "open-orders"],
     queryFn: () => getPending(),
-    staleTime: 60_000,
+    refetchInterval: 10_000,
   });
 
   const [symbolFilter, setSymbolFilter] = useState<string>("ALL");

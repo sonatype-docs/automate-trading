@@ -49,7 +49,7 @@ function PendingOrdersPage() {
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["shark", "open-orders"],
     queryFn: () => fetchOrders(),
-    staleTime: 60_000,
+    refetchInterval: 10_000,
   });
 
   return (

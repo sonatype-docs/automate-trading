@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNavCarousel } from "./mobile-nav-carousel";
+import { HeaderLivePnl } from "./header-live-pnl";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -44,6 +45,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
 
+          </div>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+            <div className="pointer-events-auto">
+              <HeaderLivePnl />
+            </div>
+          </div>
+          <div className="hidden items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md sm:flex">
+            <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
+              <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
+              <span className="relative inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_theme(colors.emerald.400)]" />
+            </span>
+            <span className="text-[11px] font-medium tracking-wide text-foreground/80">Live</span>
           </div>
           <ThemeToggle />
         </header>

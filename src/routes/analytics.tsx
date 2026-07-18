@@ -64,7 +64,7 @@ function AnalyticsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["pnl-calendar", month, symbol, mode],
     queryFn: () => fetchCal({ data: { month, symbol: symbol === "all" ? undefined : symbol, mode } }),
-    staleTime: 60_000,
+    refetchInterval: 30_000,
   });
 
   const byDate = useMemo(() => {

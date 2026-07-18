@@ -130,8 +130,8 @@ export interface DatasetsProgressResult {
   error?: Error;
 }
 
-const PAGE = 1000;
-const ROWS_PER_CHUNK = 1000;
+const PAGE = 4000;
+const ROWS_PER_CHUNK = 4000;
 const CHUNKS_PER_WAVE = 1;
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));

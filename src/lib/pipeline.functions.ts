@@ -15,9 +15,13 @@ const MatrixSchema = z.object({
   execPresetIds: z.array(z.string()).min(1),
   displayTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]),
   strategyTimezone: z.enum([...TIMEZONES] as [Timezone, ...Timezone[]]),
+  // Full TZ axis (matrix). Optional for backward-compat with older runs.
+  strategyTimezones: z.array(z.enum([...TIMEZONES] as [Timezone, ...Timezone[]])).min(1).optional(),
   mode: z.enum(["historical", "live", "replay", "paper"]),
   lookbackDays: z.number().int().positive().max(2000),
   riskUsdPerTrade: z.number().positive(),
+  // Target archive dataset — surfaces as a separate Snapshot in Research.
+  snapshotName: z.string().min(1).max(120).optional(),
 });
 
 // ---------- start a run ----------

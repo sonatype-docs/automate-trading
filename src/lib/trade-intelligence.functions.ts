@@ -80,11 +80,12 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
       }),
     );
     // Deterministic trade_id so re-runs UPSERT the same row instead of
-    // duplicating. Identity = strategy + exec + symbol + tf + direction +
-    // signal/entry timestamp. Any of these differ => different row.
+    // duplicating. Identity = strategy + exec + symbol + tf + tz + direction +
+    // signal/entry timestamp. TZ is included so multi-timezone matrix runs
+    // don't overwrite each other under (snapshot_name, trade_id).
     for (const r of records) {
       const ts = r.signalTime ?? r.entryTime;
-      r.tradeId = `ti_${data.strategyPresetId}_${data.execPresetId}_${r.symbol}_${r.timeframe ?? "na"}_${r.direction}_${ts}`;
+      r.tradeId = `ti_${data.strategyPresetId}_${data.execPresetId}_${r.symbol}_${r.timeframe ?? "na"}_${data.strategyTimezone}_${r.direction}_${ts}`;
     }
 
     if (records.length === 0) {

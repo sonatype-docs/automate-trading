@@ -538,13 +538,14 @@ export function AllRunnersStatusCard() {
     queryKey: ["live-runners"], queryFn: () => runnersFn(),
     refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
+  const anyRunning = (runnersQ.data ?? []).some((r) => r.running);
   const tradesQ = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
-    refetchInterval: 10_000, staleTime: 8_000, placeholderData: keepPreviousData,
+    refetchInterval: anyRunning ? 10_000 : false, staleTime: 8_000, placeholderData: keepPreviousData,
   });
   const statusQ = useQuery({
     queryKey: ["live-runners-status"], queryFn: () => statusFn(),
-    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
+    refetchInterval: anyRunning ? 60_000 : false, staleTime: 45_000, placeholderData: keepPreviousData,
   });
   const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
   const onRefresh = () => {

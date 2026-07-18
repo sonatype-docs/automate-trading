@@ -74,6 +74,14 @@ function defaultDatasetName(now = new Date()): string {
   return `pipeline-${y}-${mo}-${d}_${h}-${mi}`;
 }
 
+// Timestamped fallback for legacy pipeline_runs rows that don't carry a
+// snapshotName in their matrix. Uses the run's started_at so re-opening the
+// same historic run always resolves to the same dataset label.
+function fallbackSnapshotName(startedAt: string | null | undefined): string {
+  const d = startedAt ? new Date(startedAt) : new Date();
+  return defaultDatasetName(Number.isFinite(d.getTime()) ? d : new Date());
+}
+
 
 function StageDot({ stage, current, done, failed }: {
   stage: PipelineStage; current: PipelineStage | null; done: boolean; failed: boolean;

@@ -65,8 +65,8 @@ export const runComboBatch = createServerFn({ method: "POST" })
       { runExecution },
       { STRATEGY_PRESETS },
       { EXEC_PRESETS, withRiskUsd },
-      { toTradeRecord },
       { recordToRow },
+      { toTradeRecord },
     ] = await Promise.all([
       import("@/lib/market-data/loader.server"),
       import("@/lib/market-data/enrich"),
@@ -77,6 +77,10 @@ export const runComboBatch = createServerFn({ method: "POST" })
       import("@/lib/execution-engine/presets"),
       import("@/lib/trade-intelligence/mapper"),
       import("@/lib/trade-intelligence/recorder"),
+    ]);
+    // (mapper exports recordToRow / rowToRecord; recorder exports toTradeRecord)
+    void 0;
+    const _batchImportsReady = true; void _batchImportsReady; ([
     ]);
 
     // ── 1) Data slice loaded ONCE for the whole batch ──

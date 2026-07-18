@@ -326,7 +326,35 @@ function ResearchPage() {
               >
                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1"
+                disabled={resyncing || isLoading}
+                title="Refetch trades and snapshot list from the server"
+                onClick={async () => {
+                  setResyncing(true);
+                  try {
+                    await Promise.all([
+                      qc.invalidateQueries({ queryKey: ["research", "all-trades"] }),
+                      qc.invalidateQueries({ queryKey: ["trade-intel", "snapshots"] }),
+                    ]);
+                    await Promise.all([
+                      qc.refetchQueries({ queryKey: ["research", "all-trades", dataset] }),
+                      snapshotList.refetch(),
+                    ]);
+                  } finally {
+                    setResyncing(false);
+                  }
+                }}
+              >
+                {resyncing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <RefreshCw className="h-3.5 w-3.5" />}
+                Resync
+              </Button>
             </div>
+
 
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>

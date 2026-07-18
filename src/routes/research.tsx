@@ -227,20 +227,20 @@ function ResearchPage() {
     return out;
   }, [rawCombined, dedupe, activeDatasets.length]);
 
-  const [strategyFilter, setStrategyFilter] = useState<string>("all");
-  const [symbolFilter, setSymbolFilter] = useState<string>("all");
-  const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
-  const [timezoneFilter, setTimezoneFilter] = useState<string>("all");
-  const [directionFilter, setDirectionFilter] = useState<string>("all");
+  const [strategyFilter, setStrategyFilter] = useState<string[]>([]);
+  const [symbolFilter, setSymbolFilter] = useState<string[]>([]);
+  const [timeframeFilter, setTimeframeFilter] = useState<string[]>([]);
+  const [timezoneFilter, setTimezoneFilter] = useState<string[]>([]);
+  const [directionFilter, setDirectionFilter] = useState<string[]>([]);
   const [customRules, setCustomRules] = useState<Rule[]>([]);
 
   const trades = useMemo(() => {
     let t = allTrades;
-    if (strategyFilter !== "all") t = t.filter((r) => r.strategyId === strategyFilter);
-    if (symbolFilter !== "all") t = t.filter((r) => r.symbol === symbolFilter);
-    if (timeframeFilter !== "all") t = t.filter((r) => (r.timeframe ?? "—") === timeframeFilter);
-    if (timezoneFilter !== "all") t = t.filter((r) => (tradeTz(r) ?? "—") === timezoneFilter);
-    if (directionFilter !== "all") t = t.filter((r) => r.direction === directionFilter);
+    if (strategyFilter.length) t = t.filter((r) => strategyFilter.includes(r.strategyId));
+    if (symbolFilter.length) t = t.filter((r) => symbolFilter.includes(r.symbol));
+    if (timeframeFilter.length) t = t.filter((r) => timeframeFilter.includes(r.timeframe ?? "—"));
+    if (timezoneFilter.length) t = t.filter((r) => timezoneFilter.includes(tradeTz(r) ?? "—"));
+    if (directionFilter.length) t = t.filter((r) => directionFilter.includes(r.direction));
     if (customRules.length) t = applyRules(t, customRules);
     return t;
   }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, timezoneFilter, directionFilter, customRules]);

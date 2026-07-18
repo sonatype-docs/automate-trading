@@ -1381,19 +1381,29 @@ function PipelinePage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
                 </Button>
               )}
-              {!isRunning && progress.failed > 0 && (
-                <Button
-                  variant="secondary"
-                  onClick={() => retryFailedMut.mutate()}
-                  disabled={retryFailedMut.isPending}
-                  title={`Re-run ${progress.failed} failed combos into "${activeSnapshotRef.current || (datasetMode === "append" ? appendTo : newDatasetName) || "current dataset"}"`}
-                >
-                  {retryFailedMut.isPending
-                    ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    : <RefreshCw className="w-4 h-4 mr-2" />}
-                  Retry {progress.failed} failed
-                </Button>
-              )}
+              {!isRunning && (progress.failed > 0 || (lastFailed.data?.failedCombos.length ?? 0) > 0) && (() => {
+                const localCount = progress.failed;
+                const dbCount = lastFailed.data?.failedCombos.length ?? 0;
+                const count = localCount > 0 ? localCount : dbCount;
+                const snapLabel = activeSnapshotRef.current
+                  || lastFailed.data?.snapshotName
+                  || (datasetMode === "append" ? appendTo : newDatasetName)
+                  || "current dataset";
+                return (
+                  <Button
+                    variant="secondary"
+                    onClick={() => retryFailedMut.mutate()}
+                    disabled={retryFailedMut.isPending}
+                    title={`Re-run ${count} failed combos into "${snapLabel}"`}
+                  >
+                    {retryFailedMut.isPending
+                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      : <RefreshCw className="w-4 h-4 mr-2" />}
+                    Retry {count} failed{localCount === 0 ? " (from last run)" : ""}
+                  </Button>
+                );
+              })()}
+
               {!isRunning && results.length > 0 && (
                 <Button variant="ghost" onClick={() => {
                   setResults([]);

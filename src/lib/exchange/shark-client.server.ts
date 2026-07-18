@@ -632,7 +632,9 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getLastPrice(symbol) {
-      const url = `${BASE_URL}/v1/market/ticker24Hr/${encodeURIComponent(symbol.toUpperCase())}`;
+      const sym = (symbol ?? "").trim().toUpperCase();
+      if (!sym) throw new Error("getLastPrice: symbol is required");
+      const url = `${BASE_URL}/v1/market/ticker24Hr/${encodeURIComponent(sym)}`;
       const res = await fetch(url, { headers: { accept: "application/json" } });
       const text = await res.text();
       if (!res.ok) throw new Error(`Ticker failed [${res.status}]: ${text.slice(0, 200)}`);

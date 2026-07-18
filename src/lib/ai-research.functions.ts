@@ -35,7 +35,7 @@ async function fetchTrades(spec: z.infer<typeof RunInput>): Promise<TradeRecord[
   });
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => rowToRecord(r as Record<string, unknown>));
+  return (data ?? []).map((r) => rowToRecord(r as unknown as Record<string, unknown>));
 }
 
 export const runResearch = createServerFn({ method: "POST" })

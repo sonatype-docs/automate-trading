@@ -7,13 +7,14 @@ export function applyQuery(
   client: SupabaseClient,
   table: string,
   spec: TradeQuerySpec & { snapshotName?: string },
+  columns = "*",
 ) {
   // Do not request PostgREST counts here. Planned counts can badly
   // underestimate filtered snapshot rows while a pipeline is appending, which
   // makes later chunks return 416 "Requested range not satisfiable" even when
   // rows exist. The Research page only needs the rows; snapshot counts come
   // from listSnapshots().
-  let q = client.from(table).select("*");
+  let q = client.from(table).select(columns);
   if (spec.snapshotName) q = q.eq("snapshot_name", spec.snapshotName);
   if (spec.strategyId) q = q.eq("strategy_id", spec.strategyId);
   if (spec.symbol) q = q.eq("symbol", spec.symbol);

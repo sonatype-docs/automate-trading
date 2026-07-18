@@ -37,9 +37,9 @@ export interface DatasetsProgressResult {
   error?: Error;
 }
 
-const PAGE = 8000;
+const PAGE = 1000;
 const ROWS_PER_CHUNK = 1000;
-const CHUNKS_PER_WAVE = PAGE / ROWS_PER_CHUNK;
+const CHUNKS_PER_WAVE = 4;
 
 function makeProgress(
   patch: Partial<DatasetProgress> & Pick<DatasetProgress, "loaded" | "done" | "status">,
@@ -100,9 +100,10 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
         const acc: TradeRecord[] = [];
         let offset = 0;
         let wave = 0;
+        let done = false;
         const startedAt = Date.now();
         try {
-          while (!cancelled && runRef.current === runId) {
+          while (!done && !cancelled && runRef.current === runId) {
             wave += 1;
             setProgress((p) => ({
               ...p,
@@ -117,12 +118,45 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 updatedAt: Date.now(),
               },
             }));
-            const res = await queryFn({
-              data: { limit: PAGE, offset, orderBy: "entry_time", order: "asc", dataset: ds },
-            });
-            const rows = res.rows as TradeRecord[];
-            acc.push(...rows);
-            const fetchedChunksThisWave = Math.ceil(rows.length / ROWS_PER_CHUNK);
+            let waveLoaded = 0;
+            const results = await Promise.all(
+              Array.from({ length: CHUNKS_PER_WAVE }, async (_, i) => {
+                const res = await queryFn({
+                  data: {
+                    limit: PAGE,
+                    offset: offset + i * PAGE,
+                    orderBy: "entry_time",
+                    order: "asc",
+                    dataset: ds,
+                    projection: "research",
+                  },
+                });
+                const rows = res.rows as TradeRecord[];
+                waveLoaded += rows.length;
+                setProgress((p) => ({
+                  ...p,
+                  [ds]: {
+                    ...(p[ds] ?? makeProgress({ loaded: acc.length, done: false, status: "fetching" })),
+                    loaded: acc.length + waveLoaded,
+                    done: false,
+                    cached: false,
+                    status: "fetching",
+                    currentWave: wave,
+                    wavesFetched: wave - 1,
+                    chunksFetched: (wave - 1) * CHUNKS_PER_WAVE + i + 1,
+                    lastBatchRows: rows.length,
+                    startedAt,
+                    updatedAt: Date.now(),
+                  },
+                }));
+                return { index: i, rows };
+              }),
+            );
+            for (const result of results.sort((a, b) => a.index - b.index)) {
+              acc.push(...result.rows);
+              if (result.rows.length < PAGE) done = true;
+            }
+            setData((d) => ({ ...d, [ds]: acc.slice() }));
             setProgress((p) => ({
               ...p,
               [ds]: {
@@ -133,14 +167,13 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                 status: "fetching",
                 currentWave: wave,
                 wavesFetched: wave,
-                chunksFetched: Math.max(0, (wave - 1) * CHUNKS_PER_WAVE) + fetchedChunksThisWave,
-                lastBatchRows: rows.length,
+                chunksFetched: wave * CHUNKS_PER_WAVE,
+                lastBatchRows: results.reduce((sum, r) => sum + r.rows.length, 0),
                 startedAt,
                 updatedAt: Date.now(),
               },
             }));
-            if (rows.length < PAGE) break;
-            offset += PAGE;
+            offset += PAGE * CHUNKS_PER_WAVE;
           }
           if (cancelled || runRef.current !== runId) return;
           cache.set(ds, acc);

@@ -373,7 +373,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       price: openFlush.fillPrice,
       stopDist,
       riskUsd: Number(r.risk_usd),
-      minRiskUsd: 15,
+      minRiskUsd: 10,
     });
     const res = attempt.res;
     const filled = res.status === "filled";
@@ -400,10 +400,10 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   return { placed: placedOk, reconciled };
 }
 
-/** Try a limit order; on "insufficient margin" (Shark error 3018), reduce risk
- *  to `minRiskUsd` (default $15), recompute qty, and retry ONCE — but only if
- *  the last traded price is still within the original stop distance of the
- *  planned entry (i.e. our setup zone is still valid). */
+/** Try a limit order; on "insufficient margin" (Shark error 3018), step risk
+ *  down through a ladder ($20 → $15 → $10 by default), recomputing qty each
+ *  step. Retries only while last price is still within the original stop
+ *  distance of the planned entry (i.e. our setup zone is still valid). */
 async function placeWithMarginRetry(
   client: ReturnType<typeof createSharkClient>,
   args: {
@@ -413,39 +413,52 @@ async function placeWithMarginRetry(
     price: number;
     stopDist: number;
     riskUsd: number;
-    minRiskUsd: number;
+    minRiskUsd: number; // kept for backward-compat; treated as floor
   },
 ): Promise<{ res: Awaited<ReturnType<ReturnType<typeof createSharkClient>["placeOrder"]>>; qty: number; note?: string }> {
-  try {
-    const res = await client.placeOrder({
-      symbol: args.symbol, side: args.side, qty: args.qty,
-      type: "limit", price: args.price,
-    });
-    return { res, qty: args.qty };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const isMargin = /3018|insufficient\s*margin/i.test(msg);
-    if (!isMargin || args.riskUsd <= args.minRiskUsd) throw e;
+  // Build ladder: start at current risk, step down through 15 & 10 (or whatever
+  // floor was passed), never above the current risk_usd.
+  const rungs = [args.riskUsd, 15, Math.max(args.minRiskUsd, 10)]
+    .filter((v, i, a) => v > 0 && a.indexOf(v) === i && v <= args.riskUsd)
+    .sort((a, b) => b - a);
 
-    // Zone check: is price still within our planned entry zone?
-    let last = 0;
-    try { last = await client.getLastPrice(args.symbol); } catch { /* noop */ }
-    if (last > 0 && Math.abs(last - args.price) > args.stopDist) {
-      throw new Error(`${msg} — skipped retry: price ${last} out of zone (entry ${args.price} ± ${args.stopDist.toFixed(4)})`);
+  let lastErr: unknown = null;
+  let priorRisk = args.riskUsd;
+  let priorQty = args.qty;
+
+  for (let i = 0; i < rungs.length; i++) {
+    const risk = rungs[i];
+    const q = i === 0
+      ? args.qty
+      : Math.max(0.001, Number((risk / args.stopDist).toFixed(3)));
+    try {
+      const res = await client.placeOrder({
+        symbol: args.symbol, side: args.side, qty: q,
+        type: "limit", price: args.price,
+      });
+      const note = i === 0
+        ? undefined
+        : `margin_retry: risk $${priorRisk}→$${risk}, qty ${priorQty}→${q}`;
+      return { res, qty: q, note };
+    } catch (e) {
+      lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      const isMargin = /3018|insufficient\s*margin/i.test(msg);
+      if (!isMargin) throw e;
+
+      // Zone check before trying next rung
+      let last = 0;
+      try { last = await client.getLastPrice(args.symbol); } catch { /* noop */ }
+      if (last > 0 && Math.abs(last - args.price) > args.stopDist) {
+        throw new Error(`${msg} — skipped further retries: price ${last} out of zone (entry ${args.price} ± ${args.stopDist.toFixed(4)})`);
+      }
+      priorRisk = risk;
+      priorQty = q;
     }
-
-    const reducedQty = Math.max(0.001, Number((args.minRiskUsd / args.stopDist).toFixed(3)));
-    const res = await client.placeOrder({
-      symbol: args.symbol, side: args.side, qty: reducedQty,
-      type: "limit", price: args.price,
-    });
-    return {
-      res,
-      qty: reducedQty,
-      note: `margin_retry: risk $${args.riskUsd}→$${args.minRiskUsd}, qty ${args.qty}→${reducedQty}`,
-    };
   }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
 
 /** 30-minute exit-type rule (Shark Exchange zero-fee scalping offer):
  *  Closing trades within 30 minutes of entry fill are fee-free regardless

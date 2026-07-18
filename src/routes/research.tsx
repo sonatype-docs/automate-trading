@@ -60,6 +60,20 @@ function applyRules(rows: TradeRecord[], rules: Rule[]): TradeRecord[] {
     }
   }));
 }
+
+// Extract the strategy timezone recorded on a trade. Pipeline runs tag each
+// trade with `tz:<Zone>`; older rows may carry it under custom/raw instead.
+function tradeTz(t: TradeRecord): string | null {
+  const tag = (t.tags ?? []).find((x) => typeof x === "string" && x.startsWith("tz:"));
+  if (tag) return tag.slice(3);
+  const custom = (t.custom ?? {}) as Record<string, unknown>;
+  const c = custom.strategyTimezone ?? custom.strategy_timezone ?? custom.tz;
+  if (typeof c === "string" && c.length) return c;
+  const raw = (t.raw ?? {}) as Record<string, unknown>;
+  const r = raw.strategyTimezone ?? raw.strategy_timezone;
+  if (typeof r === "string" && r.length) return r;
+  return null;
+}
 function download(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -166,6 +180,7 @@ function ResearchPage() {
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
   const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
+  const [timezoneFilter, setTimezoneFilter] = useState<string>("all");
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [customRules, setCustomRules] = useState<Rule[]>([]);
 
@@ -174,14 +189,16 @@ function ResearchPage() {
     if (strategyFilter !== "all") t = t.filter((r) => r.strategyId === strategyFilter);
     if (symbolFilter !== "all") t = t.filter((r) => r.symbol === symbolFilter);
     if (timeframeFilter !== "all") t = t.filter((r) => (r.timeframe ?? "—") === timeframeFilter);
+    if (timezoneFilter !== "all") t = t.filter((r) => (tradeTz(r) ?? "—") === timezoneFilter);
     if (directionFilter !== "all") t = t.filter((r) => r.direction === directionFilter);
     if (customRules.length) t = applyRules(t, customRules);
     return t;
-  }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, directionFilter, customRules]);
+  }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, timezoneFilter, directionFilter, customRules]);
 
   const strategies = Array.from(new Set(allTrades.map((r) => r.strategyId)));
   const symbols = Array.from(new Set(allTrades.map((r) => r.symbol)));
   const timeframes = Array.from(new Set(allTrades.map((r) => r.timeframe ?? "—"))).sort();
+  const timezones = Array.from(new Set(allTrades.map((r) => tradeTz(r) ?? "—"))).sort();
 
   return (
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
@@ -271,6 +288,13 @@ function ResearchPage() {
               <SelectContent>
                 <SelectItem value="all">All timeframes</SelectItem>
                 {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={timezoneFilter} onValueChange={setTimezoneFilter}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All timezones</SelectItem>
+                {timezones.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={directionFilter} onValueChange={setDirectionFilter}>
@@ -1099,6 +1123,7 @@ interface TfRow {
   strategyId: string;
   symbol: string;
   timeframe: string;
+  timezone: string;
   trades: number;
   netProfit: number;
   profitFactor: number;
@@ -1145,21 +1170,22 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   );
 
   const rows: TfRow[] = useMemo(() => {
-    // Group by strategy + symbol + timeframe
+    // Group by strategy + symbol + timeframe + timezone (so multi-tz runs compete)
     const map = new Map<string, TradeRecord[]>();
     for (const t of snapshot) {
-      const key = `${t.strategyId}||${t.symbol ?? "—"}||${t.timeframe ?? "—"}`;
+      const key = `${t.strategyId}||${t.symbol ?? "—"}||${t.timeframe ?? "—"}||${tradeTz(t) ?? "—"}`;
       const arr = map.get(key) ?? [];
       arr.push(t);
       map.set(key, arr);
     }
     const raw = Array.from(map.entries()).map(([key, rs]) => {
-      const [strategyId, symbol, timeframe] = key.split("||");
+      const [strategyId, symbol, timeframe, timezone] = key.split("||");
       const k = computeKpis(rs);
       return {
         strategyId,
         symbol,
         timeframe,
+        timezone,
         trades: k.total,
         netProfit: k.netProfit,
         profitFactor: Number.isFinite(k.profitFactor) ? k.profitFactor : 999,
@@ -1292,6 +1318,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                 <TableHead>Strategy</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>Best TF</TableHead>
+                <TableHead>TZ</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net</TableHead>
                 <TableHead className="text-right">PF</TableHead>
@@ -1306,6 +1333,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                   <TableCell className="font-medium">{r.strategyId}</TableCell>
                   <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="secondary">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{r.timezone}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>
@@ -1320,7 +1348,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">All Strategy × Symbol × Timeframe Combinations</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">All Strategy × Symbol × Timeframe × Timezone Combinations</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -1328,6 +1356,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                 <TableHead>Strategy</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>TF</TableHead>
+                <TableHead>TZ</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
                 <TableHead className="text-right">PF</TableHead>
@@ -1341,10 +1370,11 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
-                <TableRow key={`${r.strategyId}-${r.symbol}-${r.timeframe}`}>
+                <TableRow key={`${r.strategyId}-${r.symbol}-${r.timeframe}-${r.timezone}`}>
                   <TableCell className="text-xs">{r.strategyId}</TableCell>
                   <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="outline">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{r.timezone}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>

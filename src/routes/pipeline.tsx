@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +119,79 @@ function StageDot({ stage, current, done, failed }: {
     </div>
   );
 }
+
+// Heavy render guard — caps the visible log to failed + most recent so the
+// 1,200-combo runs don't reconcile 5k+ SVGs on every batch tick.
+const RunLog = memo(function RunLog({
+  results, progress, riskUsd,
+}: { results: ComboResult[]; progress: PipelineProgress; riskUsd: number }) {
+  const MAX_ROWS = 200;
+  const failed = results.filter((r) => r.status === "failed");
+  const nonFailed = results.filter((r) => r.status !== "failed");
+  // Show the tail (running + recent OK) which is what users watch during a run.
+  const tail = nonFailed.slice(Math.max(0, nonFailed.length - MAX_ROWS));
+  const hidden = results.length - failed.length - tail.length;
+  const rows = [...failed, ...tail];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-mono tracking-widest">
+          Run log ({progress.completed}/{progress.total})
+          {hidden > 0 && (
+            <span className="ml-2 text-[10px] text-muted-foreground normal-case">
+              showing {failed.length} failed + last {tail.length} · {hidden.toLocaleString()} completed rows hidden
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <table className="w-full text-xs font-mono">
+          <thead className="text-muted-foreground">
+            <tr className="text-left">
+              <th className="py-1 pr-3">Status</th>
+              <th className="py-1 pr-3">Symbol</th>
+              <th className="py-1 pr-3">TF</th>
+              <th className="py-1 pr-3">TZ</th>
+              <th className="py-1 pr-3">Strategy</th>
+              <th className="py-1 pr-3">Exec</th>
+              <th className="py-1 pr-3 text-right">Trades</th>
+              <th className="py-1 pr-3 text-right">Inserted</th>
+              <th className="py-1 pr-3 text-right">Elapsed</th>
+              <th className="py-1 pr-3">Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${r.spec.strategyTimezone ?? ""}-${i}`} className="border-t border-border/40">
+                <td className="py-1 pr-3">
+                  {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
+                  {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
+                  {r.status === "running" && <Badge variant="secondary" className="text-[9px]">RUN</Badge>}
+                  {r.status === "pending" && <Badge variant="outline" className="text-[9px]">…</Badge>}
+                </td>
+                <td className="py-1 pr-3">{r.spec.symbol}</td>
+                <td className="py-1 pr-3">{r.spec.timeframe}</td>
+                <td className="py-1 pr-3">{r.spec.strategyTimezone ?? "—"}</td>
+                <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
+                <td className="py-1 pr-3">{r.spec.execPresetId}</td>
+                <td className="py-1 pr-3 text-right">{r.trades.toLocaleString()}</td>
+                <td className="py-1 pr-3 text-right">{r.inserted.toLocaleString()}</td>
+                <td className="py-1 pr-3 text-right">{r.elapsedMs > 0 ? `${(r.elapsedMs / 1000).toFixed(1)}s` : "—"}</td>
+                <td className="py-1 pr-3 text-rose-500 truncate max-w-md" title={r.error ?? ""}>{r.error ?? ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {progress.failed === 0 && progress.completed === progress.total && progress.total > 0 && (
+          <div className="mt-4 text-xs text-emerald-500">
+            Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Risk per trade was ${riskUsd.toFixed(2)}.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+});
+
 
 type Control = "idle" | "running" | "paused" | "stopping";
 
@@ -510,30 +583,12 @@ function PipelinePage() {
         },
       }).catch(() => {});
 
-      // Per-combo log entries (best-effort — powers Resume hydration).
-      for (let i = 0; i < batch.items.length; i++) {
-        const it = batch.items[i];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = res.results[i] as any;
-        await updateFn({
-          data: {
-            runId: id,
-            progress: {
-              ...prog,
-              currentCombo: null, currentStage: null,
-              completedSlices: Array.from(completedSlices),
-            },
-            logEntry: {
-              ts: Date.now(), combo: it.spec,
-              stage: r?.ok ? "intelligence" : "execution",
-              status: r?.ok ? "ok" : "failed",
-              trades: r?.tradesInRun ?? 0, inserted: r?.inserted ?? 0,
-              elapsedMs: r?.elapsedMs ?? 0,
-              error: r?.ok ? null : (r?.error ?? "batch error"),
-            },
-          },
-        }).catch(() => {});
-      }
+      // NOTE: Removed the per-combo updateFn loop that ran here — for a 1,296
+      // combo run with 3 parallel workers it fired ~1.3k HTTP POSTs each
+      // carrying an ever-growing progress payload (sliceStats, completedSlices,
+      // + server-side JSONB log append). That flood was the primary trigger of
+      // the browser tab crash. The batch-level updateFn call above is enough
+      // for resume — the slice checkpoint + summary log covers hydration.
     }
 
     // Adaptive scheduler — reads `effective` on every dispatch so the ceiling
@@ -1294,70 +1349,7 @@ function PipelinePage() {
           </CardContent>
         </Card>
 
-        {results.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-widest">
-                Run log ({progress.completed}/{progress.total})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-xs font-mono">
-                <thead className="text-muted-foreground">
-                  <tr className="text-left">
-                    <th className="py-1 pr-3">Status</th>
-                    <th className="py-1 pr-3">Symbol</th>
-                    <th className="py-1 pr-3">TF</th>
-                    <th className="py-1 pr-3">TZ</th>
-                    <th className="py-1 pr-3">Strategy</th>
-                    <th className="py-1 pr-3">Exec</th>
-
-                    <th className="py-1 pr-3">Stages</th>
-                    <th className="py-1 pr-3 text-right">Trades</th>
-                    <th className="py-1 pr-3 text-right">Inserted</th>
-                    <th className="py-1 pr-3 text-right">Elapsed</th>
-                    <th className="py-1 pr-3">Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => (
-                    <tr key={`${r.spec.symbol}-${r.spec.timeframe}-${r.spec.strategyPresetId}-${r.spec.execPresetId}-${r.spec.strategyTimezone ?? ""}-${i}`} className="border-t border-border/40">
-                      <td className="py-1 pr-3">
-                        {r.status === "ok" && <Badge className="bg-emerald-500/20 text-emerald-600 text-[9px]">OK</Badge>}
-                        {r.status === "failed" && <Badge variant="destructive" className="text-[9px]">FAIL</Badge>}
-                        {r.status === "running" && <Badge variant="secondary" className="text-[9px]"><Loader2 className="w-3 h-3 mr-1 animate-spin inline" />RUN</Badge>}
-                        {r.status === "pending" && <Badge variant="outline" className="text-[9px]">…</Badge>}
-                      </td>
-                      <td className="py-1 pr-3">{r.spec.symbol}</td>
-                      <td className="py-1 pr-3">{r.spec.timeframe}</td>
-                      <td className="py-1 pr-3">{r.spec.strategyTimezone ?? "—"}</td>
-                      <td className="py-1 pr-3">{r.spec.strategyPresetId}</td>
-                      <td className="py-1 pr-3">{r.spec.execPresetId}</td>
-
-                      <td className="py-1 pr-3">
-                        <div className="flex gap-2">
-                          <StageDot stage="data" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["strategy","execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "data"} />
-                          <StageDot stage="strategy" current={r.stage} done={r.status === "ok" || (r.stage !== null && ["execution","intelligence"].includes(r.stage))} failed={r.status === "failed" && r.stage === "strategy"} />
-                          <StageDot stage="execution" current={r.stage} done={r.status === "ok" || r.stage === "intelligence"} failed={r.status === "failed" && r.stage === "execution"} />
-                          <StageDot stage="intelligence" current={r.stage} done={r.status === "ok"} failed={r.status === "failed" && r.stage === "intelligence"} />
-                        </div>
-                      </td>
-                      <td className="py-1 pr-3 text-right">{r.trades.toLocaleString()}</td>
-                      <td className="py-1 pr-3 text-right">{r.inserted.toLocaleString()}</td>
-                      <td className="py-1 pr-3 text-right">{r.elapsedMs > 0 ? `${(r.elapsedMs / 1000).toFixed(1)}s` : "—"}</td>
-                      <td className="py-1 pr-3 text-rose-500 truncate max-w-md" title={r.error ?? ""}>{r.error ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {progress.failed === 0 && progress.completed === progress.total && progress.total > 0 && (
-                <div className="mt-4 text-xs text-emerald-500">
-                  Pipeline complete — {progress.totalInserted.toLocaleString()} trades stored across {progress.ok} combos. Risk per trade was {fmtMoney(riskUsd)}.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        {results.length > 0 && <RunLog results={results} progress={progress} riskUsd={riskUsd} />}
       </main>
     </div>
   );

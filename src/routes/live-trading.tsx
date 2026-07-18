@@ -160,16 +160,6 @@ function LiveTradingPage() {
         <ExchangeOrdersCard />
 
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Open live orders ({openTrades.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <OpenTable trades={openTrades} onCancel={(id) => {
-              if (confirm("Cancel this live order on the exchange?")) cx.mutate(id);
-            }} />
-          </CardContent>
-        </Card>
 
         <TopRunnersVerificationCard />
 

@@ -60,6 +60,20 @@ function applyRules(rows: TradeRecord[], rules: Rule[]): TradeRecord[] {
     }
   }));
 }
+
+// Extract the strategy timezone recorded on a trade. Pipeline runs tag each
+// trade with `tz:<Zone>`; older rows may carry it under custom/raw instead.
+function tradeTz(t: TradeRecord): string | null {
+  const tag = (t.tags ?? []).find((x) => typeof x === "string" && x.startsWith("tz:"));
+  if (tag) return tag.slice(3);
+  const custom = (t.custom ?? {}) as Record<string, unknown>;
+  const c = custom.strategyTimezone ?? custom.strategy_timezone ?? custom.tz;
+  if (typeof c === "string" && c.length) return c;
+  const raw = (t.raw ?? {}) as Record<string, unknown>;
+  const r = raw.strategyTimezone ?? raw.strategy_timezone;
+  if (typeof r === "string" && r.length) return r;
+  return null;
+}
 function download(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);

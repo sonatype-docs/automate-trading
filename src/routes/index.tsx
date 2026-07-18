@@ -1,59 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   getDashboard,
-  updateSettings,
   getMarketTicker,
   getExchangeAccount,
 } from "@/lib/trading.functions";
-import {
-  getStrategyState,
-  getStrategyTimeline,
-  getSetupTimeline,
-  runStrategyTickNow,
-  repriceArmedNow,
-  updateStrategySettings,
-  listStrategyPresets,
-  createStrategyPreset,
-  deleteStrategyPreset,
-  applyStrategyPreset,
-  editLiveTradeLevels,
-  closeLiveTradeNow,
-  cancelAndReArmWithAi,
-  runOrderWatchdog,
-} from "@/lib/strategy.functions";
 
 
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { useState, useEffect } from "react";
 import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
   Settings as SettingsIcon,
-  Zap,
-  Shield,
   BookOpen,
   Beaker,
-  ChevronDown,
   ListOrdered,
 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   LineChart,
   Line,
@@ -132,9 +99,7 @@ function tradePnlInr(row: Record<string, unknown>): number {
 }
 
 function Dashboard() {
-  const qc = useQueryClient();
   const getDash = useServerFn(getDashboard);
-  const updateSettingsFn = useServerFn(updateSettings);
   
   const getAcct = useServerFn(getExchangeAccount);
 
@@ -148,17 +113,6 @@ function Dashboard() {
     queryFn: () => getAcct(),
     refetchInterval: 15000,
   });
-
-  const settingsMut = useMutation({
-    mutationFn: (patch: Record<string, unknown>) =>
-      updateSettingsFn({ data: patch as never }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success("Settings updated");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
 
   if (!dashQ.data) {
     return <div className="p-8 text-muted-foreground">Loading dashboard…</div>;

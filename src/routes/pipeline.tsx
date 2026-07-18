@@ -281,6 +281,17 @@ function PipelinePage() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch the most recent run that had failed combos so we can offer a
+  // retry-after-refresh even when local results state is empty.
+  const lastFailed = useQuery({
+    queryKey: ["pipeline", "last-failed"],
+    queryFn: () => lastFailedFn(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+
+
 
   const combos: ComboSpec[] = useMemo(() => {
     const out: ComboSpec[] = [];

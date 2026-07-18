@@ -697,11 +697,14 @@ function PipelinePage() {
       };
     });
     setResults(initialResults);
+    const priorSlices: string[] = Array.isArray(prog0.completedSlices) ? prog0.completedSlices as string[] : [];
+    const priorSliceStats: SliceProgress[] = Array.isArray(prog0.sliceStats) ? prog0.sliceStats as SliceProgress[] : [];
     const initialProgress: PipelineProgress = restart
       ? {
           total: rebuilt.length, completed: 0,
           currentCombo: null, currentStage: null,
           ok: 0, failed: 0, totalTrades: 0, totalInserted: 0,
+          completedSlices: [], sliceStats: [], elapsedMs: 0, etaMs: 0,
         }
       : {
           total: Number(prog0.total ?? rebuilt.length),
@@ -711,8 +714,15 @@ function PipelinePage() {
           failed: Number(prog0.failed ?? 0),
           totalTrades: Number(prog0.totalTrades ?? 0),
           totalInserted: Number(prog0.totalInserted ?? 0),
+          completedSlices: priorSlices,
+          sliceStats: priorSliceStats,
+          elapsedMs: 0, etaMs: 0,
         };
     setProgress(initialProgress);
+    setSliceStats(restart ? [] : priorSliceStats);
+    setEtaMs(0);
+    setRunElapsedMs(0);
+
     setRunId(row.id as string);
 
     // Restore matrix into UI so users see what will run.

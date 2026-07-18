@@ -206,7 +206,16 @@ export const exportTrades = createServerFn({ method: "POST" })
       const spec: TradeQuerySpec & { snapshotName?: string } = { ...data, snapshotName, limit: CHUNK, offset };
       const q = applyQuery(supabase, table, spec);
       const { data: rows, error } = await q;
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = error.message || "";
+        if (
+          error.code === "PGRST103" ||
+          error.code === "57014" ||
+          /range not satisfiable/i.test(msg) ||
+          /statement timeout/i.test(msg)
+        ) break;
+        throw new Error(msg);
+      }
       if (!rows || rows.length === 0) break;
       allRows.push(...(rows as Record<string, unknown>[]));
       if (rows.length < CHUNK) break;

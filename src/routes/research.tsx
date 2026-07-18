@@ -468,6 +468,7 @@ function ResearchPage() {
                   </div>
                 </PopoverContent>
               </Popover>
+            </div>
 
 
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>

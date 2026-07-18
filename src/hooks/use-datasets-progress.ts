@@ -9,8 +9,15 @@ const cache = new Map<string, TradeRecord[]>();
 const partialCache = new Map<string, TradeRecord[]>();
 
 export function clearDatasetsCache(datasets?: string[]) {
-  if (!datasets) cache.clear();
-  else for (const d of datasets) cache.delete(d);
+  if (!datasets) {
+    cache.clear();
+    partialCache.clear();
+  } else {
+    for (const d of datasets) {
+      cache.delete(d);
+      partialCache.delete(d);
+    }
+  }
 }
 
 export interface DatasetProgress {

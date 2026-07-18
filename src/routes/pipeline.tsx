@@ -806,6 +806,7 @@ function PipelinePage() {
               <span className="text-[10px] text-muted-foreground">
                 Slices processed concurrently (screen stays awake while running).
               </span>
+            </div>
           </CardContent>
         </Card>
 

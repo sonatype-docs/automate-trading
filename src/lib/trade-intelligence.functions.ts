@@ -155,15 +155,11 @@ export const queryTrades = createServerFn({ method: "POST" })
     const baseOffset = spec.offset ?? 0;
     const columns = data.projection === "research"
       ? [
-        "trade_id", "strategy_id", "strategy_version", "symbol", "timeframe", "direction",
-        "trade_type", "entry_type", "stop_type", "target_type", "status", "session",
-        "signal_time", "order_time", "fill_time", "entry_time", "exit_time",
+        "trade_id", "strategy_id", "symbol", "timeframe", "direction", "status", "session",
+        "entry_time", "exit_time",
         "weekday", "week_number", "month", "quarter", "year",
-        "entry_price", "fill_price", "exit_price", "stop_price", "target_price",
-        "position_size", "risk_usd", "risk_pct", "actual_rr", "gross_pnl", "net_pnl",
-        "pnl_pct", "pnl_r", "mae", "mfe", "fees", "commission", "slippage",
-        "spread_cost", "holding_bars", "duration_ms", "exit_reason",
-        "volatility", "volume_profile", "breakout", "custom", "tags",
+        "entry_price", "exit_price", "actual_rr", "gross_pnl", "net_pnl", "fees",
+        "holding_bars", "duration_ms", "exit_reason", "custom", "tags",
       ].join(",")
       : "*";
     const CHUNK = 1000; // PostgREST default max_rows cap

@@ -1348,7 +1348,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">All Strategy × Symbol × Timeframe Combinations</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">All Strategy × Symbol × Timeframe × Timezone Combinations</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -1356,6 +1356,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
                 <TableHead>Strategy</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>TF</TableHead>
+                <TableHead>TZ</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
                 <TableHead className="text-right">PF</TableHead>
@@ -1369,10 +1370,11 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
-                <TableRow key={`${r.strategyId}-${r.symbol}-${r.timeframe}`}>
+                <TableRow key={`${r.strategyId}-${r.symbol}-${r.timeframe}-${r.timezone}`}>
                   <TableCell className="text-xs">{r.strategyId}</TableCell>
                   <TableCell className="text-xs">{r.symbol}</TableCell>
                   <TableCell><Badge variant="outline">{r.timeframe}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{r.timezone}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.trades, 0)}</TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor(r.netProfit)}`}>{fmt(r.netProfit)}</TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.profitFactor)}</TableCell>

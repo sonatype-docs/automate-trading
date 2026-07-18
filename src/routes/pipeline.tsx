@@ -896,10 +896,36 @@ function PipelinePage() {
   // to the current dataset selection when nothing has been run yet this session).
   const retryFailedMut = useMutation({
     mutationFn: async () => {
-      const failedSpecs = results.filter((r) => r.status === "failed").map((r) => r.spec);
-      if (failedSpecs.length === 0) return;
-
+      // Prefer in-memory failures; fall back to the most recent DB run's log
+      // (so retry survives a page refresh).
+      let failedSpecs: ComboSpec[] = results
+        .filter((r) => r.status === "failed")
+        .map((r) => r.spec);
       let snap = activeSnapshotRef.current;
+      let effSource = source;
+      let effDisplayTz: Timezone = displayTz;
+      let effLookback = lookbackDays;
+      let effRisk = riskUsd;
+
+      if (failedSpecs.length === 0) {
+        const fetched = await lastFailedFn();
+        if (!fetched || fetched.failedCombos.length === 0) {
+          throw new Error("No failed combos found in the last 10 pipeline runs.");
+        }
+        failedSpecs = fetched.failedCombos.map((c) => ({
+          symbol: c.symbol,
+          timeframe: c.timeframe as Timeframe,
+          strategyPresetId: c.strategyPresetId,
+          execPresetId: c.execPresetId,
+          strategyTimezone: (c.strategyTimezone ?? "London") as Timezone,
+        }));
+        if (!snap) snap = fetched.snapshotName ?? "";
+        effSource = (fetched.source === "yahoo" ? "yahoo" : "shark");
+        effDisplayTz = fetched.displayTimezone as Timezone;
+        effLookback = fetched.lookbackDays;
+        effRisk = fetched.riskUsdPerTrade;
+      }
+
       if (!snap) {
         snap = datasetMode === "append"
           ? (appendTo || "").trim()
@@ -925,22 +951,22 @@ function PipelinePage() {
       setRunElapsedMs(0);
 
       const matrix = {
-        source,
+        source: effSource,
         symbols: Array.from(new Set(failedSpecs.map((s) => s.symbol))),
         timeframes: Array.from(new Set(failedSpecs.map((s) => s.timeframe))) as Timeframe[],
         strategyPresetIds: Array.from(new Set(failedSpecs.map((s) => s.strategyPresetId))),
         execPresetIds: Array.from(new Set(failedSpecs.map((s) => s.execPresetId))),
-        displayTimezone: displayTz,
+        displayTimezone: effDisplayTz,
         strategyTimezone: (failedSpecs[0].strategyTimezone ?? "London") as Timezone,
         strategyTimezones: Array.from(new Set(failedSpecs.map((s) => s.strategyTimezone ?? "London"))) as Timezone[],
-        mode, lookbackDays, riskUsdPerTrade: riskUsd,
+        mode, lookbackDays: effLookback, riskUsdPerTrade: effRisk,
         snapshotName: snap,
       };
       const { runId: id } = await startFn({ data: { matrix, total: failedSpecs.length } });
       setRunId(id);
 
       const toMs = Date.now();
-      const fromMs = toMs - lookbackDays * 86_400_000;
+      const fromMs = toMs - effLookback * 86_400_000;
       await runCombosLoop({
         id, combosToRun: failedSpecs, startIndex: 0, fromMs, toMs,
         initialProgress, initialResults,
@@ -951,8 +977,9 @@ function PipelinePage() {
       console.error("[pipeline] retry failed error", msg);
       setControl("idle");
     },
-    onSettled: () => { resumable.refetch(); snapshotList.refetch(); },
+    onSettled: () => { resumable.refetch(); snapshotList.refetch(); lastFailed.refetch(); },
   });
+
 
 
 

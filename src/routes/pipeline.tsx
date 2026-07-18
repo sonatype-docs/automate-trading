@@ -791,6 +791,21 @@ function PipelinePage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Batch size</Label>
+              <Input type="number" min={1} max={48} value={batchSize} disabled={isRunning}
+                onChange={(e) => setBatchSize(Math.min(48, Math.max(1, Number(e.target.value) || 1)))} />
+              <span className="text-[10px] text-muted-foreground">
+                Combos per data-slice request. Higher = fewer round-trips.
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Parallel batches</Label>
+              <Input type="number" min={1} max={6} value={parallelism} disabled={isRunning}
+                onChange={(e) => setParallelism(Math.min(6, Math.max(1, Number(e.target.value) || 1)))} />
+              <span className="text-[10px] text-muted-foreground">
+                Slices processed concurrently (screen stays awake while running).
+              </span>
           </CardContent>
         </Card>
 

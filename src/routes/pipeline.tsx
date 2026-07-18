@@ -20,7 +20,7 @@ import { MatrixGroup } from "@/components/matrix-picker";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
-import { recordTradesFromExecution, listSnapshots } from "@/lib/trade-intelligence.functions";
+import { recordTradesFromExecution, listSnapshots, getSnapshotPreview, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import {
   startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun,
 } from "@/lib/pipeline.functions";

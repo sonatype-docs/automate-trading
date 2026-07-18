@@ -189,7 +189,7 @@ function ResearchPage() {
   const datasetQueries = useQueries({
     queries: activeDatasets.map((ds) => ({
       queryKey: ["research", "all-trades", ds],
-      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "entry_time", order: "asc", dataset: ds } }),
+      queryFn: () => queryFn({ data: { limit: 2_000_000, orderBy: "entry_time", order: "asc", dataset: ds } }),
     })),
   });
   const isLoading = datasetQueries.some((q) => q.isLoading);

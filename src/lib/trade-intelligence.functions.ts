@@ -132,6 +132,7 @@ const QueryInput = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   limit: z.number().int().positive().max(2_000_000).optional(),
   offset: z.number().int().min(0).optional(),
+  projection: z.enum(["full", "research"]).optional(),
   /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
   dataset: z.string().optional(),
 });
@@ -152,6 +153,19 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { table, snapshotName } = resolveTable(data.dataset);
     const requestedLimit = Math.min(spec.limit ?? 100, 2_000_000);
     const baseOffset = spec.offset ?? 0;
+    const columns = data.projection === "research"
+      ? [
+        "trade_id", "strategy_id", "strategy_version", "symbol", "timeframe", "direction",
+        "trade_type", "entry_type", "stop_type", "target_type", "status", "session",
+        "signal_time", "order_time", "fill_time", "entry_time", "exit_time",
+        "weekday", "week_number", "month", "quarter", "year",
+        "entry_price", "fill_price", "exit_price", "stop_price", "target_price",
+        "position_size", "risk_usd", "risk_pct", "actual_rr", "gross_pnl", "net_pnl",
+        "pnl_pct", "pnl_r", "mae", "mfe", "fees", "commission", "slippage",
+        "spread_cost", "holding_bars", "duration_ms", "exit_reason",
+        "volatility", "volume_profile", "breakout", "custom", "tags",
+      ].join(",")
+      : "*";
     const CHUNK = 1000; // PostgREST default max_rows cap
     const CONCURRENCY = 8; // parallel chunk fetches per wave
     const allRows: Record<string, unknown>[] = [];
@@ -165,7 +179,7 @@ export const queryTrades = createServerFn({ method: "POST" })
       off: number,
       size: number,
     ): Promise<{ rows: Record<string, unknown>[]; short: boolean }> => {
-      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: size, offset: off });
+      const q = applyQuery(supabase, table, { ...spec, snapshotName, limit: size, offset: off }, columns);
       const { data: rows, error } = await q;
       if (error) {
         const msg = error.message || "";
@@ -182,7 +196,7 @@ export const queryTrades = createServerFn({ method: "POST" })
           const b = await fetchOffset(off + half, size - half);
           return { rows: [...a.rows, ...b.rows], short: b.short };
         }
-        if (transient) return { rows: [], short: false };
+        if (transient) throw new Error(`Database is still busy fetching ${data.dataset ?? "live"}; retry or resync in a moment.`);
         throw new Error(msg);
       }
       const got = (rows ?? []) as Record<string, unknown>[];

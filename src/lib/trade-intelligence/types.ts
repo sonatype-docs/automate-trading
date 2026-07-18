@@ -100,6 +100,7 @@ export interface TradeQuerySpec {
   order?: "asc" | "desc";
   limit?: number;
   offset?: number;
+  projection?: "full" | "research";
 }
 
 export interface TradeQueryResult {

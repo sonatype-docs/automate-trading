@@ -150,6 +150,54 @@ function pnlColor(n: number): string {
   return n > 0 ? "text-emerald-500" : n < 0 ? "text-rose-500" : "text-muted-foreground";
 }
 
+function MultiSelectFilter({
+  label, allLabel, options, selected, onChange, width,
+}: {
+  label: string; allLabel: string; options: string[]; selected: string[];
+  onChange: (v: string[]) => void; width: string;
+}) {
+  const summary = selected.length === 0
+    ? allLabel
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} selected`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={`h-8 ${width} justify-between text-xs font-normal`}>
+          <span className="truncate">{summary}</span>
+          <FilterIcon className="h-3 w-3 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="text-xs font-semibold pb-1 px-1">{label}</div>
+        <div className="flex items-center justify-between gap-1 pb-2 px-1">
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange(options.slice())}>All</Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange([])}>Clear</Button>
+        </div>
+        <div className="max-h-64 overflow-auto space-y-1">
+          {options.map((opt) => {
+            const checked = selected.includes(opt);
+            return (
+              <label key={opt} className="flex items-center gap-2 text-xs px-1 py-1 rounded hover:bg-muted cursor-pointer">
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(v) => {
+                    if (v) onChange(Array.from(new Set([...selected, opt])));
+                    else onChange(selected.filter((s) => s !== opt));
+                  }}
+                />
+                <span className="truncate">{opt}</span>
+              </label>
+            );
+          })}
+          {options.length === 0 && <div className="text-xs text-muted-foreground px-1 py-2">No options</div>}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ResearchPage() {
   const [section, setSection] = useState<Section>("Overview");
   // Read from localStorage in an effect so SSR and first client render match.
@@ -189,7 +237,7 @@ function ResearchPage() {
   const datasetQueries = useQueries({
     queries: activeDatasets.map((ds) => ({
       queryKey: ["research", "all-trades", ds],
-      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "entry_time", order: "asc", dataset: ds } }),
+      queryFn: () => queryFn({ data: { limit: 2_000_000, orderBy: "entry_time", order: "asc", dataset: ds } }),
     })),
   });
   const isLoading = datasetQueries.some((q) => q.isLoading);
@@ -227,20 +275,20 @@ function ResearchPage() {
     return out;
   }, [rawCombined, dedupe, activeDatasets.length]);
 
-  const [strategyFilter, setStrategyFilter] = useState<string>("all");
-  const [symbolFilter, setSymbolFilter] = useState<string>("all");
-  const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
-  const [timezoneFilter, setTimezoneFilter] = useState<string>("all");
-  const [directionFilter, setDirectionFilter] = useState<string>("all");
+  const [strategyFilter, setStrategyFilter] = useState<string[]>([]);
+  const [symbolFilter, setSymbolFilter] = useState<string[]>([]);
+  const [timeframeFilter, setTimeframeFilter] = useState<string[]>([]);
+  const [timezoneFilter, setTimezoneFilter] = useState<string[]>([]);
+  const [directionFilter, setDirectionFilter] = useState<string[]>([]);
   const [customRules, setCustomRules] = useState<Rule[]>([]);
 
   const trades = useMemo(() => {
     let t = allTrades;
-    if (strategyFilter !== "all") t = t.filter((r) => r.strategyId === strategyFilter);
-    if (symbolFilter !== "all") t = t.filter((r) => r.symbol === symbolFilter);
-    if (timeframeFilter !== "all") t = t.filter((r) => (r.timeframe ?? "—") === timeframeFilter);
-    if (timezoneFilter !== "all") t = t.filter((r) => (tradeTz(r) ?? "—") === timezoneFilter);
-    if (directionFilter !== "all") t = t.filter((r) => r.direction === directionFilter);
+    if (strategyFilter.length) t = t.filter((r) => strategyFilter.includes(r.strategyId));
+    if (symbolFilter.length) t = t.filter((r) => symbolFilter.includes(r.symbol));
+    if (timeframeFilter.length) t = t.filter((r) => timeframeFilter.includes(r.timeframe ?? "—"));
+    if (timezoneFilter.length) t = t.filter((r) => timezoneFilter.includes(tradeTz(r) ?? "—"));
+    if (directionFilter.length) t = t.filter((r) => directionFilter.includes(r.direction));
     if (customRules.length) t = applyRules(t, customRules);
     return t;
   }, [allTrades, strategyFilter, symbolFilter, timeframeFilter, timezoneFilter, directionFilter, customRules]);
@@ -472,42 +520,12 @@ function ResearchPage() {
             </div>
 
 
-            <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Strategy" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All strategies</SelectItem>
-                {strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={symbolFilter} onValueChange={setSymbolFilter}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Symbol" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All symbols</SelectItem>
-                {symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
-              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Timeframe" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All timeframes</SelectItem>
-                {timeframes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={timezoneFilter} onValueChange={setTimezoneFilter}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All timezones</SelectItem>
-                {timezones.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={directionFilter} onValueChange={setDirectionFilter}>
-              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="Direction" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Both</SelectItem>
-                <SelectItem value="long">Long</SelectItem>
-                <SelectItem value="short">Short</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter label="Strategy" allLabel="All strategies" options={strategies} selected={strategyFilter} onChange={setStrategyFilter} width="w-40" />
+            <MultiSelectFilter label="Symbol" allLabel="All symbols" options={symbols} selected={symbolFilter} onChange={setSymbolFilter} width="w-32" />
+            <MultiSelectFilter label="Timeframe" allLabel="All timeframes" options={timeframes} selected={timeframeFilter} onChange={setTimeframeFilter} width="w-28" />
+            <MultiSelectFilter label="Timezone" allLabel="All timezones" options={timezones} selected={timezoneFilter} onChange={setTimezoneFilter} width="w-32" />
+            <MultiSelectFilter label="Direction" allLabel="Both" options={["long","short"]} selected={directionFilter} onChange={setDirectionFilter} width="w-28" />
+
           </div>
         </header>
 

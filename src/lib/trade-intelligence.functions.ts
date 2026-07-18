@@ -130,7 +130,7 @@ const QueryInput = z.object({
   filtersContains: z.record(z.string(), z.unknown()).optional(),
   orderBy: z.enum(["entry_time", "exit_time", "net_pnl", "actual_rr"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
-  limit: z.number().int().positive().max(100000).optional(),
+  limit: z.number().int().positive().max(2_000_000).optional(),
   offset: z.number().int().min(0).optional(),
   /** "live" = trade_intelligence (default); otherwise a snapshot label in the archive. */
   dataset: z.string().optional(),
@@ -150,7 +150,7 @@ export const queryTrades = createServerFn({ method: "POST" })
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
     const { table, snapshotName } = resolveTable(data.dataset);
-    const requestedLimit = Math.min(spec.limit ?? 100, 20000);
+    const requestedLimit = Math.min(spec.limit ?? 100, 2_000_000);
     const baseOffset = spec.offset ?? 0;
     const CHUNK = 1000; // PostgREST default max_rows cap
     const allRows: Record<string, unknown>[] = [];
@@ -200,7 +200,7 @@ export const exportTrades = createServerFn({ method: "POST" })
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const { table, snapshotName } = resolveTable(data.dataset);
     const CHUNK = 1000;
-    const MAX = 20000;
+    const MAX = 2_000_000;
     const allRows: Record<string, unknown>[] = [];
     for (let offset = 0; offset < MAX; offset += CHUNK) {
       const spec: TradeQuerySpec & { snapshotName?: string } = { ...data, snapshotName, limit: CHUNK, offset };

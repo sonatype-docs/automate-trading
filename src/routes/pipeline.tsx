@@ -27,8 +27,9 @@ import {
 import { runComboBatch } from "@/lib/pipeline-batch.functions";
 import { useKeepAlive } from "@/hooks/use-keep-alive";
 import type {
-  ComboResult, ComboSpec, PipelineProgress, PipelineStage,
+  ComboResult, ComboSpec, PipelineProgress, PipelineStage, SliceProgress,
 } from "@/lib/pipeline/types";
+
 
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT"];
 const PIPELINE_TFS: Timeframe[] = ["1m", "2m", "3m", "5m", "10m", "15m", "30m", "45m", "1h"];

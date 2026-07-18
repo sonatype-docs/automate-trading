@@ -642,6 +642,7 @@ function PipelinePage() {
 
   const totalCombos = combos.length;
   const isRunning = control === "running" || control === "paused" || control === "stopping";
+  useKeepAlive(isRunning);
   const percent = progress.total > 0
     ? Math.round((progress.completed / progress.total) * 100)
     : 0;

@@ -538,13 +538,14 @@ export function AllRunnersStatusCard() {
     queryKey: ["live-runners"], queryFn: () => runnersFn(),
     refetchInterval: 15_000, staleTime: 10_000, placeholderData: keepPreviousData,
   });
+  const anyRunning = (runnersQ.data ?? []).some((r) => r.running);
   const tradesQ = useQuery({
     queryKey: ["live-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
-    refetchInterval: 10_000, staleTime: 8_000, placeholderData: keepPreviousData,
+    refetchInterval: anyRunning ? 10_000 : false, staleTime: 8_000, placeholderData: keepPreviousData,
   });
   const statusQ = useQuery({
     queryKey: ["live-runners-status"], queryFn: () => statusFn(),
-    refetchInterval: 60_000, staleTime: 45_000, placeholderData: keepPreviousData,
+    refetchInterval: anyRunning ? 60_000 : false, staleTime: 45_000, placeholderData: keepPreviousData,
   });
   const isFetching = runnersQ.isFetching || tradesQ.isFetching || statusQ.isFetching;
   const onRefresh = () => {
@@ -603,7 +604,7 @@ function AllRunnersStatusPanel({
           </div>
           <div>
             <div className="text-sm font-semibold tracking-tight">All runners · live status</div>
-            <div className="text-[10px] text-muted-foreground font-mono uppercase">Realtime · auto-refresh 60s</div>
+            <div className="text-[10px] text-muted-foreground font-mono uppercase">{runners.some((r) => r.running) ? "Realtime · auto-refresh 60s" : "Paused · all runners stopped"}</div>
           </div>
           {onRefresh && (
             <Button variant="ghost" size="icon" className="h-7 w-7 ml-1" onClick={onRefresh} disabled={isFetching} title="Refresh now">

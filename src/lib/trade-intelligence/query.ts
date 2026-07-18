@@ -32,7 +32,7 @@ export function applyQuery(
   if (spec.filtersContains && Object.keys(spec.filtersContains).length) q = q.contains("filters", spec.filtersContains);
   const orderBy = spec.orderBy ?? "entry_time";
   q = q.order(orderBy, { ascending: spec.order === "asc" });
-  const limit = Math.min(spec.limit ?? 100, 20000);
+  const limit = Math.min(spec.limit ?? 100, 1_000_000);
   const offset = spec.offset ?? 0;
   q = q.range(offset, offset + limit - 1);
   return q;

@@ -304,7 +304,8 @@ function ResearchPage() {
             <h1 className="text-xl font-semibold tracking-tight">Quantitative Research</h1>
             <p className="text-xs text-muted-foreground">
               {isLoading ? "Loading…" : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
-              {error ? ` — ${(error as Error).message}` : ""}
+              {activeDatasets.length > 1 ? ` · ${activeDatasets.length} datasets${dedupe ? ` (deduped, ${duplicateCount.toLocaleString()} removed)` : ""}` : ""}
+              {error ? ` — ${error.message}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">

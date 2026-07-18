@@ -1123,6 +1123,7 @@ interface TfRow {
   strategyId: string;
   symbol: string;
   timeframe: string;
+  timezone: string;
   trades: number;
   netProfit: number;
   profitFactor: number;

@@ -358,7 +358,6 @@ function Dashboard() {
           <Metric label="LOCKED MARGIN" value={fmtINR(walletLocked)} />
         </div>
 
-        <ExchangeAccount />
 
 
 

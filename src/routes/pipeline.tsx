@@ -205,7 +205,7 @@ function PipelinePage() {
               fromMs, toMs,
               strategyPresetId: spec.strategyPresetId,
               execPresetId: spec.execPresetId,
-              tags: ["pipeline", `run:${id}`],
+              tags: ["pipeline", `run:${id}`, `tz:${(spec.strategyTimezone ?? "London")}`],
               riskUsdOverride: riskUsd,
               snapshotName: `pipeline-${id.slice(0, 8)}`,
             },

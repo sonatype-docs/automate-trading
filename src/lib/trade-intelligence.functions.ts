@@ -242,7 +242,11 @@ export const queryTrades = createServerFn({ method: "POST" })
     // this on indexed keyset predicates so every page resumes from the last row
     // and never uses slow deep offsets or duplicate fan-out chunks.
     if (spec.cursorEntryTimeMs != null) {
-      const CURSOR_PAGE = 1000; // backend row cap per request
+      // Keep each DB pull small enough to survive a busy database. The server
+      // still accumulates up to the UI-requested 4,000 rows before returning,
+      // but a transient timeout now retries from the saved cursor instead of
+      // redoing the first 100k rows.
+      const CURSOR_PAGE = 250;
       const got: Record<string, unknown>[] = [];
       let cursorEntryTimeMs = spec.cursorEntryTimeMs;
       let cursorTradeId = spec.cursorTradeId;

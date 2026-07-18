@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart,
@@ -15,10 +15,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw } from "lucide-react";
+import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw, Layers } from "lucide-react";
 import { queryTrades, listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
@@ -171,19 +173,59 @@ function ResearchPage() {
   const [deleting, setDeleting] = useState(false);
   const qc = useQueryClient();
   const [resyncing, setResyncing] = useState(false);
+  const [extraDatasets, setExtraDatasets] = useState<string[]>([]);
+  const [dedupe, setDedupe] = useState(true);
 
+  // Reset extras when primary dataset changes so we don't double-count it.
+  useEffect(() => {
+    setExtraDatasets((prev) => prev.filter((d) => d !== dataset));
+  }, [dataset]);
 
+  const activeDatasets = useMemo(
+    () => Array.from(new Set([dataset, ...extraDatasets])),
+    [dataset, extraDatasets],
+  );
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["research", "all-trades", dataset],
-    queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset } }),
+  const datasetQueries = useQueries({
+    queries: activeDatasets.map((ds) => ({
+      queryKey: ["research", "all-trades", ds],
+      queryFn: () => queryFn({ data: { limit: 20000, orderBy: "exit_time", order: "asc", dataset: ds } }),
+    })),
   });
+  const isLoading = datasetQueries.some((q) => q.isLoading);
+  const error = datasetQueries.find((q) => q.error)?.error as Error | undefined;
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
     staleTime: 60_000,
   });
-  const allTrades: TradeRecord[] = data?.rows ?? [];
+  const rawCombined: TradeRecord[] = useMemo(
+    () => datasetQueries.flatMap((q) => q.data?.rows ?? []),
+    [datasetQueries],
+  );
+  const duplicateCount = useMemo(() => {
+    if (activeDatasets.length < 2) return 0;
+    const seen = new Set<string>();
+    let dups = 0;
+    for (const r of rawCombined) {
+      const key = r.tradeId ?? `${r.strategyId}|${r.symbol}|${r.timeframe ?? ""}|${r.entryTime ?? ""}|${r.exitTime ?? ""}`;
+      if (seen.has(key)) dups++;
+      else seen.add(key);
+    }
+    return dups;
+  }, [rawCombined, activeDatasets.length]);
+  const allTrades: TradeRecord[] = useMemo(() => {
+    if (!dedupe || activeDatasets.length < 2) return rawCombined;
+    const seen = new Set<string>();
+    const out: TradeRecord[] = [];
+    for (const r of rawCombined) {
+      const key = r.tradeId ?? `${r.strategyId}|${r.symbol}|${r.timeframe ?? ""}|${r.entryTime ?? ""}|${r.exitTime ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  }, [rawCombined, dedupe, activeDatasets.length]);
 
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
@@ -262,7 +304,8 @@ function ResearchPage() {
             <h1 className="text-xl font-semibold tracking-tight">Quantitative Research</h1>
             <p className="text-xs text-muted-foreground">
               {isLoading ? "Loading…" : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
-              {error ? ` — ${(error as Error).message}` : ""}
+              {activeDatasets.length > 1 ? ` · ${activeDatasets.length} datasets${dedupe ? ` (deduped, ${duplicateCount.toLocaleString()} removed)` : ""}` : ""}
+              {error ? ` — ${error.message}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
@@ -353,6 +396,79 @@ function ResearchPage() {
                   : <RefreshCw className="h-3.5 w-3.5" />}
                 Resync
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1"
+                    title="Combine multiple datasets"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    {extraDatasets.length > 0 ? `+${extraDatasets.length} more` : "Combine"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-3" align="end">
+                  <div className="text-xs font-semibold mb-2">Add datasets to combine</div>
+                  <div className="max-h-64 overflow-y-auto space-y-1.5">
+                    {[
+                      { name: "live", count: null as number | null, label: "Live (current)" },
+                      ...(snapshotList.data?.snapshots ?? []).map((s) => ({
+                        name: s.name, count: s.count, label: s.name,
+                      })),
+                    ]
+                      .filter((opt) => opt.name !== dataset)
+                      .map((opt) => {
+                        const checked = extraDatasets.includes(opt.name);
+                        return (
+                          <label
+                            key={opt.name}
+                            className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1.5 py-1"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                setExtraDatasets((prev) =>
+                                  v ? [...prev, opt.name] : prev.filter((d) => d !== opt.name),
+                                );
+                              }}
+                            />
+                            <span className="flex-1 truncate">{opt.label}</span>
+                            {opt.count != null && (
+                              <span className="text-muted-foreground tabular-nums">
+                                {opt.count.toLocaleString()}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-border/60 space-y-2">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={dedupe}
+                        onCheckedChange={(v) => setDedupe(!!v)}
+                      />
+                      <span className="flex-1">Remove duplicates</span>
+                      {activeDatasets.length > 1 && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {duplicateCount.toLocaleString()} dup
+                        </span>
+                      )}
+                    </label>
+                    {extraDatasets.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs w-full"
+                        onClick={() => setExtraDatasets([])}
+                      >
+                        Clear extras
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
 

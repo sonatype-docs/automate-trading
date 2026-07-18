@@ -279,13 +279,11 @@ export const queryTrades = createServerFn({ method: "POST" })
           ? new Date(String(last.entry_time)).getTime()
           : spec.cursorEntryTimeMs;
         const nextCursorTradeId = last ? String(last.trade_id) : cursorTradeId;
-        const probe = applyQuery(
-          supabase,
-          table,
-          { ...spec, snapshotName, limit: 1, offset: 0, cursorEntryTimeMs: nextCursorEntryTimeMs, cursorTradeId: nextCursorTradeId },
-          "trade_id,entry_time",
+        const { rows: probeRows, error: probeError } = await fetchCursorPage(
+          nextCursorEntryTimeMs,
+          nextCursorTradeId,
+          1,
         );
-        const { data: probeRows, error: probeError } = await probe;
         if (probeError) {
           const msg = probeError.message || "";
           if (isTransientDbError(probeError)) {

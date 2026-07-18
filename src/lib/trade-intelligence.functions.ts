@@ -628,6 +628,23 @@ export const listSnapshots = createServerFn({ method: "POST" }).handler(async ()
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = supabaseAdmin as any;
+  // Prefer the maintained stats cache (fast, no full scan). Fall back to the
+  // RPC if the cache table is missing.
+  const { data: statsRows, error: statsErr } = await supabase
+    .from("trade_snapshot_stats")
+    .select("name, trade_count, last_updated")
+    .order("last_updated", { ascending: false });
+  if (!statsErr && statsRows) {
+    return {
+      snapshots: (statsRows as { name: string; trade_count: number | string; last_updated: string | null }[])
+        .map((r) => ({
+          name: r.name,
+          count: Number(r.trade_count) || 0,
+          lastUpdated: r.last_updated ?? null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
   const { data, error } = await supabase.rpc("list_trade_snapshots");
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as { name: string; count: number | string; last_updated: string | null }[];

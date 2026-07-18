@@ -971,13 +971,32 @@ function PipelinePage() {
               </span>
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Parallel batches</Label>
-              <Input type="number" min={1} max={6} value={parallelism} disabled={isRunning}
-                onChange={(e) => setParallelism(Math.min(6, Math.max(1, Number(e.target.value) || 1)))} />
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                Parallel batches (ceiling)
+                {adaptive && isRunning && (
+                  <span className="ml-2 text-primary normal-case">now: {effectiveParallelism}</span>
+                )}
+              </Label>
+              <Input type="number" min={1} max={12} value={parallelism} disabled={isRunning}
+                onChange={(e) => setParallelism(Math.min(12, Math.max(1, Number(e.target.value) || 1)))} />
               <span className="text-[10px] text-muted-foreground">
-                Slices processed concurrently (screen stays awake while running).
+                Max concurrent slice batches. Adaptive limiter throttles down on slow batches or errors.
               </span>
             </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Adaptive concurrency</Label>
+              <Select value={adaptive ? "on" : "off"} onValueChange={(v) => setAdaptive(v === "on")} disabled={isRunning}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="on">On — auto back-off on slow DB / errors</SelectItem>
+                  <SelectItem value="off">Off — always use ceiling</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-muted-foreground">
+                Starts conservative (3), grows on healthy streaks, halves after repeated errors.
+              </span>
+            </div>
+
           </CardContent>
         </Card>
 

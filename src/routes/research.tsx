@@ -1464,10 +1464,12 @@ function rankAsc(values: number[]): number[] {
 
 function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   const [strategyFocus, setStrategyFocus] = useState<string>("all");
-  // Snapshot the input trades — only recomputed when the user clicks "Run".
-  const [snapshot, setSnapshot] = useState<TradeRecord[]>(() => trades);
   const [ranAt, setRanAt] = useState<number>(() => Date.now());
-  const stale = snapshot !== trades;
+  // Auto-recompute whenever the filtered trades change. The Run button just
+  // re-stamps the "last run" timestamp so the user has explicit feedback.
+  const snapshot = trades;
+
+  useEffect(() => { setRanAt(Date.now()); }, [trades]);
 
   const strategies = useMemo(
     () => Array.from(new Set(snapshot.map((t) => t.strategyId))).sort(),
@@ -1475,6 +1477,7 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
   );
 
   const rows: TfRow[] = useMemo(() => {
+
     // Group by strategy + symbol + timeframe + timezone (so multi-tz runs compete)
     const map = new Map<string, TradeRecord[]>();
     for (const t of snapshot) {

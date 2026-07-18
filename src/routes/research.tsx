@@ -214,7 +214,7 @@ function ResearchPage() {
     try { window.localStorage.setItem("research-nav-collapsed", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
-  const queryFn = useServerFn(queryTrades);
+  // queryTrades is called via useDatasetsProgress hook.
   const snapshotsFn = useServerFn(listSnapshots);
   const renameFn = useServerFn(renameSnapshot);
   const deleteFn = useServerFn(deleteSnapshot);

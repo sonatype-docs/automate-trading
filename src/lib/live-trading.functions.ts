@@ -846,13 +846,17 @@ export const getLiveChartData = createServerFn({ method: "POST" })
 
 
 export const getLastPrice = createServerFn({ method: "POST" })
-  .inputValidator((raw) => z.object({ symbol: z.string().trim().min(1) }).parse(raw))
+  .inputValidator((raw) => z.object({ symbol: z.string() }).parse(raw))
   .handler(async ({ data }): Promise<{ price: number; ts: number }> => {
-    const symbol = data.symbol.trim().toUpperCase();
+    const symbol = (data.symbol ?? "").trim().toUpperCase();
     if (!symbol) return { price: 0, ts: Date.now() };
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
-    const price = await createSharkClient().getLastPrice(symbol);
-    return { price, ts: Date.now() };
+    try {
+      const price = await createSharkClient().getLastPrice(symbol);
+      return { price, ts: Date.now() };
+    } catch {
+      return { price: 0, ts: Date.now() };
+    }
   });
 
 export interface RunnerStatusDTO {

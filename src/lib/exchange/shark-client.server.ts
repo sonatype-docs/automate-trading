@@ -393,11 +393,14 @@ export function createSharkClient(): ExchangeClient {
       };
       for (const r of rows) {
         const o = r as Record<string, unknown>;
-        const qty = num(o.positionAmt ?? o.quantity ?? o.qty ?? o.size);
+        const qty = num(o.positionAmount ?? o.positionAmt ?? o.quantity ?? o.qty ?? o.size);
         if (qty == null || qty === 0) continue;
+        const rawSide = String(
+          o.positionType ?? o.side ?? o.positionSide ?? (qty > 0 ? "LONG" : "SHORT"),
+        ).toUpperCase();
         out.push({
-          symbol: String(o.symbol ?? o.contractName ?? ""),
-          side: String(o.side ?? o.positionSide ?? (qty > 0 ? "LONG" : "SHORT")).toUpperCase(),
+          symbol: String(o.symbol ?? o.contractPair ?? o.contractName ?? "").toUpperCase(),
+          side: rawSide,
           qty: Math.abs(qty),
           entryPrice: num(o.entryPrice ?? o.avgEntryPrice ?? o.avgPrice),
           raw: o,

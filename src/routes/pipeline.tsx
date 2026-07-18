@@ -510,30 +510,12 @@ function PipelinePage() {
         },
       }).catch(() => {});
 
-      // Per-combo log entries (best-effort — powers Resume hydration).
-      for (let i = 0; i < batch.items.length; i++) {
-        const it = batch.items[i];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = res.results[i] as any;
-        await updateFn({
-          data: {
-            runId: id,
-            progress: {
-              ...prog,
-              currentCombo: null, currentStage: null,
-              completedSlices: Array.from(completedSlices),
-            },
-            logEntry: {
-              ts: Date.now(), combo: it.spec,
-              stage: r?.ok ? "intelligence" : "execution",
-              status: r?.ok ? "ok" : "failed",
-              trades: r?.tradesInRun ?? 0, inserted: r?.inserted ?? 0,
-              elapsedMs: r?.elapsedMs ?? 0,
-              error: r?.ok ? null : (r?.error ?? "batch error"),
-            },
-          },
-        }).catch(() => {});
-      }
+      // NOTE: Removed the per-combo updateFn loop that ran here — for a 1,296
+      // combo run with 3 parallel workers it fired ~1.3k HTTP POSTs each
+      // carrying an ever-growing progress payload (sliceStats, completedSlices,
+      // + server-side JSONB log append). That flood was the primary trigger of
+      // the browser tab crash. The batch-level updateFn call above is enough
+      // for resume — the slice checkpoint + summary log covers hydration.
     }
 
     // Adaptive scheduler — reads `effective` on every dispatch so the ceiling

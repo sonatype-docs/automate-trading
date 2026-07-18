@@ -392,7 +392,7 @@ function PipelinePage() {
     const m = row.matrix as any;
     activeSnapshotRef.current = (typeof m.snapshotName === "string" && m.snapshotName)
       ? m.snapshotName
-      : `pipeline-${String(row.id).slice(0, 8)}`;
+      : fallbackSnapshotName(row.started_at as string | null | undefined);
 
     const rebuilt: ComboSpec[] = [];
     const tzList: string[] = Array.isArray(m.strategyTimezones) && m.strategyTimezones.length > 0

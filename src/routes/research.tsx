@@ -1560,7 +1560,27 @@ function TimeframeOptimizerSection({ trades }: { trades: TradeRecord[] }) {
     );
   }, [snapshot]);
 
-  const filtered = strategyFocus === "all" ? rows : rows.filter((r) => r.strategyId === strategyFocus);
+  const filteredUnsorted = strategyFocus === "all" ? rows : rows.filter((r) => r.strategyId === strategyFocus);
+
+  type SortKey = "strategyId" | "symbol" | "timeframe" | "timezone" | "trades" | "netProfit" | "profitFactor" | "winRate" | "expectancy" | "maxDrawdown" | "stability" | "robustness";
+  const [sortKey, setSortKey] = useState<SortKey>("robustness");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir(typeof filteredUnsorted[0]?.[k] === "number" ? "desc" : "asc"); }
+  };
+  const filtered = useMemo(() => {
+    const arr = [...filteredUnsorted];
+    const dir = sortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => {
+      const av = a[sortKey]; const bv = b[sortKey];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av ?? "").localeCompare(String(bv ?? "")) * dir;
+    });
+    return arr;
+  }, [filteredUnsorted, sortKey, sortDir]);
+  const sortArrow = (k: SortKey) => sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
 
   const bestPerStrategy = useMemo(() => {
     const map = new Map<string, TfRow>();

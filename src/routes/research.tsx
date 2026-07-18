@@ -236,22 +236,17 @@ function ResearchPage() {
     [dataset, extraDatasets],
   );
 
-  const datasetQueries = useQueries({
-    queries: activeDatasets.map((ds) => ({
-      queryKey: ["research", "all-trades", ds],
-      queryFn: () => queryFn({ data: { limit: 2_000_000, orderBy: "entry_time", order: "asc", dataset: ds } }),
-    })),
-  });
-  const isLoading = datasetQueries.some((q) => q.isLoading);
-  const error = datasetQueries.find((q) => q.error)?.error as Error | undefined;
+  const [resyncKey, setResyncKey] = useState(0);
+  const { data: datasetData, progress: datasetProgress, isLoading, totalLoaded, error } =
+    useDatasetsProgress(activeDatasets, resyncKey);
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
     staleTime: 60_000,
   });
   const rawCombined: TradeRecord[] = useMemo(
-    () => datasetQueries.flatMap((q) => q.data?.rows ?? []),
-    [datasetQueries],
+    () => activeDatasets.flatMap((ds) => datasetData[ds] ?? []),
+    [datasetData, activeDatasets],
   );
   const duplicateCount = useMemo(() => {
     if (activeDatasets.length < 2) return 0;

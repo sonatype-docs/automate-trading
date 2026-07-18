@@ -15,6 +15,17 @@ const CHUNK_STORE = "chunks";
 
 type StoredChunk = { key: string; dataset: string; index: number; rows: TradeRecord[]; updatedAt: number };
 
+function normaliseRows(rows: TradeRecord[]): TradeRecord[] {
+  const seen = new Set<string>();
+  const out: TradeRecord[] = [];
+  for (const row of rows) {
+    if (seen.has(row.tradeId)) continue;
+    seen.add(row.tradeId);
+    out.push(row);
+  }
+  return out.sort((a, b) => (a.entryTime - b.entryTime) || a.tradeId.localeCompare(b.tradeId));
+}
+
 function openCheckpointDb(): Promise<IDBDatabase | null> {
   if (typeof window === "undefined" || !("indexedDB" in window)) return Promise.resolve(null);
   return new Promise((resolve) => {
@@ -39,8 +50,7 @@ async function loadPersistedRows(dataset: string): Promise<TradeRecord[]> {
     const index = tx.objectStore(CHUNK_STORE).index("dataset");
     const req = index.getAll(IDBKeyRange.only(dataset));
     req.onsuccess = () => {
-      const chunks = (req.result as StoredChunk[]).sort((a, b) => a.index - b.index);
-      resolve(chunks.flatMap((c) => c.rows));
+      resolve(normaliseRows((req.result as StoredChunk[]).flatMap((c) => c.rows)));
       db.close();
     };
     req.onerror = () => { resolve([]); db.close(); };
@@ -51,10 +61,11 @@ async function savePersistedChunk(dataset: string, index: number, rows: TradeRec
   if (!rows.length) return;
   const db = await openCheckpointDb();
   if (!db) return;
+  const first = rows[0];
   return new Promise((resolve) => {
     const tx = db.transaction(CHUNK_STORE, "readwrite");
     tx.objectStore(CHUNK_STORE).put({
-      key: `${dataset}::${index}`,
+      key: `${dataset}::${first.entryTime}::${first.tradeId}`,
       dataset,
       index,
       rows,
@@ -203,7 +214,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
       for (const ds of datasets) {
         if (cancelled || runRef.current !== runId) return;
         if (cache.has(ds)) continue;
-        let acc: TradeRecord[] = partialCache.get(ds)?.slice() ?? [];
+        let acc: TradeRecord[] = normaliseRows(partialCache.get(ds)?.slice() ?? []);
         if (acc.length === 0) {
           const persisted = await loadPersistedRows(ds);
           if (cancelled || runRef.current !== runId) return;
@@ -296,14 +307,14 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
               continue;
             }
 
-            const rows = res.rows ?? [];
+            const rows = normaliseRows(res.rows ?? []);
             let waveLoaded = 0;
             for (const row of rows) {
               if (seen.has(row.tradeId)) continue;
               seen.add(row.tradeId);
-              acc.push(row);
               waveLoaded += 1;
             }
+            if (waveLoaded) acc = normaliseRows([...acc, ...rows.filter((row) => seen.has(row.tradeId))]);
             chunksFetched += 1;
             await savePersistedChunk(ds, chunksFetched, rows);
             partialCache.set(ds, acc.slice());

@@ -66,6 +66,18 @@ function fmt(n: number, d = 2): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
 }
 function fmtMoney(n: number): string { return `${n < 0 ? "-" : ""}$${fmt(Math.abs(n))}`; }
+function fmtDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  if (m < 60) return `${m}m ${rs}s`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return `${h}h ${rm}m`;
+}
+
 
 function defaultDatasetName(now = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");

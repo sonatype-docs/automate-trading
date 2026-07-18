@@ -277,6 +277,21 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
               },
             }) as { rows: TradeRecord[]; transientError?: string; partial?: boolean };
 
+            const rows = normaliseRows(res.rows ?? []);
+            let waveLoaded = 0;
+            for (const row of rows) {
+              if (seen.has(row.tradeId)) continue;
+              seen.add(row.tradeId);
+              waveLoaded += 1;
+            }
+            if (waveLoaded) {
+              acc = normaliseRows([...acc, ...rows]);
+              chunksFetched += 1;
+              await savePersistedChunk(ds, chunksFetched, rows);
+              partialCache.set(ds, acc.slice());
+              setData((d) => ({ ...d, [ds]: acc.slice() }));
+            }
+
             if (res.transientError) {
               retryCount += 1;
               const firstError = new Error(res.transientError);
@@ -297,7 +312,7 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
                   currentWave: wave,
                   wavesFetched: Math.max(0, wave - 1),
                   chunksFetched,
-                  lastBatchRows: 0,
+                  lastBatchRows: waveLoaded,
                   startedAt,
                   updatedAt: Date.now(),
                   error: `${firstError.message} Retrying from row ${acc.length.toLocaleString()} in ${Math.round(delayMs / 1000)}s.`,
@@ -307,16 +322,10 @@ export function useDatasetsProgress(datasets: string[], resyncKey = 0): Datasets
               continue;
             }
 
-            const rows = normaliseRows(res.rows ?? []);
-            let waveLoaded = 0;
-            for (const row of rows) {
-              if (seen.has(row.tradeId)) continue;
-              seen.add(row.tradeId);
-              waveLoaded += 1;
+            if (!waveLoaded && rows.length) {
+              chunksFetched += 1;
+              await savePersistedChunk(ds, chunksFetched, rows);
             }
-            if (waveLoaded) acc = normaliseRows([...acc, ...rows.filter((row) => seen.has(row.tradeId))]);
-            chunksFetched += 1;
-            await savePersistedChunk(ds, chunksFetched, rows);
             partialCache.set(ds, acc.slice());
             setData((d) => ({ ...d, [ds]: acc.slice() }));
             setProgress((p) => ({

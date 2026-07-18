@@ -348,7 +348,9 @@ function ResearchPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Quantitative Research</h1>
             <p className="text-xs text-muted-foreground">
-              {isLoading ? "Loading…" : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
+              {isLoading
+                ? `Loading… ${totalLoaded.toLocaleString()} rows fetched`
+                : `${trades.length.toLocaleString()} of ${allTrades.length.toLocaleString()} trades`}
               {activeDatasets.length > 1 ? ` · ${activeDatasets.length} datasets${dedupe ? ` (deduped, ${duplicateCount.toLocaleString()} removed)` : ""}` : ""}
               {error ? ` — ${error.message}` : ""}
             </p>

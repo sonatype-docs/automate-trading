@@ -649,6 +649,7 @@ function PositionPnLCell({
       {q.isFetching && <span className="ml-1 text-[9px] text-muted-foreground">•</span>}
     </td>
   );
+}
 
 
 

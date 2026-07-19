@@ -207,7 +207,7 @@ function PipelinePage() {
   const [tfs, setTfs] = useState<string[]>(PIPELINE_TFS);
   const [strats, setStrats] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [execs, setExecs] = useState<string[]>(ALL_EXEC_PRESETS);
-  const [stratTzs, setStratTzs] = useState<string[]>([...TIMEZONES]);
+  const [stratTzs, setStratTzs] = useState<string[]>(["UTC"]);
 
 
   const [results, setResults] = useState<ComboResult[]>([]);
@@ -1326,9 +1326,7 @@ function PipelinePage() {
             <MatrixGroup title="Timeframes"
               options={PIPELINE_TFS.map((v) => ({ value: v }))}
               selected={tfs} onChange={setTfs} />
-            <MatrixGroup title="Strategy TZ"
-              options={TIMEZONES.map((v) => ({ value: v }))}
-              selected={stratTzs} onChange={setStratTzs} />
+            {/* Strategy TZ removed — pipeline runs 24x7 in a single fixed TZ (UTC). Segregate into windows during analysis. */}
             <MatrixGroup title="Strategy presets"
 
               options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}

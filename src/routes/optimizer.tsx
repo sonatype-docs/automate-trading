@@ -132,7 +132,7 @@ function OptimizerPage() {
         </CardContent></Card>
       ) : (
         <Tabs defaultValue="optimize" className="space-y-4">
-          <TabsList className="flex flex-wrap gap-1">
+          <TabsList className="flex flex-wrap gap-1 h-auto w-full justify-start">
             <TabsTrigger value="optimize">Optimization</TabsTrigger>
             <TabsTrigger value="time-edge">Time Edge</TabsTrigger>
             <TabsTrigger value="wf">Walk-Forward</TabsTrigger>

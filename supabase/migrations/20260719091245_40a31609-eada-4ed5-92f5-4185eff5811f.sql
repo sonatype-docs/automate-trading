@@ -1,0 +1,1 @@
+ALTER TABLE public.paper_runners DROP CONSTRAINT IF EXISTS paper_runners_symbol_timeframe_strategy_preset_key;

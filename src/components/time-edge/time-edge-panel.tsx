@@ -782,8 +782,63 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         }
       }
     }
-    return flat.map((b) => ({ b, ...classify(b) }));
+    // Merge sibling rows that are identical in every parameter except direction (long+short → both).
+    const mergeKey = (b: BucketMetrics) =>
+      [b.dim, b.symbols.join(","), b.timeframes.join(","), b.strategies.join(","),
+       b.sessions.join(","), b.hours.join(","), b.weekdays.join(",")].join("|");
+    const stripDirLabel = (s: string) =>
+      s.replace(/\b(Long|Short|LONG|SHORT|long|short)\b\s*\+?\s*/g, "").replace(/\s{2,}/g, " ").trim();
+    const groups = new Map<string, BucketMetrics[]>();
+    for (const b of flat) {
+      const k = mergeKey(b);
+      const arr = groups.get(k);
+      if (arr) arr.push(b); else groups.set(k, [b]);
+    }
+    const merged: BucketMetrics[] = [];
+    for (const [, arr] of groups) {
+      if (arr.length === 1) { merged.push(arr[0]); continue; }
+      const total = arr.reduce((s, x) => s + x.trades, 0) || 1;
+      const wAvg = (f: (b: BucketMetrics) => number) =>
+        arr.reduce((s, x) => s + f(x) * x.trades, 0) / total;
+      const sum = (f: (b: BucketMetrics) => number) => arr.reduce((s, x) => s + f(x), 0);
+      const gp = sum((x) => x.grossProfit);
+      const gl = sum((x) => x.grossLoss);
+      const wins = sum((x) => x.wins);
+      const losses = sum((x) => x.losses);
+      const first = arr[0];
+      const dirs = Array.from(new Set(arr.flatMap((x) => x.directions))).sort();
+      merged.push({
+        ...first,
+        key: `${first.key}::merged(${dirs.join("+")})`,
+        label: `${stripDirLabel(first.label)} · both`,
+        trades: total,
+        wins, losses,
+        netProfit: sum((x) => x.netProfit),
+        grossProfit: gp,
+        grossLoss: gl,
+        winRate: total ? wins / total : 0,
+        profitFactor: gl > 0 ? gp / gl : (gp > 0 ? Infinity : 0),
+        expectancy: total ? sum((x) => x.expectancy * x.trades) / total : 0,
+        avgRr: wAvg((x) => x.avgRr),
+        avgWin: wins ? sum((x) => x.avgWin * x.wins) / wins : 0,
+        avgLoss: losses ? sum((x) => x.avgLoss * x.losses) / losses : 0,
+        sharpe: wAvg((x) => x.sharpe),
+        sortino: wAvg((x) => x.sortino),
+        maxDrawdown: Math.max(...arr.map((x) => x.maxDrawdown)),
+        ulcerIndex: wAvg((x) => x.ulcerIndex),
+        recoveryFactor: wAvg((x) => x.recoveryFactor),
+        avgHoldingBars: wAvg((x) => x.avgHoldingBars),
+        medianHoldingBars: wAvg((x) => x.medianHoldingBars),
+        pValueMean: Math.min(...arr.map((x) => x.pValueMean)),
+        pValueWin: Math.min(...arr.map((x) => x.pValueWin)),
+        confidence: Math.max(...arr.map((x) => x.confidence)),
+        robustness: wAvg((x) => x.robustness),
+        directions: dirs,
+      });
+    }
+    return merged.map((b) => ({ b, ...classify(b) }));
   }, [report, trades]);
+
 
 
   const counts = useMemo(() => {

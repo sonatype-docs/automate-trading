@@ -376,7 +376,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
       const parts: string[] = [];
       if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
       if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
-      toast.success(`Deployed. ${parts.join(" · ") || "no changes"}`);
+      { const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${skipMsg}`); }
       setSelected(new Set());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1080,7 +1080,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       const parts: string[] = [];
       if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
       if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
-      toast.success(`Deployed. ${parts.join(" · ") || "no changes"}`);
+      { const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${skipMsg}`); }
       setSelected(new Set());
     },
     onError: (e: Error) => toast.error(e.message),

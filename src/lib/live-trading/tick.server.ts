@@ -25,6 +25,10 @@ interface RunnerRow {
   risk_usd: number;
   lookback_days: number;
   leverage: number;
+  direction_filter: string | null;
+  window_start_hour_ist: number | null;
+  window_end_hour_ist: number | null;
+  weekdays_ist: number[] | null;
 }
 
 export interface LiveTickReport {
@@ -46,7 +50,7 @@ let idleTickCounter = 0;
 export async function runLiveTradingTick(): Promise<LiveTickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("live_runners")
-    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist")
     .eq("running", true);
   if (error) throw new Error(error.message);
 
@@ -56,7 +60,7 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
   }
   idleTickCounter = 0;
 
-  const { windowsForPreset, isWindowActive, minutesUntilOpen } = await import(
+  const { windowsForPreset, isWindowActive, minutesUntilOpen, isRunnerAllowedNow } = await import(
     "@/lib/session-windows"
   );
 
@@ -67,9 +71,16 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
       // window AND have no open orders to reconcile. Enter the window 5 min
       // early so the first bar of the session is not missed.
       const windows = windowsForPreset(r.strategy_preset);
-      const inWindow =
+      const inSessionWindow =
         windows.length === 0 || // unknown preset → always tick
         windows.some((w) => isWindowActive(w) || minutesUntilOpen(w) <= 5);
+      // Per-runner pinned IST hour window + weekday whitelist (from Time Edge deploys).
+      const inRunnerWindow = isRunnerAllowedNow({
+        window_start_hour_ist: r.window_start_hour_ist,
+        window_end_hour_ist: r.window_end_hour_ist,
+        weekdays_ist: r.weekdays_ist,
+      });
+      const inWindow = inSessionWindow && inRunnerWindow;
 
       if (!inWindow) {
         const { count } = await supabaseAdmin
@@ -212,6 +223,14 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   // Only look at the newest "still-open" flushed trade — that's the current signal.
   const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
   if (!openFlush) return { placed: 0, reconciled };
+  // Per-runner direction filter (from Time Edge deploy). "both" or null = no filter.
+  if (
+    r.direction_filter &&
+    r.direction_filter !== "both" &&
+    r.direction_filter !== openFlush.direction
+  ) {
+    return { placed: 0, reconciled };
+  }
 
   // Dedup: skip if a live_trade already exists for this signalId.
   const { data: existing } = await supabaseAdmin

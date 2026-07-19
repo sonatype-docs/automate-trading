@@ -21,6 +21,10 @@ interface RunnerRow {
   exec_preset: string;
   risk_usd: number;
   lookback_days: number;
+  direction_filter: string | null;
+  window_start_hour_ist: number | null;
+  window_end_hour_ist: number | null;
+  weekdays_ist: number[] | null;
 }
 
 export interface TickReport {
@@ -38,12 +42,22 @@ export interface TickReport {
 export async function runPaperTradingTick(): Promise<TickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("paper_runners")
-    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist")
     .eq("running", true);
   if (error) throw new Error(error.message);
 
+  const { isRunnerAllowedNow } = await import("@/lib/session-windows");
   const results: TickReport["results"] = [];
   for (const r of (runners ?? []) as (RunnerRow & { label: string })[]) {
+    // Skip runners currently outside their pinned IST window / weekday whitelist.
+    if (!isRunnerAllowedNow({
+      window_start_hour_ist: r.window_start_hour_ist,
+      window_end_hour_ist: r.window_end_hour_ist,
+      weekdays_ist: r.weekdays_ist,
+    })) {
+      results.push({ runner_id: r.id, label: r.label, inserted: 0, open: false });
+      continue;
+    }
     try {
       const out = await tickOne(r);
       results.push({ runner_id: r.id, label: r.label, ...out });
@@ -92,9 +106,13 @@ async function tickOne(r: RunnerRow): Promise<{ inserted: number; open: boolean 
   const eres = runExecution(enriched, sres.signals, ecfg, { symbol: r.symbol });
 
   const lastBar = enriched[enriched.length - 1];
+  // Per-runner direction filter — null/"both" = keep both sides.
+  const dirOk = (d: string) =>
+    !r.direction_filter || r.direction_filter === "both" || r.direction_filter === d;
   // Split flushed end-of-data trades (still-open positions) from real closes.
-  const closed = eres.trades.filter((t) => t.exitReason !== "end_of_data");
-  const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
+  const closed = eres.trades.filter((t) => t.exitReason !== "end_of_data" && dirOk(t.direction));
+  const openFlushRaw = eres.trades.find((t) => t.exitReason === "end_of_data");
+  const openFlush = openFlushRaw && dirOk(openFlushRaw.direction) ? openFlushRaw : undefined;
 
   // Insert only new closed trades. Dedup on runner_id + signalId.
   let inserted = 0;

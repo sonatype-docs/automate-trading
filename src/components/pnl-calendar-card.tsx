@@ -136,11 +136,15 @@ export function PnlCalendarCard({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const fetchCal = useServerFn(getPnlCalendar);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["pnl-calendar", month, symbol, mode],
     queryFn: () => fetchCal({ data: { month, symbol: symbol === "all" ? undefined : symbol, mode } }),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false, staleTime: Infinity,
   });
+  const lastSynced = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
+
 
   const byDate = useMemo(() => {
     const m = new Map<string, Cell>();

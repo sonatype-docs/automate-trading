@@ -824,7 +824,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       merged.push({
         ...first,
         key: `${first.key}::merged(${dirs.join("+")})`,
-        label: `${stripDirLabel(first.label)} · both`,
+        label: `${normLabel(first)} · both`,
         trades: total,
         wins, losses,
         netProfit: sum((x) => x.netProfit),

@@ -810,7 +810,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
     }
     const merged: BucketMetrics[] = [];
     for (const [, arr] of groups) {
-      if (arr.length === 1) { merged.push(arr[0]); continue; }
+      if (arr.length === 1) { merged.push({ ...arr[0], label: normLabel(arr[0]) }); continue; }
       const total = arr.reduce((s, x) => s + x.trades, 0) || 1;
       const wAvg = (f: (b: BucketMetrics) => number) =>
         arr.reduce((s, x) => s + f(x) * x.trades, 0) / total;

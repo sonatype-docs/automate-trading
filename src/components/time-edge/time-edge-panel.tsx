@@ -378,7 +378,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   };
   const clearSelection = () => setSelected(new Set());
 
-  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
+  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("live");
   const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
@@ -1085,7 +1085,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   };
   const clearSelection = () => setSelected(new Set());
 
-  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
+  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("live");
   const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
@@ -1371,7 +1371,8 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                   for (const r of top) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
                   return next;
                 });
-                toast.success(`Selected top ${top.length} by robustness — set Target=Live and click Deploy`);
+                setDeployTarget("live");
+                toast.success(`Selected top ${top.length} by robustness — Target set to Live, click Deploy`);
               }}
             >
               Select top 10

@@ -3,6 +3,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 
 const BucketSummary = z.object({
   label: z.string(),
@@ -129,6 +130,11 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { presetDirectionConflict } = await import("@/lib/session-windows");
     const s = supabaseAdmin;
+    const validStrategies = new Set(Object.keys(STRATEGY_PRESETS));
+    const invalid = data.buckets.find((b) => !validStrategies.has(b.strategyPreset));
+    if (invalid) {
+      throw new Error(`${invalid.strategyPreset} is not registered as a live strategy. Pick a supported preset before deploying.`);
+    }
 
     const targets: Array<"live" | "paper"> =
       data.target === "both" ? ["live", "paper"] : [data.target];
@@ -143,6 +149,18 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       const table = tgt === "live" ? "live_runners" : "paper_runners";
 
       if (data.replaceExisting) {
+        const { data: staleInvalid } = await s
+          .from(table)
+          .select("id")
+          .not("strategy_preset", "in", `(${Array.from(validStrategies).join(",")})`);
+        if (staleInvalid?.length) {
+          const ids = staleInvalid.map((r: { id: string }) => r.id);
+          const tradeTable = tgt === "live" ? "live_trades" : "paper_trades";
+          await s.from(tradeTable).delete().in("runner_id", ids);
+          await s.from(table).delete().in("id", ids);
+          summary[tgt].removed += staleInvalid.length;
+        }
+
         // Remove existing rows whose (symbol+timeframe+strategy_preset+exec_preset)
         // collides with any selected bucket.
         for (const b of data.buckets) {

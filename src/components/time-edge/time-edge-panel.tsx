@@ -23,6 +23,7 @@ import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { bucketsToCsv, reportToJson, reportToMarkdown } from "@/lib/time-edge/export";
 import type { BucketDim, BucketMetrics, HeatmapMetric, TimeEdgeReport } from "@/lib/time-edge/types";
+import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 
 function download(name: string, body: string, mime: string) {
   const blob = new Blob([body], { type: mime });
@@ -30,6 +31,14 @@ function download(name: string, body: string, mime: string) {
   const a = document.createElement("a");
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+const LIVE_STRATEGY_IDS = new Set(Object.keys(STRATEGY_PRESETS));
+function liveStrategyOptions(strategies: string[]): string[] {
+  return strategies.filter((s) => LIVE_STRATEGY_IDS.has(s));
+}
+function firstLiveStrategy(strategies: string[]): string | undefined {
+  return liveStrategyOptions(strategies)[0];
 }
 
 export function TimeEdgePanel() {
@@ -305,7 +314,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
     return {
       symbol: b.symbols[0],
       timeframe: b.timeframes[0] ?? "15m",
-      strategy: b.strategies[0],
+      strategy: firstLiveStrategy(b.strategies),
       direction: dir,
       windowStart: hrs.length ? hrs[0] : 0,
       windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
@@ -347,10 +356,11 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
-        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const strategyPreset = ov.strategy ?? firstLiveStrategy(b.strategies) ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
         const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
@@ -535,6 +545,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
                 const id = rowId(b);
                 const isSel = selected.has(id);
                 const ov = overrides[id] ?? defaultOverride(b);
+                const strategyOptions = liveStrategyOptions(b.strategies);
                 return (
                   <TableRow key={b.key} className={isSel ? "bg-primary/5" : ""}>
                     <TableCell><input type="checkbox" checked={isSel} onChange={() => toggle(b)} /></TableCell>
@@ -562,13 +573,13 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[160px] max-w-[160px]">
-                      {isSel && b.strategies.length > 1 ? (
+                      {isSel && strategyOptions.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>{strategyOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
+                        <div className="truncate" title={strategyOptions.join(", ")}>{isSel ? (ov.strategy ?? "not live") : (strategyOptions.slice(0, 2).join(",") || "not live")}{!isSel && strategyOptions.length > 2 ? `+${strategyOptions.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">
@@ -1009,7 +1020,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
     return {
       symbol: b.symbols[0],
       timeframe: b.timeframes[0] ?? "15m",
-      strategy: b.strategies[0],
+      strategy: firstLiveStrategy(b.strategies),
       direction: dir,
       windowStart: hrs.length ? hrs[0] : 0,
       windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
@@ -1051,10 +1062,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
-        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const strategyPreset = ov.strategy ?? firstLiveStrategy(b.strategies) ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
         const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
@@ -1372,6 +1384,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                 const id = rowId(b);
                 const isSel = selected.has(id);
                 const ov = overrides[id] ?? defaultOverride(b);
+                const strategyOptions = liveStrategyOptions(b.strategies);
                 const wkLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
                 const hrsSorted = [...b.hours].sort((a, x) => a - x);
                 const hrOptions = hrsSorted.length ? hrsSorted : Array.from({ length: 24 }, (_, i) => i);
@@ -1406,13 +1419,13 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
-                      {isSel && b.strategies.length > 1 ? (
+                      {isSel && strategyOptions.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>{strategyOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
+                        <div className="truncate" title={strategyOptions.join(", ")}>{isSel ? (ov.strategy ?? "not live") : (strategyOptions.slice(0, 2).join(",") || "not live")}{!isSel && strategyOptions.length > 2 ? `+${strategyOptions.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">

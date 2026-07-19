@@ -158,8 +158,8 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       data.target === "both" ? ["live", "paper"] : [data.target];
 
     const summary = {
-      live: { removed: 0, inserted: 0, runners: [] as string[] },
-      paper: { removed: 0, inserted: 0, runners: [] as string[] },
+      live: { removed: 0, inserted: 0, runners: [] as string[], removedRunners: [] as string[] },
+      paper: { removed: 0, inserted: 0, runners: [] as string[], removedRunners: [] as string[] },
       skipped: [] as Array<{ label: string; reason: string }>,
     };
 
@@ -177,7 +177,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       if (data.replaceExisting) {
         const { data: staleInvalid } = await s
           .from(table)
-          .select("id")
+          .select("id, label, symbol, timeframe, strategy_preset")
           .not("strategy_preset", "in", `(${Array.from(validStrategies).join(",")})`);
         if (staleInvalid?.length) {
           const ids = staleInvalid.map((r: { id: string }) => r.id);
@@ -185,6 +185,9 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           await s.from(tradeTable).delete().in("runner_id", ids);
           await s.from(table).delete().in("id", ids);
           summary[tgt].removed += staleInvalid.length;
+          summary[tgt].removedRunners.push(...staleInvalid.map((r: { label?: string | null; symbol?: string; timeframe?: string; strategy_preset?: string }) =>
+            r.label ?? `${r.symbol ?? "?"} · ${r.strategy_preset ?? "?"} · ${r.timeframe ?? "?"}`,
+          ));
         }
 
         // Remove existing rows whose asset + strategy collides with the new
@@ -193,12 +196,15 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
         for (const b of dedupedBuckets) {
           const { data: hits } = await s
             .from(table)
-            .select("id")
+            .select("id, label, symbol, timeframe, strategy_preset")
             .eq("symbol", b.symbol)
             .eq("strategy_preset", b.strategyPreset);
           if (hits && hits.length) {
             await s.from(table).delete().in("id", hits.map((h: { id: string }) => h.id));
             summary[tgt].removed += hits.length;
+            summary[tgt].removedRunners.push(...hits.map((h: { label?: string | null; symbol?: string; timeframe?: string; strategy_preset?: string }) =>
+              h.label ?? `${h.symbol ?? "?"} · ${h.strategy_preset ?? "?"} · ${h.timeframe ?? "?"}`,
+            ));
           }
         }
       }

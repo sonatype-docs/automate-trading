@@ -204,6 +204,28 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     invalidation: { maxDelayBars: 4, invalidateOnSessionEnd: true, invalidateOnStructureFlip: true },
     risk: { riskPerTradeUsd: 100 },
   },
+  // ── Phase 3: Funding-Rate Carry (Perp BTC) ────────────────────────
+  // Fades extreme funding within the last 30-45 min before settlement.
+  // Direction is enforced at runtime by `checkFundingFadeGate` in tick.server.ts.
+  funding_fade_btc: {
+    strategyId: "funding-fade-btc",
+    strategyName: "Funding-Rate Fade (BTC Perp)",
+    direction: "both",
+    session: {},
+    trend: { adxMax: 25 },
+    volatility: { atrPercentileMin: 10, atrPercentileMax: 80 },
+    setup: { kind: "bb_zscore_fade", bbPeriod: 20, bbSigma: 2.0 },
+    confirmation: {},
+    entry: { model: { kind: "limit", pullbackPct: 0.05 }, expiryBars: 4 },
+    stop: { kind: "atr", multiple: 1.2 },
+    targets: {
+      legs: [{ kind: "rr", value: 1, sizePct: 60 }, { kind: "rr", value: 2, sizePct: 40 }],
+      moveToBreakEvenAtR: 0.8,
+    },
+    management: { maxDailyTrades: 3, timeStopBars: 10 },
+    invalidation: { maxDelayBars: 3 },
+    risk: { riskPerTradeUsd: 100 },
+  },
 };
 
 export type StrategyPresetId = keyof typeof STRATEGY_PRESETS;

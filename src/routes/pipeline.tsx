@@ -33,7 +33,7 @@ import type {
 
 
 const ALL_SYMBOLS = ["XAUUSDT", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "AVAXUSDT"];
-const PIPELINE_TFS: Timeframe[] = ["1m", "2m", "3m", "5m", "10m", "15m", "30m", "45m", "1h", "4h"];
+const PIPELINE_TFS: Timeframe[] = ["5m", "15m", "1h", "4h"];
 const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
 const ALL_EXEC_PRESETS = Object.keys(EXEC_PRESETS);
 

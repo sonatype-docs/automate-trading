@@ -18,6 +18,8 @@ import { listSnapshots } from "@/lib/trade-intelligence.functions";
 import { generateTimeEdgeNarrative } from "@/lib/time-edge.functions";
 import { analyzeTimeEdges } from "@/lib/time-edge/analysis";
 import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
+import { groupByDim } from "@/lib/time-edge/buckets";
+import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { bucketsToCsv, reportToJson, reportToMarkdown } from "@/lib/time-edge/export";
 import type { BucketDim, BucketMetrics, HeatmapMetric, TimeEdgeReport } from "@/lib/time-edge/types";
 
@@ -414,18 +416,14 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
 }
 
 // ---------------- Validation ----------------
-function ValidationPanel({ report, trades }: { report: TimeEdgeReport; trades: BucketMetrics[] extends never ? never : import("@/lib/trade-intelligence/types").TradeRecord[] }) {
+function ValidationPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {
   const candidates = report.robustnessTop.slice(0, 20);
   const [selectedKey, setSelectedKey] = useState<string>(candidates[0]?.key ?? "");
   const selected = candidates.find((c) => c.key === selectedKey) ?? candidates[0];
 
   const result = useMemo(() => {
     if (!selected) return null;
-    const dim = selected.dim;
-    // rebuild bucket trades by re-grouping (cheap)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { groupByDim } = require("@/lib/time-edge/buckets") as typeof import("@/lib/time-edge/buckets");
-    const groups = groupByDim(trades, dim);
+    const groups = groupByDim(trades, selected.dim);
     const g = groups.get(selected.key);
     if (!g) return null;
     return {

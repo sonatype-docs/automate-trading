@@ -141,6 +141,8 @@ function AllRunnersStatusPanel({
               sortKey = 0;
             } else if (!r.running) {
               statusText = "Stopped"; tone = "muted"; StatusIcon = Pause; sortKey = 5;
+            } else if (!isTodayAllowedForRunner(r.weekdays_ist ?? null)) {
+              statusText = `Off today · ${istTodayName()}`; tone = "dim"; StatusIcon = Pause; sortKey = 6;
             } else if (st?.state === "setup_ready") {
               statusText = `Ready · ${(st.direction ?? "").toUpperCase()}`; tone = "success"; StatusIcon = Target;
               subDetail = st.detail; sortKey = 1;

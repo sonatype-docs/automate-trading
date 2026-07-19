@@ -205,7 +205,7 @@ export function TimeEdgePanel() {
 
             <TabsContent value="rankings"><RankingsPanel report={report} /></TabsContent>
             <TabsContent value="heatmaps"><HeatmapsPanel report={report} /></TabsContent>
-            <TabsContent value="robustness"><RobustnessPanel report={report} /></TabsContent>
+            <TabsContent value="robustness"><RobustnessPanel report={report} trades={trades} /></TabsContent>
             <TabsContent value="validation"><ValidationPanel report={report} trades={trades} /></TabsContent>
             <TabsContent value="clusters"><ClustersPanel report={report} /></TabsContent>
             <TabsContent value="cross"><CrossAssetPanel report={report} /></TabsContent>

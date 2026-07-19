@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown, Layers } from "lucide-react";
+import { Download, FolderOpen, Save, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import { useDatasetsProgress } from "@/hooks/use-datasets-progress";
 import { listSnapshots } from "@/lib/trade-intelligence.functions";
 import { generateTimeEdgeNarrative, deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
@@ -42,6 +42,44 @@ function firstLiveStrategy(strategies: string[]): string | undefined {
 }
 function isDeployableBucket(bucket: BucketMetrics): boolean {
   return Boolean(bucket.symbols.length && bucket.timeframes.length && firstLiveStrategy(bucket.strategies));
+}
+
+const SAVED_TIME_EDGE_LISTS_KEY = "time-edge-saved-runner-lists-v1";
+
+interface SavedTimeEdgeList {
+  id: string;
+  name: string;
+  createdAt: string;
+  deployTarget: "live" | "paper" | "both";
+  deployRisk: number;
+  deployExec: string;
+  deployTf: string;
+  replaceExisting: boolean;
+  entries: Array<{ id: string; bucket: BucketMetrics; override: RowOverrideBase }>;
+}
+
+interface RowOverrideBase {
+  symbol?: string;
+  timeframe?: string;
+  strategy?: string;
+  direction?: string;
+  windowStart?: number;
+  windowEnd?: number;
+}
+
+function readSavedTimeEdgeLists(): SavedTimeEdgeList[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SAVED_TIME_EDGE_LISTS_KEY) ?? "[]") as SavedTimeEdgeList[];
+    return Array.isArray(parsed) ? parsed.filter((l) => Array.isArray(l.entries)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedTimeEdgeLists(lists: SavedTimeEdgeList[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SAVED_TIME_EDGE_LISTS_KEY, JSON.stringify(lists.slice(0, 20)));
 }
 
 export function TimeEdgePanel() {

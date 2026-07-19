@@ -61,7 +61,7 @@ function toIso(ts: number) { return new Date(ts).toISOString().slice(0, 16).repl
 
 function ExecutionEnginePage() {
   const now = Date.now();
-  const [strategyPresetId, setStrategyPresetId] = useState<string>("london_orb");
+  const [strategyPresetId, setStrategyPresetId] = useState<string>("turtle_s1");
   const [execPresetId, setExecPresetId] = useState<string>("conservative_default");
   const [source, setSource] = useState<"yahoo" | "shark">("yahoo");
   const [symbol, setSymbol] = useState("XAUUSDT");

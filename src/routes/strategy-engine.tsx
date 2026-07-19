@@ -38,7 +38,7 @@ function fmt(n: number | null | undefined, d = 2): string {
 
 function StrategyEnginePage() {
   const now = Date.now();
-  const [preset, setPreset] = useState<string>("london_orb");
+  const [preset, setPreset] = useState<string>("turtle_s1");
   const [source, setSource] = useState<"yahoo" | "shark">("yahoo");
   const [symbol, setSymbol] = useState("XAUUSDT");
   const [timeframe, setTimeframe] = useState<Timeframe>("15m");

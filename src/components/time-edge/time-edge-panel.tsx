@@ -588,13 +588,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
+    const dirs = b.directions ?? [];
+    const dir = dirs.length === 1 ? dirs[0] : "both";
     return {
       symbol: b.symbols[0],
-      timeframe: b.timeframes[0],
+      timeframe: b.timeframes[0] ?? "15m",
       strategy: b.strategies[0],
-      direction: b.directions[0],
-      windowStart: hrs[0],
-      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : undefined,
+      direction: dir,
+      windowStart: hrs.length ? hrs[0] : 0,
+      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
     };
   };
   const toggle = (b: BucketMetrics) => {
@@ -629,17 +631,18 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
     mutationFn: async () => {
       const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
       if (!picked.length) throw new Error("Select at least one bucket");
-      const buckets = picked.map((b) => {
+      const buckets = picked.flatMap((b) => {
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
         const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
-        const direction = ov.direction ?? b.directions[0];
+        const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        return {
+        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        return dirs.map((direction) => ({
           label: b.label,
           symbol,
           timeframe,
@@ -653,7 +656,7 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
           direction,
           windowStartHourIst,
           windowEndHourIst,
-        };
+        }));
       });
       return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });
     },
@@ -902,13 +905,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] w-[110px] max-w-[110px]">
-                      {isSel && b.timeframes.length > 1 ? (
-                        <Select value={ov.timeframe} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
+                      {isSel ? (
+                        <Select value={ov.timeframe ?? b.timeframes[0] ?? "15m"} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.timeframes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>
+                            {Array.from(new Set([...(b.timeframes ?? []), "1m","3m","5m","15m","30m","1h","4h"])).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.timeframes.join(", ")}>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</div>
+                        <div className="truncate" title={b.timeframes.join(", ")}>{b.timeframes.join(",") || "—"}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
@@ -923,10 +928,12 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                     </TableCell>
                     <TableCell className="text-[11px]">
                       {isSel ? (
-                        <Select value={ov.direction ?? "long"} onValueChange={(v) => patchOverride(id, { direction: v })}>
+                        <Select value={ov.direction ?? "both"} onValueChange={(v) => patchOverride(id, { direction: v })}>
                           <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {(b.directions.length ? b.directions : ["long", "short"]).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            <SelectItem value="both">both</SelectItem>
+                            <SelectItem value="long">long</SelectItem>
+                            <SelectItem value="short">short</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (

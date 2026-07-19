@@ -631,17 +631,18 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
     mutationFn: async () => {
       const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
       if (!picked.length) throw new Error("Select at least one bucket");
-      const buckets = picked.map((b) => {
+      const buckets = picked.flatMap((b) => {
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
         const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
-        const direction = ov.direction ?? b.directions[0];
+        const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        return {
+        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        return dirs.map((direction) => ({
           label: b.label,
           symbol,
           timeframe,
@@ -655,7 +656,7 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
           direction,
           windowStartHourIst,
           windowEndHourIst,
-        };
+        }));
       });
       return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });
     },

@@ -54,6 +54,27 @@ export function bucketMetrics(
     robustness,
     symbols: Array.from(new Set(rows.map((r) => r.symbol))).slice(0, 20),
     strategies: Array.from(new Set(rows.map((r) => r.strategyId))).slice(0, 20),
+    ...contextOf(rows),
+  };
+}
+
+function contextOf(rows: TradeRecord[]) {
+  const tfs = new Set<string>(), dirs = new Set<string>(), sess = new Set<string>();
+  const hrs = new Set<number>(), wks = new Set<number>();
+  for (const r of rows) {
+    if (r.timeframe) tfs.add(r.timeframe);
+    if (r.direction) dirs.add(r.direction);
+    if (r.session) sess.add(r.session);
+    const h = Math.floor(((new Date(r.entryTime).getUTCHours() * 60 + new Date(r.entryTime).getUTCMinutes() + 330) % 1440) / 60);
+    hrs.add(h);
+    if (r.weekday != null) wks.add(r.weekday);
+  }
+  return {
+    timeframes: Array.from(tfs).slice(0, 10),
+    directions: Array.from(dirs).slice(0, 4),
+    sessions: Array.from(sess).slice(0, 10),
+    hours: Array.from(hrs).sort((a, b) => a - b),
+    weekdays: Array.from(wks).sort((a, b) => a - b),
   };
 }
 
@@ -143,6 +164,7 @@ export function analyzeDim(
       robustness,
       symbols: Array.from(new Set(g.rows.map((r) => r.symbol))).slice(0, 20),
       strategies: Array.from(new Set(g.rows.map((r) => r.strategyId))).slice(0, 20),
+      ...contextOf(g.rows),
     });
   }
   return out.sort((a, b) => b.expectancy - a.expectancy);
@@ -289,6 +311,11 @@ function aggregateBuckets(bs: BucketMetrics[]): BucketMetrics {
     robustness: Math.round(mean(bs.map((b) => b.robustness))),
     symbols: Array.from(new Set(bs.flatMap((b) => b.symbols))).slice(0, 20),
     strategies: Array.from(new Set(bs.flatMap((b) => b.strategies))).slice(0, 20),
+    timeframes: Array.from(new Set(bs.flatMap((b) => b.timeframes))).slice(0, 10),
+    directions: Array.from(new Set(bs.flatMap((b) => b.directions))).slice(0, 4),
+    sessions: Array.from(new Set(bs.flatMap((b) => b.sessions))).slice(0, 10),
+    hours: Array.from(new Set(bs.flatMap((b) => b.hours))).sort((a, b) => a - b),
+    weekdays: Array.from(new Set(bs.flatMap((b) => b.weekdays))).sort((a, b) => a - b),
   };
 }
 

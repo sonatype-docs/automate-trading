@@ -80,3 +80,112 @@ export const generateTimeEdgeNarrative = createServerFn({ method: "POST" })
     const content = json.choices?.[0]?.message?.content ?? "";
     return { narrative: content };
   });
+
+// ---------------------------------------------------------------------------
+// Deploy selected Time Edge buckets as live_runners / paper_runners.
+// Each bucket is turned into one runner keyed by (symbol, timeframe, strategy,
+// exec preset). Any existing runner matching that key is REPLACED so the top
+// picks are the only ones present, per user policy.
+// ---------------------------------------------------------------------------
+const DeployBucket = z.object({
+  label: z.string(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  strategyPreset: z.string(),
+  execPreset: z.string().default("conservative_default"),
+  source: z.enum(["yahoo", "shark"]).optional(),
+  riskUsd: z.number().positive().max(10_000).default(20),
+  leverage: z.number().int().min(1).max(200).optional(),
+  lookbackDays: z.number().int().min(1).max(365).default(30),
+  hoursIst: z.array(z.number()).optional(),
+  weekdays: z.array(z.number()).optional(),
+  sessions: z.array(z.string()).optional(),
+  direction: z.string().optional(),
+});
+const DeployInput = z.object({
+  target: z.enum(["live", "paper", "both"]),
+  buckets: z.array(DeployBucket).min(1).max(50),
+  replaceExisting: z.boolean().default(true),
+});
+
+function defaultSource(symbol: string): "yahoo" | "shark" {
+  const s = symbol.toUpperCase();
+  if (s.includes("XAU") || s.includes("GOLD")) return "yahoo";
+  return "shark";
+}
+function defaultLeverage(symbol: string): number {
+  const s = symbol.toUpperCase();
+  if (s.includes("BTC")) return 150;
+  if (s.includes("XAU") || s.includes("GOLD")) return 75;
+  return 5;
+}
+
+export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
+  .inputValidator((raw) => DeployInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const s = supabaseAdmin;
+
+    const targets: Array<"live" | "paper"> =
+      data.target === "both" ? ["live", "paper"] : [data.target];
+
+    const summary = {
+      live: { removed: 0, inserted: 0, runners: [] as string[] },
+      paper: { removed: 0, inserted: 0, runners: [] as string[] },
+    };
+
+    for (const tgt of targets) {
+      const table = tgt === "live" ? "live_runners" : "paper_runners";
+
+      if (data.replaceExisting) {
+        // Remove existing rows whose (symbol+timeframe+strategy_preset+exec_preset)
+        // collides with any selected bucket.
+        for (const b of data.buckets) {
+          const { data: hits } = await s
+            .from(table)
+            .select("id")
+            .eq("symbol", b.symbol)
+            .eq("timeframe", b.timeframe)
+            .eq("strategy_preset", b.strategyPreset)
+            .eq("exec_preset", b.execPreset);
+          if (hits && hits.length) {
+            await s.from(table).delete().in("id", hits.map((h: { id: string }) => h.id));
+            summary[tgt].removed += hits.length;
+          }
+        }
+      }
+
+      for (const b of data.buckets) {
+        const src = b.source ?? defaultSource(b.symbol);
+        const lev = b.leverage ?? defaultLeverage(b.symbol);
+        const contextBits: string[] = [];
+        if (b.hoursIst?.length) contextBits.push(`hrs ${b.hoursIst.join(",")}`);
+        if (b.weekdays?.length) contextBits.push(`wk ${b.weekdays.join(",")}`);
+        if (b.sessions?.length) contextBits.push(b.sessions.join("/"));
+        if (b.direction) contextBits.push(b.direction);
+        const label = `${b.symbol} · ${b.strategyPreset} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
+
+        const row: Record<string, unknown> = {
+          label,
+          source: src,
+          symbol: b.symbol,
+          timeframe: b.timeframe,
+          strategy_preset: b.strategyPreset,
+          exec_preset: b.execPreset,
+          risk_usd: b.riskUsd,
+          lookback_days: b.lookbackDays,
+          running: false,
+        };
+        if (tgt === "live") row.leverage = lev;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await s.from(table).insert(row as any);
+        if (error) throw new Error(`${tgt} insert failed for ${label}: ${error.message}`);
+        summary[tgt].inserted += 1;
+        summary[tgt].runners.push(label);
+      }
+    }
+
+    return summary;
+  });
+

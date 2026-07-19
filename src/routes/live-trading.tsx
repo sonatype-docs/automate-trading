@@ -24,6 +24,7 @@ import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 import { StrategyDetailsDialog } from "@/components/strategy-details-dialog";
 import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
+  isTodayAllowedForRunner, istTodayName,
   type IstWindow,
 } from "@/lib/session-windows";
 import { AllRunnersStatusCard } from "@/components/live-chart-card";

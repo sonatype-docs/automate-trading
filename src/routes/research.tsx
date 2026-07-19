@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDatasetsProgress, clearDatasetsCache } from "@/hooks/use-datasets-progress";
+import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useState } from "react";
 import {

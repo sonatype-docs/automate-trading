@@ -11,8 +11,13 @@ import type {
 import { groupByDim, WEEKDAY_LABELS, formatHour, bucketOf } from "./buckets";
 
 const DEFAULT_DIMS: BucketDim[] = [
-  "hour_ist", "weekday", "month", "quarter",
-  "session", "symbol", "hour_weekday", "session_weekday",
+  "hour_ist", "half_hour_ist", "quarter_hour_ist",
+  "weekday", "month", "quarter", "year",
+  "session", "symbol", "direction", "strategy",
+  "hour_weekday", "session_weekday",
+  "symbol_hour", "symbol_session", "symbol_weekday",
+  "strategy_hour", "strategy_session",
+  "direction_hour", "direction_session",
 ];
 
 export function bucketMetrics(

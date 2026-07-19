@@ -39,6 +39,20 @@ export function bucketOf(
       const h = istHour(t.entryTime);
       return { key: `h${h}`, label: `${formatHour(h)} IST` };
     }
+    case "half_hour_ist": {
+      const mins = istMinutes(t.entryTime);
+      const slot = Math.floor(mins / 30);
+      const h = Math.floor(slot / 2);
+      const mm = (slot % 2) * 30;
+      return { key: `hh${slot}`, label: `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")} IST` };
+    }
+    case "quarter_hour_ist": {
+      const mins = istMinutes(t.entryTime);
+      const slot = Math.floor(mins / 15);
+      const h = Math.floor(slot / 4);
+      const mm = (slot % 4) * 15;
+      return { key: `qh${slot}`, label: `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")} IST` };
+    }
     case "hour_utc": {
       const h = utcHour(t.entryTime);
       return { key: `u${h}`, label: `${formatHour(h)} UTC` };
@@ -55,6 +69,10 @@ export function bucketOf(
       const q = t.quarter ?? quarterIst(t.entryTime);
       return { key: `q${q}`, label: `Q${q}` };
     }
+    case "year": {
+      const y = t.year ?? new Date(t.entryTime + IST_OFFSET_MIN * 60_000).getUTCFullYear();
+      return { key: `y${y}`, label: String(y) };
+    }
     case "session": {
       const s = (t.session || "unknown").toString();
       return { key: `s:${s}`, label: s };
@@ -62,6 +80,14 @@ export function bucketOf(
     case "symbol": {
       const s = (t.symbol || "unknown").toString();
       return { key: `sym:${s}`, label: s };
+    }
+    case "direction": {
+      const d = t.direction || "unknown";
+      return { key: `dir:${d}`, label: d.toUpperCase() };
+    }
+    case "strategy": {
+      const s = (t.strategyId || "unknown").toString();
+      return { key: `str:${s}`, label: s };
     }
     case "hour_weekday": {
       const h = istHour(t.entryTime);
@@ -72,6 +98,41 @@ export function bucketOf(
       const s = (t.session || "unknown").toString();
       const w = t.weekday ?? weekdayIst(t.entryTime);
       return { key: `s:${s}_w${w}`, label: `${WEEKDAY_LABELS[w]} · ${s}` };
+    }
+    case "symbol_hour": {
+      const h = istHour(t.entryTime);
+      const s = (t.symbol || "unknown").toString();
+      return { key: `sym:${s}_h${h}`, label: `${s} · ${formatHour(h)}` };
+    }
+    case "symbol_session": {
+      const s = (t.symbol || "unknown").toString();
+      const ss = (t.session || "unknown").toString();
+      return { key: `sym:${s}_s:${ss}`, label: `${s} · ${ss}` };
+    }
+    case "symbol_weekday": {
+      const s = (t.symbol || "unknown").toString();
+      const w = t.weekday ?? weekdayIst(t.entryTime);
+      return { key: `sym:${s}_w${w}`, label: `${s} · ${WEEKDAY_LABELS[w]}` };
+    }
+    case "strategy_hour": {
+      const st = (t.strategyId || "unknown").toString();
+      const h = istHour(t.entryTime);
+      return { key: `str:${st}_h${h}`, label: `${st} · ${formatHour(h)}` };
+    }
+    case "strategy_session": {
+      const st = (t.strategyId || "unknown").toString();
+      const s = (t.session || "unknown").toString();
+      return { key: `str:${st}_s:${s}`, label: `${st} · ${s}` };
+    }
+    case "direction_hour": {
+      const d = t.direction || "unknown";
+      const h = istHour(t.entryTime);
+      return { key: `dir:${d}_h${h}`, label: `${d.toUpperCase()} · ${formatHour(h)}` };
+    }
+    case "direction_session": {
+      const d = t.direction || "unknown";
+      const s = (t.session || "unknown").toString();
+      return { key: `dir:${d}_s:${s}`, label: `${d.toUpperCase()} · ${s}` };
     }
     case "custom_window": {
       const mins = istMinutes(t.entryTime);
@@ -84,6 +145,7 @@ export function bucketOf(
       return null;
     }
   }
+  return null;
 }
 
 export function groupByDim(

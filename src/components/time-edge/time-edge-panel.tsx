@@ -247,59 +247,149 @@ function HeadlineCard({ label, value, sub }: { label: string; value: string; sub
 }
 
 // ---------------- Rankings ----------------
-type SortKey = "robustness" | "expectancy" | "netProfit" | "profitFactor" | "winRate" | "trades" | "confidence";
+type SortKey = "robustness" | "expectancy" | "netProfit" | "profitFactor" | "winRate" | "trades" | "confidence" | "sharpe" | "avgRr";
 
 function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   const dims = Object.keys(report.buckets) as BucketDim[];
   const [dim, setDim] = useState<BucketDim>(dims[0] ?? "hour_ist");
   const [sort, setSort] = useState<SortKey>("robustness");
+  const [search, setSearch] = useState("");
+  const [minTrades, setMinTrades] = useState(0);
+  const [minPf, setMinPf] = useState(0);
+  const [minWin, setMinWin] = useState(0); // percent
+  const [minExp, setMinExp] = useState(-9999);
+  const [minConf, setMinConf] = useState(0); // percent
+  const [profitOnly, setProfitOnly] = useState(false);
+  const [signifOnly, setSignifOnly] = useState(false);
+  const [limit, setLimit] = useState(50);
+
   const rows = useMemo(() => {
-    const arr = [...(report.buckets[dim] ?? [])];
+    let arr = [...(report.buckets[dim] ?? [])];
+    const q = search.trim().toLowerCase();
+    if (q) arr = arr.filter((b) => b.label.toLowerCase().includes(q));
+    if (minTrades > 0) arr = arr.filter((b) => b.trades >= minTrades);
+    if (minPf > 0) arr = arr.filter((b) => b.profitFactor >= minPf);
+    if (minWin > 0) arr = arr.filter((b) => b.winRate * 100 >= minWin);
+    if (minExp > -9999) arr = arr.filter((b) => b.expectancy >= minExp);
+    if (minConf > 0) arr = arr.filter((b) => b.confidence * 100 >= minConf);
+    if (profitOnly) arr = arr.filter((b) => b.netProfit > 0);
+    if (signifOnly) arr = arr.filter((b) => b.confidence >= 0.9);
     arr.sort((a, b) => (b[sort] as number) - (a[sort] as number));
     return arr;
-  }, [report, dim, sort]);
+  }, [report, dim, sort, search, minTrades, minPf, minWin, minExp, minConf, profitOnly, signifOnly]);
+
+  const shown = rows.slice(0, limit);
+  const totalAvailable = (report.buckets[dim] ?? []).length;
+
+  const resetFilters = () => {
+    setSearch(""); setMinTrades(0); setMinPf(0); setMinWin(0);
+    setMinExp(-9999); setMinConf(0); setProfitOnly(false); setSignifOnly(false);
+  };
 
   return (
     <Card>
       <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
         <div>
           <CardTitle className="text-sm">Time Bucket Rankings</CardTitle>
-          <CardDescription className="text-xs">Every bucket ranked with statistical significance vs the rest of the dataset.</CardDescription>
+          <CardDescription className="text-xs">
+            {rows.length.toLocaleString()} of {totalAvailable.toLocaleString()} buckets after filters · showing top {Math.min(limit, rows.length)}
+          </CardDescription>
         </div>
         <div className="flex gap-2">
           <Select value={dim} onValueChange={(v) => setDim(v as BucketDim)}>
-            <SelectTrigger className="w-40 h-8"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-48 h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <Table>
-          <TableHeader><TableRow>
-            <TableHead>Bucket</TableHead>
-            <SortHead k="trades" sort={sort} setSort={setSort}>Trades</SortHead>
-            <SortHead k="netProfit" sort={sort} setSort={setSort}>Net</SortHead>
-            <SortHead k="winRate" sort={sort} setSort={setSort}>Win%</SortHead>
-            <SortHead k="profitFactor" sort={sort} setSort={setSort}>PF</SortHead>
-            <SortHead k="expectancy" sort={sort} setSort={setSort}>Expectancy</SortHead>
-            <SortHead k="confidence" sort={sort} setSort={setSort}>Confidence</SortHead>
-            <SortHead k="robustness" sort={sort} setSort={setSort}>Robustness</SortHead>
-          </TableRow></TableHeader>
-          <TableBody>
-            {rows.map((b) => (
-              <TableRow key={b.key}>
-                <TableCell className="font-mono text-xs">{b.label}</TableCell>
-                <TableCell>{b.trades}</TableCell>
-                <TableCell className={b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}>${b.netProfit.toFixed(0)}</TableCell>
-                <TableCell>{(b.winRate * 100).toFixed(1)}%</TableCell>
-                <TableCell>{b.profitFactor.toFixed(2)}</TableCell>
-                <TableCell className={b.expectancy >= 0 ? "text-emerald-500" : "text-red-500"}>{b.expectancy.toFixed(2)}</TableCell>
-                <TableCell>{(b.confidence * 100).toFixed(0)}%</TableCell>
-                <TableCell><RobustnessBar value={b.robustness} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <CardContent className="space-y-3">
+        {/* Micro filter bar */}
+        <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-8 items-end rounded-md border bg-muted/20 p-2">
+          <div className="lg:col-span-2">
+            <Label className="text-[10px] uppercase text-muted-foreground">Search label</Label>
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. BTC, 20:00, LDN…" className="h-8" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Min trades</Label>
+            <Input type="number" min={0} value={minTrades} onChange={(e) => setMinTrades(Number(e.target.value) || 0)} className="h-8" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Min PF</Label>
+            <Input type="number" step="0.1" min={0} value={minPf} onChange={(e) => setMinPf(Number(e.target.value) || 0)} className="h-8" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Min Win %</Label>
+            <Input type="number" step="1" min={0} max={100} value={minWin} onChange={(e) => setMinWin(Number(e.target.value) || 0)} className="h-8" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Min Expectancy</Label>
+            <Input type="number" step="0.1" value={minExp === -9999 ? "" : minExp} placeholder="any" onChange={(e) => setMinExp(e.target.value === "" ? -9999 : Number(e.target.value))} className="h-8" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Min Conf %</Label>
+            <Input type="number" step="1" min={0} max={100} value={minConf} onChange={(e) => setMinConf(Number(e.target.value) || 0)} className="h-8" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input type="checkbox" checked={profitOnly} onChange={(e) => setProfitOnly(e.target.checked)} />
+              Profit only
+            </label>
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input type="checkbox" checked={signifOnly} onChange={(e) => setSignifOnly(e.target.checked)} />
+              p&lt;0.10 only
+            </label>
+          </div>
+          <div className="flex gap-1 md:col-span-4 lg:col-span-8 justify-between items-center pt-1 border-t">
+            <div className="flex items-center gap-2 text-xs">
+              <Label className="text-[10px] uppercase text-muted-foreground">Show</Label>
+              <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
+                <SelectTrigger className="w-24 h-7"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[25, 50, 100, 250, 500, 2000].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={resetFilters}>Reset filters</Button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Bucket</TableHead>
+              <SortHead k="trades" sort={sort} setSort={setSort}>Trades</SortHead>
+              <SortHead k="netProfit" sort={sort} setSort={setSort}>Net</SortHead>
+              <SortHead k="winRate" sort={sort} setSort={setSort}>Win%</SortHead>
+              <SortHead k="profitFactor" sort={sort} setSort={setSort}>PF</SortHead>
+              <SortHead k="expectancy" sort={sort} setSort={setSort}>Expectancy</SortHead>
+              <SortHead k="avgRr" sort={sort} setSort={setSort}>Avg RR</SortHead>
+              <SortHead k="sharpe" sort={sort} setSort={setSort}>Sharpe</SortHead>
+              <SortHead k="confidence" sort={sort} setSort={setSort}>Confidence</SortHead>
+              <SortHead k="robustness" sort={sort} setSort={setSort}>Robustness</SortHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {shown.map((b) => (
+                <TableRow key={b.key}>
+                  <TableCell className="font-mono text-xs">{b.label}</TableCell>
+                  <TableCell>{b.trades}</TableCell>
+                  <TableCell className={b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}>${b.netProfit.toFixed(0)}</TableCell>
+                  <TableCell>{(b.winRate * 100).toFixed(1)}%</TableCell>
+                  <TableCell>{b.profitFactor.toFixed(2)}</TableCell>
+                  <TableCell className={b.expectancy >= 0 ? "text-emerald-500" : "text-red-500"}>{b.expectancy.toFixed(2)}</TableCell>
+                  <TableCell>{b.avgRr.toFixed(2)}</TableCell>
+                  <TableCell>{b.sharpe.toFixed(2)}</TableCell>
+                  <TableCell>{(b.confidence * 100).toFixed(0)}%</TableCell>
+                  <TableCell><RobustnessBar value={b.robustness} /></TableCell>
+                </TableRow>
+              ))}
+              {shown.length === 0 && (
+                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-6">No buckets match the current filters.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

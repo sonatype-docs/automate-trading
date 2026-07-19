@@ -5,14 +5,26 @@ import type { TradeRecord } from "@/lib/trade-intelligence/types";
 
 export type BucketDim =
   | "hour_ist"
+  | "half_hour_ist"
+  | "quarter_hour_ist"
   | "hour_utc"
   | "weekday"
   | "month"
   | "quarter"
+  | "year"
   | "session"
   | "symbol"
+  | "direction"
+  | "strategy"
   | "hour_weekday"
   | "session_weekday"
+  | "symbol_hour"
+  | "symbol_session"
+  | "symbol_weekday"
+  | "strategy_hour"
+  | "strategy_session"
+  | "direction_hour"
+  | "direction_session"
   | "custom_window";
 
 export interface CustomWindow {

@@ -1329,6 +1329,9 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     <SortTH k="hours" label="Hrs IST" />
                     <SortTH k="weekdays" label="Wkdys" />
                     <SortTH k="trades" label="Trades" align="right" />
+                    <TableHead className="text-xs text-right">Wins</TableHead>
+                    <TableHead className="text-xs text-right">Losses</TableHead>
+                    <SortTH k="netProfit" label="Net $ (after fees)" align="right" />
                     <SortTH k="expectancy" label="Exp" align="right" />
                     <SortTH k="profitFactor" label="PF" align="right" />
                     <SortTH k="winRate" label="Win%" align="right" />

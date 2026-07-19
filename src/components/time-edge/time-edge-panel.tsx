@@ -1285,7 +1285,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             <Play className="h-4 w-4" /> Ship selected edges to runners
           </CardTitle>
           <CardDescription className="text-xs">
-            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy replaces runners with the same symbol + strategy + timeframe + exec preset.
+            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy removes the old matching symbol + strategy-family once, then inserts every distinct selected time window.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

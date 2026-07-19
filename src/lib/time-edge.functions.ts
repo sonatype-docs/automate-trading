@@ -224,11 +224,25 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           hoursList = list;
           windowLabel = `${String(start).padStart(2, "0")}:00→${String(end).padStart(2, "0")}:00 IST`;
         }
-        // Validate direction against preset compatibility. Skip impossible sides.
+        // Validate direction against preset compatibility. Auto-remap
+        // long-only ↔ short-only preset pairs when the user picked the
+        // opposite side (e.g. liquidity_sweep_long + short → _short variant).
         const dirRaw = (b.direction ?? "both").toLowerCase();
         const dir: "long" | "short" | "both" =
           dirRaw === "long" || dirRaw === "short" ? dirRaw : "both";
-        const conflict = presetDirectionConflict(b.strategyPreset, dir);
+        let presetId = b.strategyPreset;
+        let conflict = presetDirectionConflict(presetId, dir);
+        if (conflict) {
+          const swapped = presetId.endsWith("_long") && dir === "short"
+            ? presetId.replace(/_long$/, "_short")
+            : presetId.endsWith("_short") && dir === "long"
+              ? presetId.replace(/_short$/, "_long")
+              : null;
+          if (swapped && validStrategies.has(swapped)) {
+            presetId = swapped;
+            conflict = presetDirectionConflict(presetId, dir);
+          }
+        }
         if (conflict) {
           summary.skipped.push({ label: b.label, reason: conflict });
           continue;
@@ -240,14 +254,14 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
         if (b.weekdays?.length) contextBits.push(`wk ${b.weekdays.join(",")}`);
         if (b.sessions?.length) contextBits.push(b.sessions.join("/"));
         contextBits.push(dir);
-        const label = `${b.symbol} · ${b.strategyPreset} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
+        const label = `${b.symbol} · ${presetId} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
 
         const row: Record<string, unknown> = {
           label,
           source: src,
           symbol: b.symbol,
           timeframe: b.timeframe,
-          strategy_preset: b.strategyPreset,
+          strategy_preset: presetId,
           exec_preset: b.execPreset,
           risk_usd: b.riskUsd,
           lookback_days: b.lookbackDays,

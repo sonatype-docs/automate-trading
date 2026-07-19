@@ -911,14 +911,14 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                         <div className="truncate" title={b.timeframes.join(", ")}>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[160px]">
+                    <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
                       {isSel && b.strategies.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <span title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</span>
+                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">

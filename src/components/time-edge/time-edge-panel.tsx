@@ -878,21 +878,79 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];
                 const id = rowId(b);
+                const isSel = selected.has(id);
+                const ov = overrides[id] ?? defaultOverride(b);
                 const wkLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+                const hrsSorted = [...b.hours].sort((a, x) => a - x);
+                const hrOptions = hrsSorted.length ? hrsSorted : Array.from({ length: 24 }, (_, i) => i);
                 return (
                   <TableRow key={id} className={meta.rowClass}>
                     <TableCell>
-                      <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
+                      <input type="checkbox" checked={isSel} onChange={() => toggle(b)} />
                     </TableCell>
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[120px] truncate" title={b.symbols.join(", ")}>{b.symbols.slice(0, 2).join(",") || "—"}{b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</TableCell>
-                    <TableCell className="text-[11px]">{b.timeframes.join(",") || "—"}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[140px] truncate" title={b.strategies.join(", ")}>{b.strategies.slice(0, 2).join(",") || "—"}{b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</TableCell>
-                    <TableCell className="text-[11px]">{b.directions.join("/") || "—"}</TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[140px]">
+                      {isSel && b.symbols.length > 1 ? (
+                        <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] max-w-[100px]">
+                      {isSel && b.timeframes.length > 1 ? (
+                        <Select value={ov.timeframe} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.timeframes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[160px]">
+                      {isSel && b.strategies.length > 1 ? (
+                        <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px]">
+                      {isSel ? (
+                        <Select value={ov.direction ?? "long"} onValueChange={(v) => patchOverride(id, { direction: v })}>
+                          <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(b.directions.length ? b.directions : ["long", "short"]).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{b.directions.join("/") || "—"}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-[11px]">{b.sessions.join("/") || "—"}</TableCell>
-                    <TableCell className="text-[10px] font-mono max-w-[120px] truncate" title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</TableCell>
+                    <TableCell className="text-[10px] font-mono max-w-[180px]">
+                      {isSel ? (
+                        <div className="flex items-center gap-1">
+                          <Select value={String(ov.windowStart ?? hrOptions[0])} onValueChange={(v) => patchOverride(id, { windowStart: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">→</span>
+                          <Select value={String(ov.windowEnd ?? ((hrOptions[hrOptions.length - 1] ?? 23) + 1))} onValueChange={(v) => patchOverride(id, { windowEnd: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i + 1).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <span title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-[10px]">{b.weekdays.length ? b.weekdays.map((w) => wkLabels[w] ?? w).join(",") : "—"}</TableCell>
                     <TableCell className="text-right text-xs">{b.trades}</TableCell>
                     <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>

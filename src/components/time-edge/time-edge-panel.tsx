@@ -782,18 +782,25 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         }
       }
     }
-    // Merge sibling rows identical in every parameter except direction (long+short → both).
-    // Key on direction-stripped label (bucket window) + symbol + tf + strategies + sessions.
-    // Hours/weekdays context arrays are excluded — for dims like "direction" they can differ
-    // between long/short buckets even when the underlying bucket definition is identical.
+    // Merge sibling rows identical in every parameter except direction (long+short → both)
+    // AND collapse hour references into 4-hour IST windows (00-04, 04-08, 08-12, 12-16, 16-20, 20-24).
+    const to4hWindow = (h: number) => {
+      const s = Math.floor(h / 4) * 4;
+      const e = s + 4;
+      return `${String(s).padStart(2, "0")}-${String(e).padStart(2, "0")}h IST`;
+    };
+    // Replace any "HH:MM" or "HH:00 IST" / "HH:00 UTC" occurrence with its 4h window bin.
+    const collapseHours = (s: string) =>
+      s.replace(/\b(\d{2}):(\d{2})(\s*(IST|UTC))?/g, (_m, hh) => to4hWindow(Number(hh)));
     const stripDirLabel = (s: string) =>
       s.replace(/\b(Long|Short|LONG|SHORT|long|short|BUY|SELL|Buy|Sell)\b/g, "")
        .replace(/[·•|]\s*[·•|]/g, "·")
        .replace(/\s{2,}/g, " ")
        .replace(/[·•|\s]+$/g, "")
        .trim();
+    const normLabel = (b: BucketMetrics) => collapseHours(stripDirLabel(b.label));
     const mergeKey = (b: BucketMetrics) =>
-      [stripDirLabel(b.label), b.symbols.join(","), b.timeframes.join(","),
+      [normLabel(b), b.symbols.join(","), b.timeframes.join(","),
        b.strategies.join(","), b.sessions.join(",")].join("|");
     const groups = new Map<string, BucketMetrics[]>();
     for (const b of flat) {

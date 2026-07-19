@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDatasetsProgress, clearDatasetsCache } from "@/hooks/use-datasets-progress";
+import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -226,6 +227,7 @@ function ResearchPage() {
   const [resyncing, setResyncing] = useState(false);
   const [extraDatasets, setExtraDatasets] = useState<string[]>([]);
   const [dedupe, setDedupe] = useState(true);
+  const [includeFees, setIncludeFees] = useState(true);
 
   // Reset extras when primary dataset changes so we don't double-count it.
   useEffect(() => {
@@ -257,8 +259,11 @@ function ResearchPage() {
     return Math.max(0, ...updates);
   }, [activeDatasets, datasetProgress]);
   const rawCombined: TradeRecord[] = useMemo(
-    () => activeDatasets.flatMap((ds) => datasetData[ds] ?? []),
-    [datasetData, activeDatasets],
+    () => {
+      const merged = activeDatasets.flatMap((ds) => datasetData[ds] ?? []);
+      return includeFees ? applyFees(merged, DEFAULT_FEE_MODEL) : merged;
+    },
+    [datasetData, activeDatasets, includeFees],
   );
   const duplicateCount = useMemo(() => {
     if (activeDatasets.length < 2) return 0;
@@ -586,6 +591,16 @@ function ResearchPage() {
                           {duplicateCount.toLocaleString()} dup
                         </span>
                       )}
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={includeFees}
+                        onCheckedChange={(v) => setIncludeFees(!!v)}
+                      />
+                      <span className="flex-1">Include exchange fees</span>
+                      <span className="text-muted-foreground text-[10px]">
+                        maker {(DEFAULT_FEE_MODEL.makerRate * 100).toFixed(3)}% · taker {(DEFAULT_FEE_MODEL.takerRate * 100).toFixed(3)}%
+                      </span>
                     </label>
                     {extraDatasets.length > 0 && (
                       <Button

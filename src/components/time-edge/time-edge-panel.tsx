@@ -20,6 +20,7 @@ import { analyzeTimeEdges } from "@/lib/time-edge/analysis";
 import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
 import { groupByDim } from "@/lib/time-edge/buckets";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
+import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { bucketsToCsv, reportToJson, reportToMarkdown } from "@/lib/time-edge/export";
 import type { BucketDim, BucketMetrics, HeatmapMetric, TimeEdgeReport } from "@/lib/time-edge/types";
 
@@ -43,10 +44,15 @@ export function TimeEdgePanel() {
   const [resyncKey, setResyncKey] = useState(0);
   const [minTrades, setMinTrades] = useState(10);
   const [clusters, setClusters] = useState(4);
+  const [includeFees, setIncludeFees] = useState(true);
 
   const activeDatasets = useMemo(() => (snapshotName ? [snapshotName] : []), [snapshotName]);
   const { data: byDataset, progress, isLoading } = useDatasetsProgress(activeDatasets, resyncKey);
-  const trades = byDataset[snapshotName] ?? [];
+  const rawTrades = byDataset[snapshotName] ?? [];
+  const trades = useMemo(
+    () => (includeFees ? applyFees(rawTrades, DEFAULT_FEE_MODEL) : rawTrades),
+    [rawTrades, includeFees],
+  );
   const prog = progress[snapshotName];
 
   const [report, setReport] = useState<TimeEdgeReport | null>(null);
@@ -128,6 +134,17 @@ export function TimeEdgePanel() {
             <div>
               <Label className="text-xs">Clusters</Label>
               <Input type="number" className="h-9 w-20" value={clusters} onChange={(e) => setClusters(Number(e.target.value) || 4)} />
+            </div>
+            <div>
+              <Label className="text-xs">Exchange fees</Label>
+              <label className="flex items-center gap-2 h-9 px-2 rounded-md border text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeFees}
+                  onChange={(e) => { setIncludeFees(e.target.checked); setReport(null); }}
+                />
+                <span>Include ({(DEFAULT_FEE_MODEL.makerRate * 100).toFixed(3)}% / {(DEFAULT_FEE_MODEL.takerRate * 100).toFixed(3)}%)</span>
+              </label>
             </div>
             <div className="flex items-end gap-2">
               <Button size="sm" variant="outline" onClick={() => setResyncKey((k) => k + 1)} disabled={!snapshotName}>

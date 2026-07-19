@@ -63,6 +63,7 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
   const { windowsForPreset, isWindowActive, minutesUntilOpen, isRunnerAllowedNow } = await import(
     "@/lib/session-windows"
   );
+  const { isCalendarBlocked } = await import("@/lib/economic-calendar");
 
   const out: LiveTickReport["results"] = [];
   for (const r of (runners ?? []) as RunnerRow[]) {
@@ -80,7 +81,10 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
         window_end_hour_ist: r.window_end_hour_ist,
         weekdays_ist: r.weekdays_ist,
       });
-      const inWindow = inSessionWindow && inRunnerWindow;
+      // Economic calendar kill-list: block new entries around NFP/CPI/FOMC etc.
+      const cal = isCalendarBlocked(r.symbol);
+      const inWindow = inSessionWindow && inRunnerWindow && !cal.blocked;
+
 
       if (!inWindow) {
         const { count } = await supabaseAdmin

@@ -243,7 +243,10 @@ function ResearchPage() {
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
-    staleTime: 60_000,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
   const datasetCounts = useMemo(() => {
     const entries = (snapshotList.data?.snapshots ?? []).map((s) => [s.name, s.count] as const);

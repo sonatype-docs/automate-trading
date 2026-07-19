@@ -545,6 +545,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
                 const id = rowId(b);
                 const isSel = selected.has(id);
                 const ov = overrides[id] ?? defaultOverride(b);
+                const strategyOptions = liveStrategyOptions(b.strategies);
                 return (
                   <TableRow key={b.key} className={isSel ? "bg-primary/5" : ""}>
                     <TableCell><input type="checkbox" checked={isSel} onChange={() => toggle(b)} /></TableCell>
@@ -572,13 +573,13 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[160px] max-w-[160px]">
-                      {isSel && b.strategies.length > 1 ? (
+                      {isSel && strategyOptions.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>{strategyOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
+                        <div className="truncate" title={strategyOptions.join(", ")}>{isSel ? (ov.strategy ?? "not live") : (strategyOptions.slice(0, 2).join(",") || "not live")}{!isSel && strategyOptions.length > 2 ? `+${strategyOptions.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">
@@ -1383,6 +1384,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                 const id = rowId(b);
                 const isSel = selected.has(id);
                 const ov = overrides[id] ?? defaultOverride(b);
+                const strategyOptions = liveStrategyOptions(b.strategies);
                 const wkLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
                 const hrsSorted = [...b.hours].sort((a, x) => a - x);
                 const hrOptions = hrsSorted.length ? hrsSorted : Array.from({ length: 24 }, (_, i) => i);
@@ -1417,13 +1419,13 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
-                      {isSel && b.strategies.length > 1 ? (
+                      {isSel && strategyOptions.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>{strategyOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
+                        <div className="truncate" title={strategyOptions.join(", ")}>{isSel ? (ov.strategy ?? "not live") : (strategyOptions.slice(0, 2).join(",") || "not live")}{!isSel && strategyOptions.length > 2 ? `+${strategyOptions.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">

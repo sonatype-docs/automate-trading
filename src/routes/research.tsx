@@ -227,6 +227,7 @@ function ResearchPage() {
   const [resyncing, setResyncing] = useState(false);
   const [extraDatasets, setExtraDatasets] = useState<string[]>([]);
   const [dedupe, setDedupe] = useState(true);
+  const [includeFees, setIncludeFees] = useState(true);
 
   // Reset extras when primary dataset changes so we don't double-count it.
   useEffect(() => {

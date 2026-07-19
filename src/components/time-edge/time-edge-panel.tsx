@@ -660,52 +660,53 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
             Pick rows below (checkbox) → choose target → Deploy. Existing runners with the same symbol + strategy + timeframe + exec preset are replaced.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-6 items-end">
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Target</Label>
-            <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="paper">Paper only</SelectItem>
-                <SelectItem value="live">Live only</SelectItem>
-                <SelectItem value="both">Both live + paper</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
-            <Input type="number" min={1} max={1000} className="h-8" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
-            <Select value={deployExec} onValueChange={setDeployExec}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="conservative_default">conservative_default</SelectItem>
-                <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
-                <SelectItem value="no_management">no_management</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
-            <Select value={deployTf} onValueChange={setDeployTf}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">auto (from bucket)</SelectItem>
-                {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-xs cursor-pointer">
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-end">
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Target</Label>
+              <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paper">Paper only</SelectItem>
+                  <SelectItem value="live">Live only</SelectItem>
+                  <SelectItem value="both">Both live + paper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
+              <Select value={deployExec} onValueChange={setDeployExec}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="conservative_default">conservative_default</SelectItem>
+                  <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
+                  <SelectItem value="no_management">no_management</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
+              <Select value={deployTf} onValueChange={setDeployTf}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">auto (from bucket)</SelectItem>
+                  {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-center gap-2 text-xs cursor-pointer h-8 px-2 rounded border bg-muted/30">
               <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
               Replace duplicates
             </label>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {rows.length} visible</span>
             <Button size="sm" variant="outline" onClick={selectAllVisible}>Select all ({rows.length})</Button>
             <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
             <Button size="sm" disabled={!selected.size || deployMut.isPending} onClick={() => deployMut.mutate()}>
@@ -717,95 +718,93 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-[180px]">
-              <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
-              <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Filter by strategy/tf/symbol, then tick rows to deploy.</CardDescription>
+        <CardHeader className="pb-2 space-y-3">
+          <div>
+            <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
+            <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Filter by strategy/tf/symbol, then tick rows to deploy.</CardDescription>
+          </div>
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Dimension</Label>
+              <Select value={dimFilter} onValueChange={setDimFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All dimensions</SelectItem>
+                  {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Dimension</Label>
-                <Select value={dimFilter} onValueChange={setDimFilter}>
-                  <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All dimensions</SelectItem>
-                    {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Symbol</Label>
-                <Select value={symbolFilter} onValueChange={setSymbolFilter}>
-                  <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {allSymbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">TF</Label>
-                <Select value={tfFilter} onValueChange={setTfFilter}>
-                  <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {allTfs.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Strategy</Label>
-                <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-                  <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {allStrategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Dir</Label>
-                <Select value={dirFilter} onValueChange={setDirFilter}>
-                  <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {allDirections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Verdict</Label>
-                <Select value={verdictFilter} onValueChange={setVerdictFilter}>
-                  <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {(Object.keys(VERDICT_META) as Verdict[]).map((v) => <SelectItem key={v} value={v}>{VERDICT_META[v].label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Min trades</Label>
-                <Input type="number" className="h-8 w-24" value={minTrades} onChange={(e) => setMinTrades(Number(e.target.value) || 0)} />
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Search</Label>
-                <Input className="h-8 w-40" placeholder="e.g. BTC · London" value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">Sort</Label>
-                <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
-                  <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="robustness">Robustness</SelectItem>
-                    <SelectItem value="expectancy">Expectancy</SelectItem>
-                    <SelectItem value="profitFactor">Profit Factor</SelectItem>
-                    <SelectItem value="netProfit">Net Profit</SelectItem>
-                    <SelectItem value="confidence">Confidence</SelectItem>
-                    <SelectItem value="trades">Trades</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Symbol</Label>
+              <Select value={symbolFilter} onValueChange={setSymbolFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {allSymbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">TF</Label>
+              <Select value={tfFilter} onValueChange={setTfFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {allTfs.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Strategy</Label>
+              <Select value={strategyFilter} onValueChange={setStrategyFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {allStrategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Dir</Label>
+              <Select value={dirFilter} onValueChange={setDirFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {allDirections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Verdict</Label>
+              <Select value={verdictFilter} onValueChange={setVerdictFilter}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {(Object.keys(VERDICT_META) as Verdict[]).map((v) => <SelectItem key={v} value={v}>{VERDICT_META[v].label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Min trades</Label>
+              <Input type="number" className="h-8 w-full" value={minTrades} onChange={(e) => setMinTrades(Number(e.target.value) || 0)} />
+            </div>
+            <div className="min-w-0 col-span-2">
+              <Label className="text-[10px] text-muted-foreground">Search</Label>
+              <Input className="h-8 w-full" placeholder="e.g. BTC · London" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Sort</Label>
+              <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="robustness">Robustness</SelectItem>
+                  <SelectItem value="expectancy">Expectancy</SelectItem>
+                  <SelectItem value="profitFactor">Profit Factor</SelectItem>
+                  <SelectItem value="netProfit">Net Profit</SelectItem>
+                  <SelectItem value="confidence">Confidence</SelectItem>
+                  <SelectItem value="trades">Trades</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>

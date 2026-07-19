@@ -23,6 +23,7 @@ import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { bucketsToCsv, reportToJson, reportToMarkdown } from "@/lib/time-edge/export";
 import type { BucketDim, BucketMetrics, HeatmapMetric, TimeEdgeReport } from "@/lib/time-edge/types";
+import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 
 function download(name: string, body: string, mime: string) {
   const blob = new Blob([body], { type: mime });
@@ -30,6 +31,14 @@ function download(name: string, body: string, mime: string) {
   const a = document.createElement("a");
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+const LIVE_STRATEGY_IDS = new Set(Object.keys(STRATEGY_PRESETS));
+function liveStrategyOptions(strategies: string[]): string[] {
+  return strategies.filter((s) => LIVE_STRATEGY_IDS.has(s));
+}
+function firstLiveStrategy(strategies: string[]): string | undefined {
+  return liveStrategyOptions(strategies)[0];
 }
 
 export function TimeEdgePanel() {
@@ -305,7 +314,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
     return {
       symbol: b.symbols[0],
       timeframe: b.timeframes[0] ?? "15m",
-      strategy: b.strategies[0],
+      strategy: firstLiveStrategy(b.strategies),
       direction: dir,
       windowStart: hrs.length ? hrs[0] : 0,
       windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
@@ -351,6 +360,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
         const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
@@ -1009,7 +1019,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
     return {
       symbol: b.symbols[0],
       timeframe: b.timeframes[0] ?? "15m",
-      strategy: b.strategies[0],
+      strategy: firstLiveStrategy(b.strategies),
       direction: dir,
       windowStart: hrs.length ? hrs[0] : 0,
       windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
@@ -1055,6 +1065,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
         const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];

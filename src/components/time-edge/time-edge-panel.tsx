@@ -1217,6 +1217,25 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
             <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {rows.length} visible</span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!rows.length}
+              onClick={() => {
+                const top = [...rows]
+                  .sort((a, b) => (b.b.robustness - a.b.robustness) || (b.b.expectancy - a.b.expectancy))
+                  .slice(0, 10);
+                setSelected(new Set(top.map((r) => rowId(r.b))));
+                setOverrides((prev) => {
+                  const next = { ...prev };
+                  for (const r of top) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
+                  return next;
+                });
+                toast.success(`Selected top ${top.length} by robustness — set Target=Live and click Deploy`);
+              }}
+            >
+              Select top 10
+            </Button>
             <Button size="sm" variant="outline" onClick={selectAllVisible}>Select all ({rows.length})</Button>
             <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
             <Button size="sm" disabled={!selected.size || deployMut.isPending} onClick={() => deployMut.mutate()}>

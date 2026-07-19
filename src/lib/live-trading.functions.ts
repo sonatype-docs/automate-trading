@@ -22,6 +22,10 @@ export interface LiveRunnerDTO {
   started_at: string | null;
   last_tick_at: string | null;
   last_tick_error: string | null;
+  direction_filter?: string | null;
+  window_start_hour_ist?: number | null;
+  window_end_hour_ist?: number | null;
+  weekdays_ist?: number[] | null;
 }
 
 export interface LiveTradeDTO {

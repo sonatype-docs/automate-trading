@@ -24,6 +24,7 @@ import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 import { StrategyDetailsDialog } from "@/components/strategy-details-dialog";
 import {
   windowsForPreset, isWindowActive, minutesUntilOpen, fmtDuration,
+  isTodayAllowedForRunner, istTodayName,
   type IstWindow,
 } from "@/lib/session-windows";
 import { AllRunnersStatusCard } from "@/components/live-chart-card";
@@ -42,6 +43,28 @@ export const Route = createFileRoute("/live-trading")({
 });
 
 const fmtTs = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
+
+function TodayBadge({ r }: { r: LiveRunnerDTO }) {
+  const on = isTodayAllowedForRunner(r.weekdays_ist ?? null);
+  const today = istTodayName();
+  const tip = r.weekdays_ist && r.weekdays_ist.length > 0
+    ? `Scheduled days (IST): ${r.weekdays_ist.slice().sort().join(", ")}`
+    : "Runs every day (no weekday filter)";
+  return (
+    <Badge
+      variant="outline"
+      title={tip}
+      className={`text-[10px] shrink-0 font-mono ${
+        on
+          ? "bg-success/15 text-success border-success/40"
+          : "bg-muted/40 text-muted-foreground border-border"
+      }`}
+    >
+      {on ? `On today · ${today}` : `Off today · ${today}`}
+    </Badge>
+  );
+}
+
 
 function LiveTradingPage() {
   const qc = useQueryClient();
@@ -406,11 +429,12 @@ function RunnerCardMobile({ r, selected, onSelectToggle, onToggle, onSave }: {
           className="shrink-0"
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="truncate text-sm font-medium">{r.label}</span>
             {r.running
               ? <Badge className="bg-destructive text-destructive-foreground text-[10px] shrink-0">LIVE</Badge>
               : <Badge variant="outline" className="text-[10px] shrink-0">Stopped</Badge>}
+            <TodayBadge r={r} />
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
             {r.symbol} · {r.timeframe} · {r.strategy_preset}
@@ -517,7 +541,10 @@ function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
           disabled={r.running} className="h-8 w-16" inputMode="numeric" />
       </TableCell>
       <TableCell>
-        {r.running ? <Badge className="bg-destructive text-destructive-foreground">LIVE</Badge> : <Badge variant="outline">Stopped</Badge>}
+        <div className="flex flex-wrap items-center gap-1">
+          {r.running ? <Badge className="bg-destructive text-destructive-foreground">LIVE</Badge> : <Badge variant="outline">Stopped</Badge>}
+          <TodayBadge r={r} />
+        </div>
         {r.last_tick_error ? <div className="text-xs text-destructive mt-1 max-w-xs truncate" title={r.last_tick_error}>{r.last_tick_error}</div> : null}
       </TableCell>
       <TableCell className="text-xs">{fmtTs(r.last_tick_at)}</TableCell>

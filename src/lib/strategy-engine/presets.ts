@@ -181,6 +181,7 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     trend: { adxMax: 20 },
     volatility: { atrPercentileMin: 10, atrPercentileMax: 70 },
     regime: { allowed: ["range_calm"] },
+    hmm: { allowed: ["hmm_choppy"] },
     setup: { kind: "bb_zscore_fade", bbPeriod: 20, bbSigma: 2.5 },
     confirmation: {},
     entry: { model: { kind: "market" } },

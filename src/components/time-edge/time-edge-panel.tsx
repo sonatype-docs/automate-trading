@@ -902,13 +902,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] w-[110px] max-w-[110px]">
-                      {isSel && b.timeframes.length > 1 ? (
-                        <Select value={ov.timeframe} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
+                      {isSel ? (
+                        <Select value={ov.timeframe ?? b.timeframes[0] ?? "15m"} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{b.timeframes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>
+                            {Array.from(new Set([...(b.timeframes ?? []), "1m","3m","5m","15m","30m","1h","4h"])).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
                         </Select>
                       ) : (
-                        <div className="truncate" title={b.timeframes.join(", ")}>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</div>
+                        <div className="truncate" title={b.timeframes.join(", ")}>{b.timeframes.join(",") || "—"}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
@@ -923,10 +925,12 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                     </TableCell>
                     <TableCell className="text-[11px]">
                       {isSel ? (
-                        <Select value={ov.direction ?? "long"} onValueChange={(v) => patchOverride(id, { direction: v })}>
+                        <Select value={ov.direction ?? "both"} onValueChange={(v) => patchOverride(id, { direction: v })}>
                           <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {(b.directions.length ? b.directions : ["long", "short"]).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            <SelectItem value="both">both</SelectItem>
+                            <SelectItem value="long">long</SelectItem>
+                            <SelectItem value="short">short</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (

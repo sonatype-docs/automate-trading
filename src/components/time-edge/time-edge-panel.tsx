@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Download, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import { useDatasetsProgress } from "@/hooks/use-datasets-progress";
 import { listSnapshots } from "@/lib/trade-intelligence.functions";
-import { generateTimeEdgeNarrative } from "@/lib/time-edge.functions";
+import { generateTimeEdgeNarrative, deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
 import { analyzeTimeEdges } from "@/lib/time-edge/analysis";
 import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
 import { groupByDim } from "@/lib/time-edge/buckets";

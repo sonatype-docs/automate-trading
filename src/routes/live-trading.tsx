@@ -540,7 +540,10 @@ function RunnerRow({ r, selected, onSelectToggle, onToggle, onSave }: {
           disabled={r.running} className="h-8 w-16" inputMode="numeric" />
       </TableCell>
       <TableCell>
-        {r.running ? <Badge className="bg-destructive text-destructive-foreground">LIVE</Badge> : <Badge variant="outline">Stopped</Badge>}
+        <div className="flex flex-wrap items-center gap-1">
+          {r.running ? <Badge className="bg-destructive text-destructive-foreground">LIVE</Badge> : <Badge variant="outline">Stopped</Badge>}
+          <TodayBadge r={r} />
+        </div>
         {r.last_tick_error ? <div className="text-xs text-destructive mt-1 max-w-xs truncate" title={r.last_tick_error}>{r.last_tick_error}</div> : null}
       </TableCell>
       <TableCell className="text-xs">{fmtTs(r.last_tick_at)}</TableCell>

@@ -4,6 +4,7 @@
 import type { EnrichedCandle } from "@/lib/market-data/types";
 import { evalConfirmation } from "./confirmation";
 import { evalSessionFilter, evalTrendFilter, evalVolatilityFilter, type FilterResult } from "./filters";
+import { evalRegimeFilter } from "./regime";
 import { planEntry, planStop, planTargets, type PendingEntry } from "./planners";
 import { detectSetup } from "./setups";
 import { scoreStrength } from "./strength";
@@ -93,7 +94,9 @@ export function runStrategy(
     (t.pass ? passed : failed).push(t.label);
     const v = evalVolatilityFilter(bar, bars[i - 1] ?? null, cfg.volatility); bump(v);
     (v.pass ? passed : failed).push(v.label);
-    if (!s.pass || !t.pass || !v.pass) continue;
+    const rg = evalRegimeFilter(bar, cfg.regime); bump(rg);
+    (rg.pass ? passed : failed).push(rg.label);
+    if (!s.pass || !t.pass || !v.pass || !rg.pass) continue;
 
     // 3) Daily / weekly caps.
     const dayKey = new Date(bar.ts).toISOString().slice(0, 10);

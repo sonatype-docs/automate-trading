@@ -60,7 +60,7 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
   }
   idleTickCounter = 0;
 
-  const { windowsForPreset, isWindowActive, minutesUntilOpen } = await import(
+  const { windowsForPreset, isWindowActive, minutesUntilOpen, isRunnerAllowedNow } = await import(
     "@/lib/session-windows"
   );
 

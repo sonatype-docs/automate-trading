@@ -259,8 +259,11 @@ function ResearchPage() {
     return Math.max(0, ...updates);
   }, [activeDatasets, datasetProgress]);
   const rawCombined: TradeRecord[] = useMemo(
-    () => activeDatasets.flatMap((ds) => datasetData[ds] ?? []),
-    [datasetData, activeDatasets],
+    () => {
+      const merged = activeDatasets.flatMap((ds) => datasetData[ds] ?? []);
+      return includeFees ? applyFees(merged, DEFAULT_FEE_MODEL) : merged;
+    },
+    [datasetData, activeDatasets, includeFees],
   );
   const duplicateCount = useMemo(() => {
     if (activeDatasets.length < 2) return 0;

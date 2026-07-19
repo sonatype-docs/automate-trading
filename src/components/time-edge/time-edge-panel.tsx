@@ -35,7 +35,7 @@ export function TimeEdgePanel() {
   const snapshotsFn = useServerFn(listSnapshots);
   const { data: snapshotList } = useQuery({
     queryKey: ["time-edge-snapshots"],
-    queryFn: () => snapshotsFn({ data: {} as never }),
+    queryFn: () => snapshotsFn(),
     refetchOnWindowFocus: false,
   });
   const snapshots = snapshotList?.snapshots ?? [];

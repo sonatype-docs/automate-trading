@@ -223,6 +223,14 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   // Only look at the newest "still-open" flushed trade — that's the current signal.
   const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
   if (!openFlush) return { placed: 0, reconciled };
+  // Per-runner direction filter (from Time Edge deploy). "both" or null = no filter.
+  if (
+    r.direction_filter &&
+    r.direction_filter !== "both" &&
+    r.direction_filter !== openFlush.direction
+  ) {
+    return { placed: 0, reconciled };
+  }
 
   // Dedup: skip if a live_trade already exists for this signalId.
   const { data: existing } = await supabaseAdmin

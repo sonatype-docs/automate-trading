@@ -135,6 +135,17 @@ export function TimeEdgePanel() {
               <Label className="text-xs">Clusters</Label>
               <Input type="number" className="h-9 w-20" value={clusters} onChange={(e) => setClusters(Number(e.target.value) || 4)} />
             </div>
+            <div>
+              <Label className="text-xs">Exchange fees</Label>
+              <label className="flex items-center gap-2 h-9 px-2 rounded-md border text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeFees}
+                  onChange={(e) => { setIncludeFees(e.target.checked); setReport(null); }}
+                />
+                <span>Include ({(DEFAULT_FEE_MODEL.makerRate * 100).toFixed(3)}% / {(DEFAULT_FEE_MODEL.takerRate * 100).toFixed(3)}%)</span>
+              </label>
+            </div>
             <div className="flex items-end gap-2">
               <Button size="sm" variant="outline" onClick={() => setResyncKey((k) => k + 1)} disabled={!snapshotName}>
                 <RefreshCw className="mr-1 h-4 w-4" /> Resync

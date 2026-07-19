@@ -599,7 +599,14 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
                           </Select>
                         </div>
                       ) : (
-                        <span title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</span>
+                        {(() => {
+                          if (!b.hours.length) return <span>—</span>;
+                          const mn = Math.min(...b.hours);
+                          const mx = Math.max(...b.hours);
+                          const s = Math.floor(mn / 8) * 8;
+                          const e = Math.min(24, Math.floor(mx / 8) * 8 + 8);
+                          return <span title={b.hours.join(",")}>{`${String(s).padStart(2,"0")}-${String(e).padStart(2,"0")}`}</span>;
+                        })()}
                       )}
                     </TableCell>
                     <TableCell>{b.trades}</TableCell>

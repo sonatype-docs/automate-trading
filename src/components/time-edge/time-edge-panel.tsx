@@ -784,7 +784,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
     }
     // Merge sibling rows that are identical in every parameter except direction (long+short → both).
     const mergeKey = (b: BucketMetrics) =>
-      [b.dim, b.symbols.join(","), b.timeframes.join(","), b.strategies.join(","),
+      [b.symbols.join(","), b.timeframes.join(","), b.strategies.join(","),
        b.sessions.join(","), b.hours.join(","), b.weekdays.join(",")].join("|");
     const stripDirLabel = (s: string) =>
       s.replace(/\b(Long|Short|LONG|SHORT|long|short)\b\s*\+?\s*/g, "").replace(/\s{2,}/g, " ").trim();
@@ -848,17 +848,15 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   }, [all]);
 
 
-  const dims = useMemo(() => Array.from(new Set(all.map((r) => r.b.dim))), [all]);
-  const [dimFilter, setDimFilter] = useState<string>("all");
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
   const [minTrades, setMinTrades] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
-  type SortKey = "verdict" | "label" | "dim" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
+  type SortKey = "verdict" | "label" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
   const [sortKey, setSortKey] = useState<SortKey>("robustness");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortKey(k); setSortDir(k === "label" || k === "dim" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
+    else { setSortKey(k); setSortDir(k === "label" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
   };
 
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
@@ -874,7 +872,6 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = all.filter((r) => {
-      if (dimFilter !== "all" && r.b.dim !== dimFilter) return false;
       if (verdictFilter !== "all" && r.verdict !== verdictFilter) return false;
       if (r.b.trades < minTrades) return false;
       if (q && !r.b.label.toLowerCase().includes(q)) return false;
@@ -890,7 +887,6 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       switch (sortKey) {
         case "verdict": return order[r.verdict];
         case "label": return r.b.label;
-        case "dim": return r.b.dim;
         case "symbol": return r.b.symbols[0] ?? "";
         case "timeframe": return r.b.timeframes[0] ?? "";
         case "strategy": return r.b.strategies[0] ?? "";
@@ -910,7 +906,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return order[a.verdict] - order[b.verdict];
     });
     return filtered.slice(0, 200);
-  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+  }, [all, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
 
 
   // ------- Selection + per-row overrides -------
@@ -1103,17 +1099,8 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
             <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Filter by strategy/tf/symbol, then tick rows to deploy.</CardDescription>
           </div>
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
-            <div className="min-w-0">
-              <Label className="text-[10px] text-muted-foreground">Dimension</Label>
-              <Select value={dimFilter} onValueChange={setDimFilter}>
-                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All dimensions</SelectItem>
-                  {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Symbol</Label>
               <Select value={symbolFilter} onValueChange={setSymbolFilter}>
@@ -1199,7 +1186,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     <TableHead className="w-8"></TableHead>
                     <SortTH k="verdict" label="Verdict" />
                     <SortTH k="label" label="Bucket" />
-                    <SortTH k="dim" label="Dim" />
+                    
                     <SortTH k="symbol" label="Symbol" />
                     <SortTH k="timeframe" label="TF" />
                     <SortTH k="strategy" label="Strategy" />
@@ -1222,7 +1209,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
             <TableBody>
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={19} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={18} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
               )}
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];
@@ -1239,7 +1226,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     </TableCell>
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
+                    
                     <TableCell className="text-[11px] font-mono w-[140px] max-w-[140px]">
                       {isSel && b.symbols.length > 1 ? (
                         <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>

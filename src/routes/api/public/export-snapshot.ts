@@ -43,14 +43,16 @@ export const Route = createFileRoute("/api/public/export-snapshot")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const PAGE = 2000;
+        const PAGE = 300;
         const header = ALL_COLUMNS.join(",") + "\n";
         const encoder = new TextEncoder();
 
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             controller.enqueue(encoder.encode(header));
-            let cursorTime: string | null = null;
+            // Paginate by (snapshot_name, trade_id) — the unique index — so
+            // Postgres does an index range scan and stays fast even with
+            // heavy JSONB columns in the projection.
             let cursorId: string | null = null;
             let total = 0;
             try {
@@ -60,16 +62,9 @@ export const Route = createFileRoute("/api/public/export-snapshot")({
                   .from("trade_intelligence_archive")
                   .select(ALL_COLUMNS.join(","))
                   .eq("snapshot_name", snapshot)
-                  .order("entry_time", { ascending: true, nullsFirst: true })
                   .order("trade_id", { ascending: true })
                   .limit(PAGE);
-                if (cursorTime !== null && cursorId !== null) {
-                  q = q.or(
-                    `and(entry_time.eq.${cursorTime},trade_id.gt.${cursorId}),entry_time.gt.${cursorTime}`,
-                  );
-                } else if (cursorTime === null && cursorId !== null) {
-                  q = q.is("entry_time", null).gt("trade_id", cursorId);
-                }
+                if (cursorId !== null) q = q.gt("trade_id", cursorId);
                 const { data, error } = await q;
                 if (error) throw new Error(error.message);
                 const rows = (data ?? []) as Record<string, unknown>[];
@@ -80,10 +75,8 @@ export const Route = createFileRoute("/api/public/export-snapshot")({
                 }
                 controller.enqueue(encoder.encode(chunk));
                 total += rows.length;
-                const last = rows[rows.length - 1];
-                cursorTime = (last.entry_time as string | null) ?? null;
-                cursorId = (last.trade_id as string | null) ?? null;
-                if (rows.length < PAGE) break;
+                cursorId = (rows[rows.length - 1].trade_id as string | null) ?? null;
+                if (rows.length < PAGE || cursorId === null) break;
               }
               controller.enqueue(encoder.encode(`# exported ${total} rows\n`));
               controller.close();

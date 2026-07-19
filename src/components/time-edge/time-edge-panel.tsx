@@ -356,7 +356,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
-        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const strategyPreset = ov.strategy ?? firstLiveStrategy(b.strategies) ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
@@ -1061,7 +1061,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         const id = rowId(b);
         const ov = overrides[id] ?? defaultOverride(b);
         const symbol = ov.symbol ?? b.symbols[0] ?? "";
-        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const strategyPreset = ov.strategy ?? firstLiveStrategy(b.strategies) ?? "";
         const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
         const dirChoice = ov.direction ?? "both";
         if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);

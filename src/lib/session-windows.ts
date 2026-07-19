@@ -91,15 +91,20 @@ export function isHourInWindow(hourIst: number, startH: number, endH: number): b
   return hourIst >= startH || hourIst < endH;
 }
 
-/** ISO weekday in IST for `now`: Mon=1..Sun=7. */
-export function istWeekday(now = new Date()): number {
+/** IST weekday for `now`. Returns BOTH numbering schemes so the gate accepts
+ *  either convention the caller stored: ISO (Mon=1..Sun=7) or JS (Sun=0..Sat=6). */
+export function istWeekday(now = new Date()): { iso: number; js: number } {
   const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
   const dayShift = Math.floor((utcMin + IST_OFFSET_MIN) / 1440);
-  const jsDay = (now.getUTCDay() + dayShift + 7) % 7; // 0=Sun..6=Sat
-  return jsDay === 0 ? 7 : jsDay;
+  const js = (now.getUTCDay() + dayShift + 7) % 7; // 0=Sun..6=Sat
+  const iso = js === 0 ? 7 : js;
+  return { iso, js };
 }
 
-/** Gate a runner by pinned IST window + weekday whitelist. Null/empty = no filter. */
+/** Gate a runner by pinned IST window + weekday whitelist. Null/empty = no filter.
+ *  Accepts weekday lists in either ISO (1..7) or JS (0..6) — a match on either
+ *  scheme lets the tick through, so historical rows saved in the JS scheme keep
+ *  working after we normalize the picker to ISO. */
 export function isRunnerAllowedNow(
   cfg: {
     window_start_hour_ist?: number | null;
@@ -113,10 +118,12 @@ export function isRunnerAllowedNow(
     if (!isHourInWindow(hourIst, cfg.window_start_hour_ist, cfg.window_end_hour_ist)) return false;
   }
   if (cfg.weekdays_ist && cfg.weekdays_ist.length > 0) {
-    if (!cfg.weekdays_ist.includes(istWeekday(now))) return false;
+    const { iso, js } = istWeekday(now);
+    if (!cfg.weekdays_ist.includes(iso) && !cfg.weekdays_ist.includes(js)) return false;
   }
   return true;
 }
+
 
 /** Returns null if `direction` is compatible with `preset`, else a reason string. */
 export function presetDirectionConflict(

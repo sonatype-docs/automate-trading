@@ -452,10 +452,74 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
           </div>
         </div>
 
+        {/* Deploy toolbar */}
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-2 space-y-2">
+          <div className="text-xs font-semibold flex items-center gap-2"><Play className="h-3 w-3" /> Ship selected rankings to runners</div>
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 items-end">
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Target</Label>
+              <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paper">Paper only</SelectItem>
+                  <SelectItem value="live">Live only</SelectItem>
+                  <SelectItem value="both">Both live + paper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Risk USD</Label>
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
+              <Select value={deployExec} onValueChange={setDeployExec}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="conservative_default">conservative_default</SelectItem>
+                  <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
+                  <SelectItem value="no_management">no_management</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
+              <Select value={deployTf} onValueChange={setDeployTf}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">auto (from bucket)</SelectItem>
+                  {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-center gap-2 text-xs cursor-pointer h-8 px-2 rounded border bg-background">
+              <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
+              Replace duplicates
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-2">
+            <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {shown.length} visible</span>
+            <Button size="sm" variant="outline" onClick={selectAllVisible}>Select all ({shown.length})</Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
+            <Button size="sm" disabled={!selected.size || deployMut.isPending} onClick={() => deployMut.mutate()}>
+              {deployMut.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
+              Deploy {selected.size || ""}
+            </Button>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Bucket</TableHead>
+              <TableHead className="text-xs">Symbol</TableHead>
+              <TableHead className="text-xs">TF</TableHead>
+              <TableHead className="text-xs">Strategy</TableHead>
+              <TableHead className="text-xs">Dir</TableHead>
+              <TableHead className="text-xs">Window IST</TableHead>
               <SortHead k="trades" sort={sort} setSort={setSort}>Trades</SortHead>
               <SortHead k="netProfit" sort={sort} setSort={setSort}>Net</SortHead>
               <SortHead k="winRate" sort={sort} setSort={setSort}>Win%</SortHead>
@@ -467,22 +531,91 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
               <SortHead k="robustness" sort={sort} setSort={setSort}>Robustness</SortHead>
             </TableRow></TableHeader>
             <TableBody>
-              {shown.map((b) => (
-                <TableRow key={b.key}>
-                  <TableCell className="font-mono text-xs">{b.label}</TableCell>
-                  <TableCell>{b.trades}</TableCell>
-                  <TableCell className={b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}>${b.netProfit.toFixed(0)}</TableCell>
-                  <TableCell>{(b.winRate * 100).toFixed(1)}%</TableCell>
-                  <TableCell>{b.profitFactor.toFixed(2)}</TableCell>
-                  <TableCell className={b.expectancy >= 0 ? "text-emerald-500" : "text-red-500"}>{b.expectancy.toFixed(2)}</TableCell>
-                  <TableCell>{b.avgRr.toFixed(2)}</TableCell>
-                  <TableCell>{b.sharpe.toFixed(2)}</TableCell>
-                  <TableCell>{(b.confidence * 100).toFixed(0)}%</TableCell>
-                  <TableCell><RobustnessBar value={b.robustness} /></TableCell>
-                </TableRow>
-              ))}
+              {shown.map((b) => {
+                const id = rowId(b);
+                const isSel = selected.has(id);
+                const ov = overrides[id] ?? defaultOverride(b);
+                return (
+                  <TableRow key={b.key} className={isSel ? "bg-primary/5" : ""}>
+                    <TableCell><input type="checkbox" checked={isSel} onChange={() => toggle(b)} /></TableCell>
+                    <TableCell className="font-mono text-xs max-w-[220px] truncate" title={b.label}>{b.label}</TableCell>
+                    <TableCell className="text-[11px] font-mono w-[130px] max-w-[130px]">
+                      {isSel && b.symbols.length > 1 ? (
+                        <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="truncate" title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] w-[100px] max-w-[100px]">
+                      {isSel ? (
+                        <Select value={ov.timeframe ?? b.timeframes[0] ?? "15m"} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from(new Set([...(b.timeframes ?? []), "1m","3m","5m","15m","30m","1h","4h"])).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="truncate" title={b.timeframes.join(", ")}>{b.timeframes.join(",") || "—"}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] font-mono w-[160px] max-w-[160px]">
+                      {isSel && b.strategies.length > 1 ? (
+                        <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px]">
+                      {isSel ? (
+                        <Select value={ov.direction ?? "both"} onValueChange={(v) => patchOverride(id, { direction: v })}>
+                          <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="both">both</SelectItem>
+                            <SelectItem value="long">long</SelectItem>
+                            <SelectItem value="short">short</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{b.directions.join("/") || "—"}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[10px] font-mono">
+                      {isSel ? (
+                        <div className="flex items-center gap-1">
+                          <Select value={String(ov.windowStart ?? 0)} onValueChange={(v) => patchOverride(id, { windowStart: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">→</span>
+                          <Select value={String(ov.windowEnd ?? 24)} onValueChange={(v) => patchOverride(id, { windowEnd: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i + 1).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <span title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{b.trades}</TableCell>
+                    <TableCell className={b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}>${b.netProfit.toFixed(0)}</TableCell>
+                    <TableCell>{(b.winRate * 100).toFixed(1)}%</TableCell>
+                    <TableCell>{b.profitFactor.toFixed(2)}</TableCell>
+                    <TableCell className={b.expectancy >= 0 ? "text-emerald-500" : "text-red-500"}>{b.expectancy.toFixed(2)}</TableCell>
+                    <TableCell>{b.avgRr.toFixed(2)}</TableCell>
+                    <TableCell>{b.sharpe.toFixed(2)}</TableCell>
+                    <TableCell>{(b.confidence * 100).toFixed(0)}%</TableCell>
+                    <TableCell><RobustnessBar value={b.robustness} /></TableCell>
+                  </TableRow>
+                );
+              })}
               {shown.length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-6">No buckets match the current filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground text-xs py-6">No buckets match the current filters.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -491,6 +624,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
     </Card>
   );
 }
+
 
 function SortHead({ k, sort, setSort, children }: { k: SortKey; sort: SortKey; setSort: (k: SortKey) => void; children: React.ReactNode }) {
   const active = sort === k;

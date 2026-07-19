@@ -734,36 +734,87 @@ const VERDICT_META: Record<Verdict, { label: string; hint: string; badgeClass: s
   avoid:  { label: "AVOID",  hint: "Statistically losing window",    badgeClass: "bg-red-600 text-white",             rowClass: "bg-red-500/5 border-red-500/40" },
 };
 
-function classify(b: BucketMetrics): { verdict: Verdict; reasons: string[]; positives: string[] } {
+interface VerdictThresholds {
+  eliteRobustness: number;
+  eliteTrades: number;
+  elitePF: number;
+  eliteConf: number;
+  eliteWinRate: number;
+  eliteSharpe: number;
+  eliteExpectancy: number;
+  strongRobustness: number;
+  strongTrades: number;
+  strongPF: number;
+  strongWinRate: number;
+  decentRobustness: number;
+  decentPF: number;
+}
+
+const STRICTNESS_PRESETS: Record<string, VerdictThresholds> = {
+  standard: {
+    eliteRobustness: 75, eliteTrades: 30, elitePF: 1.5, eliteConf: 0.9,
+    eliteWinRate: 0.5, eliteSharpe: 1.0, eliteExpectancy: 0,
+    strongRobustness: 60, strongTrades: 20, strongPF: 1.3, strongWinRate: 0.45,
+    decentRobustness: 45, decentPF: 1.1,
+  },
+  strict: {
+    eliteRobustness: 82, eliteTrades: 50, elitePF: 1.8, eliteConf: 0.95,
+    eliteWinRate: 0.55, eliteSharpe: 1.3, eliteExpectancy: 5,
+    strongRobustness: 68, strongTrades: 30, strongPF: 1.4, strongWinRate: 0.5,
+    decentRobustness: 50, decentPF: 1.15,
+  },
+  institutional: {
+    eliteRobustness: 88, eliteTrades: 80, elitePF: 2.2, eliteConf: 0.98,
+    eliteWinRate: 0.6, eliteSharpe: 1.8, eliteExpectancy: 10,
+    strongRobustness: 75, strongTrades: 50, strongPF: 1.6, strongWinRate: 0.52,
+    decentRobustness: 55, decentPF: 1.2,
+  },
+};
+
+function classify(b: BucketMetrics, T: VerdictThresholds): { verdict: Verdict; reasons: string[]; positives: string[] } {
   const reasons: string[] = [];
   const positives: string[] = [];
-  if (b.trades < 20) reasons.push(`small sample (${b.trades})`);
+  if (b.trades < T.strongTrades) reasons.push(`small sample (${b.trades})`);
   else positives.push(`${b.trades} trades`);
   if (b.confidence < 0.8) reasons.push(`low significance (conf ${(b.confidence * 100).toFixed(0)}%)`);
   else positives.push(`conf ${(b.confidence * 100).toFixed(0)}%`);
   if (b.profitFactor < 1) reasons.push(`PF ${b.profitFactor.toFixed(2)} < 1`);
-  else if (b.profitFactor >= 1.5) positives.push(`PF ${b.profitFactor.toFixed(2)}`);
+  else if (b.profitFactor >= T.elitePF) positives.push(`PF ${b.profitFactor.toFixed(2)}`);
   if (b.expectancy <= 0) reasons.push(`expectancy ${b.expectancy.toFixed(2)}`);
-  else if (b.expectancy > 0) positives.push(`exp ${b.expectancy.toFixed(2)}`);
+  else positives.push(`exp ${b.expectancy.toFixed(2)}`);
   if (b.winRate < 0.35) reasons.push(`win rate ${(b.winRate * 100).toFixed(0)}%`);
-  else if (b.winRate >= 0.55) positives.push(`win ${(b.winRate * 100).toFixed(0)}%`);
+  else if (b.winRate >= T.eliteWinRate) positives.push(`win ${(b.winRate * 100).toFixed(0)}%`);
   if (b.sharpe < 0) reasons.push(`sharpe ${b.sharpe.toFixed(2)}`);
-  else if (b.sharpe >= 1) positives.push(`sharpe ${b.sharpe.toFixed(2)}`);
+  else if (b.sharpe >= T.eliteSharpe) positives.push(`sharpe ${b.sharpe.toFixed(2)}`);
   if (b.maxDrawdown < -Math.abs(b.netProfit) * 1.5 && b.netProfit > 0) reasons.push(`drawdown > 1.5× net`);
 
   let verdict: Verdict;
   if (b.expectancy < 0 && b.confidence >= 0.8 && b.trades >= 20) verdict = "avoid";
   else if (b.profitFactor < 0.8 && b.trades >= 20) verdict = "avoid";
-  else if (b.robustness >= 75 && b.trades >= 30 && b.profitFactor >= 1.5 && b.confidence >= 0.9 && b.expectancy > 0) verdict = "elite";
-  else if (b.robustness >= 60 && b.trades >= 20 && b.profitFactor >= 1.3 && b.expectancy > 0) verdict = "strong";
-  else if (b.robustness >= 45 && b.profitFactor >= 1.1 && b.expectancy > 0) verdict = "decent";
+  else if (
+    b.robustness >= T.eliteRobustness &&
+    b.trades >= T.eliteTrades &&
+    b.profitFactor >= T.elitePF &&
+    b.confidence >= T.eliteConf &&
+    b.winRate >= T.eliteWinRate &&
+    b.sharpe >= T.eliteSharpe &&
+    b.expectancy >= T.eliteExpectancy
+  ) verdict = "elite";
+  else if (
+    b.robustness >= T.strongRobustness &&
+    b.trades >= T.strongTrades &&
+    b.profitFactor >= T.strongPF &&
+    b.winRate >= T.strongWinRate &&
+    b.expectancy > 0
+  ) verdict = "strong";
+  else if (b.robustness >= T.decentRobustness && b.profitFactor >= T.decentPF && b.expectancy > 0) verdict = "decent";
   else verdict = "weak";
   return { verdict, reasons, positives };
 }
 
 function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {
   // Split every dimension by (timeframe × symbol) so each row = one TF+Symbol verdict.
-  const all = useMemo(() => {
+  const mergedRows = useMemo(() => {
     const dims = Object.keys(report.buckets) as BucketDim[];
     const groupMap = new Map<string, { tf: string; sym: string; trades: TradeRecord[] }>();
     for (const t of trades) {
@@ -856,8 +907,21 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         directions: dirs,
       });
     }
-    return merged.map((b) => ({ b, ...classify(b) }));
+    return merged;
   }, [report, trades]);
+
+  const [strictness, setStrictness] = useState<string>("standard");
+  const [customT, setCustomT] = useState<VerdictThresholds>(STRICTNESS_PRESETS.standard);
+  const thresholds = strictness === "custom" ? customT : STRICTNESS_PRESETS[strictness];
+  const setT = (patch: Partial<VerdictThresholds>) => {
+    setCustomT((prev) => ({ ...prev, ...patch }));
+    setStrictness("custom");
+  };
+
+  const all = useMemo(
+    () => mergedRows.map((b) => ({ b, ...classify(b, thresholds) })),
+    [mergedRows, thresholds],
+  );
 
 
 
@@ -1027,6 +1091,59 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
   return (
     <div className="space-y-4">
+      {/* Strictness controls */}
+      <Card className="border-primary/30">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-sm mr-2">Verdict strictness</CardTitle>
+            {(["standard", "strict", "institutional", "custom"] as const).map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={strictness === p ? "default" : "outline"}
+                className="h-7 px-2 text-xs capitalize"
+                onClick={() => {
+                  if (p === "custom") setStrictness("custom");
+                  else { setStrictness(p); setCustomT(STRICTNESS_PRESETS[p]); }
+                }}
+              >
+                {p}
+              </Button>
+            ))}
+            <div className="text-[11px] text-muted-foreground ml-auto">
+              Standard → hundreds of ELITEs · Strict → dozens · Institutional → only the best
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 text-[11px]">
+            {[
+              { k: "eliteRobustness", label: "Robustness ≥", step: 1, min: 50, max: 100 },
+              { k: "eliteTrades", label: "Trades ≥", step: 5, min: 10, max: 500 },
+              { k: "elitePF", label: "PF ≥", step: 0.05, min: 1, max: 5 },
+              { k: "eliteWinRate", label: "Win rate ≥", step: 0.01, min: 0.3, max: 0.9 },
+              { k: "eliteConf", label: "Confidence ≥", step: 0.01, min: 0.5, max: 1 },
+              { k: "eliteSharpe", label: "Sharpe ≥", step: 0.1, min: 0, max: 5 },
+              { k: "eliteExpectancy", label: "Expectancy ≥ $", step: 1, min: -20, max: 200 },
+            ].map((f) => (
+              <div key={f.k} className="min-w-0">
+                <Label className="text-[10px] text-muted-foreground">{f.label} <span className="text-primary">ELITE</span></Label>
+                <Input
+                  type="number"
+                  className="h-7 w-full"
+                  step={f.step}
+                  min={f.min}
+                  max={f.max}
+                  value={thresholds[f.k as keyof VerdictThresholds]}
+                  onChange={(e) => setT({ [f.k]: Number(e.target.value) } as Partial<VerdictThresholds>)}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+
       <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
         {(Object.keys(VERDICT_META) as Verdict[]).map((v) => {
           const meta = VERDICT_META[v];

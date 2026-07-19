@@ -141,6 +141,7 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     trend: { emaAlignment: { above: [200] }, adxMin: 25 },
     volatility: { atrPercentileMin: 30 },
     regime: { allowed: ["trend_strong"] },
+    hmm: { blocked: ["hmm_choppy"] },
     setup: { kind: "supertrend_flip", supertrendPeriod: 10, supertrendMultiplier: 3 },
     confirmation: { requireClose: true },
     entry: { model: { kind: "market" } },

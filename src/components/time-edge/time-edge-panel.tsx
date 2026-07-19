@@ -798,7 +798,14 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
   const [minTrades, setMinTrades] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
-  const [sortKey, setSortKey] = useState<"robustness" | "expectancy" | "profitFactor" | "trades" | "confidence" | "netProfit">("robustness");
+  type SortKey = "verdict" | "label" | "dim" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
+  const [sortKey, setSortKey] = useState<SortKey>("robustness");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(k); setSortDir(k === "label" || k === "dim" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
+  };
+
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
   const [tfFilter, setTfFilter] = useState<string>("all");
   const [strategyFilter, setStrategyFilter] = useState<string>("all");

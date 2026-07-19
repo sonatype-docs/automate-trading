@@ -1119,18 +1119,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Sort</Label>
-              <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
-                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="robustness">Robustness</SelectItem>
-                  <SelectItem value="expectancy">Expectancy</SelectItem>
-                  <SelectItem value="profitFactor">Profit Factor</SelectItem>
-                  <SelectItem value="netProfit">Net Profit</SelectItem>
-                  <SelectItem value="confidence">Confidence</SelectItem>
-                  <SelectItem value="trades">Trades</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="h-8 flex items-center text-[11px] text-muted-foreground px-2 rounded border border-dashed">
+                Click any column header ↕
+              </div>
             </div>
+
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">

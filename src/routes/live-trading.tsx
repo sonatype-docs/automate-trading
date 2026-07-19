@@ -44,6 +44,28 @@ export const Route = createFileRoute("/live-trading")({
 
 const fmtTs = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
 
+function TodayBadge({ r }: { r: LiveRunnerDTO }) {
+  const on = isTodayAllowedForRunner(r.weekdays_ist ?? null);
+  const today = istTodayName();
+  const tip = r.weekdays_ist && r.weekdays_ist.length > 0
+    ? `Scheduled days (IST): ${r.weekdays_ist.slice().sort().join(", ")}`
+    : "Runs every day (no weekday filter)";
+  return (
+    <Badge
+      variant="outline"
+      title={tip}
+      className={`text-[10px] shrink-0 font-mono ${
+        on
+          ? "bg-success/15 text-success border-success/40"
+          : "bg-muted/40 text-muted-foreground border-border"
+      }`}
+    >
+      {on ? `On today · ${today}` : `Off today · ${today}`}
+    </Badge>
+  );
+}
+
+
 function LiveTradingPage() {
   const qc = useQueryClient();
   const runnersFn = useServerFn(listLiveRunners);

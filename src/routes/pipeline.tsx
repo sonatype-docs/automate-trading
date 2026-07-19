@@ -207,7 +207,7 @@ function PipelinePage() {
   const [tfs, setTfs] = useState<string[]>(PIPELINE_TFS);
   const [strats, setStrats] = useState<string[]>(ALL_STRATEGY_PRESETS);
   const [execs, setExecs] = useState<string[]>(ALL_EXEC_PRESETS);
-  const [stratTzs, setStratTzs] = useState<string[]>([...TIMEZONES]);
+  const [stratTzs, setStratTzs] = useState<string[]>(["UTC"]);
 
 
   const [results, setResults] = useState<ComboResult[]>([]);

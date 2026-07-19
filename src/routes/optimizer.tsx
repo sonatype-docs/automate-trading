@@ -594,54 +594,383 @@ function ImportancePanel({ rows }: { rows: TradeRecord[] }) {
 }
 
 // ---------------- Clusters ----------------
+const CLUSTER_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#84cc16", "#ec4899"];
+
+function topN(map: Record<string, number>, n = 3): { key: string; count: number; pct: number }[] {
+  const total = Object.values(map).reduce((s, v) => s + v, 0) || 1;
+  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n).map(([key, count]) => ({ key, count, pct: count / total }));
+}
+
+function hoursHistogram(indexes: number[], rows: TradeRecord[]): number[] {
+  const h = new Array(24).fill(0);
+  indexes.forEach((i) => { const t = rows[i]; if (t) h[new Date(t.entryTime).getUTCHours()]++; });
+  return h;
+}
+
 function ClusterPanel({ rows }: { rows: TradeRecord[] }) {
   const [k, setK] = useState(4);
+  const [xAxis, setXAxis] = useState<string>("atr_pct");
+  const [yAxis, setYAxis] = useState<string>("adx");
+  const [selectedCluster, setSelectedCluster] = useState<number>(0);
+
   const clusters = useMemo(() => kmeans(rows, k), [rows, k]);
+  const featuresList = useMemo(() => rows.map(extractFeatures), [rows]);
+  const numericKeys = useMemo(() => allNumericKeys(featuresList), [featuresList]);
+  const categoricalKeys = useMemo(() => allCategoricalKeys(featuresList), [featuresList]);
+
+  // Global averages for baseline comparison
+  const globalNumericAvg = useMemo(() => {
+    const avg: Record<string, number> = {};
+    numericKeys.forEach((k) => {
+      let sum = 0, n = 0;
+      featuresList.forEach((f) => { const v = f.numeric[k]; if (Number.isFinite(v)) { sum += v; n++; } });
+      avg[k] = n ? sum / n : 0;
+    });
+    return avg;
+  }, [featuresList, numericKeys]);
+
+  // Enriched cluster stats
+  const enriched = useMemo(() => clusters.map((c) => {
+    const memberRows = c.members.map((i) => rows[i]);
+    const memberFeats = c.members.map((i) => featuresList[i]);
+    // categorical distributions
+    const cats: Record<string, Record<string, number>> = {};
+    categoricalKeys.forEach((k) => (cats[k] = {}));
+    memberFeats.forEach((f) => {
+      categoricalKeys.forEach((k) => { const v = f.categorical[k] ?? "unknown"; cats[k][v] = (cats[k][v] || 0) + 1; });
+    });
+    // numeric averages
+    const nums: Record<string, number> = {};
+    numericKeys.forEach((k) => {
+      let s = 0, n = 0;
+      memberFeats.forEach((f) => { const v = f.numeric[k]; if (Number.isFinite(v)) { s += v; n++; } });
+      nums[k] = n ? s / n : 0;
+    });
+    // durations, RR, MAE, MFE stats
+    const durations = memberRows.map((t) => (t.durationMs ?? 0) / 60000);
+    const rrs = memberRows.map((t) => t.actualRr ?? 0);
+    const maes = memberRows.map((t) => t.mae ?? 0);
+    const mfes = memberRows.map((t) => t.mfe ?? 0);
+    const avg = (a: number[]) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
+    // cumulative equity
+    const sorted = [...memberRows].sort((a, b) => a.exitTime - b.exitTime);
+    let eq = 0; const equity: { t: number; eq: number }[] = [];
+    sorted.forEach((t) => { eq += t.netPnl; equity.push({ t: t.exitTime, eq }); });
+    // hour histogram
+    const hourHist = hoursHistogram(c.members, rows);
+    // long/short split
+    const longs = memberRows.filter((t) => t.direction === "long").length;
+    const shorts = memberRows.length - longs;
+    // pnl distribution buckets
+    const pnls = memberRows.map((t) => t.netPnl).sort((a, b) => a - b);
+    const p = (q: number) => pnls.length ? pnls[Math.min(pnls.length - 1, Math.floor(pnls.length * q))] : 0;
+    return {
+      ...c,
+      cats,
+      nums,
+      avgDuration: avg(durations),
+      avgRR: avg(rrs),
+      avgMAE: avg(maes),
+      avgMFE: avg(mfes),
+      equity,
+      hourHist,
+      longPct: memberRows.length ? longs / memberRows.length : 0,
+      shortPct: memberRows.length ? shorts / memberRows.length : 0,
+      pnlP10: p(0.1), pnlMedian: p(0.5), pnlP90: p(0.9),
+      pctOfAll: rows.length ? c.size / rows.length : 0,
+    };
+  }), [clusters, rows, featuresList, categoricalKeys, numericKeys]);
+
+  const bestCluster = useMemo(() => enriched.slice().sort((a, b) => b.metrics.expectancy - a.metrics.expectancy)[0], [enriched]);
+  const worstCluster = useMemo(() => enriched.slice().sort((a, b) => a.metrics.expectancy - b.metrics.expectancy)[0], [enriched]);
+  const detail = enriched[selectedCluster] ?? enriched[0];
+
   const scatter = useMemo(() => {
     const pts: { x: number; y: number; cluster: number; pnl: number }[] = [];
     clusters.forEach((c) => c.members.forEach((idx) => {
-      const t = rows[idx]; const f = extractFeatures(t);
-      pts.push({ x: f.numeric.atr_pct || f.numeric.atr || 0, y: f.numeric.adx || 0, cluster: c.index, pnl: t.netPnl });
+      const f = featuresList[idx];
+      pts.push({
+        x: f.numeric[xAxis] ?? 0,
+        y: f.numeric[yAxis] ?? 0,
+        cluster: c.index,
+        pnl: rows[idx].netPnl,
+      });
     }));
     return pts;
-  }, [clusters, rows]);
-  const colors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#84cc16"];
+  }, [clusters, rows, featuresList, xAxis, yAxis]);
+
+  const exportCsv = () => {
+    const header = ["cluster","size","pct","net","pf","expectancy","win_rate","avg_rr","sharpe","sortino","max_dd","avg_dur_min","avg_mae","avg_mfe","long_pct","top_symbol","top_strategy","top_session","top_direction","top_exit"];
+    const rows_ = enriched.map((c) => [
+      c.index + 1, c.size, (c.pctOfAll * 100).toFixed(1),
+      c.metrics.net_profit.toFixed(2), c.metrics.profit_factor.toFixed(2),
+      c.metrics.expectancy.toFixed(2), (c.metrics.win_rate * 100).toFixed(2),
+      c.avgRR.toFixed(2), c.metrics.sharpe.toFixed(2), c.metrics.sortino.toFixed(2),
+      c.metrics.max_drawdown.toFixed(2), c.avgDuration.toFixed(1),
+      c.avgMAE.toFixed(2), c.avgMFE.toFixed(2), (c.longPct * 100).toFixed(1),
+      topN(c.cats.symbol || {}, 1)[0]?.key ?? "",
+      topN(c.cats.strategy || {}, 1)[0]?.key ?? "",
+      topN(c.cats.session || {}, 1)[0]?.key ?? "",
+      topN(c.cats.direction || {}, 1)[0]?.key ?? "",
+      topN(c.cats.exit_reason || {}, 1)[0]?.key ?? "",
+    ]);
+    const csv = [header.join(","), ...rows_.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `clusters-k${k}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="grid gap-4 md:grid-cols-[280px_1fr]">
+    <div className="space-y-4">
+      {/* Controls */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Trade Clustering</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div><Label>K (number of clusters)</Label><Input type="number" value={k} onChange={(e) => setK(Math.max(2, Math.min(8, Number(e.target.value) || 4)))} /></div>
-          {clusters.map((c) => (
-            <div key={c.index} className="rounded border bg-card p-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-medium" style={{ color: colors[c.index] }}>Cluster {c.index + 1}</span>
-                <span className="text-muted-foreground">{c.size} trades</span>
-              </div>
-              <div className="font-mono">Net ${c.metrics.net_profit.toFixed(0)} · Win {(c.metrics.win_rate * 100).toFixed(0)}% · PF {c.metrics.profit_factor.toFixed(2)}</div>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Trade Clustering — K-means on standardized feature vectors</CardTitle>
+              <CardDescription>Unsupervised grouping of {rows.length.toLocaleString()} trades across {numericKeys.length} numeric + {categoricalKeys.length} categorical dimensions.</CardDescription>
             </div>
-          ))}
+            <Button size="sm" variant="outline" onClick={exportCsv}><Download className="mr-2 h-3.5 w-3.5" />Export cluster summary CSV</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <Label className="text-xs">K (2–8)</Label>
+              <Input type="number" value={k} min={2} max={8} onChange={(e) => setK(Math.max(2, Math.min(8, Number(e.target.value) || 4)))} />
+            </div>
+            <div>
+              <Label className="text-xs">Projection X-axis</Label>
+              <Select value={xAxis} onValueChange={setXAxis}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{numericKeys.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Projection Y-axis</Label>
+              <Select value={yAxis} onValueChange={setYAxis}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{numericKeys.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Drill-down cluster</Label>
+              <Select value={String(selectedCluster)} onValueChange={(v) => setSelectedCluster(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{enriched.map((c) => <SelectItem key={c.index} value={String(c.index)}>Cluster {c.index + 1} ({c.size})</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Best / Worst */}
+      {bestCluster && worstCluster && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Card className="border-emerald-500/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-emerald-500">🏆 Best cluster — #{bestCluster.index + 1}</CardTitle></CardHeader>
+            <CardContent className="text-xs space-y-1">
+              <div className="font-mono">Net ${bestCluster.metrics.net_profit.toFixed(0)} · PF {bestCluster.metrics.profit_factor.toFixed(2)} · Exp ${bestCluster.metrics.expectancy.toFixed(2)} · Win {(bestCluster.metrics.win_rate * 100).toFixed(1)}%</div>
+              <div>Sharpe {bestCluster.metrics.sharpe.toFixed(2)} · Sortino {bestCluster.metrics.sortino.toFixed(2)} · MaxDD ${bestCluster.metrics.max_drawdown.toFixed(0)}</div>
+              <div>Top symbol: <span className="font-medium">{topN(bestCluster.cats.symbol || {}, 1)[0]?.key}</span> · Strategy: <span className="font-medium">{topN(bestCluster.cats.strategy || {}, 1)[0]?.key}</span> · Session: <span className="font-medium">{topN(bestCluster.cats.session || {}, 1)[0]?.key}</span></div>
+            </CardContent>
+          </Card>
+          <Card className="border-red-500/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-red-500">⚠ Worst cluster — #{worstCluster.index + 1}</CardTitle></CardHeader>
+            <CardContent className="text-xs space-y-1">
+              <div className="font-mono">Net ${worstCluster.metrics.net_profit.toFixed(0)} · PF {worstCluster.metrics.profit_factor.toFixed(2)} · Exp ${worstCluster.metrics.expectancy.toFixed(2)} · Win {(worstCluster.metrics.win_rate * 100).toFixed(1)}%</div>
+              <div>Sharpe {worstCluster.metrics.sharpe.toFixed(2)} · Sortino {worstCluster.metrics.sortino.toFixed(2)} · MaxDD ${worstCluster.metrics.max_drawdown.toFixed(0)}</div>
+              <div>Top symbol: <span className="font-medium">{topN(worstCluster.cats.symbol || {}, 1)[0]?.key}</span> · Strategy: <span className="font-medium">{topN(worstCluster.cats.strategy || {}, 1)[0]?.key}</span> · Session: <span className="font-medium">{topN(worstCluster.cats.session || {}, 1)[0]?.key}</span></div>
+              <div className="text-red-500/80">Consider blocking or inverting entries matching this cluster's centroid.</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Master summary table */}
       <Card>
-        <CardHeader><CardTitle className="text-base">ATR × ADX projection (colored by cluster)</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Cluster performance matrix</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>% of all</TableHead>
+                <TableHead>Net $</TableHead>
+                <TableHead>PF</TableHead>
+                <TableHead>Exp $</TableHead>
+                <TableHead>Win %</TableHead>
+                <TableHead>Avg RR</TableHead>
+                <TableHead>Sharpe</TableHead>
+                <TableHead>Sortino</TableHead>
+                <TableHead>MaxDD</TableHead>
+                <TableHead>Avg Dur (m)</TableHead>
+                <TableHead>MAE</TableHead>
+                <TableHead>MFE</TableHead>
+                <TableHead>Long/Short</TableHead>
+                <TableHead>P10 / Med / P90</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {enriched.map((c) => (
+                <TableRow key={c.index} className={c.index === selectedCluster ? "bg-primary/5" : ""}>
+                  <TableCell><Badge style={{ backgroundColor: CLUSTER_COLORS[c.index], color: "#fff" }}>{c.index + 1}</Badge></TableCell>
+                  <TableCell className="font-mono">{c.size}</TableCell>
+                  <TableCell className="font-mono">{(c.pctOfAll * 100).toFixed(1)}%</TableCell>
+                  <TableCell className={c.metrics.net_profit >= 0 ? "text-emerald-500 font-mono" : "text-red-500 font-mono"}>${c.metrics.net_profit.toFixed(0)}</TableCell>
+                  <TableCell className="font-mono">{c.metrics.profit_factor.toFixed(2)}</TableCell>
+                  <TableCell className={c.metrics.expectancy >= 0 ? "text-emerald-500 font-mono" : "text-red-500 font-mono"}>${c.metrics.expectancy.toFixed(2)}</TableCell>
+                  <TableCell className="font-mono">{(c.metrics.win_rate * 100).toFixed(1)}%</TableCell>
+                  <TableCell className="font-mono">{c.avgRR.toFixed(2)}</TableCell>
+                  <TableCell className="font-mono">{c.metrics.sharpe.toFixed(2)}</TableCell>
+                  <TableCell className="font-mono">{c.metrics.sortino.toFixed(2)}</TableCell>
+                  <TableCell className="font-mono text-red-500">${c.metrics.max_drawdown.toFixed(0)}</TableCell>
+                  <TableCell className="font-mono">{c.avgDuration.toFixed(0)}</TableCell>
+                  <TableCell className="font-mono text-red-500">${c.avgMAE.toFixed(1)}</TableCell>
+                  <TableCell className="font-mono text-emerald-500">${c.avgMFE.toFixed(1)}</TableCell>
+                  <TableCell className="font-mono text-xs">{(c.longPct * 100).toFixed(0)}/{(c.shortPct * 100).toFixed(0)}%</TableCell>
+                  <TableCell className="font-mono text-xs">{c.pnlP10.toFixed(0)}/{c.pnlMedian.toFixed(0)}/{c.pnlP90.toFixed(0)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Two-column: projection scatter + expectancy bar */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">{xAxis} × {yAxis} projection</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer>
+                <ScatterChart>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" dataKey="x" name={xAxis} />
+                  <YAxis type="number" dataKey="y" name={yAxis} />
+                  <ZAxis range={[30, 30]} />
+                  <RTooltip cursor={{ strokeDasharray: "3 3" }} />
+                  {clusters.map((c) => (
+                    <Scatter key={c.index} name={`C${c.index + 1}`} data={scatter.filter((p) => p.cluster === c.index)} fill={CLUSTER_COLORS[c.index]} />
+                  ))}
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Expectancy per cluster</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer>
+                <BarChart data={enriched.map((c) => ({ name: `C${c.index + 1}`, expectancy: c.metrics.expectancy, net: c.metrics.net_profit, idx: c.index }))}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <RTooltip />
+                  <Bar dataKey="expectancy">
+                    {enriched.map((c) => <Cell key={c.index} fill={CLUSTER_COLORS[c.index]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cumulative equity per cluster */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Hour-of-day distribution (UTC) per cluster</CardTitle></CardHeader>
         <CardContent>
-          <div className="h-96">
+          <div className="h-80">
             <ResponsiveContainer>
-              <ScatterChart>
+              <BarChart data={Array.from({ length: 24 }, (_, h) => {
+                const row: Record<string, number | string> = { hour: h };
+                enriched.forEach((c) => { row[`C${c.index + 1}`] = c.hourHist[h]; });
+                return row;
+              })}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" dataKey="x" name="ATR" />
-                <YAxis type="number" dataKey="y" name="ADX" />
-                <ZAxis range={[40, 40]} />
-                <RTooltip cursor={{ strokeDasharray: "3 3" }} />
-                {clusters.map((c) => (
-                  <Scatter key={c.index} name={`Cluster ${c.index + 1}`} data={scatter.filter((p) => p.cluster === c.index)} fill={colors[c.index]} />
+                <XAxis dataKey="hour" />
+                <YAxis />
+                <RTooltip />
+                {enriched.map((c) => (
+                  <Bar key={c.index} dataKey={`C${c.index + 1}`} stackId="a" fill={CLUSTER_COLORS[c.index]} />
                 ))}
-              </ScatterChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
+
+      {/* Drill-down: selected cluster */}
+      {detail && (
+        <Card className="border-2" style={{ borderColor: CLUSTER_COLORS[detail.index] + "60" }}>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Badge style={{ backgroundColor: CLUSTER_COLORS[detail.index], color: "#fff" }}>Cluster {detail.index + 1}</Badge>
+              <span>Detail — {detail.size.toLocaleString()} trades ({(detail.pctOfAll * 100).toFixed(1)}% of dataset)</span>
+            </CardTitle>
+            <CardDescription>
+              Net ${detail.metrics.net_profit.toFixed(0)} · PF {detail.metrics.profit_factor.toFixed(2)} · Exp ${detail.metrics.expectancy.toFixed(2)} · Sharpe {detail.metrics.sharpe.toFixed(2)} · MaxDD ${detail.metrics.max_drawdown.toFixed(0)} · Streaks W{detail.metrics.max_win_streak}/L{detail.metrics.max_loss_streak}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Categorical distributions grid */}
+            <div className="grid gap-3 md:grid-cols-3">
+              {(["symbol","strategy","session","direction","trade_type","exit_reason","ema_alignment","vwap_side"] as const).filter((k) => detail.cats[k]).map((k) => (
+                <div key={k} className="rounded border p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{k}</div>
+                  <div className="space-y-1">
+                    {topN(detail.cats[k], 5).map((r) => (
+                      <div key={r.key} className="text-xs">
+                        <div className="flex justify-between font-mono"><span className="truncate">{r.key}</span><span>{(r.pct * 100).toFixed(0)}%</span></div>
+                        <div className="h-1.5 rounded bg-muted overflow-hidden"><div className="h-full" style={{ width: `${r.pct * 100}%`, backgroundColor: CLUSTER_COLORS[detail.index] }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Numeric centroid vs global */}
+            <div className="rounded border p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Numeric centroid vs global average (Δ%)</div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Feature</TableHead>
+                      <TableHead className="text-right">Cluster avg</TableHead>
+                      <TableHead className="text-right">Global avg</TableHead>
+                      <TableHead className="text-right">Δ%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {numericKeys.map((k) => {
+                      const cv = detail.nums[k] ?? 0;
+                      const gv = globalNumericAvg[k] ?? 0;
+                      const delta = gv !== 0 ? ((cv - gv) / Math.abs(gv)) * 100 : 0;
+                      return (
+                        <TableRow key={k}>
+                          <TableCell className="text-xs">{k}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{cv.toFixed(3)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">{gv.toFixed(3)}</TableCell>
+                          <TableCell className={`text-right font-mono text-xs ${Math.abs(delta) > 20 ? (delta > 0 ? "text-emerald-500" : "text-red-500") : "text-muted-foreground"}`}>
+                            {delta >= 0 ? "+" : ""}{delta.toFixed(1)}%
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

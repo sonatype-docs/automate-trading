@@ -84,8 +84,8 @@ export const generateTimeEdgeNarrative = createServerFn({ method: "POST" })
 
 // ---------------------------------------------------------------------------
 // Deploy selected Time Edge buckets as live_runners / paper_runners.
-// Each bucket is turned into one runner keyed by (symbol, timeframe, strategy,
-// exec preset). Any existing runner matching that key is REPLACED so the top
+// Each bucket is turned into one runner keyed by asset + strategy + direction.
+// Existing rows for the same asset + strategy are removed first so the top
 // picks are the only ones present, per user policy.
 // ---------------------------------------------------------------------------
 const DeployBucket = z.object({
@@ -95,7 +95,7 @@ const DeployBucket = z.object({
   strategyPreset: z.string(),
   execPreset: z.string().default("conservative_default"),
   source: z.enum(["yahoo", "shark"]).optional(),
-  riskUsd: z.number().positive().max(10_000).default(20),
+  riskUsd: z.number().positive().max(10_000).default(10),
   leverage: z.number().int().min(1).max(200).optional(),
   lookbackDays: z.number().int().min(1).max(365).default(30),
   hoursIst: z.array(z.number()).optional(),

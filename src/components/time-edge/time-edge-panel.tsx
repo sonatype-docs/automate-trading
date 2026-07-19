@@ -335,10 +335,11 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
   const selectAllVisible = () => {
-    setSelected(new Set(shown.map((b) => rowId(b))));
+    const deployable = shown.filter(isDeployableBucket);
+    setSelected(new Set(deployable.map((b) => rowId(b))));
     setOverrides((prev) => {
       const next = { ...prev };
-      for (const b of shown) { const id = rowId(b); if (!next[id]) next[id] = defaultOverride(b); }
+      for (const b of deployable) { const id = rowId(b); if (!next[id]) next[id] = defaultOverride(b); }
       return next;
     });
   };
@@ -366,7 +367,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
         if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        const dirs = [dirChoice];
         return dirs.map((direction) => ({
           label: b.label,
           symbol,
@@ -1041,10 +1042,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
   const selectAllVisible = () => {
-    setSelected(new Set(rows.map((r) => rowId(r.b))));
+    const deployable = rows.filter((r) => isDeployableBucket(r.b));
+    setSelected(new Set(deployable.map((r) => rowId(r.b))));
     setOverrides((prev) => {
       const next = { ...prev };
-      for (const r of rows) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
+      for (const r of deployable) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
       return next;
     });
   };
@@ -1072,7 +1074,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        const dirs = [dirChoice];
         return dirs.map((direction) => ({
           label: b.label,
           symbol,

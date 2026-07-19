@@ -118,6 +118,7 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     trend: {},
     volatility: {},
     regime: { allowed: ["trend_strong"] },
+    hmm: { blocked: ["hmm_choppy"] },
     setup: { kind: "donchian_break", donchianLookback: 55, breakBufferPct: 0.05 },
     confirmation: { requireClose: true },
     entry: { model: { kind: "stop", breakoutBufferPct: 0.02 }, expiryBars: 3 },

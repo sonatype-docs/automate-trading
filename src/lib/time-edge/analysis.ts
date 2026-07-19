@@ -311,6 +311,11 @@ function aggregateBuckets(bs: BucketMetrics[]): BucketMetrics {
     robustness: Math.round(mean(bs.map((b) => b.robustness))),
     symbols: Array.from(new Set(bs.flatMap((b) => b.symbols))).slice(0, 20),
     strategies: Array.from(new Set(bs.flatMap((b) => b.strategies))).slice(0, 20),
+    timeframes: Array.from(new Set(bs.flatMap((b) => b.timeframes))).slice(0, 10),
+    directions: Array.from(new Set(bs.flatMap((b) => b.directions))).slice(0, 4),
+    sessions: Array.from(new Set(bs.flatMap((b) => b.sessions))).slice(0, 10),
+    hours: Array.from(new Set(bs.flatMap((b) => b.hours))).sort((a, b) => a - b),
+    weekdays: Array.from(new Set(bs.flatMap((b) => b.weekdays))).sort((a, b) => a - b),
   };
 }
 

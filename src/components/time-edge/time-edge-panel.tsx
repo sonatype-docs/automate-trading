@@ -754,18 +754,40 @@ function classify(b: BucketMetrics): { verdict: Verdict; reasons: string[]; posi
   return { verdict, reasons, positives };
 }
 
-function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
+function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {
+  // Split every dimension by timeframe so each row = one TF verdict (no mixed-TF confusion).
   const all = useMemo(() => {
+    const dims = Object.keys(report.buckets) as BucketDim[];
+    const tfMap = new Map<string, TradeRecord[]>();
+    for (const t of trades) {
+      const tf = t.timeframe || "unknown";
+      const arr = tfMap.get(tf);
+      if (arr) arr.push(t); else tfMap.set(tf, [t]);
+    }
     const flat: BucketMetrics[] = [];
-    for (const arr of Object.values(report.buckets)) flat.push(...arr);
+    for (const [tf, subset] of tfMap) {
+      if (subset.length < 10) continue;
+      for (const dim of dims) {
+        const bs = analyzeDim(subset, dim, 10);
+        for (const b of bs) {
+          flat.push({
+            ...b,
+            key: `${tf}::${b.key}`,
+            label: `[${tf}] ${b.label}`,
+            timeframes: [tf],
+          });
+        }
+      }
+    }
     return flat.map((b) => ({ b, ...classify(b) }));
-  }, [report]);
+  }, [report, trades]);
 
   const counts = useMemo(() => {
     const c: Record<Verdict, number> = { elite: 0, strong: 0, decent: 0, weak: 0, avoid: 0 };
     for (const r of all) c[r.verdict]++;
     return c;
   }, [all]);
+
 
   const dims = useMemo(() => Array.from(new Set(all.map((r) => r.b.dim))), [all]);
   const [dimFilter, setDimFilter] = useState<string>("all");

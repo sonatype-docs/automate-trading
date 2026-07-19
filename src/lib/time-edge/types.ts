@@ -65,6 +65,11 @@ export interface BucketMetrics {
   // context
   symbols: string[];
   strategies: string[];
+  timeframes: string[];
+  directions: string[];
+  sessions: string[];
+  hours: number[];
+  weekdays: number[];
 }
 
 export interface HeatmapCell {

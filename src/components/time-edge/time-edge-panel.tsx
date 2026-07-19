@@ -891,14 +891,14 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[140px]">
+                    <TableCell className="text-[11px] font-mono w-[140px] max-w-[140px]">
                       {isSel && b.symbols.length > 1 ? (
                         <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>{b.symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <span title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</span>
+                        <div className="truncate" title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px] w-[110px] max-w-[110px]">

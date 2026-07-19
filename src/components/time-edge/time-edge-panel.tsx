@@ -16,7 +16,7 @@ import { Download, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown,
 import { useDatasetsProgress } from "@/hooks/use-datasets-progress";
 import { listSnapshots } from "@/lib/trade-intelligence.functions";
 import { generateTimeEdgeNarrative, deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
-import { analyzeTimeEdges } from "@/lib/time-edge/analysis";
+import { analyzeTimeEdges, analyzeDim } from "@/lib/time-edge/analysis";
 import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
 import { groupByDim } from "@/lib/time-edge/buckets";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";

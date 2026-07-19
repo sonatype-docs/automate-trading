@@ -97,7 +97,9 @@ export function runStrategy(
     (v.pass ? passed : failed).push(v.label);
     const rg = evalRegimeFilter(bar, cfg.regime); bump(rg);
     (rg.pass ? passed : failed).push(rg.label);
-    if (!s.pass || !t.pass || !v.pass || !rg.pass) continue;
+    const hm = evalHmmFilter(bars, i, cfg.hmm); bump(hm);
+    (hm.pass ? passed : failed).push(hm.label);
+    if (!s.pass || !t.pass || !v.pass || !rg.pass || !hm.pass) continue;
 
     // 3) Daily / weekly caps.
     const dayKey = new Date(bar.ts).toISOString().slice(0, 10);

@@ -891,34 +891,34 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[140px]">
+                    <TableCell className="text-[11px] font-mono w-[140px] max-w-[140px]">
                       {isSel && b.symbols.length > 1 ? (
                         <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>{b.symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <span title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</span>
+                        <div className="truncate" title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-[11px] max-w-[100px]">
+                    <TableCell className="text-[11px] w-[110px] max-w-[110px]">
                       {isSel && b.timeframes.length > 1 ? (
                         <Select value={ov.timeframe} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>{b.timeframes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <span>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</span>
+                        <div className="truncate" title={b.timeframes.join(", ")}>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[160px]">
+                    <TableCell className="text-[11px] font-mono w-[180px] max-w-[180px]">
                       {isSel && b.strategies.length > 1 ? (
                         <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
                           <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       ) : (
-                        <span title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</span>
+                        <div className="truncate" title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-[11px]">

@@ -157,7 +157,7 @@ function AllRunnersStatusPanel({
               statusText = "Error"; tone = "destructive"; StatusIcon = AlertTriangle;
               subDetail = st.detail; sortKey = 4;
             } else if (!st) {
-              statusText = "Loading…"; tone = "muted"; StatusIcon = Circle; sortKey = 7;
+              statusText = "Scanning"; tone = "warning"; StatusIcon = Radar; sortKey = 3;
             } else {
               statusText = "Scanning"; tone = "warning"; StatusIcon = Radar; sortKey = 3;
             }

@@ -647,7 +647,8 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
         if (!scfg) throw new Error(`Unknown preset ${rr.strategy_preset}`);
 
         const toMs = Date.now();
-        const fromMs = toMs - Math.max(2, Number(rr.lookback_days)) * 24 * 60 * 60 * 1000;
+        const liveStatusLookbackDays = Math.min(2, Math.max(1, Number(rr.lookback_days) || 1));
+        const fromMs = toMs - liveStatusLookbackDays * 24 * 60 * 60 * 1000;
         const { candles } = await loadRawCandles({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           source: rr.source as any, symbol: rr.symbol,

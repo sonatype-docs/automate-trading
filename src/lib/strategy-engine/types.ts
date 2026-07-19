@@ -176,6 +176,7 @@ export interface StrategyConfig {
   trend?: TrendFilter;
   volatility?: VolatilityFilter;
   regime?: import("./regime").RegimeFilter;
+  hmm?: import("./hmm").HmmFilter;
   setup: SetupConfig;
   confirmation?: ConfirmationConfig;
   entry: EntryConfig;

@@ -755,32 +755,36 @@ function classify(b: BucketMetrics): { verdict: Verdict; reasons: string[]; posi
 }
 
 function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {
-  // Split every dimension by timeframe so each row = one TF verdict (no mixed-TF confusion).
+  // Split every dimension by (timeframe × symbol) so each row = one TF+Symbol verdict.
   const all = useMemo(() => {
     const dims = Object.keys(report.buckets) as BucketDim[];
-    const tfMap = new Map<string, TradeRecord[]>();
+    const groupMap = new Map<string, { tf: string; sym: string; trades: TradeRecord[] }>();
     for (const t of trades) {
       const tf = t.timeframe || "unknown";
-      const arr = tfMap.get(tf);
-      if (arr) arr.push(t); else tfMap.set(tf, [t]);
+      const sym = t.symbol || "unknown";
+      const k = `${tf}::${sym}`;
+      const g = groupMap.get(k);
+      if (g) g.trades.push(t); else groupMap.set(k, { tf, sym, trades: [t] });
     }
     const flat: BucketMetrics[] = [];
-    for (const [tf, subset] of tfMap) {
-      if (subset.length < 10) continue;
+    for (const [, g] of groupMap) {
+      if (g.trades.length < 10) continue;
       for (const dim of dims) {
-        const bs = analyzeDim(subset, dim, 10);
+        const bs = analyzeDim(g.trades, dim, 10);
         for (const b of bs) {
           flat.push({
             ...b,
-            key: `${tf}::${b.key}`,
-            label: `[${tf}] ${b.label}`,
-            timeframes: [tf],
+            key: `${g.tf}::${g.sym}::${b.key}`,
+            label: `[${g.sym} · ${g.tf}] ${b.label}`,
+            timeframes: [g.tf],
+            symbols: [g.sym],
           });
         }
       }
     }
     return flat.map((b) => ({ b, ...classify(b) }));
   }, [report, trades]);
+
 
   const counts = useMemo(() => {
     const c: Record<Verdict, number> = { elite: 0, strong: 0, decent: 0, weak: 0, avoid: 0 };

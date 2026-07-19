@@ -1099,17 +1099,8 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
             <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Filter by strategy/tf/symbol, then tick rows to deploy.</CardDescription>
           </div>
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
-            <div className="min-w-0">
-              <Label className="text-[10px] text-muted-foreground">Dimension</Label>
-              <Select value={dimFilter} onValueChange={setDimFilter}>
-                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All dimensions</SelectItem>
-                  {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Symbol</Label>
               <Select value={symbolFilter} onValueChange={setSymbolFilter}>

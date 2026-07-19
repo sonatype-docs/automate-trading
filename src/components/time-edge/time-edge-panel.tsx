@@ -907,8 +907,21 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         directions: dirs,
       });
     }
-    return merged.map((b) => ({ b, ...classify(b) }));
+    return merged;
   }, [report, trades]);
+
+  const [strictness, setStrictness] = useState<string>("standard");
+  const [customT, setCustomT] = useState<VerdictThresholds>(STRICTNESS_PRESETS.standard);
+  const thresholds = strictness === "custom" ? customT : STRICTNESS_PRESETS[strictness];
+  const setT = (patch: Partial<VerdictThresholds>) => {
+    setCustomT((prev) => ({ ...prev, ...patch }));
+    setStrictness("custom");
+  };
+
+  const all = useMemo(
+    () => mergedRows.map((b) => ({ b, ...classify(b, thresholds) })),
+    [mergedRows, thresholds],
+  );
 
 
 

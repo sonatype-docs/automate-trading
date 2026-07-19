@@ -101,6 +101,9 @@ const DeployBucket = z.object({
   weekdays: z.array(z.number()).optional(),
   sessions: z.array(z.string()).optional(),
   direction: z.string().optional(),
+  /** Optional pinned trading window (IST hour range, inclusive start, exclusive end). */
+  windowStartHourIst: z.number().int().min(0).max(23).optional(),
+  windowEndHourIst: z.number().int().min(1).max(24).optional(),
 });
 const DeployInput = z.object({
   target: z.enum(["live", "paper", "both"]),

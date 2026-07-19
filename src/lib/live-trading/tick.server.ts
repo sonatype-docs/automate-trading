@@ -236,6 +236,16 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     return { placed: 0, reconciled };
   }
 
+  // Phase 3 — Funding-fade gate. Only for funding_fade_* presets: enforce
+  // pre-funding window + rate threshold + counter-crowd direction.
+  if (r.strategy_preset.startsWith("funding_fade_")) {
+    const { checkFundingFadeGate } = await import("@/lib/funding-rate.server");
+    const gate = await checkFundingFadeGate(r.symbol);
+    if (!gate.eligible || gate.requiredDirection !== openFlush.direction) {
+      return { placed: 0, reconciled };
+    }
+  }
+
   // Dedup: skip if a live_trade already exists for this signalId.
   const { data: existing } = await supabaseAdmin
     .from("live_trades")

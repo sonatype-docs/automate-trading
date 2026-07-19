@@ -588,13 +588,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
+    const dirs = b.directions ?? [];
+    const dir = dirs.length === 1 ? dirs[0] : "both";
     return {
       symbol: b.symbols[0],
-      timeframe: b.timeframes[0],
+      timeframe: b.timeframes[0] ?? "15m",
       strategy: b.strategies[0],
-      direction: b.directions[0],
-      windowStart: hrs[0],
-      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : undefined,
+      direction: dir,
+      windowStart: hrs.length ? hrs[0] : 0,
+      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
     };
   };
   const toggle = (b: BucketMetrics) => {

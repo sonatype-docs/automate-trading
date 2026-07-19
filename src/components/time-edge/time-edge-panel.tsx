@@ -872,7 +872,6 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = all.filter((r) => {
-      if (dimFilter !== "all" && r.b.dim !== dimFilter) return false;
       if (verdictFilter !== "all" && r.verdict !== verdictFilter) return false;
       if (r.b.trades < minTrades) return false;
       if (q && !r.b.label.toLowerCase().includes(q)) return false;
@@ -888,7 +887,6 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       switch (sortKey) {
         case "verdict": return order[r.verdict];
         case "label": return r.b.label;
-        case "dim": return r.b.dim;
         case "symbol": return r.b.symbols[0] ?? "";
         case "timeframe": return r.b.timeframes[0] ?? "";
         case "strategy": return r.b.strategies[0] ?? "";
@@ -908,7 +906,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return order[a.verdict] - order[b.verdict];
     });
     return filtered.slice(0, 200);
-  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+  }, [all, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
 
 
   // ------- Selection + per-row overrides -------

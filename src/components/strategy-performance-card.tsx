@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -8,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getStrategyPerformance } from "@/lib/analytics.functions";
+
 
 type Period = "ytd" | "month" | "week" | "all";
 type Mode = "all" | "paper" | "live";
@@ -41,11 +44,15 @@ export function StrategyPerformanceCard({
   const effectiveMode = lockMode ? defaultMode : mode;
 
   const fetchPerf = useServerFn(getStrategyPerformance);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["strategy-perf", period, effectiveMode, anchor],
     queryFn: () => fetchPerf({ data: { period, mode: effectiveMode, anchor } }),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false, staleTime: Infinity,
   });
+  const lastSynced = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
+
 
   const allRows = data?.rows ?? [];
   const strategyOptions = useMemo(() => {
@@ -105,7 +112,19 @@ export function StrategyPerformanceCard({
                 <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
               </ToggleGroup>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title={lastSynced ? `Last synced ${lastSynced}` : "Sync now"}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+              <span className="text-xs font-mono text-muted-foreground">{lastSynced ?? "Sync"}</span>
+            </Button>
           </div>
+
         </CardTitle>
       </CardHeader>
       <CardContent>

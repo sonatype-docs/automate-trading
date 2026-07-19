@@ -119,7 +119,7 @@ export function ExchangeOrdersCard() {
     queryKey: ["exchange-orders"],
     queryFn: () => fn(),
     enabled: ordersTab,
-    refetchInterval: ordersTab && anyRunning ? 15_000 : false,
+    refetchInterval: (tab === "server" || tab === "pending") && anyRunning ? 15_000 : false,
     staleTime: 10_000,
     placeholderData: keepPreviousData,
   });

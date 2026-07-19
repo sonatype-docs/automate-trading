@@ -841,14 +841,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       }
     }
     // Merge sibling rows identical in every parameter except direction (long+short → both)
-    // AND collapse hour references into 8-hour IST windows (00-08, 08-16, 16-24).
-    const to8hWindow = (h: number) => {
-      const s = Math.floor(h / 8) * 8;
-      const e = s + 8;
-      return `${String(s).padStart(2, "0")}-${String(e).padStart(2, "0")}h IST`;
-    };
+    // AND collapse hour references into 24-hour IST windows (all-day bucket).
+    const to24hWindow = (_h: number) => `00-24h IST`;
     const collapseHours = (s: string) =>
-      s.replace(/\b(\d{2}):(\d{2})(\s*(IST|UTC))?/g, (_m, hh) => to8hWindow(Number(hh)));
+      s.replace(/\b(\d{2}):(\d{2})(\s*(IST|UTC))?/g, (_m, hh) => to24hWindow(Number(hh)));
+
     const stripDirLabel = (s: string) =>
       s.replace(/\b(Long|Short|LONG|SHORT|long|short|BUY|SELL|Buy|Sell)\b/g, "")
        .replace(/[·•|]\s*[·•|]/g, "·")

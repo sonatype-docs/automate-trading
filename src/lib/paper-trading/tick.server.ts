@@ -47,6 +47,7 @@ export async function runPaperTradingTick(): Promise<TickReport> {
   if (error) throw new Error(error.message);
 
   const { isRunnerAllowedNow } = await import("@/lib/session-windows");
+  const { isCalendarBlocked } = await import("@/lib/economic-calendar");
   const results: TickReport["results"] = [];
   for (const r of (runners ?? []) as (RunnerRow & { label: string })[]) {
     // Skip runners currently outside their pinned IST window / weekday whitelist.
@@ -58,6 +59,12 @@ export async function runPaperTradingTick(): Promise<TickReport> {
       results.push({ runner_id: r.id, label: r.label, inserted: 0, open: false });
       continue;
     }
+    // Economic calendar kill-list.
+    if (isCalendarBlocked(r.symbol).blocked) {
+      results.push({ runner_id: r.id, label: r.label, inserted: 0, open: false });
+      continue;
+    }
+
     try {
       const out = await tickOne(r);
       results.push({ runner_id: r.id, label: r.label, ...out });

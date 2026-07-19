@@ -104,6 +104,24 @@ function PaperTradingPage() {
           <TabsTrigger value="performance">Strategy performance</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="space-y-6">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="text-xs text-muted-foreground">
+            Paper data is manual-sync only — click to refresh stats, positions, calendar, and trade log.
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              invalidate();
+              qc.invalidateQueries({ queryKey: ["paper-calendar"] });
+              qc.invalidateQueries({ queryKey: ["strategy-performance"] });
+            }}
+            disabled={runners.isFetching || positions.isFetching || trades.isFetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${runners.isFetching || positions.isFetching || trades.isFetching ? "animate-spin" : ""}`} />
+            Sync
+          </Button>
+        </div>
         <PaperStatsCard trades={tradesList} positions={positionsList} />
         <PnlCalendarCard defaultMode="paper" lockMode showStrategyFilter={false} showKpis={false} />
         <Card>

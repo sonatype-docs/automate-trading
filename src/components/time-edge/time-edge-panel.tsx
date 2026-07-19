@@ -1329,6 +1329,9 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     <SortTH k="hours" label="Hrs IST" />
                     <SortTH k="weekdays" label="Wkdys" />
                     <SortTH k="trades" label="Trades" align="right" />
+                    <TableHead className="text-xs text-right">Wins</TableHead>
+                    <TableHead className="text-xs text-right">Losses</TableHead>
+                    <SortTH k="netProfit" label="Net $ (after fees)" align="right" />
                     <SortTH k="expectancy" label="Exp" align="right" />
                     <SortTH k="profitFactor" label="PF" align="right" />
                     <SortTH k="winRate" label="Win%" align="right" />
@@ -1343,7 +1346,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
             <TableBody>
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={18} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={21} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
               )}
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];
@@ -1434,6 +1437,9 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     </TableCell>
                     <TableCell className="text-[10px]">{b.weekdays.length ? b.weekdays.map((w) => wkLabels[w] ?? w).join(",") : "—"}</TableCell>
                     <TableCell className="text-right text-xs">{b.trades}</TableCell>
+                    <TableCell className="text-right text-xs text-emerald-500">{b.wins}</TableCell>
+                    <TableCell className="text-right text-xs text-red-500">{b.losses}</TableCell>
+                    <TableCell className={`text-right text-xs font-mono ${b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>${b.netProfit.toFixed(0)}</TableCell>
                     <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-xs">{b.profitFactor.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-xs">{(b.winRate * 100).toFixed(1)}</TableCell>

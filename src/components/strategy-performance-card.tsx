@@ -112,7 +112,19 @@ export function StrategyPerformanceCard({
                 <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
               </ToggleGroup>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title={lastSynced ? `Last synced ${lastSynced}` : "Sync now"}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+              <span className="text-xs font-mono text-muted-foreground">{lastSynced ?? "Sync"}</span>
+            </Button>
           </div>
+
         </CardTitle>
       </CardHeader>
       <CardContent>

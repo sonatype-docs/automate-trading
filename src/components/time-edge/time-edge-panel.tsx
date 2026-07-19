@@ -1437,6 +1437,9 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     </TableCell>
                     <TableCell className="text-[10px]">{b.weekdays.length ? b.weekdays.map((w) => wkLabels[w] ?? w).join(",") : "—"}</TableCell>
                     <TableCell className="text-right text-xs">{b.trades}</TableCell>
+                    <TableCell className="text-right text-xs text-emerald-500">{b.wins}</TableCell>
+                    <TableCell className="text-right text-xs text-red-500">{b.losses}</TableCell>
+                    <TableCell className={`text-right text-xs font-mono ${b.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>${b.netProfit.toFixed(0)}</TableCell>
                     <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-xs">{b.profitFactor.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-xs">{(b.winRate * 100).toFixed(1)}</TableCell>

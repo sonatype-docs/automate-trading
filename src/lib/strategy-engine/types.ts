@@ -59,7 +59,8 @@ export type SetupKind =
   | "prev_day_high_sweep" | "prev_day_low_sweep"
   | "equal_high_sweep" | "equal_low_sweep"
   | "vwap_cross" | "poc_rejection" | "vah_break" | "val_break"
-  | "pdh_pdl_sweep";
+  | "pdh_pdl_sweep"
+  | "donchian_break" | "supertrend_flip" | "rsi_extreme" | "bb_zscore_fade";
 
 export interface SetupConfig {
   kind: SetupKind;
@@ -67,7 +68,20 @@ export interface SetupConfig {
   breakBufferPct?: number;      // extra % beyond level to count as break
   retestTolerancePct?: number;  // for retest-of-level setups
   poc?: number; vah?: number; val?: number; // static levels for volume-profile setups
+  // Donchian breakout
+  donchianLookback?: number;    // e.g. 20 or 55
+  // SuperTrend
+  supertrendPeriod?: number;    // ATR period, default 10
+  supertrendMultiplier?: number; // default 3
+  // RSI extreme (Connors RSI-2 style)
+  rsiPeriod?: number;           // default 2
+  rsiOversold?: number;         // default 5 (long trigger)
+  rsiOverbought?: number;       // default 95 (short trigger)
+  // Bollinger z-score fade
+  bbPeriod?: number;            // default 20
+  bbSigma?: number;             // default 2.5
 }
+
 
 // ---------- Confirmation ----------
 export interface ConfirmationConfig {

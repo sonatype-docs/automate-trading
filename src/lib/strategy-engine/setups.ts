@@ -111,9 +111,103 @@ export function detectSetup(
     case "pdh_pdl_sweep":
       // Handled directly by the engine (needs multi-bar armed state).
       return null;
+    case "donchian_break": {
+      const N = Math.max(2, cfg.donchianLookback ?? 20);
+      if (i < N) return null;
+      let hi = -Infinity, lo = Infinity;
+      for (let k = i - N; k < i; k++) {
+        if (bars[k].high > hi) hi = bars[k].high;
+        if (bars[k].low < lo) lo = bars[k].low;
+      }
+      if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null;
+      if (bar.close > hi * (1 + buf) && prev.close <= hi)
+        return t("donchian_break", "long", hi, bar);
+      if (bar.close < lo * (1 - buf) && prev.close >= lo)
+        return t("donchian_break", "short", lo, bar);
+      return null;
+    }
+    case "supertrend_flip": {
+      const st = computeSuperTrend(bars, cfg.supertrendPeriod ?? 10, cfg.supertrendMultiplier ?? 3);
+      const cur = st[i]; const prv = st[i - 1];
+      if (!cur || !prv) return null;
+      if (prv.dir < 0 && cur.dir > 0) return t("supertrend_flip", "long", cur.line, bar);
+      if (prv.dir > 0 && cur.dir < 0) return t("supertrend_flip", "short", cur.line, bar);
+      return null;
+    }
+    case "rsi_extreme": {
+      const rsiVal = bar.rsi;
+      const prevRsi = prev.rsi;
+      if (rsiVal == null || prevRsi == null) return null;
+      const os = cfg.rsiOversold ?? 5;
+      const ob = cfg.rsiOverbought ?? 95;
+      // Trigger on the bar the RSI crosses back through the extreme (reversal confirmation)
+      if (prevRsi < os && rsiVal >= os) return t("rsi_extreme", "long", bar.close, bar);
+      if (prevRsi > ob && rsiVal <= ob) return t("rsi_extreme", "short", bar.close, bar);
+      return null;
+    }
+    case "bb_zscore_fade": {
+      const N = Math.max(5, cfg.bbPeriod ?? 20);
+      const sigma = cfg.bbSigma ?? 2.5;
+      if (i < N) return null;
+      let sum = 0;
+      for (let k = i - N; k < i; k++) sum += bars[k].close;
+      const mean = sum / N;
+      let sq = 0;
+      for (let k = i - N; k < i; k++) { const d = bars[k].close - mean; sq += d * d; }
+      const std = Math.sqrt(sq / N);
+      if (std <= 0) return null;
+      const upper = mean + sigma * std;
+      const lower = mean - sigma * std;
+      // Fade: prev closed outside the band, this bar closes back inside → mean-revert to mean.
+      if (prev.close < lower && bar.close > lower) return t("bb_zscore_fade", "long", mean, bar);
+      if (prev.close > upper && bar.close < upper) return t("bb_zscore_fade", "short", mean, bar);
+      return null;
+    }
   }
   return null;
 }
+
+// ── SuperTrend indicator ── memoized per bars array so the O(N) walk happens once.
+interface StPoint { line: number; dir: 1 | -1 }
+const _stCache = new WeakMap<object, { key: string; data: (StPoint | null)[] }>();
+function computeSuperTrend(bars: EnrichedCandle[], period: number, mult: number): (StPoint | null)[] {
+  const key = `${period}:${mult}:${bars.length}`;
+  const hit = _stCache.get(bars as unknown as object);
+  if (hit && hit.key === key) return hit.data;
+  const n = bars.length;
+  const out: (StPoint | null)[] = new Array(n).fill(null);
+  if (n === 0) return out;
+  // Use existing ATR field on the enriched candle — assumed period matches (14). We accept some drift.
+  let prevLine = 0; let prevDir: 1 | -1 = 1;
+  for (let i = 0; i < n; i++) {
+    const b = bars[i];
+    const atrV = b.atr;
+    if (atrV == null) continue;
+    const hl2 = (b.high + b.low) / 2;
+    const upBand = hl2 + mult * atrV;
+    const dnBand = hl2 - mult * atrV;
+    let line: number; let dir: 1 | -1;
+    if (i === 0 || !out[i - 1]) {
+      line = dnBand; dir = 1;
+    } else {
+      const p = out[i - 1]!;
+      if (p.dir > 0) {
+        line = Math.max(dnBand, p.line);
+        dir = b.close < line ? -1 : 1;
+        if (dir < 0) line = upBand;
+      } else {
+        line = Math.min(upBand, p.line);
+        dir = b.close > line ? 1 : -1;
+        if (dir > 0) line = dnBand;
+      }
+    }
+    prevLine = line; prevDir = dir;
+    out[i] = { line: prevLine, dir: prevDir };
+  }
+  _stCache.set(bars as unknown as object, { key, data: out });
+  return out;
+}
+
 
 function t(kind: SetupKind, direction: SignalDirection, level: number, bar: EnrichedCandle): SetupTrigger {
   return {

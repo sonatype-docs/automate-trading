@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity, RefreshCw } from "lucide-react";
 import { getPnlCalendar } from "@/lib/analytics.functions";
 
 type Mode = "all" | "paper" | "live";

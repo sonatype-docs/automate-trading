@@ -44,10 +44,15 @@ export function TimeEdgePanel() {
   const [resyncKey, setResyncKey] = useState(0);
   const [minTrades, setMinTrades] = useState(10);
   const [clusters, setClusters] = useState(4);
+  const [includeFees, setIncludeFees] = useState(true);
 
   const activeDatasets = useMemo(() => (snapshotName ? [snapshotName] : []), [snapshotName]);
   const { data: byDataset, progress, isLoading } = useDatasetsProgress(activeDatasets, resyncKey);
-  const trades = byDataset[snapshotName] ?? [];
+  const rawTrades = byDataset[snapshotName] ?? [];
+  const trades = useMemo(
+    () => (includeFees ? applyFees(rawTrades, DEFAULT_FEE_MODEL) : rawTrades),
+    [rawTrades, includeFees],
+  );
   const prog = progress[snapshotName];
 
   const [report, setReport] = useState<TimeEdgeReport | null>(null);

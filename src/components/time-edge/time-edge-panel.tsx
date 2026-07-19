@@ -1091,6 +1091,59 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
   return (
     <div className="space-y-4">
+      {/* Strictness controls */}
+      <Card className="border-primary/30">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-sm mr-2">Verdict strictness</CardTitle>
+            {(["standard", "strict", "institutional", "custom"] as const).map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={strictness === p ? "default" : "outline"}
+                className="h-7 px-2 text-xs capitalize"
+                onClick={() => {
+                  if (p === "custom") setStrictness("custom");
+                  else { setStrictness(p); setCustomT(STRICTNESS_PRESETS[p]); }
+                }}
+              >
+                {p}
+              </Button>
+            ))}
+            <div className="text-[11px] text-muted-foreground ml-auto">
+              Standard → hundreds of ELITEs · Strict → dozens · Institutional → only the best
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 text-[11px]">
+            {[
+              { k: "eliteRobustness", label: "Robustness ≥", step: 1, min: 50, max: 100 },
+              { k: "eliteTrades", label: "Trades ≥", step: 5, min: 10, max: 500 },
+              { k: "elitePF", label: "PF ≥", step: 0.05, min: 1, max: 5 },
+              { k: "eliteWinRate", label: "Win rate ≥", step: 0.01, min: 0.3, max: 0.9 },
+              { k: "eliteConf", label: "Confidence ≥", step: 0.01, min: 0.5, max: 1 },
+              { k: "eliteSharpe", label: "Sharpe ≥", step: 0.1, min: 0, max: 5 },
+              { k: "eliteExpectancy", label: "Expectancy ≥ $", step: 1, min: -20, max: 200 },
+            ].map((f) => (
+              <div key={f.k} className="min-w-0">
+                <Label className="text-[10px] text-muted-foreground">{f.label} <span className="text-primary">ELITE</span></Label>
+                <Input
+                  type="number"
+                  className="h-7 w-full"
+                  step={f.step}
+                  min={f.min}
+                  max={f.max}
+                  value={thresholds[f.k as keyof VerdictThresholds]}
+                  onChange={(e) => setT({ [f.k]: Number(e.target.value) } as Partial<VerdictThresholds>)}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+
       <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
         {(Object.keys(VERDICT_META) as Verdict[]).map((v) => {
           const meta = VERDICT_META[v];

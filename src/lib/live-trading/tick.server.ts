@@ -71,9 +71,16 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
       // window AND have no open orders to reconcile. Enter the window 5 min
       // early so the first bar of the session is not missed.
       const windows = windowsForPreset(r.strategy_preset);
-      const inWindow =
+      const inSessionWindow =
         windows.length === 0 || // unknown preset → always tick
         windows.some((w) => isWindowActive(w) || minutesUntilOpen(w) <= 5);
+      // Per-runner pinned IST hour window + weekday whitelist (from Time Edge deploys).
+      const inRunnerWindow = isRunnerAllowedNow({
+        window_start_hour_ist: r.window_start_hour_ist,
+        window_end_hour_ist: r.window_end_hour_ist,
+        weekdays_ist: r.weekdays_ist,
+      });
+      const inWindow = inSessionWindow && inRunnerWindow;
 
       if (!inWindow) {
         const { count } = await supabaseAdmin

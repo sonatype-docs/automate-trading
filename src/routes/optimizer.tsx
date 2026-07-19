@@ -37,6 +37,7 @@ import { computeMetrics } from "@/lib/optimizer/objectives";
 import { extractFeatures, allNumericKeys, allCategoricalKeys } from "@/lib/optimizer/dimensions";
 import { topToCsv, toJson, toMarkdown } from "@/lib/optimizer/report";
 import { candidateToRule, ruleToPredicate } from "@/lib/optimizer/filters";
+import { TimeEdgePanel } from "@/components/time-edge/time-edge-panel";
 
 export const Route = createFileRoute("/optimizer")({
   head: () => ({
@@ -133,6 +134,7 @@ function OptimizerPage() {
         <Tabs defaultValue="optimize" className="space-y-4">
           <TabsList className="flex flex-wrap gap-1">
             <TabsTrigger value="optimize">Optimization</TabsTrigger>
+            <TabsTrigger value="time-edge">Time Edge</TabsTrigger>
             <TabsTrigger value="wf">Walk-Forward</TabsTrigger>
             <TabsTrigger value="mc">Monte Carlo</TabsTrigger>
             <TabsTrigger value="heatmap">Heatmaps</TabsTrigger>
@@ -144,6 +146,7 @@ function OptimizerPage() {
           </TabsList>
 
           <TabsContent value="optimize"><OptimizePanel rows={rows} baseMetrics={baseMetrics} /></TabsContent>
+          <TabsContent value="time-edge"><TimeEdgePanel /></TabsContent>
           <TabsContent value="wf"><WalkForwardPanel rows={rows} /></TabsContent>
           <TabsContent value="mc"><MonteCarloPanel rows={rows} /></TabsContent>
           <TabsContent value="heatmap"><HeatmapPanel rows={rows} /></TabsContent>

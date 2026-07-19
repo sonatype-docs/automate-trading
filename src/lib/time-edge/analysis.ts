@@ -164,6 +164,7 @@ export function analyzeDim(
       robustness,
       symbols: Array.from(new Set(g.rows.map((r) => r.symbol))).slice(0, 20),
       strategies: Array.from(new Set(g.rows.map((r) => r.strategyId))).slice(0, 20),
+      ...contextOf(g.rows),
     });
   }
   return out.sort((a, b) => b.expectancy - a.expectancy);

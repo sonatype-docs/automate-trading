@@ -1186,7 +1186,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     <TableHead className="w-8"></TableHead>
                     <SortTH k="verdict" label="Verdict" />
                     <SortTH k="label" label="Bucket" />
-                    <SortTH k="dim" label="Dim" />
+                    
                     <SortTH k="symbol" label="Symbol" />
                     <SortTH k="timeframe" label="TF" />
                     <SortTH k="strategy" label="Strategy" />

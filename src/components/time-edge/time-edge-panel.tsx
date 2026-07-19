@@ -848,17 +848,15 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   }, [all]);
 
 
-  const dims = useMemo(() => Array.from(new Set(all.map((r) => r.b.dim))), [all]);
-  const [dimFilter, setDimFilter] = useState<string>("all");
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
   const [minTrades, setMinTrades] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
-  type SortKey = "verdict" | "label" | "dim" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
+  type SortKey = "verdict" | "label" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
   const [sortKey, setSortKey] = useState<SortKey>("robustness");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortKey(k); setSortDir(k === "label" || k === "dim" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
+    else { setSortKey(k); setSortDir(k === "label" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
   };
 
   const [symbolFilter, setSymbolFilter] = useState<string>("all");

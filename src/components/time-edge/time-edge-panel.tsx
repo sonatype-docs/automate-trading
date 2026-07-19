@@ -695,7 +695,7 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
             <Play className="h-4 w-4" /> Ship selected edges to runners
           </CardTitle>
           <CardDescription className="text-xs">
-            Pick rows below (checkbox) → choose target → Deploy. Existing runners with the same symbol + strategy + timeframe + exec preset are replaced.
+            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy replaces runners with the same symbol + strategy + timeframe + exec preset.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

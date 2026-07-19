@@ -337,16 +337,10 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   };
 
   // Selection + deploy (mirrors Robustness panel).
-  interface RowOverride {
-    symbol?: string;
-    timeframe?: string;
-    strategy?: string;
-    direction?: string;
-    windowStart?: number;
-    windowEnd?: number;
-  }
+  interface RowOverride extends RowOverrideBase {}
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const [savedBuckets, setSavedBuckets] = useState<Record<string, BucketMetrics>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
@@ -369,6 +363,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
       return next;
     });
     setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
+    setSavedBuckets((prev) => ({ ...prev, [id]: b }));
   };
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
@@ -1082,6 +1077,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const selectAllVisible = () => {
     const deployable = rows.filter((r) => isDeployableBucket(r.b));
     setSelected(new Set(deployable.map((r) => rowId(r.b))));
+    setSavedBuckets((prev) => {
+      const next = { ...prev };
+      for (const r of deployable) next[rowId(r.b)] = r.b;
+      return next;
+    });
     setOverrides((prev) => {
       const next = { ...prev };
       for (const r of deployable) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
@@ -1095,11 +1095,79 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
+  const [savedLists, setSavedLists] = useState<SavedTimeEdgeList[]>([]);
+  const [savedListId, setSavedListId] = useState<string>("");
+
+  useEffect(() => {
+    setSavedLists(readSavedTimeEdgeLists());
+  }, []);
+
+  const persistSavedLists = (lists: SavedTimeEdgeList[]) => {
+    setSavedLists(lists);
+    writeSavedTimeEdgeLists(lists);
+  };
+
+  const saveSelectedList = () => {
+    const rowBucketMap = new Map(rows.map((r) => [rowId(r.b), r.b]));
+    const entries = Array.from(selected).flatMap((id) => {
+      const bucket = rowBucketMap.get(id) ?? savedBuckets[id];
+      if (!bucket) return [];
+      return [{ id, bucket, override: overrides[id] ?? defaultOverride(bucket) }];
+    });
+    if (!entries.length) {
+      toast.error("Select at least one edge before saving");
+      return;
+    }
+    const name = window.prompt("Name this runner list", `Time Edge ${entries.length} runners`);
+    if (!name?.trim()) return;
+    const list: SavedTimeEdgeList = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      deployTarget,
+      deployRisk,
+      deployExec,
+      deployTf,
+      replaceExisting,
+      entries,
+    };
+    const next = [list, ...savedLists.filter((l) => l.name !== list.name)].slice(0, 20);
+    persistSavedLists(next);
+    setSavedListId(list.id);
+    toast.success(`Saved ${entries.length} selected runners`);
+  };
+
+  const loadSavedList = (id: string) => {
+    setSavedListId(id);
+    const list = savedLists.find((l) => l.id === id);
+    if (!list) return;
+    setDeployTarget(list.deployTarget);
+    setDeployRisk(list.deployRisk);
+    setDeployExec(list.deployExec);
+    setDeployTf(list.deployTf);
+    setReplaceExisting(list.replaceExisting);
+    setSelected(new Set(list.entries.map((e) => e.id)));
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const e of list.entries) next[e.id] = e.override;
+      return next;
+    });
+    setSavedBuckets((prev) => {
+      const next = { ...prev };
+      for (const e of list.entries) next[e.id] = e.bucket;
+      return next;
+    });
+    toast.success(`Loaded ${list.entries.length} saved runners`);
+  };
 
   const deployFn = useServerFn(deployTimeEdgeBuckets);
   const deployMut = useMutation({
     mutationFn: async () => {
-      const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
+      const rowBucketMap = new Map(rows.map((r) => [rowId(r.b), r.b]));
+      const picked = Array.from(selected).flatMap((id) => {
+        const bucket = rowBucketMap.get(id) ?? savedBuckets[id];
+        return bucket ? [bucket] : [];
+      });
       if (!picked.length) throw new Error("Select at least one bucket");
       const buckets = picked.flatMap((b) => {
         const id = rowId(b);

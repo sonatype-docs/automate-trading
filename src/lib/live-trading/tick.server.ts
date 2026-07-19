@@ -25,6 +25,10 @@ interface RunnerRow {
   risk_usd: number;
   lookback_days: number;
   leverage: number;
+  direction_filter: string | null;
+  window_start_hour_ist: number | null;
+  window_end_hour_ist: number | null;
+  weekdays_ist: number[] | null;
 }
 
 export interface LiveTickReport {

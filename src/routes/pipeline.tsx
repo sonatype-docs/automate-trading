@@ -482,6 +482,9 @@ function PipelinePage() {
               snapshotName: activeSnapshotRef.current || defaultDatasetName(),
             },
           });
+          if (!res || !Array.isArray(res.results)) {
+            throw new Error("batch returned no results");
+          }
           batchOk = true;
         } catch (e) {
           lastErr = e;

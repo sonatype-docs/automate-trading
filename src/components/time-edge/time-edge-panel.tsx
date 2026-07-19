@@ -1346,7 +1346,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
             <TableBody>
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={18} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={21} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
               )}
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];

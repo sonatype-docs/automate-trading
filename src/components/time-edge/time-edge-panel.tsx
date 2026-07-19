@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown, Layers } from "lucide-react";
+import { Download, FolderOpen, Save, Sparkles, Play, RefreshCw, Loader2, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import { useDatasetsProgress } from "@/hooks/use-datasets-progress";
 import { listSnapshots } from "@/lib/trade-intelligence.functions";
 import { generateTimeEdgeNarrative, deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
@@ -42,6 +42,44 @@ function firstLiveStrategy(strategies: string[]): string | undefined {
 }
 function isDeployableBucket(bucket: BucketMetrics): boolean {
   return Boolean(bucket.symbols.length && bucket.timeframes.length && firstLiveStrategy(bucket.strategies));
+}
+
+const SAVED_TIME_EDGE_LISTS_KEY = "time-edge-saved-runner-lists-v1";
+
+interface SavedTimeEdgeList {
+  id: string;
+  name: string;
+  createdAt: string;
+  deployTarget: "live" | "paper" | "both";
+  deployRisk: number;
+  deployExec: string;
+  deployTf: string;
+  replaceExisting: boolean;
+  entries: Array<{ id: string; bucket: BucketMetrics; override: RowOverrideBase }>;
+}
+
+interface RowOverrideBase {
+  symbol?: string;
+  timeframe?: string;
+  strategy?: string;
+  direction?: string;
+  windowStart?: number;
+  windowEnd?: number;
+}
+
+function readSavedTimeEdgeLists(): SavedTimeEdgeList[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SAVED_TIME_EDGE_LISTS_KEY) ?? "[]") as SavedTimeEdgeList[];
+    return Array.isArray(parsed) ? parsed.filter((l) => Array.isArray(l.entries)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedTimeEdgeLists(lists: SavedTimeEdgeList[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SAVED_TIME_EDGE_LISTS_KEY, JSON.stringify(lists.slice(0, 20)));
 }
 
 export function TimeEdgePanel() {
@@ -299,16 +337,10 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   };
 
   // Selection + deploy (mirrors Robustness panel).
-  interface RowOverride {
-    symbol?: string;
-    timeframe?: string;
-    strategy?: string;
-    direction?: string;
-    windowStart?: number;
-    windowEnd?: number;
-  }
+  interface RowOverride extends RowOverrideBase {}
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const [savedBuckets, setSavedBuckets] = useState<Record<string, BucketMetrics>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
@@ -331,6 +363,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
       return next;
     });
     setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
+    setSavedBuckets((prev) => ({ ...prev, [id]: b }));
   };
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
@@ -1006,16 +1039,10 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
 
   // ------- Selection + per-row overrides -------
-  interface RowOverride {
-    symbol?: string;
-    timeframe?: string;
-    strategy?: string;
-    direction?: string;
-    windowStart?: number;
-    windowEnd?: number;
-  }
+  interface RowOverride extends RowOverrideBase {}
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const [savedBuckets, setSavedBuckets] = useState<Record<string, BucketMetrics>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
@@ -1038,12 +1065,18 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return next;
     });
     setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
+    setSavedBuckets((prev) => ({ ...prev, [id]: b }));
   };
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
   const selectAllVisible = () => {
     const deployable = rows.filter((r) => isDeployableBucket(r.b));
     setSelected(new Set(deployable.map((r) => rowId(r.b))));
+    setSavedBuckets((prev) => {
+      const next = { ...prev };
+      for (const r of deployable) next[rowId(r.b)] = r.b;
+      return next;
+    });
     setOverrides((prev) => {
       const next = { ...prev };
       for (const r of deployable) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
@@ -1057,11 +1090,79 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
+  const [savedLists, setSavedLists] = useState<SavedTimeEdgeList[]>([]);
+  const [savedListId, setSavedListId] = useState<string>("");
+
+  useEffect(() => {
+    setSavedLists(readSavedTimeEdgeLists());
+  }, []);
+
+  const persistSavedLists = (lists: SavedTimeEdgeList[]) => {
+    setSavedLists(lists);
+    writeSavedTimeEdgeLists(lists);
+  };
+
+  const saveSelectedList = () => {
+    const rowBucketMap = new Map(rows.map((r) => [rowId(r.b), r.b]));
+    const entries = Array.from(selected).flatMap((id) => {
+      const bucket = rowBucketMap.get(id) ?? savedBuckets[id];
+      if (!bucket) return [];
+      return [{ id, bucket, override: overrides[id] ?? defaultOverride(bucket) }];
+    });
+    if (!entries.length) {
+      toast.error("Select at least one edge before saving");
+      return;
+    }
+    const name = window.prompt("Name this runner list", `Time Edge ${entries.length} runners`);
+    if (!name?.trim()) return;
+    const list: SavedTimeEdgeList = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      deployTarget,
+      deployRisk,
+      deployExec,
+      deployTf,
+      replaceExisting,
+      entries,
+    };
+    const next = [list, ...savedLists.filter((l) => l.name !== list.name)].slice(0, 20);
+    persistSavedLists(next);
+    setSavedListId(list.id);
+    toast.success(`Saved ${entries.length} selected runners`);
+  };
+
+  const loadSavedList = (id: string) => {
+    setSavedListId(id);
+    const list = savedLists.find((l) => l.id === id);
+    if (!list) return;
+    setDeployTarget(list.deployTarget);
+    setDeployRisk(list.deployRisk);
+    setDeployExec(list.deployExec);
+    setDeployTf(list.deployTf);
+    setReplaceExisting(list.replaceExisting);
+    setSelected(new Set(list.entries.map((e) => e.id)));
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const e of list.entries) next[e.id] = e.override;
+      return next;
+    });
+    setSavedBuckets((prev) => {
+      const next = { ...prev };
+      for (const e of list.entries) next[e.id] = e.bucket;
+      return next;
+    });
+    toast.success(`Loaded ${list.entries.length} saved runners`);
+  };
 
   const deployFn = useServerFn(deployTimeEdgeBuckets);
   const deployMut = useMutation({
     mutationFn: async () => {
-      const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
+      const rowBucketMap = new Map(rows.map((r) => [rowId(r.b), r.b]));
+      const picked = Array.from(selected).flatMap((id) => {
+        const bucket = rowBucketMap.get(id) ?? savedBuckets[id];
+        return bucket ? [bucket] : [];
+      });
       if (!picked.length) throw new Error("Select at least one bucket");
       const buckets = picked.flatMap((b) => {
         const id = rowId(b);
@@ -1184,7 +1285,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             <Play className="h-4 w-4" /> Ship selected edges to runners
           </CardTitle>
           <CardDescription className="text-xs">
-            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy replaces runners with the same symbol + strategy + timeframe + exec preset.
+            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy removes the old matching symbol + strategy-family once, then inserts every distinct selected time window.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1234,6 +1335,22 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
             <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {rows.length} visible</span>
+            <Button size="sm" variant="outline" disabled={!selected.size} onClick={saveSelectedList}>
+              <Save className="mr-1 h-4 w-4" /> Save list
+            </Button>
+            {savedLists.length > 0 && (
+              <Select value={savedListId} onValueChange={loadSavedList}>
+                <SelectTrigger className="h-8 w-48 text-xs">
+                  <FolderOpen className="mr-1 h-3 w-3" />
+                  <SelectValue placeholder="Load saved list" />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedLists.map((list) => (
+                    <SelectItem key={list.id} value={list.id}>{list.name} · {list.entries.length}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -1244,6 +1361,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                   .sort((a, b) => (b.b.robustness - a.b.robustness) || (b.b.expectancy - a.b.expectancy))
                   .slice(0, 10);
                 setSelected(new Set(top.map((r) => rowId(r.b))));
+                setSavedBuckets((prev) => {
+                  const next = { ...prev };
+                  for (const r of top) next[rowId(r.b)] = r.b;
+                  return next;
+                });
                 setOverrides((prev) => {
                   const next = { ...prev };
                   for (const r of top) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }

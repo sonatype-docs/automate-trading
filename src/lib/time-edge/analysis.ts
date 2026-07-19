@@ -295,9 +295,15 @@ export function crossAssetAnalysis(
 ): CrossAssetRow[] {
   const symbols = Array.from(new Set(trades.map((t) => t.symbol)));
   if (symbols.length < 2) return [];
+  // Pre-partition trades by symbol ONCE (O(n)) instead of filtering per symbol.
+  const bySymbol = new Map<string, TradeRecord[]>();
+  for (const t of trades) {
+    const arr = bySymbol.get(t.symbol);
+    if (arr) arr.push(t); else bySymbol.set(t.symbol, [t]);
+  }
   const perSymbol = new Map<string, Map<string, { label: string; rows: TradeRecord[] }>>();
   for (const s of symbols) {
-    perSymbol.set(s, groupByDim(trades.filter((t) => t.symbol === s), dim));
+    perSymbol.set(s, groupByDim(bySymbol.get(s) ?? [], dim));
   }
   const allKeys = new Set<string>();
   const labelMap = new Map<string, string>();

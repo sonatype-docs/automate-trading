@@ -574,17 +574,48 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
     return filtered.slice(0, 200);
   }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, symbolFilter, tfFilter, strategyFilter, dirFilter]);
 
-  // ------- Selection + Deploy -------
+  // ------- Selection + per-row overrides -------
+  interface RowOverride {
+    symbol?: string;
+    timeframe?: string;
+    strategy?: string;
+    direction?: string;
+    windowStart?: number;
+    windowEnd?: number;
+  }
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
-  const toggle = (id: string) => {
+  const defaultOverride = (b: BucketMetrics): RowOverride => {
+    const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
+    return {
+      symbol: b.symbols[0],
+      timeframe: b.timeframes[0],
+      strategy: b.strategies[0],
+      direction: b.directions[0],
+      windowStart: hrs[0],
+      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : undefined,
+    };
+  };
+  const toggle = (b: BucketMetrics) => {
+    const id = rowId(b);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+    setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
   };
-  const selectAllVisible = () => setSelected(new Set(rows.map((r) => rowId(r.b))));
+  const patchOverride = (id: string, patch: Partial<RowOverride>) =>
+    setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
+  const selectAllVisible = () => {
+    setSelected(new Set(rows.map((r) => rowId(r.b))));
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const r of rows) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
+      return next;
+    });
+  };
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
@@ -599,10 +630,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
       const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
       if (!picked.length) throw new Error("Select at least one bucket");
       const buckets = picked.map((b) => {
-        const symbol = b.symbols[0] ?? "";
-        const strategyPreset = b.strategies[0] ?? "";
-        const timeframe = deployTf !== "auto" ? deployTf : (b.timeframes[0] ?? "15m");
-        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick a narrower dimension (e.g. symbol_hour).`);
+        const id = rowId(b);
+        const ov = overrides[id] ?? defaultOverride(b);
+        const symbol = ov.symbol ?? b.symbols[0] ?? "";
+        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
+        const direction = ov.direction ?? b.directions[0];
+        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        const windowStartHourIst = ov.windowStart;
+        const windowEndHourIst = ov.windowEnd;
         return {
           label: b.label,
           symbol,
@@ -611,10 +647,12 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
           execPreset: deployExec,
           riskUsd: deployRisk,
           lookbackDays: 30,
-          hoursIst: b.hours,
+          hoursIst: (windowStartHourIst == null || windowEndHourIst == null) ? b.hours : undefined,
           weekdays: b.weekdays,
           sessions: b.sessions,
-          direction: b.directions[0],
+          direction,
+          windowStartHourIst,
+          windowEndHourIst,
         };
       });
       return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });

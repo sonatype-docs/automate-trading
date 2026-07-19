@@ -784,7 +784,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
     }
     // Merge sibling rows that are identical in every parameter except direction (long+short → both).
     const mergeKey = (b: BucketMetrics) =>
-      [b.dim, b.symbols.join(","), b.timeframes.join(","), b.strategies.join(","),
+      [b.symbols.join(","), b.timeframes.join(","), b.strategies.join(","),
        b.sessions.join(","), b.hours.join(","), b.weekdays.join(",")].join("|");
     const stripDirLabel = (s: string) =>
       s.replace(/\b(Long|Short|LONG|SHORT|long|short)\b\s*\+?\s*/g, "").replace(/\s{2,}/g, " ").trim();

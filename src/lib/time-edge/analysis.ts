@@ -30,12 +30,9 @@ export function bucketMetrics(
   const outsideWins = outside.filter((r) => r.netPnl > 0).length;
   const pz = propZ(insideWins, rows.length, outsideWins, outside.length);
   const confidence = 1 - Math.min(tt.p, pz.p);
-
   const holds = rows.map((r) => r.holdingBars ?? 0).filter((v) => v > 0).sort((a, b) => a - b);
   const medianHold = holds.length ? holds[Math.floor(holds.length / 2)] : 0;
-
   const robustness = computeRobustness(m, rows.length, confidence);
-
   return {
     key, label, dim,
     trades: m.trades, wins: m.wins, losses: m.losses,
@@ -55,26 +52,55 @@ export function bucketMetrics(
   };
 }
 
-/**
- * Robustness score 0-100 blending profit factor, expectancy, win-rate,
- * sample size, drawdown control, sharpe, and statistical confidence.
- */
 export function computeRobustness(
   m: ReturnType<typeof computeMetrics>,
   sample: number,
   confidence: number,
 ): number {
-  const pfScore = clamp01((m.profit_factor - 1) / 2) * 25;               // 0-25
-  const expScore = clamp01(m.expectancy / 50) * 15;                       // 0-15
-  const winScore = clamp01((m.win_rate - 0.4) / 0.4) * 10;                // 0-10
-  const sampleScore = clamp01(Math.log10(Math.max(1, sample)) / 3) * 15;  // 0-15  (up to 1000 trades)
-  const ddScore = clamp01(1 - (m.max_drawdown / Math.max(1, m.gross_profit))) * 10; // 0-10
-  const sharpeScore = clamp01(m.sharpe / 2) * 10;                         // 0-10
-  const confScore = clamp01(confidence) * 15;                             // 0-15
+  const pfScore = clamp01((m.profit_factor - 1) / 2) * 25;
+  const expScore = clamp01(m.expectancy / 50) * 15;
+  const winScore = clamp01((m.win_rate - 0.4) / 0.4) * 10;
+  const sampleScore = clamp01(Math.log10(Math.max(1, sample)) / 3) * 15;
+  const ddScore = clamp01(1 - (m.max_drawdown / Math.max(1, m.gross_profit))) * 10;
+  const sharpeScore = clamp01(m.sharpe / 2) * 10;
+  const confScore = clamp01(confidence) * 15;
   return Math.round(pfScore + expScore + winScore + sampleScore + ddScore + sharpeScore + confScore);
 }
 
 function clamp01(x: number): number { return Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0)); }
+
+// Fast pooled stats — one linear pass; outside = totals - inside (O(n) not O(n²)).
+type PoolStats = { n: number; sum: number; sumSq: number; wins: number };
+function poolStats(rows: TradeRecord[]): PoolStats {
+  let n = 0, s = 0, ss = 0, w = 0;
+  for (const r of rows) {
+    const p = r.netPnl ?? 0;
+    n++; s += p; ss += p * p;
+    if (p > 0) w++;
+  }
+  return { n, sum: s, sumSq: ss, wins: w };
+}
+function subtractPool(a: PoolStats, b: PoolStats): PoolStats {
+  return { n: a.n - b.n, sum: a.sum - b.sum, sumSq: a.sumSq - b.sumSq, wins: a.wins - b.wins };
+}
+function normCdfLocal(x: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422804014327 * Math.exp(-x * x / 2);
+  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+function welchFromPools(inside: PoolStats, outside: PoolStats): { t: number; p: number } {
+  if (inside.n < 2 || outside.n < 2) return { t: 0, p: 1 };
+  const ma = inside.sum / inside.n;
+  const mb = outside.sum / outside.n;
+  const va = Math.max(0, (inside.sumSq - inside.sum * inside.sum / inside.n) / (inside.n - 1));
+  const vb = Math.max(0, (outside.sumSq - outside.sum * outside.sum / outside.n) / (outside.n - 1));
+  const se = Math.sqrt(va / inside.n + vb / outside.n);
+  if (se <= 0) return { t: 0, p: 1 };
+  const t = (ma - mb) / se;
+  const z = Math.abs(t);
+  return { t, p: Math.max(0, Math.min(1, 2 * (1 - normCdfLocal(z)))) };
+}
 
 export function analyzeDim(
   trades: TradeRecord[],
@@ -83,11 +109,36 @@ export function analyzeDim(
   customWindows: CustomWindow[] = [],
 ): BucketMetrics[] {
   const groups = groupByDim(trades, dim, customWindows);
+  const totals = poolStats(trades);
   const out: BucketMetrics[] = [];
   for (const [key, g] of groups) {
     if (g.rows.length < minTrades) continue;
-    const outside = trades.filter((t) => !g.rows.includes(t));
-    out.push(bucketMetrics(key, g.label, dim, g.rows, outside));
+    const inside = poolStats(g.rows);
+    const outside = subtractPool(totals, inside);
+    const m = computeMetrics(g.rows);
+    const tt = welchFromPools(inside, outside);
+    const pz = propZ(inside.wins, inside.n, outside.wins, outside.n);
+    const confidence = 1 - Math.min(tt.p, pz.p);
+    const holds = g.rows.map((r) => r.holdingBars ?? 0).filter((v) => v > 0).sort((a, b) => a - b);
+    const medianHold = holds.length ? holds[Math.floor(holds.length / 2)] : 0;
+    const robustness = computeRobustness(m, g.rows.length, confidence);
+    out.push({
+      key, label: g.label, dim,
+      trades: m.trades, wins: m.wins, losses: m.losses,
+      netProfit: m.net_profit, grossProfit: m.gross_profit, grossLoss: m.gross_loss,
+      winRate: m.win_rate, profitFactor: Math.min(m.profit_factor, 999),
+      expectancy: m.expectancy, avgRr: m.avg_rr,
+      avgWin: m.avg_win, avgLoss: m.avg_loss,
+      sharpe: m.sharpe, sortino: m.sortino,
+      maxDrawdown: m.max_drawdown, ulcerIndex: m.ulcer_index,
+      recoveryFactor: m.recovery_factor,
+      avgHoldingBars: mean(g.rows.map((r) => r.holdingBars ?? 0)),
+      medianHoldingBars: medianHold,
+      pValueMean: tt.p, pValueWin: pz.p, confidence,
+      robustness,
+      symbols: Array.from(new Set(g.rows.map((r) => r.symbol))).slice(0, 20),
+      strategies: Array.from(new Set(g.rows.map((r) => r.strategyId))).slice(0, 20),
+    });
   }
   return out.sort((a, b) => b.expectancy - a.expectancy);
 }

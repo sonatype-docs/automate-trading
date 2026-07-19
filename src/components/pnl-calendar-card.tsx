@@ -160,28 +160,38 @@ export function PnlCalendarCard({
 
   return (
     <div className="space-y-4">
-      {(showStrategyFilter || !lockMode) && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {showStrategyFilter && (
-            <Select value={symbol} onValueChange={setSymbol}>
-              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Strategy" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All strategies</SelectItem>
-                {(data?.symbols ?? []).map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!lockMode && (
-            <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} variant="outline" size="sm">
-              <ToggleGroupItem value="all">All</ToggleGroupItem>
-              <ToggleGroupItem value="live">Live</ToggleGroupItem>
-              <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
-            </ToggleGroup>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {showStrategyFilter && (
+          <Select value={symbol} onValueChange={setSymbol}>
+            <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Strategy" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All strategies</SelectItem>
+              {(data?.symbols ?? []).map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {!lockMode && (
+          <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} variant="outline" size="sm">
+            <ToggleGroupItem value="all">All</ToggleGroupItem>
+            <ToggleGroupItem value="live">Live</ToggleGroupItem>
+            <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-1.5"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title={lastSynced ? `Last synced ${lastSynced}` : "Sync now"}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          <span className="text-xs font-mono text-muted-foreground">{lastSynced ?? "Sync"}</span>
+        </Button>
+      </div>
+
 
       {showKpis && (
         <div className="grid gap-3 grid-cols-2 md:grid-cols-4">

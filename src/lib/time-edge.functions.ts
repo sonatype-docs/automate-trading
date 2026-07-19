@@ -112,9 +112,35 @@ const DeployInput = z.object({
   replaceExisting: z.boolean().default(true),
 });
 
-function runnerKey(b: z.infer<typeof DeployBucket>): string {
-  const dir = (b.direction ?? "both").toLowerCase();
-  return `${b.symbol.toUpperCase()}|${b.strategyPreset}|${dir}`;
+function normalDirection(direction?: string): "long" | "short" | "both" {
+  const dir = (direction ?? "both").toLowerCase();
+  return dir === "long" || dir === "short" ? dir : "both";
+}
+
+function siblingPresetIds(preset: string): string[] {
+  const ids = new Set([preset]);
+  if (preset.endsWith("_long")) ids.add(preset.replace(/_long$/, "_short"));
+  if (preset.endsWith("_short")) ids.add(preset.replace(/_short$/, "_long"));
+  return Array.from(ids);
+}
+
+function normalizeList(values?: Array<string | number>): string {
+  if (!values?.length) return "*";
+  return [...values].map(String).sort().join(",");
+}
+
+function runnerKey(b: z.infer<typeof DeployBucket>, presetId = b.strategyPreset): string {
+  const dir = normalDirection(b.direction);
+  return [
+    b.symbol.toUpperCase(),
+    presetId,
+    dir,
+    b.timeframe,
+    b.windowStartHourIst ?? "*",
+    b.windowEndHourIst ?? "*",
+    normalizeList(b.weekdays),
+    normalizeList(b.sessions),
+  ].join("|");
 }
 
 function defaultSource(symbol: string): "yahoo" | "shark" {
@@ -141,17 +167,36 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       throw new Error(`${invalid.strategyPreset} is not registered as a live strategy. Pick a supported preset before deploying.`);
     }
 
-    const dedupedBuckets: Array<z.infer<typeof DeployBucket>> = [];
+    const preparedBuckets: Array<z.infer<typeof DeployBucket> & { presetId: string; dir: "long" | "short" | "both" }> = [];
     const seen = new Set<string>();
     const duplicateCountByKey = new Map<string, number>();
     for (const b of data.buckets) {
-      const key = runnerKey(b);
+      const dir = normalDirection(b.direction);
+      let presetId = b.strategyPreset;
+      let conflict = presetDirectionConflict(presetId, dir);
+      if (conflict) {
+        const swapped = presetId.endsWith("_long") && dir === "short"
+          ? presetId.replace(/_long$/, "_short")
+          : presetId.endsWith("_short") && dir === "long"
+            ? presetId.replace(/_short$/, "_long")
+            : null;
+        if (swapped && validStrategies.has(swapped)) {
+          presetId = swapped;
+          conflict = presetDirectionConflict(presetId, dir);
+        }
+      }
+      if (conflict) {
+        preparedBuckets.push({ ...b, presetId, dir });
+        continue;
+      }
+
+      const key = runnerKey(b, presetId);
       if (seen.has(key)) {
         duplicateCountByKey.set(key, (duplicateCountByKey.get(key) ?? 0) + 1);
         continue;
       }
       seen.add(key);
-      dedupedBuckets.push(b);
+      preparedBuckets.push({ ...b, presetId, dir });
     }
 
     const targets: Array<"live" | "paper"> =
@@ -164,10 +209,10 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
     };
 
     for (const [key, count] of duplicateCountByKey) {
-      const [symbol, preset, direction] = key.split("|");
+      const [symbol, preset, direction, timeframe, start, end] = key.split("|");
       summary.skipped.push({
-        label: `${symbol} · ${preset} · ${direction}`,
-        reason: `duplicate asset+strategy selection collapsed (${count} extra)`,
+        label: `${symbol} · ${preset} · ${direction} · ${timeframe} · ${start}→${end}`,
+        reason: `exact duplicate runner collapsed (${count} extra)`,
       });
     }
 
@@ -190,15 +235,21 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           ));
         }
 
-        // Remove existing rows whose asset + strategy collides with the new
-        // selection, regardless of timeframe/exec. This prevents duplicate
-        // BTC/XAU runners across 1m/5m/15m from firing competing entries.
-        for (const b of dedupedBuckets) {
+        // Remove existing rows once per asset + strategy-family before the
+        // new set is inserted. New selections are de-duped only by exact
+        // runner config, so multiple distinct time windows no longer collapse
+        // into a single BTC/XAU runner.
+        const deleteKeys = new Set<string>();
+        for (const b of preparedBuckets) {
+          const variants = siblingPresetIds(b.presetId).filter((id) => validStrategies.has(id));
+          const deleteKey = `${b.symbol.toUpperCase()}|${variants.sort().join(",")}`;
+          if (deleteKeys.has(deleteKey)) continue;
+          deleteKeys.add(deleteKey);
           const { data: hits } = await s
             .from(table)
             .select("id, label, symbol, timeframe, strategy_preset")
             .eq("symbol", b.symbol)
-            .eq("strategy_preset", b.strategyPreset);
+            .in("strategy_preset", variants);
           if (hits && hits.length) {
             await s.from(table).delete().in("id", hits.map((h: { id: string }) => h.id));
             summary[tgt].removed += hits.length;
@@ -209,7 +260,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
         }
       }
 
-      for (const b of dedupedBuckets) {
+      for (const b of preparedBuckets) {
         const src = b.source ?? defaultSource(b.symbol);
         const lev = b.leverage ?? defaultLeverage(b.symbol);
         // Expand pinned window (start..end IST) into an hours list; overrides hoursIst.
@@ -224,25 +275,9 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           hoursList = list;
           windowLabel = `${String(start).padStart(2, "0")}:00→${String(end).padStart(2, "0")}:00 IST`;
         }
-        // Validate direction against preset compatibility. Auto-remap
-        // long-only ↔ short-only preset pairs when the user picked the
-        // opposite side (e.g. liquidity_sweep_long + short → _short variant).
-        const dirRaw = (b.direction ?? "both").toLowerCase();
-        const dir: "long" | "short" | "both" =
-          dirRaw === "long" || dirRaw === "short" ? dirRaw : "both";
-        let presetId = b.strategyPreset;
-        let conflict = presetDirectionConflict(presetId, dir);
-        if (conflict) {
-          const swapped = presetId.endsWith("_long") && dir === "short"
-            ? presetId.replace(/_long$/, "_short")
-            : presetId.endsWith("_short") && dir === "long"
-              ? presetId.replace(/_short$/, "_long")
-              : null;
-          if (swapped && validStrategies.has(swapped)) {
-            presetId = swapped;
-            conflict = presetDirectionConflict(presetId, dir);
-          }
-        }
+        const dir = b.dir;
+        const presetId = b.presetId;
+        const conflict = presetDirectionConflict(presetId, dir);
         if (conflict) {
           summary.skipped.push({ label: b.label, reason: conflict });
           continue;

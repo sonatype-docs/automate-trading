@@ -127,6 +127,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
   .inputValidator((raw) => DeployInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { presetDirectionConflict } = await import("@/lib/session-windows");
     const s = supabaseAdmin;
 
     const targets: Array<"live" | "paper"> =
@@ -135,6 +136,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
     const summary = {
       live: { removed: 0, inserted: 0, runners: [] as string[] },
       paper: { removed: 0, inserted: 0, runners: [] as string[] },
+      skipped: [] as Array<{ label: string; reason: string }>,
     };
 
     for (const tgt of targets) {
@@ -173,12 +175,22 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           hoursList = list;
           windowLabel = `${String(start).padStart(2, "0")}:00→${String(end).padStart(2, "0")}:00 IST`;
         }
+        // Validate direction against preset compatibility. Skip impossible sides.
+        const dirRaw = (b.direction ?? "both").toLowerCase();
+        const dir: "long" | "short" | "both" =
+          dirRaw === "long" || dirRaw === "short" ? dirRaw : "both";
+        const conflict = presetDirectionConflict(b.strategyPreset, dir);
+        if (conflict) {
+          summary.skipped.push({ label: b.label, reason: conflict });
+          continue;
+        }
+
         const contextBits: string[] = [];
         if (windowLabel) contextBits.push(windowLabel);
         else if (hoursList?.length) contextBits.push(`hrs ${hoursList.join(",")}`);
         if (b.weekdays?.length) contextBits.push(`wk ${b.weekdays.join(",")}`);
         if (b.sessions?.length) contextBits.push(b.sessions.join("/"));
-        if (b.direction) contextBits.push(b.direction);
+        contextBits.push(dir);
         const label = `${b.symbol} · ${b.strategyPreset} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
 
         const row: Record<string, unknown> = {
@@ -191,6 +203,10 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           risk_usd: b.riskUsd,
           lookback_days: b.lookbackDays,
           running: false,
+          direction_filter: dir,
+          window_start_hour_ist: b.windowStartHourIst ?? null,
+          window_end_hour_ist: b.windowEndHourIst ?? null,
+          weekdays_ist: b.weekdays && b.weekdays.length > 0 ? b.weekdays : null,
         };
         if (tgt === "live") row.leverage = lev;
 
@@ -204,4 +220,5 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
 
     return summary;
   });
+
 

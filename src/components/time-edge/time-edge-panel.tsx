@@ -542,6 +542,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
   const [minTrades, setMinTrades] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
   const [sortKey, setSortKey] = useState<"robustness" | "expectancy" | "profitFactor" | "trades" | "confidence" | "netProfit">("robustness");
+  const [symbolFilter, setSymbolFilter] = useState<string>("all");
+  const [tfFilter, setTfFilter] = useState<string>("all");
+  const [strategyFilter, setStrategyFilter] = useState<string>("all");
+  const [dirFilter, setDirFilter] = useState<string>("all");
+
+  const allSymbols = useMemo(() => Array.from(new Set(all.flatMap((r) => r.b.symbols))).sort(), [all]);
+  const allTfs = useMemo(() => Array.from(new Set(all.flatMap((r) => r.b.timeframes))).sort(), [all]);
+  const allStrategies = useMemo(() => Array.from(new Set(all.flatMap((r) => r.b.strategies))).sort(), [all]);
+  const allDirections = useMemo(() => Array.from(new Set(all.flatMap((r) => r.b.directions))).sort(), [all]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -550,6 +559,10 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
       if (verdictFilter !== "all" && r.verdict !== verdictFilter) return false;
       if (r.b.trades < minTrades) return false;
       if (q && !r.b.label.toLowerCase().includes(q)) return false;
+      if (symbolFilter !== "all" && !r.b.symbols.includes(symbolFilter)) return false;
+      if (tfFilter !== "all" && !r.b.timeframes.includes(tfFilter)) return false;
+      if (strategyFilter !== "all" && !r.b.strategies.includes(strategyFilter)) return false;
+      if (dirFilter !== "all" && !r.b.directions.includes(dirFilter)) return false;
       return true;
     });
     const order: Record<Verdict, number> = { elite: 0, strong: 1, decent: 2, weak: 3, avoid: 4 };
@@ -559,7 +572,62 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
       return order[a.verdict] - order[b.verdict];
     });
     return filtered.slice(0, 200);
-  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey]);
+  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+
+  // ------- Selection + Deploy -------
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const selectAllVisible = () => setSelected(new Set(rows.map((r) => rowId(r.b))));
+  const clearSelection = () => setSelected(new Set());
+
+  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
+  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployExec, setDeployExec] = useState<string>("conservative_default");
+  const [deployTf, setDeployTf] = useState<string>("auto");
+  const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
+
+  const deployFn = useServerFn(deployTimeEdgeBuckets);
+  const deployMut = useMutation({
+    mutationFn: async () => {
+      const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
+      if (!picked.length) throw new Error("Select at least one bucket");
+      const buckets = picked.map((b) => {
+        const symbol = b.symbols[0] ?? "";
+        const strategyPreset = b.strategies[0] ?? "";
+        const timeframe = deployTf !== "auto" ? deployTf : (b.timeframes[0] ?? "15m");
+        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick a narrower dimension (e.g. symbol_hour).`);
+        return {
+          label: b.label,
+          symbol,
+          timeframe,
+          strategyPreset,
+          execPreset: deployExec,
+          riskUsd: deployRisk,
+          lookbackDays: 30,
+          hoursIst: b.hours,
+          weekdays: b.weekdays,
+          sessions: b.sessions,
+          direction: b.directions[0],
+        };
+      });
+      return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });
+    },
+    onSuccess: (r) => {
+      const parts: string[] = [];
+      if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
+      if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
+      toast.success(`Deployed. ${parts.join(" · ") || "no changes"}`);
+      setSelected(new Set());
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div className="space-y-4">
@@ -582,12 +650,78 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
         })}
       </div>
 
+      {/* Deploy toolbar */}
+      <Card className="border-primary/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Play className="h-4 w-4" /> Ship selected edges to runners
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Pick rows below (checkbox) → choose target → Deploy. Existing runners with the same symbol + strategy + timeframe + exec preset are replaced.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 md:grid-cols-6 items-end">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Target</Label>
+            <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paper">Paper only</SelectItem>
+                <SelectItem value="live">Live only</SelectItem>
+                <SelectItem value="both">Both live + paper</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
+            <Input type="number" min={1} max={1000} className="h-8" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
+            <Select value={deployExec} onValueChange={setDeployExec}>
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="conservative_default">conservative_default</SelectItem>
+                <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
+                <SelectItem value="no_management">no_management</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
+            <Select value={deployTf} onValueChange={setDeployTf}>
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">auto (from bucket)</SelectItem>
+                {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
+              Replace duplicates
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={selectAllVisible}>Select all ({rows.length})</Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
+            <Button size="sm" disabled={!selected.size || deployMut.isPending} onClick={() => deployMut.mutate()}>
+              {deployMut.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
+              Deploy {selected.size || ""}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex-1 min-w-[180px]">
               <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
-              <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Click a card above to filter.</CardDescription>
+              <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Filter by strategy/tf/symbol, then tick rows to deploy.</CardDescription>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <div>
@@ -597,6 +731,46 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
                   <SelectContent>
                     <SelectItem value="all">All dimensions</SelectItem>
                     {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Symbol</Label>
+                <Select value={symbolFilter} onValueChange={setSymbolFilter}>
+                  <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {allSymbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">TF</Label>
+                <Select value={tfFilter} onValueChange={setTfFilter}>
+                  <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {allTfs.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Strategy</Label>
+                <Select value={strategyFilter} onValueChange={setStrategyFilter}>
+                  <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {allStrategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Dir</Label>
+                <Select value={dirFilter} onValueChange={setDirFilter}>
+                  <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {allDirections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -639,9 +813,17 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead className="text-xs">Verdict</TableHead>
                 <TableHead className="text-xs">Bucket</TableHead>
                 <TableHead className="text-xs">Dim</TableHead>
+                <TableHead className="text-xs">Symbol</TableHead>
+                <TableHead className="text-xs">TF</TableHead>
+                <TableHead className="text-xs">Strategy</TableHead>
+                <TableHead className="text-xs">Dir</TableHead>
+                <TableHead className="text-xs">Session</TableHead>
+                <TableHead className="text-xs">Hrs IST</TableHead>
+                <TableHead className="text-xs">Wkdys</TableHead>
                 <TableHead className="text-xs text-right">Trades</TableHead>
                 <TableHead className="text-xs text-right">Exp</TableHead>
                 <TableHead className="text-xs text-right">PF</TableHead>
@@ -654,15 +836,27 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={19} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
               )}
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];
+                const id = rowId(b);
+                const wkLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
                 return (
-                  <TableRow key={`${b.dim}-${b.key}`} className={meta.rowClass}>
+                  <TableRow key={id} className={meta.rowClass}>
+                    <TableCell>
+                      <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
+                    </TableCell>
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[120px] truncate" title={b.symbols.join(", ")}>{b.symbols.slice(0, 2).join(",") || "—"}{b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</TableCell>
+                    <TableCell className="text-[11px]">{b.timeframes.join(",") || "—"}</TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[140px] truncate" title={b.strategies.join(", ")}>{b.strategies.slice(0, 2).join(",") || "—"}{b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</TableCell>
+                    <TableCell className="text-[11px]">{b.directions.join("/") || "—"}</TableCell>
+                    <TableCell className="text-[11px]">{b.sessions.join("/") || "—"}</TableCell>
+                    <TableCell className="text-[10px] font-mono max-w-[120px] truncate" title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</TableCell>
+                    <TableCell className="text-[10px]">{b.weekdays.length ? b.weekdays.map((w) => wkLabels[w] ?? w).join(",") : "—"}</TableCell>
                     <TableCell className="text-right text-xs">{b.trades}</TableCell>
                     <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-xs">{b.profitFactor.toFixed(2)}</TableCell>
@@ -703,6 +897,7 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
     </div>
   );
 }
+
 
 // ---------------- Validation ----------------
 function ValidationPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {

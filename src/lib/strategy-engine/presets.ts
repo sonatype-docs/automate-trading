@@ -183,7 +183,29 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     invalidation: { maxDelayBars: 2 },
     risk: { riskPerTradeUsd: 100 },
   },
+  london_orb_xau_strict: {
+    strategyId: "london-orb-xau-strict",
+    strategyName: "XAU London ORB (VWAP + ADX filter)",
+    direction: "both",
+    session: { allowedSessions: ["london", "london_ny_overlap"], blockWeekend: true, blockHoliday: true },
+    trend: { adxMin: 22, vwapSide: "above" },
+    volatility: { atrPercentileMin: 40, atrPercentileMax: 95 },
+    setup: { kind: "opening_range_break", breakBufferPct: 0.05 },
+    confirmation: { requireClose: true, minBodyPct: 55, minAtrMultiple: 0.35 },
+    entry: { model: { kind: "stop", breakoutBufferPct: 0.03 }, expiryBars: 4 },
+    stop: { kind: "opposite_range" },
+    targets: {
+      legs: [{ kind: "rr", value: 1, sizePct: 40 }, { kind: "rr", value: 3, sizePct: 60 }],
+      moveToBreakEvenAtR: 1,
+      trailAfterR: 2,
+      trailStepR: 0.5,
+    },
+    management: { maxDailyTrades: 1, timeStopBars: 30 },
+    invalidation: { maxDelayBars: 4, invalidateOnSessionEnd: true, invalidateOnStructureFlip: true },
+    risk: { riskPerTradeUsd: 100 },
+  },
 };
 
 export type StrategyPresetId = keyof typeof STRATEGY_PRESETS;
+
 

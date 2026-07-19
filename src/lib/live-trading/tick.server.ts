@@ -50,7 +50,7 @@ let idleTickCounter = 0;
 export async function runLiveTradingTick(): Promise<LiveTickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("live_runners")
-    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist")
     .eq("running", true);
   if (error) throw new Error(error.message);
 

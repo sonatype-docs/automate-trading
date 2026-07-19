@@ -814,7 +814,7 @@ function classify(b: BucketMetrics, T: VerdictThresholds): { verdict: Verdict; r
 
 function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: TradeRecord[] }) {
   // Split every dimension by (timeframe × symbol) so each row = one TF+Symbol verdict.
-  const all = useMemo(() => {
+  const mergedRows = useMemo(() => {
     const dims = Object.keys(report.buckets) as BucketDim[];
     const groupMap = new Map<string, { tf: string; sym: string; trades: TradeRecord[] }>();
     for (const t of trades) {

@@ -84,8 +84,8 @@ export const generateTimeEdgeNarrative = createServerFn({ method: "POST" })
 
 // ---------------------------------------------------------------------------
 // Deploy selected Time Edge buckets as live_runners / paper_runners.
-// Each bucket is turned into one runner keyed by (symbol, timeframe, strategy,
-// exec preset). Any existing runner matching that key is REPLACED so the top
+// Each bucket is turned into one runner keyed by asset + strategy + direction.
+// Existing rows for the same asset + strategy are removed first so the top
 // picks are the only ones present, per user policy.
 // ---------------------------------------------------------------------------
 const DeployBucket = z.object({
@@ -95,7 +95,7 @@ const DeployBucket = z.object({
   strategyPreset: z.string(),
   execPreset: z.string().default("conservative_default"),
   source: z.enum(["yahoo", "shark"]).optional(),
-  riskUsd: z.number().positive().max(10_000).default(20),
+  riskUsd: z.number().positive().max(10_000).default(10),
   leverage: z.number().int().min(1).max(200).optional(),
   lookbackDays: z.number().int().min(1).max(365).default(30),
   hoursIst: z.array(z.number()).optional(),
@@ -111,6 +111,11 @@ const DeployInput = z.object({
   buckets: z.array(DeployBucket).min(1).max(50),
   replaceExisting: z.boolean().default(true),
 });
+
+function runnerKey(b: z.infer<typeof DeployBucket>): string {
+  const dir = (b.direction ?? "both").toLowerCase();
+  return `${b.symbol.toUpperCase()}|${b.strategyPreset}|${dir}`;
+}
 
 function defaultSource(symbol: string): "yahoo" | "shark" {
   const s = symbol.toUpperCase();
@@ -136,14 +141,35 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       throw new Error(`${invalid.strategyPreset} is not registered as a live strategy. Pick a supported preset before deploying.`);
     }
 
+    const dedupedBuckets: Array<z.infer<typeof DeployBucket>> = [];
+    const seen = new Set<string>();
+    const duplicateCountByKey = new Map<string, number>();
+    for (const b of data.buckets) {
+      const key = runnerKey(b);
+      if (seen.has(key)) {
+        duplicateCountByKey.set(key, (duplicateCountByKey.get(key) ?? 0) + 1);
+        continue;
+      }
+      seen.add(key);
+      dedupedBuckets.push(b);
+    }
+
     const targets: Array<"live" | "paper"> =
       data.target === "both" ? ["live", "paper"] : [data.target];
 
     const summary = {
-      live: { removed: 0, inserted: 0, runners: [] as string[] },
-      paper: { removed: 0, inserted: 0, runners: [] as string[] },
+      live: { removed: 0, inserted: 0, runners: [] as string[], removedRunners: [] as string[] },
+      paper: { removed: 0, inserted: 0, runners: [] as string[], removedRunners: [] as string[] },
       skipped: [] as Array<{ label: string; reason: string }>,
     };
+
+    for (const [key, count] of duplicateCountByKey) {
+      const [symbol, preset, direction] = key.split("|");
+      summary.skipped.push({
+        label: `${symbol} · ${preset} · ${direction}`,
+        reason: `duplicate asset+strategy selection collapsed (${count} extra)`,
+      });
+    }
 
     for (const tgt of targets) {
       const table = tgt === "live" ? "live_runners" : "paper_runners";
@@ -151,7 +177,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       if (data.replaceExisting) {
         const { data: staleInvalid } = await s
           .from(table)
-          .select("id")
+          .select("id, label, symbol, timeframe, strategy_preset")
           .not("strategy_preset", "in", `(${Array.from(validStrategies).join(",")})`);
         if (staleInvalid?.length) {
           const ids = staleInvalid.map((r: { id: string }) => r.id);
@@ -159,26 +185,31 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           await s.from(tradeTable).delete().in("runner_id", ids);
           await s.from(table).delete().in("id", ids);
           summary[tgt].removed += staleInvalid.length;
+          summary[tgt].removedRunners.push(...staleInvalid.map((r: { label?: string | null; symbol?: string; timeframe?: string; strategy_preset?: string }) =>
+            r.label ?? `${r.symbol ?? "?"} · ${r.strategy_preset ?? "?"} · ${r.timeframe ?? "?"}`,
+          ));
         }
 
-        // Remove existing rows whose (symbol+timeframe+strategy_preset+exec_preset)
-        // collides with any selected bucket.
-        for (const b of data.buckets) {
+        // Remove existing rows whose asset + strategy collides with the new
+        // selection, regardless of timeframe/exec. This prevents duplicate
+        // BTC/XAU runners across 1m/5m/15m from firing competing entries.
+        for (const b of dedupedBuckets) {
           const { data: hits } = await s
             .from(table)
-            .select("id")
+            .select("id, label, symbol, timeframe, strategy_preset")
             .eq("symbol", b.symbol)
-            .eq("timeframe", b.timeframe)
-            .eq("strategy_preset", b.strategyPreset)
-            .eq("exec_preset", b.execPreset);
+            .eq("strategy_preset", b.strategyPreset);
           if (hits && hits.length) {
             await s.from(table).delete().in("id", hits.map((h: { id: string }) => h.id));
             summary[tgt].removed += hits.length;
+            summary[tgt].removedRunners.push(...hits.map((h: { label?: string | null; symbol?: string; timeframe?: string; strategy_preset?: string }) =>
+              h.label ?? `${h.symbol ?? "?"} · ${h.strategy_preset ?? "?"} · ${h.timeframe ?? "?"}`,
+            ));
           }
         }
       }
 
-      for (const b of data.buckets) {
+      for (const b of dedupedBuckets) {
         const src = b.source ?? defaultSource(b.symbol);
         const lev = b.leverage ?? defaultLeverage(b.symbol);
         // Expand pinned window (start..end IST) into an hours list; overrides hoursIst.

@@ -5,6 +5,73 @@ import type { StrategyConfig } from "./types";
 export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
   // ── Phase 1 additions ──────────────────────────────────────────────
 
+  pdh_pdl_sweep_1m: {
+    strategyId: "pdh-pdl-sweep-1m",
+    strategyName: "PDH/PDL Liquidity Sweep (1:4)",
+    direction: "both",
+    session: { blockWeekend: true },
+    trend: {},
+    volatility: { atrPercentileMin: 20, atrPercentileMax: 95 },
+    setup: { kind: "pdh_pdl_sweep", breakBufferPct: 0.02 },
+    confirmation: { requireClose: true, minBodyPct: 35 },
+    entry: { model: { kind: "limit", pullbackPct: 0.02 }, expiryBars: 3 },
+    stop: { kind: "sweep_extreme", bufferPct: 0.02 },
+    targets: {
+      legs: [{ kind: "rr", value: 4, sizePct: 100 }],
+      moveToBreakEvenAtR: 1,
+      trailAfterR: 2,
+      trailStepR: 0.5,
+    },
+    management: { maxDailyTrades: 2, maxAttemptsPerSweep: 1 },
+    invalidation: { maxDelayBars: 3 },
+    risk: { riskPerTradeUsd: 100 },
+  },
+
+  london_orb: {
+    strategyId: "london-orb",
+    strategyName: "London ORB Breakout (1:4)",
+    direction: "both",
+    session: { allowedSessions: ["london", "london_ny_overlap"], blockWeekend: true, blockHoliday: true },
+    trend: { adxMin: 18 },
+    volatility: { atrPercentileMin: 30, atrPercentileMax: 95 },
+    setup: { kind: "opening_range_break", breakBufferPct: 0.04 },
+    confirmation: { requireClose: true, minBodyPct: 50, minAtrMultiple: 0.25 },
+    entry: { model: { kind: "stop", breakoutBufferPct: 0.02 }, expiryBars: 4 },
+    stop: { kind: "opposite_range" },
+    targets: {
+      legs: [{ kind: "rr", value: 4, sizePct: 100 }],
+      moveToBreakEvenAtR: 1,
+      trailAfterR: 2,
+      trailStepR: 0.5,
+    },
+    management: { maxDailyTrades: 1, timeStopBars: 30 },
+    invalidation: { maxDelayBars: 4, invalidateOnSessionEnd: true, invalidateOnStructureFlip: true },
+    risk: { riskPerTradeUsd: 100 },
+  },
+
+  vwap_mean_revert: {
+    strategyId: "vwap-mean-revert",
+    strategyName: "VWAP Mean Reversion (1:4)",
+    direction: "both",
+    session: { blockWeekend: true },
+    trend: { adxMax: 24 },
+    volatility: { atrPercentileMin: 10, atrPercentileMax: 80 },
+    regime: { allowed: ["range_calm", "range_volatile"] },
+    setup: { kind: "bb_zscore_fade", bbPeriod: 20, bbSigma: 2.0 },
+    confirmation: { requireClose: true },
+    entry: { model: { kind: "limit", pullbackPct: 0.02 }, expiryBars: 3 },
+    stop: { kind: "atr", multiple: 1.2 },
+    targets: {
+      legs: [{ kind: "rr", value: 4, sizePct: 100 }],
+      moveToBreakEvenAtR: 1,
+      trailAfterR: 2,
+      trailStepR: 0.5,
+    },
+    management: { maxDailyTrades: 3, timeStopBars: 16 },
+    invalidation: { maxDelayBars: 3 },
+    risk: { riskPerTradeUsd: 100 },
+  },
+
   turtle_s1: {
     strategyId: "turtle-s1",
     strategyName: "Turtle Donchian 20/10",

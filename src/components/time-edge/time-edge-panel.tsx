@@ -40,6 +40,9 @@ function liveStrategyOptions(strategies: string[]): string[] {
 function firstLiveStrategy(strategies: string[]): string | undefined {
   return liveStrategyOptions(strategies)[0];
 }
+function isDeployableBucket(bucket: BucketMetrics): boolean {
+  return Boolean(bucket.symbols.length && bucket.timeframes.length && firstLiveStrategy(bucket.strategies));
+}
 
 export function TimeEdgePanel() {
   const snapshotsFn = useServerFn(listSnapshots);
@@ -332,17 +335,18 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
   const selectAllVisible = () => {
-    setSelected(new Set(shown.map((b) => rowId(b))));
+    const deployable = shown.filter(isDeployableBucket);
+    setSelected(new Set(deployable.map((b) => rowId(b))));
     setOverrides((prev) => {
       const next = { ...prev };
-      for (const b of shown) { const id = rowId(b); if (!next[id]) next[id] = defaultOverride(b); }
+      for (const b of deployable) { const id = rowId(b); if (!next[id]) next[id] = defaultOverride(b); }
       return next;
     });
   };
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
-  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
@@ -363,7 +367,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
         if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        const dirs = [dirChoice];
         return dirs.map((direction) => ({
           label: b.label,
           symbol,
@@ -386,7 +390,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
       const parts: string[] = [];
       if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
       if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
-      { const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${skipMsg}`); }
+      { const removed = [...(r.live.removedRunners ?? []), ...(r.paper.removedRunners ?? [])]; const removedMsg = removed.length ? ` · deleted: ${removed.slice(0, 4).join(" | ")}${removed.length > 4 ? "…" : ""}` : ""; const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${removedMsg}${skipMsg}`); }
       setSelected(new Set());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -479,7 +483,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Risk USD</Label>
-              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 10)} />
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
@@ -1038,17 +1042,18 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
   const selectAllVisible = () => {
-    setSelected(new Set(rows.map((r) => rowId(r.b))));
+    const deployable = rows.filter((r) => isDeployableBucket(r.b));
+    setSelected(new Set(deployable.map((r) => rowId(r.b))));
     setOverrides((prev) => {
       const next = { ...prev };
-      for (const r of rows) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
+      for (const r of deployable) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
       return next;
     });
   };
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
-  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
@@ -1069,7 +1074,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         if (!LIVE_STRATEGY_IDS.has(strategyPreset)) throw new Error(`Bucket "${b.label}" uses ${strategyPreset}, which is not registered as a live strategy.`);
         const windowStartHourIst = ov.windowStart;
         const windowEndHourIst = ov.windowEnd;
-        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        const dirs = [dirChoice];
         return dirs.map((direction) => ({
           label: b.label,
           symbol,
@@ -1092,7 +1097,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       const parts: string[] = [];
       if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
       if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
-      { const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${skipMsg}`); }
+      { const removed = [...(r.live.removedRunners ?? []), ...(r.paper.removedRunners ?? [])]; const removedMsg = removed.length ? ` · deleted: ${removed.slice(0, 4).join(" | ")}${removed.length > 4 ? "…" : ""}` : ""; const skipMsg = r.skipped?.length ? ` · skipped ${r.skipped.length} (${r.skipped.slice(0,2).map(s=>s.reason).join("; ")}${r.skipped.length>2?"…":""})` : ""; toast.success(`Deployed. ${parts.join(" · ") || "no changes"}${removedMsg}${skipMsg}`); }
       setSelected(new Set());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1197,7 +1202,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
-              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 10)} />
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
@@ -1235,6 +1240,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
               disabled={!rows.length}
               onClick={() => {
                 const top = [...rows]
+                  .filter((r) => isDeployableBucket(r.b))
                   .sort((a, b) => (b.b.robustness - a.b.robustness) || (b.b.expectancy - a.b.expectancy))
                   .slice(0, 10);
                 setSelected(new Set(top.map((r) => rowId(r.b))));

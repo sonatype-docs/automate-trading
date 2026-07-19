@@ -660,52 +660,53 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
             Pick rows below (checkbox) → choose target → Deploy. Existing runners with the same symbol + strategy + timeframe + exec preset are replaced.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-6 items-end">
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Target</Label>
-            <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="paper">Paper only</SelectItem>
-                <SelectItem value="live">Live only</SelectItem>
-                <SelectItem value="both">Both live + paper</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
-            <Input type="number" min={1} max={1000} className="h-8" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
-            <Select value={deployExec} onValueChange={setDeployExec}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="conservative_default">conservative_default</SelectItem>
-                <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
-                <SelectItem value="no_management">no_management</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
-            <Select value={deployTf} onValueChange={setDeployTf}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">auto (from bucket)</SelectItem>
-                {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-xs cursor-pointer">
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-end">
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Target</Label>
+              <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v as "live" | "paper" | "both")}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paper">Paper only</SelectItem>
+                  <SelectItem value="live">Live only</SelectItem>
+                  <SelectItem value="both">Both live + paper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
+              <Select value={deployExec} onValueChange={setDeployExec}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="conservative_default">conservative_default</SelectItem>
+                  <SelectItem value="optimistic_scalper">optimistic_scalper</SelectItem>
+                  <SelectItem value="no_management">no_management</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0">
+              <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
+              <Select value={deployTf} onValueChange={setDeployTf}>
+                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">auto (from bucket)</SelectItem>
+                  {["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"].map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-center gap-2 text-xs cursor-pointer h-8 px-2 rounded border bg-muted/30">
               <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
               Replace duplicates
             </label>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {rows.length} visible</span>
             <Button size="sm" variant="outline" onClick={selectAllVisible}>Select all ({rows.length})</Button>
             <Button size="sm" variant="ghost" onClick={clearSelection}>Clear</Button>
             <Button size="sm" disabled={!selected.size || deployMut.isPending} onClick={() => deployMut.mutate()}>

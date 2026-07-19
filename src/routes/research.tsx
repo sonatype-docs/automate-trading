@@ -592,6 +592,16 @@ function ResearchPage() {
                         </span>
                       )}
                     </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={includeFees}
+                        onCheckedChange={(v) => setIncludeFees(!!v)}
+                      />
+                      <span className="flex-1">Include exchange fees</span>
+                      <span className="text-muted-foreground text-[10px]">
+                        maker {(DEFAULT_FEE_MODEL.makerRate * 100).toFixed(3)}% · taker {(DEFAULT_FEE_MODEL.takerRate * 100).toFixed(3)}%
+                      </span>
+                    </label>
                     {extraDatasets.length > 0 && (
                       <Button
                         variant="ghost"

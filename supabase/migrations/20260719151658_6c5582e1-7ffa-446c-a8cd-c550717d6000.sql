@@ -1,0 +1,1 @@
+DELETE FROM public.live_runners WHERE strategy_preset = 'liquidity_sweep_long'; DELETE FROM public.paper_runners WHERE strategy_preset = 'liquidity_sweep_long';

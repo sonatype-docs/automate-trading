@@ -193,13 +193,32 @@ function AllRunnersStatusPanel({
                   <SymbolIcon className={`h-4 w-4 shrink-0 ${symbolColor}`} />
                   <span className={`font-semibold truncate ${isDim ? "text-muted-foreground" : ""}`}>{r.label}</span>
                 </div>
-                <span className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
-                  isDim ? "bg-muted/60 text-muted-foreground/70 border-border/50"
-                  : r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow"
-                  : "bg-accent/40 text-accent-foreground border-accent"
-                }`}>
-                  {r.leverage}×
-                </span>
+                <div className="shrink-0 flex items-center gap-1">
+                  {(() => {
+                    const on = isTodayAllowedForRunner(r.weekdays_ist ?? null);
+                    return (
+                      <span
+                        title={r.weekdays_ist && r.weekdays_ist.length > 0
+                          ? `Scheduled days (IST): ${r.weekdays_ist.slice().sort().join(", ")}`
+                          : "Runs every day"}
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
+                          on
+                            ? "bg-success/20 text-success border-success/40"
+                            : "bg-muted/60 text-muted-foreground/80 border-border/60"
+                        }`}
+                      >
+                        {on ? `ON · ${istTodayName()}` : `OFF · ${istTodayName()}`}
+                      </span>
+                    );
+                  })()}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
+                    isDim ? "bg-muted/60 text-muted-foreground/70 border-border/50"
+                    : r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow"
+                    : "bg-accent/40 text-accent-foreground border-accent"
+                  }`}>
+                    {r.leverage}×
+                  </span>
+                </div>
               </div>
 
               <div className={`inline-flex items-center gap-1 self-start text-[10px] px-1.5 py-0.5 rounded-md border font-medium ${toneBadge}`}>

@@ -74,6 +74,7 @@ export function fmtDuration(min: number): string {
 
 // Sessions each strategy preset is allowed to enter in (mirrors STRATEGY_PRESETS).
 export const PRESET_SESSIONS: Record<string, SessionKey[]> = {
+  london_orb: ["london", "london_ny_overlap"],
   london_orb_xau_strict: ["london", "london_ny_overlap"],
 };
 

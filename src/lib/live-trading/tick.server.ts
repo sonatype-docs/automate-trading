@@ -376,7 +376,8 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   // 4) Best-effort leverage update — ignore errors.
   try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
 
-  // 5) Place market order with attached SL/TP.
+  // 5) Place entry as LIMIT only. SL/TP exits are managed separately by the
+  // exchange reconciliation logic so entry never pays taker fees.
   let placedOk = 0;
   const insertBase = {
     runner_id: r.id,

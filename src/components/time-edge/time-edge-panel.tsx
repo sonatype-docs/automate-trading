@@ -40,6 +40,9 @@ function liveStrategyOptions(strategies: string[]): string[] {
 function firstLiveStrategy(strategies: string[]): string | undefined {
   return liveStrategyOptions(strategies)[0];
 }
+function isDeployableBucket(bucket: BucketMetrics): boolean {
+  return Boolean(bucket.symbols.length && bucket.timeframes.length && firstLiveStrategy(bucket.strategies));
+}
 
 export function TimeEdgePanel() {
   const snapshotsFn = useServerFn(listSnapshots);
@@ -342,7 +345,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
-  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
@@ -479,7 +482,7 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Risk USD</Label>
-              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 10)} />
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
@@ -1048,7 +1051,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
-  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
   const [deployExec, setDeployExec] = useState<string>("conservative_default");
   const [deployTf, setDeployTf] = useState<string>("auto");
   const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
@@ -1197,7 +1200,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Risk USD / trade</Label>
-              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 20)} />
+              <Input type="number" min={1} max={1000} className="h-8 w-full" value={deployRisk} onChange={(e) => setDeployRisk(Number(e.target.value) || 10)} />
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Exec preset</Label>
@@ -1235,6 +1238,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
               disabled={!rows.length}
               onClick={() => {
                 const top = [...rows]
+                  .filter((r) => isDeployableBucket(r.b))
                   .sort((a, b) => (b.b.robustness - a.b.robustness) || (b.b.expectancy - a.b.expectancy))
                   .slice(0, 10);
                 setSelected(new Set(top.map((r) => rowId(r.b))));

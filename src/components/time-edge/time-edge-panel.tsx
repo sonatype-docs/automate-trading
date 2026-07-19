@@ -20,6 +20,7 @@ import { analyzeTimeEdges } from "@/lib/time-edge/analysis";
 import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
 import { groupByDim } from "@/lib/time-edge/buckets";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
+import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
 import { bucketsToCsv, reportToJson, reportToMarkdown } from "@/lib/time-edge/export";
 import type { BucketDim, BucketMetrics, HeatmapMetric, TimeEdgeReport } from "@/lib/time-edge/types";
 

@@ -41,6 +41,7 @@ export type Database = {
       live_runners: {
         Row: {
           created_at: string
+          direction_filter: string | null
           exec_preset: string
           id: string
           label: string
@@ -56,9 +57,13 @@ export type Database = {
           symbol: string
           timeframe: string
           updated_at: string
+          weekdays_ist: number[] | null
+          window_end_hour_ist: number | null
+          window_start_hour_ist: number | null
         }
         Insert: {
           created_at?: string
+          direction_filter?: string | null
           exec_preset: string
           id?: string
           label: string
@@ -74,9 +79,13 @@ export type Database = {
           symbol: string
           timeframe: string
           updated_at?: string
+          weekdays_ist?: number[] | null
+          window_end_hour_ist?: number | null
+          window_start_hour_ist?: number | null
         }
         Update: {
           created_at?: string
+          direction_filter?: string | null
           exec_preset?: string
           id?: string
           label?: string
@@ -92,6 +101,9 @@ export type Database = {
           symbol?: string
           timeframe?: string
           updated_at?: string
+          weekdays_ist?: number[] | null
+          window_end_hour_ist?: number | null
+          window_start_hour_ist?: number | null
         }
         Relationships: []
       }
@@ -332,6 +344,7 @@ export type Database = {
       paper_runners: {
         Row: {
           created_at: string
+          direction_filter: string | null
           exec_preset: string
           id: string
           label: string
@@ -347,9 +360,13 @@ export type Database = {
           symbol: string
           timeframe: string
           updated_at: string
+          weekdays_ist: number[] | null
+          window_end_hour_ist: number | null
+          window_start_hour_ist: number | null
         }
         Insert: {
           created_at?: string
+          direction_filter?: string | null
           exec_preset?: string
           id?: string
           label: string
@@ -365,9 +382,13 @@ export type Database = {
           symbol: string
           timeframe: string
           updated_at?: string
+          weekdays_ist?: number[] | null
+          window_end_hour_ist?: number | null
+          window_start_hour_ist?: number | null
         }
         Update: {
           created_at?: string
+          direction_filter?: string | null
           exec_preset?: string
           id?: string
           label?: string
@@ -383,6 +404,9 @@ export type Database = {
           symbol?: string
           timeframe?: string
           updated_at?: string
+          weekdays_ist?: number[] | null
+          window_end_hour_ist?: number | null
+          window_start_hour_ist?: number | null
         }
         Relationships: []
       }

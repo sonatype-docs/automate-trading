@@ -1326,9 +1326,7 @@ function PipelinePage() {
             <MatrixGroup title="Timeframes"
               options={PIPELINE_TFS.map((v) => ({ value: v }))}
               selected={tfs} onChange={setTfs} />
-            <MatrixGroup title="Strategy TZ"
-              options={TIMEZONES.map((v) => ({ value: v }))}
-              selected={stratTzs} onChange={setStratTzs} />
+            {/* Strategy TZ removed — pipeline runs 24x7 in a single fixed TZ (UTC). Segregate into windows during analysis. */}
             <MatrixGroup title="Strategy presets"
 
               options={ALL_STRATEGY_PRESETS.map((v) => ({ value: v, label: STRATEGY_PRESETS[v as keyof typeof STRATEGY_PRESETS]?.strategyName ?? v }))}

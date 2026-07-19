@@ -429,11 +429,12 @@ function RunnerCardMobile({ r, selected, onSelectToggle, onToggle, onSave }: {
           className="shrink-0"
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="truncate text-sm font-medium">{r.label}</span>
             {r.running
               ? <Badge className="bg-destructive text-destructive-foreground text-[10px] shrink-0">LIVE</Badge>
               : <Badge variant="outline" className="text-[10px] shrink-0">Stopped</Badge>}
+            <TodayBadge r={r} />
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
             {r.symbol} · {r.timeframe} · {r.strategy_preset}

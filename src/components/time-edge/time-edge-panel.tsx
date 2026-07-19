@@ -256,9 +256,9 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
   const [search, setSearch] = useState("");
   const [minTrades, setMinTrades] = useState(0);
   const [minPf, setMinPf] = useState(0);
-  const [minWin, setMinWin] = useState(0); // percent
+  const [minWin, setMinWin] = useState(0);
   const [minExp, setMinExp] = useState(-9999);
-  const [minConf, setMinConf] = useState(0); // percent
+  const [minConf, setMinConf] = useState(0);
   const [profitOnly, setProfitOnly] = useState(false);
   const [signifOnly, setSignifOnly] = useState(false);
   const [limit, setLimit] = useState(50);
@@ -285,6 +285,103 @@ function RankingsPanel({ report }: { report: TimeEdgeReport }) {
     setSearch(""); setMinTrades(0); setMinPf(0); setMinWin(0);
     setMinExp(-9999); setMinConf(0); setProfitOnly(false); setSignifOnly(false);
   };
+
+  // Selection + deploy (mirrors Robustness panel).
+  interface RowOverride {
+    symbol?: string;
+    timeframe?: string;
+    strategy?: string;
+    direction?: string;
+    windowStart?: number;
+    windowEnd?: number;
+  }
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
+  const defaultOverride = (b: BucketMetrics): RowOverride => {
+    const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
+    const dirs = b.directions ?? [];
+    const dir = dirs.length === 1 ? dirs[0] : "both";
+    return {
+      symbol: b.symbols[0],
+      timeframe: b.timeframes[0] ?? "15m",
+      strategy: b.strategies[0],
+      direction: dir,
+      windowStart: hrs.length ? hrs[0] : 0,
+      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : 24,
+    };
+  };
+  const toggle = (b: BucketMetrics) => {
+    const id = rowId(b);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
+  };
+  const patchOverride = (id: string, patch: Partial<RowOverride>) =>
+    setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
+  const selectAllVisible = () => {
+    setSelected(new Set(shown.map((b) => rowId(b))));
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const b of shown) { const id = rowId(b); if (!next[id]) next[id] = defaultOverride(b); }
+      return next;
+    });
+  };
+  const clearSelection = () => setSelected(new Set());
+
+  const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
+  const [deployRisk, setDeployRisk] = useState<number>(20);
+  const [deployExec, setDeployExec] = useState<string>("conservative_default");
+  const [deployTf, setDeployTf] = useState<string>("auto");
+  const [replaceExisting, setReplaceExisting] = useState<boolean>(true);
+
+  const deployFn = useServerFn(deployTimeEdgeBuckets);
+  const deployMut = useMutation({
+    mutationFn: async () => {
+      const picked = shown.filter((b) => selected.has(rowId(b)));
+      if (!picked.length) throw new Error("Select at least one bucket");
+      const buckets = picked.flatMap((b) => {
+        const id = rowId(b);
+        const ov = overrides[id] ?? defaultOverride(b);
+        const symbol = ov.symbol ?? b.symbols[0] ?? "";
+        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
+        const dirChoice = ov.direction ?? "both";
+        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        const windowStartHourIst = ov.windowStart;
+        const windowEndHourIst = ov.windowEnd;
+        const dirs = dirChoice === "both" ? ["long", "short"] : [dirChoice];
+        return dirs.map((direction) => ({
+          label: b.label,
+          symbol,
+          timeframe,
+          strategyPreset,
+          execPreset: deployExec,
+          riskUsd: deployRisk,
+          lookbackDays: 30,
+          hoursIst: (windowStartHourIst == null || windowEndHourIst == null) ? b.hours : undefined,
+          weekdays: b.weekdays,
+          sessions: b.sessions,
+          direction,
+          windowStartHourIst,
+          windowEndHourIst,
+        }));
+      });
+      return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });
+    },
+    onSuccess: (r) => {
+      const parts: string[] = [];
+      if (r.live.inserted || r.live.removed) parts.push(`Live: +${r.live.inserted} / −${r.live.removed}`);
+      if (r.paper.inserted || r.paper.removed) parts.push(`Paper: +${r.paper.inserted} / −${r.paper.removed}`);
+      toast.success(`Deployed. ${parts.join(" · ") || "no changes"}`);
+      setSelected(new Set());
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   return (
     <Card>

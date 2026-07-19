@@ -798,7 +798,14 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const [verdictFilter, setVerdictFilter] = useState<string>("all");
   const [minTrades, setMinTrades] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
-  const [sortKey, setSortKey] = useState<"robustness" | "expectancy" | "profitFactor" | "trades" | "confidence" | "netProfit">("robustness");
+  type SortKey = "verdict" | "label" | "dim" | "symbol" | "timeframe" | "strategy" | "direction" | "session" | "hours" | "weekdays" | "trades" | "expectancy" | "profitFactor" | "winRate" | "sharpe" | "confidence" | "robustness" | "netProfit";
+  const [sortKey, setSortKey] = useState<SortKey>("robustness");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(k); setSortDir(k === "label" || k === "dim" || k === "symbol" || k === "timeframe" || k === "strategy" || k === "direction" || k === "session" ? "asc" : "desc"); }
+  };
+
   const [symbolFilter, setSymbolFilter] = useState<string>("all");
   const [tfFilter, setTfFilter] = useState<string>("all");
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
@@ -823,13 +830,33 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return true;
     });
     const order: Record<Verdict, number> = { elite: 0, strong: 1, decent: 2, weak: 3, avoid: 4 };
+    const mul = sortDir === "desc" ? -1 : 1;
+    const getVal = (r: (typeof all)[number]): number | string => {
+      switch (sortKey) {
+        case "verdict": return order[r.verdict];
+        case "label": return r.b.label;
+        case "dim": return r.b.dim;
+        case "symbol": return r.b.symbols[0] ?? "";
+        case "timeframe": return r.b.timeframes[0] ?? "";
+        case "strategy": return r.b.strategies[0] ?? "";
+        case "direction": return r.b.directions.join("/");
+        case "session": return r.b.sessions.join("/");
+        case "hours": return r.b.hours[0] ?? -1;
+        case "weekdays": return r.b.weekdays[0] ?? -1;
+        default: return (r.b[sortKey] as number) ?? 0;
+      }
+    };
     filtered.sort((a, b) => {
-      const va = a.b[sortKey], vb = b.b[sortKey];
-      if (vb !== va) return (vb as number) - (va as number);
+      const va = getVal(a), vb = getVal(b);
+      if (typeof va === "string" || typeof vb === "string") {
+        return String(va).localeCompare(String(vb)) * mul;
+      }
+      if (vb !== va) return ((va as number) - (vb as number)) * mul;
       return order[a.verdict] - order[b.verdict];
     });
     return filtered.slice(0, 200);
-  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+
 
   // ------- Selection + per-row overrides -------
   interface RowOverride {
@@ -1092,45 +1119,52 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
             </div>
             <div className="min-w-0">
               <Label className="text-[10px] text-muted-foreground">Sort</Label>
-              <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
-                <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="robustness">Robustness</SelectItem>
-                  <SelectItem value="expectancy">Expectancy</SelectItem>
-                  <SelectItem value="profitFactor">Profit Factor</SelectItem>
-                  <SelectItem value="netProfit">Net Profit</SelectItem>
-                  <SelectItem value="confidence">Confidence</SelectItem>
-                  <SelectItem value="trades">Trades</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="h-8 flex items-center text-[11px] text-muted-foreground px-2 rounded border border-dashed">
+                Click any column header ↕
+              </div>
             </div>
+
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead className="text-xs">Verdict</TableHead>
-                <TableHead className="text-xs">Bucket</TableHead>
-                <TableHead className="text-xs">Dim</TableHead>
-                <TableHead className="text-xs">Symbol</TableHead>
-                <TableHead className="text-xs">TF</TableHead>
-                <TableHead className="text-xs">Strategy</TableHead>
-                <TableHead className="text-xs">Dir</TableHead>
-                <TableHead className="text-xs">Session</TableHead>
-                <TableHead className="text-xs">Hrs IST</TableHead>
-                <TableHead className="text-xs">Wkdys</TableHead>
-                <TableHead className="text-xs text-right">Trades</TableHead>
-                <TableHead className="text-xs text-right">Exp</TableHead>
-                <TableHead className="text-xs text-right">PF</TableHead>
-                <TableHead className="text-xs text-right">Win%</TableHead>
-                <TableHead className="text-xs text-right">Sharpe</TableHead>
-                <TableHead className="text-xs text-right">Conf</TableHead>
-                <TableHead className="text-xs">Robustness</TableHead>
-                <TableHead className="text-xs">Why</TableHead>
-              </TableRow>
+              {(() => {
+                const arrow = (k: SortKey) => sortKey === k ? (sortDir === "desc" ? " ▼" : " ▲") : "";
+                const SortTH = ({ k, label, align }: { k: SortKey; label: string; align?: "right" }) => (
+                  <TableHead
+                    className={`text-xs cursor-pointer select-none hover:bg-muted/50 ${align === "right" ? "text-right" : ""}`}
+                    onClick={() => toggleSort(k)}
+                  >
+                    {label}<span className="text-muted-foreground">{arrow(k)}</span>
+                  </TableHead>
+                );
+                return (
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <SortTH k="verdict" label="Verdict" />
+                    <SortTH k="label" label="Bucket" />
+                    <SortTH k="dim" label="Dim" />
+                    <SortTH k="symbol" label="Symbol" />
+                    <SortTH k="timeframe" label="TF" />
+                    <SortTH k="strategy" label="Strategy" />
+                    <SortTH k="direction" label="Dir" />
+                    <SortTH k="session" label="Session" />
+                    <SortTH k="hours" label="Hrs IST" />
+                    <SortTH k="weekdays" label="Wkdys" />
+                    <SortTH k="trades" label="Trades" align="right" />
+                    <SortTH k="expectancy" label="Exp" align="right" />
+                    <SortTH k="profitFactor" label="PF" align="right" />
+                    <SortTH k="winRate" label="Win%" align="right" />
+                    <SortTH k="sharpe" label="Sharpe" align="right" />
+                    <SortTH k="confidence" label="Conf" align="right" />
+                    <SortTH k="robustness" label="Robustness" />
+                    <TableHead className="text-xs">Why</TableHead>
+                  </TableRow>
+                );
+              })()}
             </TableHeader>
+
             <TableBody>
               {rows.length === 0 && (
                 <TableRow><TableCell colSpan={19} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>

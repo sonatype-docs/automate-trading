@@ -44,11 +44,15 @@ export function StrategyPerformanceCard({
   const effectiveMode = lockMode ? defaultMode : mode;
 
   const fetchPerf = useServerFn(getStrategyPerformance);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["strategy-perf", period, effectiveMode, anchor],
     queryFn: () => fetchPerf({ data: { period, mode: effectiveMode, anchor } }),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false, staleTime: Infinity,
   });
+  const lastSynced = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
+
 
   const allRows = data?.rows ?? [];
   const strategyOptions = useMemo(() => {

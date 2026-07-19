@@ -21,6 +21,10 @@ interface RunnerRow {
   exec_preset: string;
   risk_usd: number;
   lookback_days: number;
+  direction_filter: string | null;
+  window_start_hour_ist: number | null;
+  window_end_hour_ist: number | null;
+  weekdays_ist: number[] | null;
 }
 
 export interface TickReport {

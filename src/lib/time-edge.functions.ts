@@ -178,7 +178,8 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
         };
         if (tgt === "live") row.leverage = lev;
 
-        const { error } = await s.from(table).insert(row);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await s.from(table).insert(row as any);
         if (error) throw new Error(`${tgt} insert failed for ${label}: ${error.message}`);
         summary[tgt].inserted += 1;
         summary[tgt].runners.push(label);

@@ -574,17 +574,48 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
     return filtered.slice(0, 200);
   }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, symbolFilter, tfFilter, strategyFilter, dirFilter]);
 
-  // ------- Selection + Deploy -------
+  // ------- Selection + per-row overrides -------
+  interface RowOverride {
+    symbol?: string;
+    timeframe?: string;
+    strategy?: string;
+    direction?: string;
+    windowStart?: number;
+    windowEnd?: number;
+  }
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
-  const toggle = (id: string) => {
+  const defaultOverride = (b: BucketMetrics): RowOverride => {
+    const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];
+    return {
+      symbol: b.symbols[0],
+      timeframe: b.timeframes[0],
+      strategy: b.strategies[0],
+      direction: b.directions[0],
+      windowStart: hrs[0],
+      windowEnd: hrs.length ? (hrs[hrs.length - 1] + 1) : undefined,
+    };
+  };
+  const toggle = (b: BucketMetrics) => {
+    const id = rowId(b);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+    setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
   };
-  const selectAllVisible = () => setSelected(new Set(rows.map((r) => rowId(r.b))));
+  const patchOverride = (id: string, patch: Partial<RowOverride>) =>
+    setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
+  const selectAllVisible = () => {
+    setSelected(new Set(rows.map((r) => rowId(r.b))));
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const r of rows) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }
+      return next;
+    });
+  };
   const clearSelection = () => setSelected(new Set());
 
   const [deployTarget, setDeployTarget] = useState<"live" | "paper" | "both">("paper");
@@ -599,10 +630,15 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
       const picked = rows.filter((r) => selected.has(rowId(r.b))).map((r) => r.b);
       if (!picked.length) throw new Error("Select at least one bucket");
       const buckets = picked.map((b) => {
-        const symbol = b.symbols[0] ?? "";
-        const strategyPreset = b.strategies[0] ?? "";
-        const timeframe = deployTf !== "auto" ? deployTf : (b.timeframes[0] ?? "15m");
-        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick a narrower dimension (e.g. symbol_hour).`);
+        const id = rowId(b);
+        const ov = overrides[id] ?? defaultOverride(b);
+        const symbol = ov.symbol ?? b.symbols[0] ?? "";
+        const strategyPreset = ov.strategy ?? b.strategies[0] ?? "";
+        const timeframe = deployTf !== "auto" ? deployTf : (ov.timeframe ?? b.timeframes[0] ?? "15m");
+        const direction = ov.direction ?? b.directions[0];
+        if (!symbol || !strategyPreset) throw new Error(`Bucket "${b.label}" is missing symbol/strategy — pick one in the row.`);
+        const windowStartHourIst = ov.windowStart;
+        const windowEndHourIst = ov.windowEnd;
         return {
           label: b.label,
           symbol,
@@ -611,10 +647,12 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
           execPreset: deployExec,
           riskUsd: deployRisk,
           lookbackDays: 30,
-          hoursIst: b.hours,
+          hoursIst: (windowStartHourIst == null || windowEndHourIst == null) ? b.hours : undefined,
           weekdays: b.weekdays,
           sessions: b.sessions,
-          direction: b.directions[0],
+          direction,
+          windowStartHourIst,
+          windowEndHourIst,
         };
       });
       return deployFn({ data: { target: deployTarget, buckets, replaceExisting } });
@@ -657,7 +695,7 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
             <Play className="h-4 w-4" /> Ship selected edges to runners
           </CardTitle>
           <CardDescription className="text-xs">
-            Pick rows below (checkbox) → choose target → Deploy. Existing runners with the same symbol + strategy + timeframe + exec preset are replaced.
+            Pick rows below → each checked row exposes inline pickers for Symbol · TF · Strategy · Direction · Window (start→end IST). Deploy replaces runners with the same symbol + strategy + timeframe + exec preset.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -840,21 +878,79 @@ function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
               {rows.map(({ b, verdict, reasons, positives }) => {
                 const meta = VERDICT_META[verdict];
                 const id = rowId(b);
+                const isSel = selected.has(id);
+                const ov = overrides[id] ?? defaultOverride(b);
                 const wkLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+                const hrsSorted = [...b.hours].sort((a, x) => a - x);
+                const hrOptions = hrsSorted.length ? hrsSorted : Array.from({ length: 24 }, (_, i) => i);
                 return (
                   <TableRow key={id} className={meta.rowClass}>
                     <TableCell>
-                      <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
+                      <input type="checkbox" checked={isSel} onChange={() => toggle(b)} />
                     </TableCell>
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
                     <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[120px] truncate" title={b.symbols.join(", ")}>{b.symbols.slice(0, 2).join(",") || "—"}{b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</TableCell>
-                    <TableCell className="text-[11px]">{b.timeframes.join(",") || "—"}</TableCell>
-                    <TableCell className="text-[11px] font-mono max-w-[140px] truncate" title={b.strategies.join(", ")}>{b.strategies.slice(0, 2).join(",") || "—"}{b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</TableCell>
-                    <TableCell className="text-[11px]">{b.directions.join("/") || "—"}</TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[140px]">
+                      {isSel && b.symbols.length > 1 ? (
+                        <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.symbols.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span title={b.symbols.join(", ")}>{isSel ? ov.symbol : (b.symbols.slice(0, 2).join(",") || "—")}{!isSel && b.symbols.length > 2 ? `+${b.symbols.length - 2}` : ""}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] max-w-[100px]">
+                      {isSel && b.timeframes.length > 1 ? (
+                        <Select value={ov.timeframe} onValueChange={(v) => patchOverride(id, { timeframe: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.timeframes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{isSel ? ov.timeframe : (b.timeframes.join(",") || "—")}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] font-mono max-w-[160px]">
+                      {isSel && b.strategies.length > 1 ? (
+                        <Select value={ov.strategy} onValueChange={(v) => patchOverride(id, { strategy: v })}>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{b.strategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <span title={b.strategies.join(", ")}>{isSel ? ov.strategy : (b.strategies.slice(0, 2).join(",") || "—")}{!isSel && b.strategies.length > 2 ? `+${b.strategies.length - 2}` : ""}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px]">
+                      {isSel ? (
+                        <Select value={ov.direction ?? "long"} onValueChange={(v) => patchOverride(id, { direction: v })}>
+                          <SelectTrigger className="h-6 text-[10px] w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(b.directions.length ? b.directions : ["long", "short"]).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{b.directions.join("/") || "—"}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-[11px]">{b.sessions.join("/") || "—"}</TableCell>
-                    <TableCell className="text-[10px] font-mono max-w-[120px] truncate" title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</TableCell>
+                    <TableCell className="text-[10px] font-mono max-w-[180px]">
+                      {isSel ? (
+                        <div className="flex items-center gap-1">
+                          <Select value={String(ov.windowStart ?? hrOptions[0])} onValueChange={(v) => patchOverride(id, { windowStart: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">→</span>
+                          <Select value={String(ov.windowEnd ?? ((hrOptions[hrOptions.length - 1] ?? 23) + 1))} onValueChange={(v) => patchOverride(id, { windowEnd: Number(v) })}>
+                            <SelectTrigger className="h-6 text-[10px] w-16"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Array.from({ length: 24 }, (_, i) => i + 1).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <span title={b.hours.join(",")}>{b.hours.length ? (b.hours.length <= 4 ? b.hours.join(",") : `${b.hours.length} hrs`) : "—"}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-[10px]">{b.weekdays.length ? b.weekdays.map((w) => wkLabels[w] ?? w).join(",") : "—"}</TableCell>
                     <TableCell className="text-right text-xs">{b.trades}</TableCell>
                     <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>

@@ -101,6 +101,9 @@ const DeployBucket = z.object({
   weekdays: z.array(z.number()).optional(),
   sessions: z.array(z.string()).optional(),
   direction: z.string().optional(),
+  /** Optional pinned trading window (IST hour range, inclusive start, exclusive end). */
+  windowStartHourIst: z.number().int().min(0).max(23).optional(),
+  windowEndHourIst: z.number().int().min(1).max(24).optional(),
 });
 const DeployInput = z.object({
   target: z.enum(["live", "paper", "both"]),
@@ -158,8 +161,21 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
       for (const b of data.buckets) {
         const src = b.source ?? defaultSource(b.symbol);
         const lev = b.leverage ?? defaultLeverage(b.symbol);
+        // Expand pinned window (start..end IST) into an hours list; overrides hoursIst.
+        let hoursList = b.hoursIst;
+        let windowLabel = "";
+        if (b.windowStartHourIst != null && b.windowEndHourIst != null) {
+          const start = b.windowStartHourIst;
+          const end = b.windowEndHourIst;
+          const list: number[] = [];
+          if (end > start) for (let h = start; h < end; h++) list.push(h);
+          else { for (let h = start; h < 24; h++) list.push(h); for (let h = 0; h < end; h++) list.push(h); }
+          hoursList = list;
+          windowLabel = `${String(start).padStart(2, "0")}:00→${String(end).padStart(2, "0")}:00 IST`;
+        }
         const contextBits: string[] = [];
-        if (b.hoursIst?.length) contextBits.push(`hrs ${b.hoursIst.join(",")}`);
+        if (windowLabel) contextBits.push(windowLabel);
+        else if (hoursList?.length) contextBits.push(`hrs ${hoursList.join(",")}`);
         if (b.weekdays?.length) contextBits.push(`wk ${b.weekdays.join(",")}`);
         if (b.sessions?.length) contextBits.push(b.sessions.join("/"));
         if (b.direction) contextBits.push(b.direction);

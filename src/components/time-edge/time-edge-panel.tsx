@@ -830,13 +830,33 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return true;
     });
     const order: Record<Verdict, number> = { elite: 0, strong: 1, decent: 2, weak: 3, avoid: 4 };
+    const mul = sortDir === "desc" ? -1 : 1;
+    const getVal = (r: (typeof all)[number]): number | string => {
+      switch (sortKey) {
+        case "verdict": return order[r.verdict];
+        case "label": return r.b.label;
+        case "dim": return r.b.dim;
+        case "symbol": return r.b.symbols[0] ?? "";
+        case "timeframe": return r.b.timeframes[0] ?? "";
+        case "strategy": return r.b.strategies[0] ?? "";
+        case "direction": return r.b.directions.join("/");
+        case "session": return r.b.sessions.join("/");
+        case "hours": return r.b.hours[0] ?? -1;
+        case "weekdays": return r.b.weekdays[0] ?? -1;
+        default: return (r.b[sortKey] as number) ?? 0;
+      }
+    };
     filtered.sort((a, b) => {
-      const va = a.b[sortKey], vb = b.b[sortKey];
-      if (vb !== va) return (vb as number) - (va as number);
+      const va = getVal(a), vb = getVal(b);
+      if (typeof va === "string" || typeof vb === "string") {
+        return String(va).localeCompare(String(vb)) * mul;
+      }
+      if (vb !== va) return ((va as number) - (vb as number)) * mul;
       return order[a.verdict] - order[b.verdict];
     });
     return filtered.slice(0, 200);
-  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey, sortDir, symbolFilter, tfFilter, strategyFilter, dirFilter]);
+
 
   // ------- Selection + per-row overrides -------
   interface RowOverride {

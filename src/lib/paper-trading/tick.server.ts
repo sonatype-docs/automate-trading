@@ -106,9 +106,13 @@ async function tickOne(r: RunnerRow): Promise<{ inserted: number; open: boolean 
   const eres = runExecution(enriched, sres.signals, ecfg, { symbol: r.symbol });
 
   const lastBar = enriched[enriched.length - 1];
+  // Per-runner direction filter — null/"both" = keep both sides.
+  const dirOk = (d: string) =>
+    !r.direction_filter || r.direction_filter === "both" || r.direction_filter === d;
   // Split flushed end-of-data trades (still-open positions) from real closes.
-  const closed = eres.trades.filter((t) => t.exitReason !== "end_of_data");
-  const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
+  const closed = eres.trades.filter((t) => t.exitReason !== "end_of_data" && dirOk(t.direction));
+  const openFlushRaw = eres.trades.find((t) => t.exitReason === "end_of_data");
+  const openFlush = openFlushRaw && dirOk(openFlushRaw.direction) ? openFlushRaw : undefined;
 
   // Insert only new closed trades. Dedup on runner_id + signalId.
   let inserted = 0;

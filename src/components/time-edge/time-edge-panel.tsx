@@ -1039,16 +1039,10 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
 
 
   // ------- Selection + per-row overrides -------
-  interface RowOverride {
-    symbol?: string;
-    timeframe?: string;
-    strategy?: string;
-    direction?: string;
-    windowStart?: number;
-    windowEnd?: number;
-  }
+  interface RowOverride extends RowOverrideBase {}
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, RowOverride>>({});
+  const [savedBuckets, setSavedBuckets] = useState<Record<string, BucketMetrics>>({});
   const rowId = (b: BucketMetrics) => `${b.dim}::${b.key}`;
   const defaultOverride = (b: BucketMetrics): RowOverride => {
     const hrs = b.hours.length ? [...b.hours].sort((a, x) => a - x) : [];

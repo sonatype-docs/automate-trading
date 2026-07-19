@@ -1065,6 +1065,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
       return next;
     });
     setOverrides((prev) => (prev[id] ? prev : { ...prev, [id]: defaultOverride(b) }));
+    setSavedBuckets((prev) => ({ ...prev, [id]: b }));
   };
   const patchOverride = (id: string, patch: Partial<RowOverride>) =>
     setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
@@ -1334,6 +1335,22 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
             <span className="text-xs text-muted-foreground mr-auto">{selected.size} selected of {rows.length} visible</span>
+            <Button size="sm" variant="outline" disabled={!selected.size} onClick={saveSelectedList}>
+              <Save className="mr-1 h-4 w-4" /> Save list
+            </Button>
+            {savedLists.length > 0 && (
+              <Select value={savedListId} onValueChange={loadSavedList}>
+                <SelectTrigger className="h-8 w-48 text-xs">
+                  <FolderOpen className="mr-1 h-3 w-3" />
+                  <SelectValue placeholder="Load saved list" />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedLists.map((list) => (
+                    <SelectItem key={list.id} value={list.id}>{list.name} · {list.entries.length}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -1344,6 +1361,11 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                   .sort((a, b) => (b.b.robustness - a.b.robustness) || (b.b.expectancy - a.b.expectancy))
                   .slice(0, 10);
                 setSelected(new Set(top.map((r) => rowId(r.b))));
+                setSavedBuckets((prev) => {
+                  const next = { ...prev };
+                  for (const r of top) next[rowId(r.b)] = r.b;
+                  return next;
+                });
                 setOverrides((prev) => {
                   const next = { ...prev };
                   for (const r of top) { const id = rowId(r.b); if (!next[id]) next[id] = defaultOverride(r.b); }

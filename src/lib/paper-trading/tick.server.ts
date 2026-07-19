@@ -42,7 +42,7 @@ export interface TickReport {
 export async function runPaperTradingTick(): Promise<TickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("paper_runners")
-    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist")
     .eq("running", true);
   if (error) throw new Error(error.message);
 

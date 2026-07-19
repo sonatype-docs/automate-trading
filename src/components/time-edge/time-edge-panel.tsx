@@ -1226,7 +1226,7 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
                     </TableCell>
                     <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
                     <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
+                    
                     <TableCell className="text-[11px] font-mono w-[140px] max-w-[140px]">
                       {isSel && b.symbols.length > 1 ? (
                         <Select value={ov.symbol} onValueChange={(v) => patchOverride(id, { symbol: v })}>

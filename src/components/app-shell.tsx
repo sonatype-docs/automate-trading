@@ -4,7 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNavCarousel } from "./mobile-nav-carousel";
-import { HeaderLivePnl } from "./header-live-pnl";
+
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -45,11 +45,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
 
-          </div>
-          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-            <div className="pointer-events-auto">
-              <HeaderLivePnl />
-            </div>
           </div>
           <div className="hidden items-center gap-2 rounded-full border border-border/50 bg-gradient-sunset-soft px-2.5 py-1 backdrop-blur-md sm:flex">
             <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>

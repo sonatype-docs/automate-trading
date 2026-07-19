@@ -39,12 +39,22 @@ export interface LiveTickReport {
   }>;
 }
 
+// Idle-skip: when no runners are armed we still let the cron ping us, but we
+// short-circuit 2 of every 3 ticks to cut DB/exchange load to a trickle.
+let idleTickCounter = 0;
+
 export async function runLiveTradingTick(): Promise<LiveTickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("live_runners")
     .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage")
     .eq("running", true);
   if (error) throw new Error(error.message);
+
+  if (!runners || runners.length === 0) {
+    idleTickCounter = (idleTickCounter + 1) % 3;
+    return { ok: true, runners: 0, results: [] };
+  }
+  idleTickCounter = 0;
 
   const { windowsForPreset, isWindowActive, minutesUntilOpen } = await import(
     "@/lib/session-windows"

@@ -45,7 +45,6 @@ import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/pub
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
 import { Route as ApiPublicHooksManualPlaceRouteImport } from './routes/api/public/hooks/manual-place'
 import { Route as ApiPublicHooksLiveTickRouteImport } from './routes/api/public/hooks/live-tick'
-import { Route as ApiPublicHooksAccountSnapshotRouteImport } from './routes/api/public/hooks/account-snapshot'
 
 const TradeIntelligenceRoute = TradeIntelligenceRouteImport.update({
   id: '/trade-intelligence',
@@ -230,12 +229,6 @@ const ApiPublicHooksLiveTickRoute = ApiPublicHooksLiveTickRouteImport.update({
   path: '/api/public/hooks/live-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksAccountSnapshotRoute =
-  ApiPublicHooksAccountSnapshotRouteImport.update({
-    id: '/api/public/hooks/account-snapshot',
-    path: '/api/public/hooks/account-snapshot',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -269,7 +262,6 @@ export interface FileRoutesByFullPath {
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
-  '/api/public/hooks/account-snapshot': typeof ApiPublicHooksAccountSnapshotRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
@@ -306,7 +298,6 @@ export interface FileRoutesByTo {
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
-  '/api/public/hooks/account-snapshot': typeof ApiPublicHooksAccountSnapshotRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
@@ -346,7 +337,6 @@ export interface FileRoutesById {
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
-  '/api/public/hooks/account-snapshot': typeof ApiPublicHooksAccountSnapshotRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
@@ -387,7 +377,6 @@ export interface FileRouteTypes {
     | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
-    | '/api/public/hooks/account-snapshot'
     | '/api/public/hooks/live-tick'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
@@ -424,7 +413,6 @@ export interface FileRouteTypes {
     | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
-    | '/api/public/hooks/account-snapshot'
     | '/api/public/hooks/live-tick'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
@@ -463,7 +451,6 @@ export interface FileRouteTypes {
     | '/api/public/export-snapshot'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
-    | '/api/public/hooks/account-snapshot'
     | '/api/public/hooks/live-tick'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
@@ -499,7 +486,6 @@ export interface RootRouteChildren {
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicExportSnapshotRoute: typeof ApiPublicExportSnapshotRoute
-  ApiPublicHooksAccountSnapshotRoute: typeof ApiPublicHooksAccountSnapshotRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksManualPlaceRoute: typeof ApiPublicHooksManualPlaceRoute
   ApiPublicHooksPaperTickRoute: typeof ApiPublicHooksPaperTickRoute
@@ -761,13 +747,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksLiveTickRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/account-snapshot': {
-      id: '/api/public/hooks/account-snapshot'
-      path: '/api/public/hooks/account-snapshot'
-      fullPath: '/api/public/hooks/account-snapshot'
-      preLoaderRoute: typeof ApiPublicHooksAccountSnapshotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -827,7 +806,6 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicExportSnapshotRoute: ApiPublicExportSnapshotRoute,
-  ApiPublicHooksAccountSnapshotRoute: ApiPublicHooksAccountSnapshotRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksManualPlaceRoute: ApiPublicHooksManualPlaceRoute,
   ApiPublicHooksPaperTickRoute: ApiPublicHooksPaperTickRoute,
@@ -837,13 +815,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

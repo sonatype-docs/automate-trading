@@ -114,10 +114,12 @@ export function ExchangeOrdersCard() {
   });
   const anyRunning = (runnersQ.data ?? []).some((r) => r.running);
 
+  const ordersTab = tab === "server" || tab === "pending" || tab === "closed";
   const q = useQuery({
     queryKey: ["exchange-orders"],
     queryFn: () => fn(),
-    refetchInterval: anyRunning ? 15_000 : false,
+    enabled: ordersTab,
+    refetchInterval: ordersTab && anyRunning ? 15_000 : false,
     staleTime: 10_000,
     placeholderData: keepPreviousData,
   });
@@ -125,7 +127,8 @@ export function ExchangeOrdersCard() {
   const tradesQ = useQuery({
     queryKey: ["live-trades-card"],
     queryFn: () => tradesFn({ data: { limit: 2000 } }),
-    refetchInterval: anyRunning ? 10_000 : false,
+    enabled: tab === "live",
+    refetchInterval: tab === "live" && anyRunning ? 10_000 : false,
     staleTime: 8_000,
     placeholderData: keepPreviousData,
   });

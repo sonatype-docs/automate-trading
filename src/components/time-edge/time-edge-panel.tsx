@@ -734,29 +734,80 @@ const VERDICT_META: Record<Verdict, { label: string; hint: string; badgeClass: s
   avoid:  { label: "AVOID",  hint: "Statistically losing window",    badgeClass: "bg-red-600 text-white",             rowClass: "bg-red-500/5 border-red-500/40" },
 };
 
-function classify(b: BucketMetrics): { verdict: Verdict; reasons: string[]; positives: string[] } {
+interface VerdictThresholds {
+  eliteRobustness: number;
+  eliteTrades: number;
+  elitePF: number;
+  eliteConf: number;
+  eliteWinRate: number;
+  eliteSharpe: number;
+  eliteExpectancy: number;
+  strongRobustness: number;
+  strongTrades: number;
+  strongPF: number;
+  strongWinRate: number;
+  decentRobustness: number;
+  decentPF: number;
+}
+
+const STRICTNESS_PRESETS: Record<string, VerdictThresholds> = {
+  standard: {
+    eliteRobustness: 75, eliteTrades: 30, elitePF: 1.5, eliteConf: 0.9,
+    eliteWinRate: 0.5, eliteSharpe: 1.0, eliteExpectancy: 0,
+    strongRobustness: 60, strongTrades: 20, strongPF: 1.3, strongWinRate: 0.45,
+    decentRobustness: 45, decentPF: 1.1,
+  },
+  strict: {
+    eliteRobustness: 82, eliteTrades: 50, elitePF: 1.8, eliteConf: 0.95,
+    eliteWinRate: 0.55, eliteSharpe: 1.3, eliteExpectancy: 5,
+    strongRobustness: 68, strongTrades: 30, strongPF: 1.4, strongWinRate: 0.5,
+    decentRobustness: 50, decentPF: 1.15,
+  },
+  institutional: {
+    eliteRobustness: 88, eliteTrades: 80, elitePF: 2.2, eliteConf: 0.98,
+    eliteWinRate: 0.6, eliteSharpe: 1.8, eliteExpectancy: 10,
+    strongRobustness: 75, strongTrades: 50, strongPF: 1.6, strongWinRate: 0.52,
+    decentRobustness: 55, decentPF: 1.2,
+  },
+};
+
+function classify(b: BucketMetrics, T: VerdictThresholds): { verdict: Verdict; reasons: string[]; positives: string[] } {
   const reasons: string[] = [];
   const positives: string[] = [];
-  if (b.trades < 20) reasons.push(`small sample (${b.trades})`);
+  if (b.trades < T.strongTrades) reasons.push(`small sample (${b.trades})`);
   else positives.push(`${b.trades} trades`);
   if (b.confidence < 0.8) reasons.push(`low significance (conf ${(b.confidence * 100).toFixed(0)}%)`);
   else positives.push(`conf ${(b.confidence * 100).toFixed(0)}%`);
   if (b.profitFactor < 1) reasons.push(`PF ${b.profitFactor.toFixed(2)} < 1`);
-  else if (b.profitFactor >= 1.5) positives.push(`PF ${b.profitFactor.toFixed(2)}`);
+  else if (b.profitFactor >= T.elitePF) positives.push(`PF ${b.profitFactor.toFixed(2)}`);
   if (b.expectancy <= 0) reasons.push(`expectancy ${b.expectancy.toFixed(2)}`);
-  else if (b.expectancy > 0) positives.push(`exp ${b.expectancy.toFixed(2)}`);
+  else positives.push(`exp ${b.expectancy.toFixed(2)}`);
   if (b.winRate < 0.35) reasons.push(`win rate ${(b.winRate * 100).toFixed(0)}%`);
-  else if (b.winRate >= 0.55) positives.push(`win ${(b.winRate * 100).toFixed(0)}%`);
+  else if (b.winRate >= T.eliteWinRate) positives.push(`win ${(b.winRate * 100).toFixed(0)}%`);
   if (b.sharpe < 0) reasons.push(`sharpe ${b.sharpe.toFixed(2)}`);
-  else if (b.sharpe >= 1) positives.push(`sharpe ${b.sharpe.toFixed(2)}`);
+  else if (b.sharpe >= T.eliteSharpe) positives.push(`sharpe ${b.sharpe.toFixed(2)}`);
   if (b.maxDrawdown < -Math.abs(b.netProfit) * 1.5 && b.netProfit > 0) reasons.push(`drawdown > 1.5× net`);
 
   let verdict: Verdict;
   if (b.expectancy < 0 && b.confidence >= 0.8 && b.trades >= 20) verdict = "avoid";
   else if (b.profitFactor < 0.8 && b.trades >= 20) verdict = "avoid";
-  else if (b.robustness >= 75 && b.trades >= 30 && b.profitFactor >= 1.5 && b.confidence >= 0.9 && b.expectancy > 0) verdict = "elite";
-  else if (b.robustness >= 60 && b.trades >= 20 && b.profitFactor >= 1.3 && b.expectancy > 0) verdict = "strong";
-  else if (b.robustness >= 45 && b.profitFactor >= 1.1 && b.expectancy > 0) verdict = "decent";
+  else if (
+    b.robustness >= T.eliteRobustness &&
+    b.trades >= T.eliteTrades &&
+    b.profitFactor >= T.elitePF &&
+    b.confidence >= T.eliteConf &&
+    b.winRate >= T.eliteWinRate &&
+    b.sharpe >= T.eliteSharpe &&
+    b.expectancy >= T.eliteExpectancy
+  ) verdict = "elite";
+  else if (
+    b.robustness >= T.strongRobustness &&
+    b.trades >= T.strongTrades &&
+    b.profitFactor >= T.strongPF &&
+    b.winRate >= T.strongWinRate &&
+    b.expectancy > 0
+  ) verdict = "strong";
+  else if (b.robustness >= T.decentRobustness && b.profitFactor >= T.decentPF && b.expectancy > 0) verdict = "decent";
   else verdict = "weak";
   return { verdict, reasons, positives };
 }

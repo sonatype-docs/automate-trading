@@ -486,36 +486,218 @@ function heatColor(v: number, min: number, max: number): string {
 }
 
 // ---------------- Robustness ----------------
+type Verdict = "elite" | "strong" | "decent" | "weak" | "avoid";
+
+const VERDICT_META: Record<Verdict, { label: string; hint: string; badgeClass: string; rowClass: string }> = {
+  elite:  { label: "ELITE",  hint: "Deploy with confidence",        badgeClass: "bg-emerald-600 text-white",         rowClass: "bg-emerald-500/5 border-emerald-500/40" },
+  strong: { label: "STRONG", hint: "Good edge, size normally",       badgeClass: "bg-emerald-500/80 text-white",      rowClass: "bg-emerald-500/5 border-emerald-500/20" },
+  decent: { label: "DECENT", hint: "Usable, monitor closely",        badgeClass: "bg-amber-500 text-black",           rowClass: "bg-amber-500/5 border-amber-500/20" },
+  weak:   { label: "WEAK",   hint: "Not statistically reliable",     badgeClass: "bg-slate-500 text-white",           rowClass: "bg-muted/30 border-muted" },
+  avoid:  { label: "AVOID",  hint: "Statistically losing window",    badgeClass: "bg-red-600 text-white",             rowClass: "bg-red-500/5 border-red-500/40" },
+};
+
+function classify(b: BucketMetrics): { verdict: Verdict; reasons: string[]; positives: string[] } {
+  const reasons: string[] = [];
+  const positives: string[] = [];
+  if (b.trades < 20) reasons.push(`small sample (${b.trades})`);
+  else positives.push(`${b.trades} trades`);
+  if (b.confidence < 0.8) reasons.push(`low significance (conf ${(b.confidence * 100).toFixed(0)}%)`);
+  else positives.push(`conf ${(b.confidence * 100).toFixed(0)}%`);
+  if (b.profitFactor < 1) reasons.push(`PF ${b.profitFactor.toFixed(2)} < 1`);
+  else if (b.profitFactor >= 1.5) positives.push(`PF ${b.profitFactor.toFixed(2)}`);
+  if (b.expectancy <= 0) reasons.push(`expectancy ${b.expectancy.toFixed(2)}`);
+  else if (b.expectancy > 0) positives.push(`exp ${b.expectancy.toFixed(2)}`);
+  if (b.winRate < 0.35) reasons.push(`win rate ${(b.winRate * 100).toFixed(0)}%`);
+  else if (b.winRate >= 0.55) positives.push(`win ${(b.winRate * 100).toFixed(0)}%`);
+  if (b.sharpe < 0) reasons.push(`sharpe ${b.sharpe.toFixed(2)}`);
+  else if (b.sharpe >= 1) positives.push(`sharpe ${b.sharpe.toFixed(2)}`);
+  if (b.maxDrawdown < -Math.abs(b.netProfit) * 1.5 && b.netProfit > 0) reasons.push(`drawdown > 1.5× net`);
+
+  let verdict: Verdict;
+  if (b.expectancy < 0 && b.confidence >= 0.8 && b.trades >= 20) verdict = "avoid";
+  else if (b.profitFactor < 0.8 && b.trades >= 20) verdict = "avoid";
+  else if (b.robustness >= 75 && b.trades >= 30 && b.profitFactor >= 1.5 && b.confidence >= 0.9 && b.expectancy > 0) verdict = "elite";
+  else if (b.robustness >= 60 && b.trades >= 20 && b.profitFactor >= 1.3 && b.expectancy > 0) verdict = "strong";
+  else if (b.robustness >= 45 && b.profitFactor >= 1.1 && b.expectancy > 0) verdict = "decent";
+  else verdict = "weak";
+  return { verdict, reasons, positives };
+}
+
 function RobustnessPanel({ report }: { report: TimeEdgeReport }) {
+  const all = useMemo(() => {
+    const flat: BucketMetrics[] = [];
+    for (const arr of Object.values(report.buckets)) flat.push(...arr);
+    return flat.map((b) => ({ b, ...classify(b) }));
+  }, [report]);
+
+  const counts = useMemo(() => {
+    const c: Record<Verdict, number> = { elite: 0, strong: 0, decent: 0, weak: 0, avoid: 0 };
+    for (const r of all) c[r.verdict]++;
+    return c;
+  }, [all]);
+
+  const dims = useMemo(() => Array.from(new Set(all.map((r) => r.b.dim))), [all]);
+  const [dimFilter, setDimFilter] = useState<string>("all");
+  const [verdictFilter, setVerdictFilter] = useState<string>("all");
+  const [minTrades, setMinTrades] = useState<number>(10);
+  const [search, setSearch] = useState<string>("");
+  const [sortKey, setSortKey] = useState<"robustness" | "expectancy" | "profitFactor" | "trades" | "confidence" | "netProfit">("robustness");
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = all.filter((r) => {
+      if (dimFilter !== "all" && r.b.dim !== dimFilter) return false;
+      if (verdictFilter !== "all" && r.verdict !== verdictFilter) return false;
+      if (r.b.trades < minTrades) return false;
+      if (q && !r.b.label.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const order: Record<Verdict, number> = { elite: 0, strong: 1, decent: 2, weak: 3, avoid: 4 };
+    filtered.sort((a, b) => {
+      const va = a.b[sortKey], vb = b.b[sortKey];
+      if (vb !== va) return (vb as number) - (va as number);
+      return order[a.verdict] - order[b.verdict];
+    });
+    return filtered.slice(0, 200);
+  }, [all, dimFilter, verdictFilter, minTrades, search, sortKey]);
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4 text-emerald-500" /> Top Robust Edges</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {report.robustnessTop.slice(0, 10).map((b) => (
-            <div key={b.key} className="flex items-center justify-between rounded border p-2 text-xs">
-              <div className="min-w-0">
-                <div className="truncate font-mono">{b.label}</div>
-                <div className="text-muted-foreground">{b.trades} trades · exp {b.expectancy.toFixed(2)} · PF {b.profitFactor.toFixed(2)}</div>
+    <div className="space-y-4">
+      <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
+        {(Object.keys(VERDICT_META) as Verdict[]).map((v) => {
+          const meta = VERDICT_META[v];
+          return (
+            <button
+              key={v}
+              onClick={() => setVerdictFilter(verdictFilter === v ? "all" : v)}
+              className={`rounded border p-3 text-left transition ${meta.rowClass} ${verdictFilter === v ? "ring-2 ring-primary" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <Badge className={meta.badgeClass}>{meta.label}</Badge>
+                <span className="text-xl font-bold">{counts[v]}</span>
               </div>
-              <RobustnessBar value={b.robustness} />
+              <div className="mt-1 text-[11px] text-muted-foreground">{meta.hint}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[180px]">
+              <CardTitle className="text-sm">Configuration Verdicts</CardTitle>
+              <CardDescription className="text-xs">Every time-bucket ranked by statistical strength. Click a card above to filter.</CardDescription>
             </div>
-          ))}
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Dimension</Label>
+                <Select value={dimFilter} onValueChange={setDimFilter}>
+                  <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All dimensions</SelectItem>
+                    {dims.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Verdict</Label>
+                <Select value={verdictFilter} onValueChange={setVerdictFilter}>
+                  <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {(Object.keys(VERDICT_META) as Verdict[]).map((v) => <SelectItem key={v} value={v}>{VERDICT_META[v].label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Min trades</Label>
+                <Input type="number" className="h-8 w-24" value={minTrades} onChange={(e) => setMinTrades(Number(e.target.value) || 0)} />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Search</Label>
+                <Input className="h-8 w-40" placeholder="e.g. BTC · London" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Sort</Label>
+                <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
+                  <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="robustness">Robustness</SelectItem>
+                    <SelectItem value="expectancy">Expectancy</SelectItem>
+                    <SelectItem value="profitFactor">Profit Factor</SelectItem>
+                    <SelectItem value="netProfit">Net Profit</SelectItem>
+                    <SelectItem value="confidence">Confidence</SelectItem>
+                    <SelectItem value="trades">Trades</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Verdict</TableHead>
+                <TableHead className="text-xs">Bucket</TableHead>
+                <TableHead className="text-xs">Dim</TableHead>
+                <TableHead className="text-xs text-right">Trades</TableHead>
+                <TableHead className="text-xs text-right">Exp</TableHead>
+                <TableHead className="text-xs text-right">PF</TableHead>
+                <TableHead className="text-xs text-right">Win%</TableHead>
+                <TableHead className="text-xs text-right">Sharpe</TableHead>
+                <TableHead className="text-xs text-right">Conf</TableHead>
+                <TableHead className="text-xs">Robustness</TableHead>
+                <TableHead className="text-xs">Why</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow><TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>
+              )}
+              {rows.map(({ b, verdict, reasons, positives }) => {
+                const meta = VERDICT_META[verdict];
+                return (
+                  <TableRow key={`${b.dim}-${b.key}`} className={meta.rowClass}>
+                    <TableCell><Badge className={meta.badgeClass}>{meta.label}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs max-w-[180px] truncate" title={b.label}>{b.label}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground">{b.dim}</TableCell>
+                    <TableCell className="text-right text-xs">{b.trades}</TableCell>
+                    <TableCell className={`text-right text-xs ${b.expectancy > 0 ? "text-emerald-500" : "text-red-500"}`}>{b.expectancy.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{b.profitFactor.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{(b.winRate * 100).toFixed(1)}</TableCell>
+                    <TableCell className="text-right text-xs">{b.sharpe.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{(b.confidence * 100).toFixed(0)}%</TableCell>
+                    <TableCell><RobustnessBar value={b.robustness} /></TableCell>
+                    <TableCell className="text-[10px]">
+                      {verdict === "elite" || verdict === "strong" ? (
+                        <span className="text-emerald-600">{positives.slice(0, 3).join(" · ") || "clean stats"}</span>
+                      ) : verdict === "avoid" ? (
+                        <span className="text-red-500">{reasons.slice(0, 3).join(" · ")}</span>
+                      ) : (
+                        <span className="text-muted-foreground">{(reasons.length ? reasons : positives).slice(0, 3).join(" · ")}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {rows.length >= 200 && (
+            <div className="mt-2 text-[10px] text-muted-foreground">Showing top 200 rows — narrow filters to see more.</div>
+          )}
         </CardContent>
       </Card>
+
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingDown className="h-4 w-4 text-red-500" /> Warnings — Avoid These Windows</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {report.warnings.length === 0 && <div className="text-xs text-muted-foreground">No statistically significant loss zones found.</div>}
-          {report.warnings.map((b) => (
-            <div key={b.key} className="flex items-center justify-between rounded border border-red-500/30 bg-red-500/5 p-2 text-xs">
-              <div className="min-w-0">
-                <div className="truncate font-mono">{b.label}</div>
-                <div className="text-muted-foreground">{b.trades} trades · exp {b.expectancy.toFixed(2)} · conf {(b.confidence * 100).toFixed(0)}%</div>
-              </div>
-              <Badge variant="destructive">avoid</Badge>
-            </div>
-          ))}
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Scoring legend</CardTitle></CardHeader>
+        <CardContent className="grid gap-2 md:grid-cols-5 text-[11px]">
+          <div><Badge className={VERDICT_META.elite.badgeClass}>ELITE</Badge><div className="mt-1 text-muted-foreground">Robustness ≥ 75, ≥30 trades, PF ≥ 1.5, confidence ≥ 90%.</div></div>
+          <div><Badge className={VERDICT_META.strong.badgeClass}>STRONG</Badge><div className="mt-1 text-muted-foreground">Robustness ≥ 60, ≥20 trades, PF ≥ 1.3, positive expectancy.</div></div>
+          <div><Badge className={VERDICT_META.decent.badgeClass}>DECENT</Badge><div className="mt-1 text-muted-foreground">Robustness ≥ 45, PF ≥ 1.1, positive expectancy.</div></div>
+          <div><Badge className={VERDICT_META.weak.badgeClass}>WEAK</Badge><div className="mt-1 text-muted-foreground">Positive but small sample or low significance.</div></div>
+          <div><Badge className={VERDICT_META.avoid.badgeClass}>AVOID</Badge><div className="mt-1 text-muted-foreground">Negative expectancy w/ ≥80% confidence, or PF &lt; 0.8.</div></div>
         </CardContent>
       </Card>
     </div>

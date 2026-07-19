@@ -5,6 +5,7 @@ import type { EnrichedCandle } from "@/lib/market-data/types";
 import { evalConfirmation } from "./confirmation";
 import { evalSessionFilter, evalTrendFilter, evalVolatilityFilter, type FilterResult } from "./filters";
 import { evalRegimeFilter } from "./regime";
+import { evalHmmFilter } from "./hmm";
 import { planEntry, planStop, planTargets, type PendingEntry } from "./planners";
 import { detectSetup } from "./setups";
 import { scoreStrength } from "./strength";

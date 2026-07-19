@@ -44,7 +44,7 @@ export function StrategyPerformanceCard({
   const { data, isLoading, error } = useQuery({
     queryKey: ["strategy-perf", period, effectiveMode, anchor],
     queryFn: () => fetchPerf({ data: { period, mode: effectiveMode, anchor } }),
-    refetchInterval: 60_000,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
   });
 
   const allRows = data?.rows ?? [];

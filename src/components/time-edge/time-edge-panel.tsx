@@ -1129,28 +1129,42 @@ function RobustnessPanel({ report, trades }: { report: TimeEdgeReport; trades: T
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead className="text-xs">Verdict</TableHead>
-                <TableHead className="text-xs">Bucket</TableHead>
-                <TableHead className="text-xs">Dim</TableHead>
-                <TableHead className="text-xs">Symbol</TableHead>
-                <TableHead className="text-xs">TF</TableHead>
-                <TableHead className="text-xs">Strategy</TableHead>
-                <TableHead className="text-xs">Dir</TableHead>
-                <TableHead className="text-xs">Session</TableHead>
-                <TableHead className="text-xs">Hrs IST</TableHead>
-                <TableHead className="text-xs">Wkdys</TableHead>
-                <TableHead className="text-xs text-right">Trades</TableHead>
-                <TableHead className="text-xs text-right">Exp</TableHead>
-                <TableHead className="text-xs text-right">PF</TableHead>
-                <TableHead className="text-xs text-right">Win%</TableHead>
-                <TableHead className="text-xs text-right">Sharpe</TableHead>
-                <TableHead className="text-xs text-right">Conf</TableHead>
-                <TableHead className="text-xs">Robustness</TableHead>
-                <TableHead className="text-xs">Why</TableHead>
-              </TableRow>
+              {(() => {
+                const arrow = (k: SortKey) => sortKey === k ? (sortDir === "desc" ? " ▼" : " ▲") : "";
+                const SortTH = ({ k, label, align }: { k: SortKey; label: string; align?: "right" }) => (
+                  <TableHead
+                    className={`text-xs cursor-pointer select-none hover:bg-muted/50 ${align === "right" ? "text-right" : ""}`}
+                    onClick={() => toggleSort(k)}
+                  >
+                    {label}<span className="text-muted-foreground">{arrow(k)}</span>
+                  </TableHead>
+                );
+                return (
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <SortTH k="verdict" label="Verdict" />
+                    <SortTH k="label" label="Bucket" />
+                    <SortTH k="dim" label="Dim" />
+                    <SortTH k="symbol" label="Symbol" />
+                    <SortTH k="timeframe" label="TF" />
+                    <SortTH k="strategy" label="Strategy" />
+                    <SortTH k="direction" label="Dir" />
+                    <SortTH k="session" label="Session" />
+                    <SortTH k="hours" label="Hrs IST" />
+                    <SortTH k="weekdays" label="Wkdys" />
+                    <SortTH k="trades" label="Trades" align="right" />
+                    <SortTH k="expectancy" label="Exp" align="right" />
+                    <SortTH k="profitFactor" label="PF" align="right" />
+                    <SortTH k="winRate" label="Win%" align="right" />
+                    <SortTH k="sharpe" label="Sharpe" align="right" />
+                    <SortTH k="confidence" label="Conf" align="right" />
+                    <SortTH k="robustness" label="Robustness" />
+                    <TableHead className="text-xs">Why</TableHead>
+                  </TableRow>
+                );
+              })()}
             </TableHeader>
+
             <TableBody>
               {rows.length === 0 && (
                 <TableRow><TableCell colSpan={19} className="text-center text-xs text-muted-foreground py-6">No buckets match the current filters.</TableCell></TableRow>

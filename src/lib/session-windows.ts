@@ -83,3 +83,48 @@ export function windowsForPreset(preset: string): IstWindow[] {
   const keys = PRESET_SESSIONS[preset] ?? [];
   return keys.map(istWindowFor);
 }
+
+/** True if `hourIst` (0-23) is inside [startH, endH) with midnight-wrap support. */
+export function isHourInWindow(hourIst: number, startH: number, endH: number): boolean {
+  if (endH === startH) return false;
+  if (endH > startH) return hourIst >= startH && hourIst < endH;
+  return hourIst >= startH || hourIst < endH;
+}
+
+/** ISO weekday in IST for `now`: Mon=1..Sun=7. */
+export function istWeekday(now = new Date()): number {
+  const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const dayShift = Math.floor((utcMin + IST_OFFSET_MIN) / 1440);
+  const jsDay = (now.getUTCDay() + dayShift + 7) % 7; // 0=Sun..6=Sat
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+/** Gate a runner by pinned IST window + weekday whitelist. Null/empty = no filter. */
+export function isRunnerAllowedNow(
+  cfg: {
+    window_start_hour_ist?: number | null;
+    window_end_hour_ist?: number | null;
+    weekdays_ist?: number[] | null;
+  },
+  now = new Date(),
+): boolean {
+  const hourIst = Math.floor(istNowMinutes(now) / 60);
+  if (cfg.window_start_hour_ist != null && cfg.window_end_hour_ist != null) {
+    if (!isHourInWindow(hourIst, cfg.window_start_hour_ist, cfg.window_end_hour_ist)) return false;
+  }
+  if (cfg.weekdays_ist && cfg.weekdays_ist.length > 0) {
+    if (!cfg.weekdays_ist.includes(istWeekday(now))) return false;
+  }
+  return true;
+}
+
+/** Returns null if `direction` is compatible with `preset`, else a reason string. */
+export function presetDirectionConflict(
+  preset: string,
+  direction: "long" | "short" | "both",
+): string | null {
+  const p = preset.toLowerCase();
+  if (p.includes("long") && direction === "short") return `${preset} is long-only`;
+  if (p.includes("short") && direction === "long") return `${preset} is short-only`;
+  return null;
+}

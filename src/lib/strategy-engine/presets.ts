@@ -108,7 +108,7 @@ export const STRATEGY_PRESETS: Record<string, StrategyConfig> = {
     invalidation: { maxDelayBars: 2 },
     risk: { riskPerTradeUsd: 100 },
   },
-  liquiditylish_sweep_long_FIXME: {
+  liquidity_sweep_long: {
     strategyId: "liquidity-sweep-long",
     strategyName: "Liquidity Sweep Long (1:4)",
     direction: "long",

@@ -124,6 +124,21 @@ export function isRunnerAllowedNow(
   return true;
 }
 
+/** Is today (IST) in the runner's weekday whitelist? Null/empty = every day. */
+export function isTodayAllowedForRunner(
+  weekdays_ist?: number[] | null,
+  now = new Date(),
+): boolean {
+  if (!weekdays_ist || weekdays_ist.length === 0) return true;
+  const { iso, js } = istWeekday(now);
+  return weekdays_ist.includes(iso) || weekdays_ist.includes(js);
+}
+
+const IST_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export function istTodayName(now = new Date()): string {
+  return IST_DAY_NAMES[istWeekday(now).js];
+}
+
 
 /** Returns null if `direction` is compatible with `preset`, else a reason string. */
 export function presetDirectionConflict(

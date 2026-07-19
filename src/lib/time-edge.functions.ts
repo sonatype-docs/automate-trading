@@ -254,14 +254,14 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
         if (b.weekdays?.length) contextBits.push(`wk ${b.weekdays.join(",")}`);
         if (b.sessions?.length) contextBits.push(b.sessions.join("/"));
         contextBits.push(dir);
-        const label = `${b.symbol} · ${b.strategyPreset} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
+        const label = `${b.symbol} · ${presetId} · ${b.timeframe}${contextBits.length ? " · " + contextBits.join(" · ") : ""}${tgt === "live" ? " (live)" : ""}`;
 
         const row: Record<string, unknown> = {
           label,
           source: src,
           symbol: b.symbol,
           timeframe: b.timeframe,
-          strategy_preset: b.strategyPreset,
+          strategy_preset: presetId,
           exec_preset: b.execPreset,
           risk_usd: b.riskUsd,
           lookback_days: b.lookbackDays,

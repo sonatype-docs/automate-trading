@@ -46,8 +46,18 @@ export async function runPaperTradingTick(): Promise<TickReport> {
     .eq("running", true);
   if (error) throw new Error(error.message);
 
+  const { isRunnerAllowedNow } = await import("@/lib/session-windows");
   const results: TickReport["results"] = [];
   for (const r of (runners ?? []) as (RunnerRow & { label: string })[]) {
+    // Skip runners currently outside their pinned IST window / weekday whitelist.
+    if (!isRunnerAllowedNow({
+      window_start_hour_ist: r.window_start_hour_ist,
+      window_end_hour_ist: r.window_end_hour_ist,
+      weekdays_ist: r.weekdays_ist,
+    })) {
+      results.push({ runner_id: r.id, label: r.label, inserted: 0, open: false });
+      continue;
+    }
     try {
       const out = await tickOne(r);
       results.push({ runner_id: r.id, label: r.label, ...out });

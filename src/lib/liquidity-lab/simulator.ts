@@ -83,7 +83,7 @@ export const DEFAULT_REALISM: RealismOptions = {
   fees: DEFAULT_FEE_MODEL,
 };
 
-type SimBar = { ts: number; open?: number; high: number; low: number; close?: number; atr?: number };
+type SimBar = { ts: number; open?: number; high: number; low: number; close?: number; atr?: number | null };
 
 function slippagePoints(bar: SimBar, opts: SlippageOptions): number {
   const px = bar.close ?? bar.open ?? (bar.high + bar.low) / 2;

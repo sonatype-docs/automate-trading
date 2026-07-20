@@ -105,6 +105,9 @@ const DeployBucket = z.object({
   /** Optional pinned trading window (IST hour range, inclusive start, exclusive end). */
   windowStartHourIst: z.number().int().min(0).max(23).optional(),
   windowEndHourIst: z.number().int().min(1).max(24).optional(),
+  /** Optional Lab-tuned strategy overrides (zones, buffers, entry, stops, filters).
+   *  Deep-merged onto the preset in the live tick. */
+  configOverrides: z.record(z.string(), z.unknown()).optional(),
 });
 const DeployInput = z.object({
   target: z.enum(["live", "paper", "both"]),
@@ -305,6 +308,7 @@ export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
           window_start_hour_ist: b.windowStartHourIst ?? null,
           window_end_hour_ist: b.windowEndHourIst ?? null,
           weekdays_ist: b.weekdays && b.weekdays.length > 0 ? b.weekdays : null,
+          config_overrides: b.configOverrides ?? null,
         };
         if (tgt === "live") row.leverage = lev;
 

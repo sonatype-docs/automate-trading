@@ -16,7 +16,7 @@ const RunInput = z.object({
 export interface RunLabResult {
   result: EngineRunResult;
   barsIn: number;
-  effectiveConfig: StrategyConfig;
+  effectiveConfigJson: string;
 }
 
 export const runLiquidityLab = createServerFn({ method: "POST" })

@@ -84,6 +84,126 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
   const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const thirtyMinAgoIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
+  // -1) SAFETY NET — every OPEN live_trade must have a broker-side stop on
+  //     the exchange. Runs regardless of runner window. This exists because
+  //     an entry placed before the stopLossPrice fix (or any manual entry)
+  //     can end up naked on the exchange; if our tick loop stalls, the
+  //     position rides all the way to liquidation.
+  try {
+    const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+    const client = createSharkClient();
+    const { data: openTrades } = await supabaseAdmin
+      .from("live_trades")
+      .select("id, runner_id, symbol, direction, qty, entry_price, stop_price, target_price, fill_ts, entry_ts, client_order_id, exit_client_order_id")
+      .eq("status", "open");
+
+    for (const t of openTrades ?? []) {
+      const symbol = String(t.symbol);
+      const stop = Number(t.stop_price);
+      const qty = Number(t.qty);
+      if (!(stop > 0) || !(qty > 0)) continue;
+
+      // Does the exchange actually still hold this position?
+      let hasPosition = false;
+      try {
+        const pos = await client.getOpenPositions(symbol);
+        hasPosition = pos.some(
+          (p) => p.symbol.toUpperCase() === symbol.toUpperCase() && p.qty > 0,
+        );
+      } catch {
+        continue; // don't act on unreliable exchange state
+      }
+      if (!hasPosition) continue; // reconciler will close the DB row on next tick
+
+      // Is there a reduce-only exit already resting on the book?
+      let openOrdersForSym: Awaited<ReturnType<typeof client.getOpenOrders>> = [];
+      try {
+        openOrdersForSym = await client.getOpenOrders(symbol);
+      } catch {
+        continue;
+      }
+      const closeSideU = t.direction === "long" ? "SELL" : "BUY";
+      const protective = openOrdersForSym.find(
+        (o) =>
+          (o.reduceOnly === true ||
+            o.subType === "STOP_LOSS" ||
+            o.subType === "TAKE_PROFIT") &&
+          String(o.side).toUpperCase() === closeSideU,
+      );
+      if (protective) continue;
+
+      // No broker-side protection. Emergency close if stop already breached,
+      // otherwise attach a reduce-only limit at stop_price as a resting guard.
+      let lastPrice = 0;
+      try {
+        lastPrice = await client.getLastPrice(symbol);
+      } catch {
+        /* ignore */
+      }
+      const stopBreached =
+        lastPrice > 0 &&
+        (t.direction === "long" ? lastPrice <= stop : lastPrice >= stop);
+
+      const closeSideLower: "buy" | "sell" = t.direction === "long" ? "sell" : "buy";
+      if (stopBreached) {
+        try {
+          const exitRes = await client.placeOrder({
+            symbol,
+            side: closeSideLower,
+            qty,
+            type: "market",
+            reduceOnly: true,
+          });
+          await supabaseAdmin
+            .from("live_trades")
+            .update({ exit_client_order_id: exitRes.exchangeOrderId || null })
+            .eq("id", t.id);
+          await logDiagnosis(
+            "error",
+            `[watchdog][SAFETY] ${symbol} ${t.direction} was UNPROTECTED and price breached stop — emergency market close fired`,
+            { trade_id: t.id, runner_id: t.runner_id, symbol, stop, lastPrice, qty },
+          );
+        } catch (e) {
+          await logDiagnosis(
+            "error",
+            `[watchdog][SAFETY] emergency close FAILED for ${symbol} — position is naked and past stop`,
+            { trade_id: t.id, symbol, error: e instanceof Error ? e.message : String(e) },
+          );
+        }
+      } else {
+        try {
+          const exitRes = await client.placeOrder({
+            symbol,
+            side: closeSideLower,
+            qty,
+            type: "limit",
+            price: stop,
+            reduceOnly: true,
+          });
+          await supabaseAdmin
+            .from("live_trades")
+            .update({ exit_client_order_id: exitRes.exchangeOrderId || null })
+            .eq("id", t.id);
+          await logDiagnosis(
+            "warning",
+            `[watchdog][SAFETY] attached reduce-only stop-guard at ${stop} for ${symbol} ${t.direction} (was naked)`,
+            { trade_id: t.id, runner_id: t.runner_id, symbol, stop, qty },
+          );
+        } catch (e) {
+          await logDiagnosis(
+            "error",
+            `[watchdog][SAFETY] failed to attach stop-guard for ${symbol} — position remains unprotected`,
+            { trade_id: t.id, symbol, stop, error: e instanceof Error ? e.message : String(e) },
+          );
+        }
+      }
+    }
+  } catch (e) {
+    await logDiagnosis("error", "[watchdog][SAFETY] protection pass threw", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   // 0) Cross-runner sweep: any LIMIT that was placed to the exchange and got
   //    cancelled within 60s of placement — likely rejected by exchange (post-only
   //    trip, price crossed, or transient error). Repair by clearing the row and

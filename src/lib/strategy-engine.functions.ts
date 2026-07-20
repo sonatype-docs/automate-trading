@@ -30,8 +30,12 @@ export interface RunStrategyResult {
 export const runUniversalStrategy = createServerFn({ method: "POST" })
   .inputValidator((raw) => Input.parse(raw))
   .handler(async ({ data }): Promise<RunStrategyResult> => {
-    const cfg = STRATEGY_PRESETS[data.presetId as keyof typeof STRATEGY_PRESETS];
-    if (!cfg) throw new Error(`Unknown strategy preset: ${data.presetId}`);
+    const base = STRATEGY_PRESETS[data.presetId as keyof typeof STRATEGY_PRESETS];
+    if (!base) throw new Error(`Unknown strategy preset: ${data.presetId}`);
+    const cfg = data.configOverrides
+      ? deepMerge(base, data.configOverrides as Record<string, unknown>)
+      : base;
+
 
     const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }] = await Promise.all([
       import("@/lib/market-data/loader.server"),

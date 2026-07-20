@@ -31,6 +31,16 @@ interface RunnerRow {
   weekdays_ist: number[] | null;
 }
 
+interface LiveEntryCandidate {
+  signalId: string;
+  direction: "long" | "short";
+  entryTime: number;
+  entryPrice: number;
+  stopPrice: number;
+  targetPrice: number;
+  source: "pending_limit" | "open_sim_trade";
+}
+
 export interface LiveTickReport {
   ok: boolean;
   runners: number;
@@ -228,14 +238,20 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   const sres = runStrategy(enriched, scfg, { mode: "live", symbol: r.symbol });
   const eres = runExecution(enriched, sres.signals, ecfg, { symbol: r.symbol });
 
-  // Only look at the newest "still-open" flushed trade — that's the current signal.
-  const openFlush = eres.trades.find((t) => t.exitReason === "end_of_data");
-  if (!openFlush) return { placed: 0, reconciled };
+  // LIVE entry selection:
+  // - If the strategy has a still-valid pending LIMIT at the right edge, send
+  //   that order to Shark now and let the exchange fill it.
+  // - Fallback to a very recent simulated open trade only when the backtest
+  //   already touched the limit inside the newest bars. Previously live only
+  //   used this second case, so valid pending limit signals were ignored and
+  //   runners could stay "active" all night without placing anything.
+  const candidate = pickLiveEntryCandidate(r, sres, eres, enriched[enriched.length - 1]?.ts ?? Date.now());
+  if (!candidate) return { placed: 0, reconciled };
   // Per-runner direction filter (from Time Edge deploy). "both" or null = no filter.
   if (
     r.direction_filter &&
     r.direction_filter !== "both" &&
-    r.direction_filter !== openFlush.direction
+    r.direction_filter !== candidate.direction
   ) {
     return { placed: 0, reconciled };
   }
@@ -245,7 +261,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   if (r.strategy_preset.startsWith("funding_fade_")) {
     const { checkFundingFadeGate } = await import("@/lib/funding-rate.server");
     const gate = await checkFundingFadeGate(r.symbol);
-    if (!gate.eligible || gate.requiredDirection !== openFlush.direction) {
+    if (!gate.eligible || gate.requiredDirection !== candidate.direction) {
       return { placed: 0, reconciled };
     }
   }
@@ -255,7 +271,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .from("live_trades")
     .select("id")
     .eq("runner_id", r.id)
-    .eq("dedup_key", openFlush.signalId)
+    .eq("dedup_key", candidate.signalId)
     .maybeSingle();
   if (existing) return { placed: 0, reconciled };
 
@@ -299,7 +315,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .eq("runner_id", r.id)
     .eq("symbol", r.symbol)
     .in("status", ["open", "pending"])
-    .neq("direction", openFlush.direction)
+    .neq("direction", candidate.direction)
     .maybeSingle();
   if (openOpposite) {
     let last = 0;
@@ -373,7 +389,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   }
 
   // 3) Size from stop distance so loss ≈ risk_usd on hit.
-  const stopDist = Math.abs(openFlush.fillPrice - openFlush.stopPrice);
+  const stopDist = Math.abs(candidate.entryPrice - candidate.stopPrice);
   if (stopDist <= 0) return { placed: 0, reconciled };
   const qty = Math.max(0.001, Number((Number(r.risk_usd) / stopDist).toFixed(3)));
 
@@ -385,16 +401,16 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   let placedOk = 0;
   const insertBase = {
     runner_id: r.id,
-    dedup_key: openFlush.signalId,
+    dedup_key: candidate.signalId,
     symbol: r.symbol,
     timeframe: r.timeframe,
     strategy_preset: r.strategy_preset,
-    direction: openFlush.direction,
+    direction: candidate.direction,
     qty,
-    entry_ts: new Date(openFlush.entryTime).toISOString(),
-    entry_price: openFlush.fillPrice,
-    stop_price: openFlush.stopPrice,
-    target_price: openFlush.targetPrice,
+    entry_ts: new Date(candidate.entryTime).toISOString(),
+    entry_price: candidate.entryPrice,
+    stop_price: candidate.stopPrice,
+    target_price: candidate.targetPrice,
   };
 
   // Symbol-level lock: only ONE live position per symbol across all runners.
@@ -416,9 +432,9 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   try {
     const attempt = await placeWithMarginRetry(client, {
       symbol: r.symbol,
-      side: openFlush.direction === "long" ? "buy" : "sell",
+      side: candidate.direction === "long" ? "buy" : "sell",
       qty,
-      price: openFlush.fillPrice,
+      price: candidate.entryPrice,
       stopDist,
       riskUsd: Number(r.risk_usd),
       minRiskUsd: 10,
@@ -446,6 +462,63 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     throw e;
   }
   return { placed: placedOk, reconciled };
+}
+
+function pickLiveEntryCandidate(
+  r: RunnerRow,
+  sres: ReturnType<typeof runStrategy>,
+  eres: ReturnType<typeof runExecution>,
+  latestBarTs: number,
+): LiveEntryCandidate | null {
+  const signalsById = new Map(sres.signals.map((s) => [s.signalId, s]));
+  const tfMs = timeframeToMs(r.timeframe);
+  const maxAgeMs = Math.max(15 * 60 * 1000, tfMs * 4);
+
+  const isStillValid = (signalId: string, createdTs: number) => {
+    const sig = signalsById.get(signalId);
+    if (sig?.expiryTs != null && latestBarTs > sig.expiryTs) return false;
+    const signalTs = sig?.timestamp ?? createdTs;
+    return latestBarTs - signalTs <= maxAgeMs;
+  };
+
+  const pending = [...eres.openOrders]
+    .filter((o) => o.kind === "limit" && o.status === "pending" && isStillValid(o.signalId, o.createdTs))
+    .sort((a, b) => b.createdTs - a.createdTs)[0];
+  if (pending) {
+    return {
+      signalId: pending.signalId,
+      direction: pending.side === "buy" ? "long" : "short",
+      entryTime: pending.createdTs,
+      entryPrice: pending.triggerPrice,
+      stopPrice: pending.stopPrice,
+      targetPrice: pending.targetPrice,
+      source: "pending_limit",
+    };
+  }
+
+  const openTrade = [...eres.trades]
+    .filter((t) => t.exitReason === "end_of_data" && isStillValid(t.signalId, t.entryTime))
+    .sort((a, b) => b.entryTime - a.entryTime)[0];
+  if (!openTrade) return null;
+  return {
+    signalId: openTrade.signalId,
+    direction: openTrade.direction,
+    entryTime: openTrade.entryTime,
+    entryPrice: openTrade.fillPrice,
+    stopPrice: openTrade.stopPrice,
+    targetPrice: openTrade.targetPrice,
+    source: "open_sim_trade",
+  };
+}
+
+function timeframeToMs(tf: string): number {
+  const m = /^(\d+)(m|h|d)$/i.exec(tf.trim());
+  if (!m) return 5 * 60 * 1000;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === "d") return n * 24 * 60 * 60 * 1000;
+  if (unit === "h") return n * 60 * 60 * 1000;
+  return n * 60 * 1000;
 }
 
 /** Try a limit order; on "insufficient margin" (Shark error 3018), step risk

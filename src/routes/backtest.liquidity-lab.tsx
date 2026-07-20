@@ -168,9 +168,96 @@ function LabPage() {
     onError: (e: Error) => { setMxProgress(null); toast.error(e.message); },
   });
 
+  // ── Post-run insight filters (multi-select, research-style) ──
+  const rawRows: MatrixRow[] = matrixMut.data?.rows ?? [];
+  const [fltSymbols, setFltSymbols] = useState<string[]>([]);
+  const [fltTfs, setFltTfs] = useState<string[]>([]);
+  const [fltZones, setFltZones] = useState<string[]>([]);
+  const [fltDirs, setFltDirs] = useState<string[]>(["long", "short"]);
+  const [fltOutcomes, setFltOutcomes] = useState<string[]>(["win", "loss", "open"]);
+  const [fltDows, setFltDows] = useState<string[]>([]);
+  const [fltHours, setFltHours] = useState<string[]>([]);
+  const [fltMinTrades, setFltMinTrades] = useState<number>(0);
+
+  // Reset filters whenever a new matrix run finishes.
+  useEffect(() => { if (matrixMut.data) {
+    setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
+    setFltDows([]); setFltHours([]); setFltMinTrades(0);
+  }}, [matrixMut.data]);
+
+  const optSymbols = useMemo(() => Array.from(new Set(rawRows.map((r) => r.symbol))).sort(), [rawRows]);
+  const optTfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.timeframe))).sort(), [rawRows]);
+  const optZones = useMemo(() => Array.from(new Set(rawRows.map((r) => r.zones.join("+")))).sort(), [rawRows]);
+  const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const optHours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+
+  // Row + trade filter. Recomputes per-row stats when trades are filtered so
+  // best/worst combo, table cells and CSV export all reflect the current view.
+  const filteredMatrixRows: MatrixRow[] = useMemo(() => {
+    if (!rawRows.length) return [];
+    const symOk = (s: string) => !fltSymbols.length || fltSymbols.includes(s);
+    const tfOk = (t: string) => !fltTfs.length || fltTfs.includes(t);
+    const zoneOk = (z: string) => !fltZones.length || fltZones.includes(z);
+    const dirOk = (d: string) => fltDirs.includes(d);
+    const outOk = (o: string) => fltOutcomes.includes(o);
+    const dowOk = (n: string) => !fltDows.length || fltDows.includes(n);
+    const hrOk = (h: string) => !fltHours.length || fltHours.includes(h);
+
+    const out: MatrixRow[] = [];
+    for (const r of rawRows) {
+      if (!symOk(r.symbol) || !tfOk(r.timeframe) || !zoneOk(r.zones.join("+"))) continue;
+      if (!r.ok) { out.push(r); continue; }
+      const kept = r.trades.filter((t) => {
+        if (!dirOk(t.direction) || !outOk(t.outcome)) return false;
+        const d = new Date(t.ts);
+        if (!dowOk(DOW_NAMES[d.getUTCDay()])) return false;
+        if (!hrOk(String(d.getUTCHours()).padStart(2, "0"))) return false;
+        return true;
+      });
+      if (fltMinTrades && kept.length < fltMinTrades) continue;
+      if (kept.length === r.trades.length) { out.push(r); continue; }
+      // Recompute row-level stats over the surviving trades.
+      let wins = 0, losses = 0, open = 0, gw = 0, gl = 0, rSum = 0, rrSum = 0, rrN = 0;
+      let longs = 0, shorts = 0, lw = 0, sw = 0;
+      let eq = 0, peak = 0, dd = 0;
+      const sorted = [...kept].sort((a, b) => a.exitTs - b.exitTs);
+      for (const t of sorted) {
+        if (t.outcome === "win") wins++; else if (t.outcome === "loss") losses++; else open++;
+        if (t.pnlUsd > 0) gw += t.pnlUsd; else if (t.pnlUsd < 0) gl += -t.pnlUsd;
+        rSum += t.rMultiple;
+        const rr = Math.abs((t.target - t.entry) / (t.entry - t.stop || 1));
+        if (Number.isFinite(rr) && rr > 0) { rrSum += rr; rrN++; }
+        if (t.direction === "long") { longs++; if (t.outcome === "win") lw++; }
+        else { shorts++; if (t.outcome === "win") sw++; }
+        eq += t.pnlUsd; if (eq > peak) peak = eq; if (peak - eq > dd) dd = peak - eq;
+      }
+      const closed = wins + losses;
+      out.push({
+        ...r,
+        trades: kept,
+        stats: {
+          trades: kept.length, wins, losses, open,
+          winRate: closed ? (wins / closed) * 100 : 0,
+          avgRR: rrN ? rrSum / rrN : (r.stats?.avgRR ?? 0),
+          avgWinR: wins ? sorted.filter((t) => t.outcome === "win").reduce((a, t) => a + t.rMultiple, 0) / wins : 0,
+          avgLossR: losses ? sorted.filter((t) => t.outcome === "loss").reduce((a, t) => a + t.rMultiple, 0) / losses : 0,
+          expectancyR: closed ? rSum / closed : 0,
+          profitFactor: gl > 0 ? gw / gl : (gw > 0 ? 999 : 0),
+          totalPnlUsd: gw - gl,
+          grossWinUsd: gw, grossLossUsd: gl,
+          maxDrawdownUsd: dd,
+          longs, shorts,
+          longWinRate: longs ? (lw / longs) * 100 : 0,
+          shortWinRate: shorts ? (sw / shorts) * 100 : 0,
+        },
+      });
+    }
+    return out;
+  }, [rawRows, fltSymbols, fltTfs, fltZones, fltDirs, fltOutcomes, fltDows, fltHours, fltMinTrades]);
+
   const sortedMatrix: MatrixRow[] = useMemo(() => {
-    if (!matrixMut.data) return [];
-    const rows = [...matrixMut.data.rows];
+    const rows = [...filteredMatrixRows];
     rows.sort((a, b) => {
       const av = a.stats, bv = b.stats;
       if (!av && !bv) return 0;
@@ -185,11 +272,10 @@ function LabPage() {
       }
     });
     return rows;
-  }, [matrixMut.data, mxSort]);
+  }, [filteredMatrixRows, mxSort]);
 
-
-  // Combined insights across the matrix (all rows, not just visible)
-  const matrixRows = matrixMut.data?.rows ?? [];
+  // Combined insights over filtered rows/trades.
+  const matrixRows = filteredMatrixRows;
   const insights = useMemo(() => {
     if (!matrixRows.length) return null;
     return {
@@ -203,6 +289,14 @@ function LabPage() {
       byHour: byHourUTC(matrixRows),
     };
   }, [matrixRows]);
+  const filtersActive =
+    fltSymbols.length + fltTfs.length + fltZones.length + fltDows.length + fltHours.length > 0
+    || fltDirs.length !== 2 || fltOutcomes.length !== 3 || fltMinTrades > 0;
+  const clearFilters = () => {
+    setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
+    setFltDows([]); setFltHours([]); setFltMinTrades(0);
+  };
 
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));

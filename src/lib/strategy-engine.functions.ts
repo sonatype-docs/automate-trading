@@ -17,7 +17,9 @@ const Input = z.object({
   toMs: z.number(),
   presetId: z.string(),
   mode: z.enum(["historical", "live", "replay", "paper"]).default("historical"),
+  configOverrides: z.record(z.string(), z.unknown()).optional(),
 });
+
 
 export interface RunStrategyResult {
   presetId: string;
@@ -28,8 +30,12 @@ export interface RunStrategyResult {
 export const runUniversalStrategy = createServerFn({ method: "POST" })
   .inputValidator((raw) => Input.parse(raw))
   .handler(async ({ data }): Promise<RunStrategyResult> => {
-    const cfg = STRATEGY_PRESETS[data.presetId as keyof typeof STRATEGY_PRESETS];
-    if (!cfg) throw new Error(`Unknown strategy preset: ${data.presetId}`);
+    const base = STRATEGY_PRESETS[data.presetId as keyof typeof STRATEGY_PRESETS];
+    if (!base) throw new Error(`Unknown strategy preset: ${data.presetId}`);
+    const cfg = data.configOverrides
+      ? deepMerge(base, data.configOverrides as Record<string, unknown>)
+      : base;
+
 
     const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }] = await Promise.all([
       import("@/lib/market-data/loader.server"),
@@ -62,3 +68,22 @@ export const runUniversalStrategy = createServerFn({ method: "POST" })
     result.events = result.events.slice(-500);
     return { presetId: data.presetId, result, barsIn: enriched.length };
   });
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function deepMerge<T>(base: T, overrides: Record<string, unknown>): T {
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) continue;
+    const cur = out[k];
+    if (isPlainObject(cur) && isPlainObject(v)) {
+      out[k] = deepMerge(cur, v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
+}
+

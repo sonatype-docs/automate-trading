@@ -25,13 +25,14 @@ import {
   deleteLabPreset, duplicateLabPreset, runLiquidityLabMatrix,
   type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
+import { deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
 import { LAB_SYMBOLS } from "@/lib/liquidity-lab/simulator";
 import {
   computeTotals, bySymbol, byTimeframe, byZone, byDirection, byOutcome,
   byWeekday, byHourUTC, tradesCsv, downloadCsv,
 } from "@/lib/liquidity-lab/matrix-insights";
 import { TIMEFRAMES, TIMEZONES } from "@/lib/market-data/types";
-import { Beaker, Download, Upload, Save, Copy, Trash2, Play, Grid3x3 } from "lucide-react";
+import { Beaker, Download, Upload, Save, Copy, Trash2, Play, Grid3x3, Rocket, X } from "lucide-react";
 
 
 type PresetKey = "pdh-pdl" | undefined;
@@ -298,6 +299,100 @@ function LabPage() {
     setFltDows([]); setFltHours([]); setFltMinTrades(0);
   };
 
+  // ── Ship filtered combos → Live runners ──
+  const deployFn = useServerFn(deployTimeEdgeBuckets);
+  const [deployOpen, setDeployOpen] = useState(false);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
+  const [deployReplace, setDeployReplace] = useState<boolean>(true);
+
+  const plannedBuckets = useMemo(() => {
+    // One bucket per (symbol, tf, zoneKey) that has trades after filters.
+    // Direction/weekdays/hours pulled from the active filter chips so the
+    // live runner only fires inside the same slice you're viewing.
+    const okRows = filteredMatrixRows.filter((r) => r.ok && r.trades.length > 0);
+    if (okRows.length === 0) return [] as Array<{
+      label: string; symbol: string; timeframe: string; zones: string[];
+      direction: "long" | "short" | "both";
+      weekdays: number[] | undefined;
+      windowStartHourIst: number | undefined;
+      windowEndHourIst: number | undefined;
+      trades: number; pnlUsd: number; pf: number; wr: number;
+    }>;
+
+    const direction: "long" | "short" | "both" =
+      fltDirs.length === 1 && (fltDirs[0] === "long" || fltDirs[0] === "short")
+        ? (fltDirs[0] as "long" | "short") : "both";
+
+    // Weekdays: filter uses JS getUTCDay (Sun=0..Sat=6). Live gating accepts
+    // both JS and ISO indices — pass JS as-is. Empty = all days.
+    const weekdays = fltDows.length
+      ? fltDows.map((n) => DOW_NAMES.indexOf(n)).filter((i) => i >= 0)
+      : undefined;
+
+    // Hours: convert UTC hour set → IST (UTC+5:30, hour = (h+5) mod 24 approx)
+    // then compress to a single contiguous window (min..max+1). If the set is
+    // non-contiguous, the window will be a widened superset (documented in UI).
+    let windowStartHourIst: number | undefined;
+    let windowEndHourIst: number | undefined;
+    if (fltHours.length) {
+      const istHours = Array.from(new Set(
+        fltHours.map((h) => (parseInt(h, 10) + 5) % 24),
+      )).sort((a, b) => a - b);
+      windowStartHourIst = istHours[0];
+      windowEndHourIst = Math.min(24, istHours[istHours.length - 1] + 1);
+    }
+
+    return okRows.map((r) => {
+      const st = r.stats!;
+      return {
+        label: `${r.symbol} · ${r.timeframe} · ${r.zones.join("+")}`,
+        symbol: r.symbol,
+        timeframe: r.timeframe,
+        zones: r.zones,
+        direction,
+        weekdays,
+        windowStartHourIst,
+        windowEndHourIst,
+        trades: st.trades,
+        pnlUsd: st.totalPnlUsd,
+        pf: st.profitFactor,
+        wr: st.winRate,
+      };
+    });
+  }, [filteredMatrixRows, fltDirs, fltDows, fltHours]);
+
+  const hourFilterNonContiguous = useMemo(() => {
+    if (fltHours.length < 2) return false;
+    const ist = Array.from(new Set(fltHours.map((h) => (parseInt(h, 10) + 5) % 24))).sort((a, b) => a - b);
+    for (let i = 1; i < ist.length; i++) if (ist[i] !== ist[i - 1] + 1) return true;
+    return false;
+  }, [fltHours]);
+
+  const deployMut = useMutation({
+    mutationFn: async () => {
+      if (plannedBuckets.length === 0) throw new Error("Nothing to deploy.");
+      const buckets = plannedBuckets.map((b) => ({
+        label: b.label,
+        symbol: b.symbol,
+        timeframe: b.timeframe,
+        strategyPreset: "pdh_pdl_sweep_1m",
+        execPreset: "conservative_default",
+        riskUsd: deployRisk,
+        lookbackDays: 30,
+        direction: b.direction,
+        weekdays: b.weekdays,
+        windowStartHourIst: b.windowStartHourIst,
+        windowEndHourIst: b.windowEndHourIst,
+      }));
+      return await deployFn({ data: { target: "live", buckets, replaceExisting: deployReplace } });
+    },
+    onSuccess: (s) => {
+      toast.success(`Live: +${s.live.inserted} inserted · −${s.live.removed} removed${s.skipped.length ? ` · ${s.skipped.length} skipped` : ""}`);
+      setDeployOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
 
@@ -545,8 +640,100 @@ function LabPage() {
                   onClick={() => downloadCsv(`${config.name.replace(/\s+/g, "_")}_matrix_trades.csv`, tradesCsv(matrixRows))}>
                   <Download className="w-3.5 h-3.5 mr-1" /> Export {filtersActive ? "filtered" : "all"} trades CSV
                 </Button>
+                <Button size="sm" onClick={() => setDeployOpen((v) => !v)}
+                  disabled={plannedBuckets.length === 0}>
+                  <Rocket className="w-3.5 h-3.5 mr-1" />
+                  {deployOpen ? "Hide deploy" : `Ship ${plannedBuckets.length} to Live`}
+                </Button>
               </div>
             </div>
+
+            {/* Verification / deploy panel */}
+            {deployOpen && (
+              <div className="rounded-md border border-primary/50 bg-primary/5 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] uppercase tracking-widest font-mono text-primary">
+                    Verify before shipping · {plannedBuckets.length} live runners
+                  </div>
+                  <button className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setDeployOpen(false)} aria-label="Close">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Risk $ / trade</Label>
+                    <Input type="number" min={1} max={10000} value={deployRisk}
+                      onChange={(e) => setDeployRisk(Math.max(1, Number(e.target.value) || 10))}
+                      className="h-8 w-24 font-mono text-xs" />
+                  </div>
+                  <label className="flex items-center gap-2 text-[11px] font-mono">
+                    <Checkbox checked={deployReplace}
+                      onCheckedChange={(v) => setDeployReplace(Boolean(v))} />
+                    Replace existing live runners for these symbols
+                  </label>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setDeployOpen(false)}>Cancel</Button>
+                    <Button size="sm" onClick={() => deployMut.mutate()} disabled={deployMut.isPending}>
+                      <Rocket className="w-3.5 h-3.5 mr-1" />
+                      {deployMut.isPending ? "Deploying…" : `Confirm & Deploy ${plannedBuckets.length}`}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="text-[10px] font-mono text-muted-foreground space-y-0.5">
+                  <div>
+                    Strategy preset · <b>pdh_pdl_sweep_1m</b> ·
+                    direction <b>{plannedBuckets[0]?.direction ?? "both"}</b>
+                    {plannedBuckets[0]?.weekdays?.length
+                      ? <> · weekdays <b>{plannedBuckets[0].weekdays.map((d) => DOW_NAMES[d]).join(",")}</b> (IST)</>
+                      : <> · every day</>}
+                    {plannedBuckets[0]?.windowStartHourIst != null
+                      ? <> · IST window <b>{String(plannedBuckets[0].windowStartHourIst).padStart(2, "0")}:00→{String(plannedBuckets[0].windowEndHourIst).padStart(2, "0")}:00</b></>
+                      : <> · 24h</>}
+                  </div>
+                  {hourFilterNonContiguous && (
+                    <div className="text-amber-500">
+                      ⚠ Hour filter is non-contiguous — live gating widened to the min→max IST range (live engine only supports a single window).
+                    </div>
+                  )}
+                  <div>Weekday chips are UTC in the filter but forwarded as JS-index days; live gating uses IST, so days may shift by ±1 for late-UTC hours.</div>
+                </div>
+
+                <div className="max-h-64 overflow-auto rounded border border-border/50">
+                  <table className="w-full text-[11px] font-mono">
+                    <thead className="sticky top-0 bg-muted/40">
+                      <tr className="text-left text-muted-foreground">
+                        <th className="px-2 py-1">Symbol</th>
+                        <th className="px-2 py-1">TF</th>
+                        <th className="px-2 py-1">Zones</th>
+                        <th className="px-2 py-1 text-right">Trades</th>
+                        <th className="px-2 py-1 text-right">WR%</th>
+                        <th className="px-2 py-1 text-right">PF</th>
+                        <th className="px-2 py-1 text-right">P&L</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plannedBuckets.map((b, i) => (
+                        <tr key={i} className="border-t border-border/40">
+                          <td className="px-2 py-1">{b.symbol}</td>
+                          <td className="px-2 py-1">{b.timeframe}</td>
+                          <td className="px-2 py-1">{b.zones.join("+")}</td>
+                          <td className="px-2 py-1 text-right">{b.trades}</td>
+                          <td className="px-2 py-1 text-right">{b.wr.toFixed(1)}</td>
+                          <td className="px-2 py-1 text-right">{b.pf === 999 ? "∞" : b.pf.toFixed(2)}</td>
+                          <td className={`px-2 py-1 text-right ${b.pnlUsd > 0 ? "text-emerald-500" : b.pnlUsd < 0 ? "text-red-500" : ""}`}>
+                            ${b.pnlUsd.toFixed(0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
 
             {/* Multi-select filter panel */}
             <div className="rounded-md border border-border/60 p-3 space-y-3">

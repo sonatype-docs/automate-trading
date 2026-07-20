@@ -78,7 +78,7 @@ export function ResultCard({
   title,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -90,3 +90,4 @@ export function ResultCard({
     </Card>
   );
 }
+

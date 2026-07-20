@@ -1,51 +1,23 @@
 // Server functions for the Liquidity Sweep Research Lab.
 // - runLab: executes a Lab config against enriched market data via the
 //   Universal Strategy Engine.
+// - runLiquidityLabMatrix: sweeps symbols × timeframes × zones combos and
+//   returns a ranked summary table.
 // - Preset CRUD: list / save / rename / duplicate / delete / import.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { LiquiditySweepConfigSchema, type LiquiditySweepConfig } from "./liquidity-lab/config";
+import { LiquiditySweepConfigSchema, type LiquiditySweepConfig, ZONE_KINDS } from "./liquidity-lab/config";
 import { toStrategyOverrides } from "./liquidity-lab/to-strategy-config";
 import type { EngineRunResult, StrategyConfig } from "./strategy-engine/types";
+import { simulateTrades, type LabTrade, type LabStats } from "./liquidity-lab/simulator";
+import { TIMEFRAMES, type Timeframe } from "./market-data/types";
 
 const RunInput = z.object({
   config: LiquiditySweepConfigSchema,
 });
 
-export interface LabTrade {
-  ts: number;
-  exitTs: number;
-  direction: "long" | "short";
-  entry: number;
-  stop: number;
-  target: number;
-  outcome: "win" | "loss" | "open";
-  rMultiple: number;
-  pnlUsd: number;
-  barsHeld: number;
-}
-
-export interface LabStats {
-  trades: number;
-  wins: number;
-  losses: number;
-  open: number;
-  winRate: number;      // 0..100
-  avgRR: number;        // avg planned R:R across signals
-  avgWinR: number;
-  avgLossR: number;
-  expectancyR: number;
-  profitFactor: number;
-  totalPnlUsd: number;
-  grossWinUsd: number;
-  grossLossUsd: number;
-  maxDrawdownUsd: number;
-  longs: number;
-  shorts: number;
-  longWinRate: number;
-  shortWinRate: number;
-}
+export type { LabTrade, LabStats };
 
 export interface RunLabResult {
   result: EngineRunResult;
@@ -54,6 +26,7 @@ export interface RunLabResult {
   trades: LabTrade[];
   labStats: LabStats;
 }
+
 
 
 export const runLiquidityLab = createServerFn({ method: "POST" })
@@ -193,104 +166,131 @@ function deepMerge<T>(base: T, overrides: Record<string, unknown>): T {
   return out as T;
 }
 
-// ── Trade simulator ────────────────────────────────────────────────────
-// Simple stop-entry walk-forward. Long fills when high >= entry; then check
-// SL (low <= stop) and TP (high >= target). Short mirrored. Same-bar SL+TP
-// is treated as SL (conservative).
-type SimBar = { ts: number; high: number; low: number };
-
-function simulateTrades(
-  bars: SimBar[],
-  signals: EngineRunResult["signals"],
-  riskUsd: number,
-): { trades: LabTrade[]; labStats: LabStats } {
-  const trades: LabTrade[] = [];
-  const idxByTs = new Map<number, number>();
-  for (let i = 0; i < bars.length; i++) idxByTs.set(bars[i].ts, i);
-  const MAX_HOLD = 500;
-
-  for (const s of signals) {
-    const startIdx = idxByTs.get(s.timestamp);
-    if (startIdx == null) continue;
-    const entry = s.entryPrice, stop = s.stopLoss, target = s.takeProfit;
-    const long = s.direction === "long";
-    const expiryIdx = s.expiryTs ? (idxByTs.get(s.expiryTs) ?? startIdx + 5) : startIdx + 5;
-
-    let fillIdx = -1;
-    for (let i = startIdx + 1; i <= Math.min(expiryIdx, bars.length - 1); i++) {
-      const b = bars[i];
-      if (long ? b.high >= entry : b.low <= entry) { fillIdx = i; break; }
-    }
-    if (fillIdx < 0) continue;
-
-    let outcome: LabTrade["outcome"] = "open";
-    let exitBar = fillIdx;
-    for (let i = fillIdx; i < Math.min(bars.length, fillIdx + MAX_HOLD); i++) {
-      const b = bars[i];
-      const hitSl = long ? b.low <= stop : b.high >= stop;
-      const hitTp = long ? b.high >= target : b.low <= target;
-      if (hitSl) { outcome = "loss"; exitBar = i; break; }
-      if (hitTp) { outcome = "win"; exitBar = i; break; }
-    }
-
-    const rDist = Math.abs(entry - stop) || 1;
-    const rMultiple = outcome === "win" ? Math.abs(target - entry) / rDist
-                    : outcome === "loss" ? -1 : 0;
-    trades.push({
-      ts: bars[fillIdx].ts, exitTs: bars[exitBar].ts, direction: s.direction,
-      entry, stop, target, outcome, rMultiple,
-      pnlUsd: outcome === "open" ? 0 : rMultiple * riskUsd,
-      barsHeld: exitBar - fillIdx,
-    });
-  }
-
-  const wins = trades.filter((t) => t.outcome === "win");
-  const losses = trades.filter((t) => t.outcome === "loss");
-  const open = trades.filter((t) => t.outcome === "open");
-  const longs = trades.filter((t) => t.direction === "long");
-  const shorts = trades.filter((t) => t.direction === "short");
-  const grossWin = wins.reduce((a, t) => a + t.pnlUsd, 0);
-  const grossLoss = Math.abs(losses.reduce((a, t) => a + t.pnlUsd, 0));
-  const closedCount = wins.length + losses.length;
-
-  let eq = 0, peak = 0, maxDd = 0;
-  for (const t of trades) {
-    eq += t.pnlUsd;
-    if (eq > peak) peak = eq;
-    if (peak - eq > maxDd) maxDd = peak - eq;
-  }
-
-  const avgRR = signals.length ? signals.reduce((a, s) => a + (s.rr || 0), 0) / signals.length : 0;
-  const wrOf = (arr: LabTrade[]) => {
-    const closed = arr.filter((t) => t.outcome !== "open");
-    return closed.length ? (arr.filter((t) => t.outcome === "win").length / closed.length) * 100 : 0;
-  };
-
-  const labStats: LabStats = {
-    trades: trades.length,
-    wins: wins.length,
-    losses: losses.length,
-    open: open.length,
-    winRate: closedCount ? (wins.length / closedCount) * 100 : 0,
-    avgRR,
-    avgWinR: wins.length ? wins.reduce((a, t) => a + t.rMultiple, 0) / wins.length : 0,
-    avgLossR: losses.length ? losses.reduce((a, t) => a + t.rMultiple, 0) / losses.length : 0,
-    expectancyR: closedCount
-      ? (wins.reduce((a, t) => a + t.rMultiple, 0) + losses.reduce((a, t) => a + t.rMultiple, 0)) / closedCount
-      : 0,
-    profitFactor: grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? 999 : 0),
-    totalPnlUsd: grossWin - grossLoss,
-    grossWinUsd: grossWin,
-    grossLossUsd: grossLoss,
-    maxDrawdownUsd: maxDd,
-    longs: longs.length,
-    shorts: shorts.length,
-    longWinRate: wrOf(longs),
-    shortWinRate: wrOf(shorts),
-  };
-  return { trades, labStats };
-}
-
 // Re-export so client code can import both from one module.
 export type { LiquiditySweepConfig };
+
+// ── Matrix runner ──────────────────────────────────────────────────────
+// Sweeps symbols × timeframes × zone-sets against the same base config and
+// returns a ranked leaderboard of {symbol, timeframe, zones, stats}.
+
+const MatrixInput = z.object({
+  baseConfig: LiquiditySweepConfigSchema,
+  symbols: z.array(z.string()).min(1).max(20),
+  timeframes: z.array(z.enum([...TIMEFRAMES] as [Timeframe, ...Timeframe[]])).min(1).max(14),
+  // Each entry is one zone-selection (a "combo"). Default = each zone alone.
+  zoneSets: z.array(z.array(z.enum(ZONE_KINDS)).min(1)).min(1).max(32),
+  source: z.enum(["yahoo", "shark"]).optional(),
+  daysBack: z.number().min(7).max(720).optional(),
+});
+
+export interface MatrixRow {
+  symbol: string;
+  timeframe: Timeframe;
+  zones: string[];
+  ok: boolean;
+  error: string | null;
+  bars: number;
+  signals: number;
+  stats: LabStats | null;
+  elapsedMs: number;
+}
+
+export interface MatrixResult {
+  rows: MatrixRow[];
+  totalCombos: number;
+  totalMs: number;
+}
+
+export const runLiquidityLabMatrix = createServerFn({ method: "POST" })
+  .inputValidator((raw) => MatrixInput.parse(raw))
+  .handler(async ({ data }): Promise<MatrixResult> => {
+    const startedAll = Date.now();
+    const [
+      { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
+      { runStrategy }, { STRATEGY_PRESETS },
+    ] = await Promise.all([
+      import("@/lib/market-data/loader.server"),
+      import("@/lib/market-data/enrich"),
+      import("@/lib/market-data/types"),
+      import("@/lib/strategy-engine/engine"),
+      import("@/lib/strategy-engine/presets"),
+    ]);
+
+    const base = data.baseConfig;
+    const source = data.source ?? base.source;
+    const daysBack = data.daysBack ?? base.daysBack;
+    const toMs = Date.now();
+    const fromMs = toMs - daysBack * 86_400_000;
+
+    // Cache enriched candles per (symbol, timeframe) so zone-combos re-use it.
+    type Enriched = ReturnType<typeof enrichCandles>;
+    const dataCache = new Map<string, { enriched: Enriched; error?: string }>();
+
+    const rows: MatrixRow[] = [];
+
+    for (const symbol of data.symbols) {
+      for (const tf of data.timeframes) {
+        const key = `${symbol}::${tf}`;
+        if (!dataCache.has(key)) {
+          try {
+            const { candles } = await loadRawCandles({
+              source, symbol, timeframe: tf, fromMs, toMs,
+            });
+            const enriched = enrichCandles(candles, {
+              ...DEFAULT_CONFIG,
+              symbol, timeframe: tf,
+              displayTimezone: base.displayTimezone as never,
+              strategyTimezone: base.strategyTimezone as never,
+            });
+            dataCache.set(key, { enriched });
+          } catch (e) {
+            dataCache.set(key, { enriched: [] as Enriched, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        const cached = dataCache.get(key)!;
+
+        for (const zones of data.zoneSets) {
+          const started = Date.now();
+          if (cached.error) {
+            rows.push({
+              symbol, timeframe: tf, zones, ok: false, error: cached.error,
+              bars: 0, signals: 0, stats: null, elapsedMs: Date.now() - started,
+            });
+            continue;
+          }
+          try {
+            const cfg: LiquiditySweepConfig = {
+              ...base, symbol, entryTimeframe: tf, zones: zones as LiquiditySweepConfig["zones"],
+            };
+            const overrides = toStrategyOverrides(cfg);
+            const preset = STRATEGY_PRESETS.pdh_pdl_sweep_1m;
+            const effective = deepMerge(preset, overrides) as StrategyConfig;
+            effective.strategyName = `${symbol} ${tf} ${zones.join("+")}`;
+
+            const res = runStrategy(cached.enriched, effective, { mode: "historical", symbol });
+            const { labStats } = simulateTrades(cached.enriched, res.signals, cfg.riskUsd);
+            rows.push({
+              symbol, timeframe: tf, zones, ok: true, error: null,
+              bars: cached.enriched.length, signals: res.signals.length,
+              stats: labStats, elapsedMs: Date.now() - started,
+            });
+          } catch (e) {
+            rows.push({
+              symbol, timeframe: tf, zones, ok: false,
+              error: e instanceof Error ? e.message : String(e),
+              bars: cached.enriched.length, signals: 0, stats: null,
+              elapsedMs: Date.now() - started,
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      rows,
+      totalCombos: data.symbols.length * data.timeframes.length * data.zoneSets.length,
+      totalMs: Date.now() - startedAll,
+    };
+  });
+
 

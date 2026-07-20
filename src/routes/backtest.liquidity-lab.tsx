@@ -102,6 +102,52 @@ function LabPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ── Matrix sweep state ──
+  const runMatrix = useServerFn(runLiquidityLabMatrix);
+  const [mxSymbols, setMxSymbols] = useState<string[]>(["XAUUSDT", "BTCUSDT", "ETHUSDT"]);
+  const [mxTfs, setMxTfs] = useState<string[]>(["5m", "15m", "1h"]);
+  const [mxZoneMode, setMxZoneMode] = useState<"each" | "combined">("each");
+  const [mxZones, setMxZones] = useState<string[]>(["PDH", "PDL", "PWH", "PWL"]);
+  const [mxSort, setMxSort] = useState<"pnl" | "pf" | "wr" | "trades" | "expectancy">("pf");
+
+  const matrixMut = useMutation({
+    mutationFn: () => {
+      const zoneSets = mxZoneMode === "each"
+        ? mxZones.map((z) => [z])
+        : [mxZones];
+      const total = mxSymbols.length * mxTfs.length * zoneSets.length;
+      if (total > 300) throw new Error(`Too many combos (${total}). Cap is 300 — narrow selection.`);
+      return runMatrix({ data: {
+        baseConfig: config,
+        symbols: mxSymbols,
+        timeframes: mxTfs as never,
+        zoneSets: zoneSets as never,
+      }});
+    },
+    onSuccess: (r) => toast.success(`Matrix: ${r.rows.length} runs in ${(r.totalMs/1000).toFixed(1)}s`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const sortedMatrix: MatrixRow[] = useMemo(() => {
+    if (!matrixMut.data) return [];
+    const rows = [...matrixMut.data.rows];
+    rows.sort((a, b) => {
+      const av = a.stats, bv = b.stats;
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      switch (mxSort) {
+        case "pnl": return bv.totalPnlUsd - av.totalPnlUsd;
+        case "pf": return bv.profitFactor - av.profitFactor;
+        case "wr": return bv.winRate - av.winRate;
+        case "trades": return bv.trades - av.trades;
+        case "expectancy": return bv.expectancyR - av.expectancyR;
+      }
+    });
+    return rows;
+  }, [matrixMut.data, mxSort]);
+
+
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
 

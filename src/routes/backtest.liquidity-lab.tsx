@@ -249,6 +249,9 @@ function LabPage() {
   const optSymbols = useMemo(() => Array.from(new Set(rawRows.map((r) => r.symbol))).sort(), [rawRows]);
   const optTfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.timeframe))).sort(), [rawRows]);
   const optZones = useMemo(() => Array.from(new Set(rawRows.map((r) => r.zones.join("+")))).sort(), [rawRows]);
+  const optSources = useMemo(() => Array.from(new Set(rawRows.map((r) => r.source))).sort(), [rawRows]);
+  const optConfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.confirmation.join("+")))).sort(), [rawRows]);
+  const optFilterTags = useMemo(() => Array.from(new Set(rawRows.map((r) => r.filters.join("+") || "none"))).sort(), [rawRows]);
   const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const optHours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 

@@ -180,7 +180,7 @@ const MatrixInput = z.object({
   // Each entry is one zone-selection (a "combo"). Default = each zone alone.
   zoneSets: z.array(z.array(z.enum(ZONE_KINDS)).min(1)).min(1).max(32),
   source: z.enum(["yahoo", "shark"]).optional(),
-  daysBack: z.number().min(7).max(720).optional(),
+  daysBack: z.number().min(1).max(3650).optional(),
 });
 
 export interface MatrixRow {

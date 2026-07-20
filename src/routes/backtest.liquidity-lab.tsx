@@ -680,7 +680,25 @@ function LabPage() {
                   </select>
                 </Field>
               </Grid>
+              {(() => {
+                const tf = config.entryTimeframe;
+                const isIntradaySub1h = ["1m", "2m", "3m", "5m", "15m", "30m"].includes(tf);
+                const isYahoo = config.source === "yahoo";
+                if (!isYahoo) return null;
+                const cap = tf === "1m" ? 7 : isIntradaySub1h ? 60 : tf === "1h" || tf === "60m" ? 730 : 3650;
+                const over = config.daysBack > cap;
+                return (
+                  <div className={`mt-2 rounded border px-2 py-1.5 text-[11px] ${over ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border/40 bg-muted/20 text-muted-foreground"}`}>
+                    <b>Yahoo cap for {tf}:</b> ~{cap} days of history. {over ? (
+                      <>You requested {config.daysBack}d — only the last ~{cap}d will actually come back (rest is silently empty). For 2 years of XAU history, switch <b>Entry timeframe → 1h</b> (Yahoo allows 730d there), then resample if needed. Sub-hour intraday depth is a hard Yahoo API limit.</>
+                    ) : (
+                      <>Within the vendor cap. To get 2 years of intraday history you'd need a paid data source — Yahoo doesn't serve sub-1h history beyond 60 days.</>
+                    )}
+                  </div>
+                );
+              })()}
             </Section>
+
 
             {/* Zones */}
             <Section id="zones" title="Liquidity Zones (multi-select)">

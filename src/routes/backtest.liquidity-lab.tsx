@@ -371,19 +371,35 @@ function LabPage() {
   const deployMut = useMutation({
     mutationFn: async () => {
       if (plannedBuckets.length === 0) throw new Error("Nothing to deploy.");
-      const buckets = plannedBuckets.map((b) => ({
-        label: b.label,
-        symbol: b.symbol,
-        timeframe: b.timeframe,
-        strategyPreset: "pdh_pdl_sweep_1m",
-        execPreset: "conservative_default",
-        riskUsd: deployRisk,
-        lookbackDays: 30,
-        direction: b.direction,
-        weekdays: b.weekdays,
-        windowStartHourIst: b.windowStartHourIst,
-        windowEndHourIst: b.windowEndHourIst,
-      }));
+      // Ship the exact Lab config with each runner so live trades use the
+      // SAME tuning that produced the backtest stats above (zones, buffers,
+      // entry model, stops, filters). The live engine deep-merges these onto
+      // the base preset per-tick.
+      const { toStrategyOverrides } = await import("@/lib/liquidity-lab/to-strategy-config");
+      const buckets = plannedBuckets.map((b) => {
+        const perBucketCfg: LiquiditySweepConfig = {
+          ...config,
+          symbol: b.symbol,
+          entryTimeframe: b.timeframe as LiquiditySweepConfig["entryTimeframe"],
+          zones: b.zones as LiquiditySweepConfig["zones"],
+          direction: b.direction,
+          riskUsd: deployRisk,
+        };
+        return {
+          label: b.label,
+          symbol: b.symbol,
+          timeframe: b.timeframe,
+          strategyPreset: "pdh_pdl_sweep_1m",
+          execPreset: "conservative_default",
+          riskUsd: deployRisk,
+          lookbackDays: 30,
+          direction: b.direction,
+          weekdays: b.weekdays,
+          windowStartHourIst: b.windowStartHourIst,
+          windowEndHourIst: b.windowEndHourIst,
+          configOverrides: toStrategyOverrides(perBucketCfg) as Record<string, unknown>,
+        };
+      });
       return await deployFn({ data: { target: "live", buckets, replaceExisting: deployReplace } });
     },
     onSuccess: (s) => {

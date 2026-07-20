@@ -968,3 +968,51 @@ function FilterToggle({ label, enabled, onToggle, children }: {
     </div>
   );
 }
+
+function KPI({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "pos" | "neg" }) {
+  const color = tone === "pos" ? "text-emerald-500" : tone === "neg" ? "text-red-500" : "";
+  return (
+    <div className="rounded border border-border/60 p-2">
+      <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-mono">{label}</div>
+      <div className={`text-sm font-mono font-semibold ${color}`}>{value}</div>
+      {sub && <div className="text-[9px] text-muted-foreground font-mono">{sub}</div>}
+    </div>
+  );
+}
+
+function BucketTable({ rows, keyLabel }: { rows: Array<{ key: string; trades: number; wins: number; losses: number; winRate: number; pnlUsd: number; profitFactor: number; expectancyR: number }>; keyLabel: string }) {
+  if (!rows.length) return <div className="text-xs text-muted-foreground p-2">No trades.</div>;
+  return (
+    <div className="overflow-x-auto max-h-[360px] border border-border/50 rounded-md mt-2">
+      <table className="w-full text-[11px] font-mono">
+        <thead className="sticky top-0 bg-background">
+          <tr className="text-left border-b text-muted-foreground">
+            <th className="py-1 px-2">{keyLabel}</th>
+            <th className="py-1 px-2 text-right">Trades</th>
+            <th className="py-1 px-2 text-right">Wins</th>
+            <th className="py-1 px-2 text-right">Losses</th>
+            <th className="py-1 px-2 text-right">Win %</th>
+            <th className="py-1 px-2 text-right">PF</th>
+            <th className="py-1 px-2 text-right">Exp (R)</th>
+            <th className="py-1 px-2 text-right">P&L $</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-b border-border/30">
+              <td className="py-1 px-2">{r.key}</td>
+              <td className="py-1 px-2 text-right">{r.trades}</td>
+              <td className="py-1 px-2 text-right text-emerald-500">{r.wins}</td>
+              <td className="py-1 px-2 text-right text-red-500">{r.losses}</td>
+              <td className="py-1 px-2 text-right">{r.winRate.toFixed(1)}</td>
+              <td className="py-1 px-2 text-right">{r.profitFactor === 999 ? "∞" : r.profitFactor.toFixed(2)}</td>
+              <td className="py-1 px-2 text-right">{r.expectancyR.toFixed(2)}</td>
+              <td className={`py-1 px-2 text-right ${r.pnlUsd > 0 ? "text-emerald-500" : r.pnlUsd < 0 ? "text-red-500" : ""}`}>{r.pnlUsd.toFixed(0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+

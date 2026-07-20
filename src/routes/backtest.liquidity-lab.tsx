@@ -507,11 +507,45 @@ function LabPage() {
     URL.revokeObjectURL(url);
   };
 
-  const importPreset = (file: File) => {
+  // ── Save / load matrix snapshots (JSON) ──
+  const downloadJson = (name: string, payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const exportMatrixOnly = () => {
+    if (!rawRows.length) { toast.error("No matrix rows to save."); return; }
+    downloadJson(`${config.name.replace(/\s+/g, "_")}_matrix.json`,
+      { kind: "liquidity-lab-matrix", version: 1, savedAt: new Date().toISOString(), rows: rawRows });
+    toast.success(`Saved ${rawRows.length} matrix rows`);
+  };
+  const exportCombined = () => {
+    if (!rawRows.length) { toast.error("Run a matrix first."); return; }
+    downloadJson(`${config.name.replace(/\s+/g, "_")}_combined.json`,
+      { kind: "liquidity-lab-combined", version: 1, savedAt: new Date().toISOString(), config, rows: rawRows });
+    toast.success("Saved combined config + matrix");
+  };
+  const importSnapshot = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(String(e.target?.result ?? "{}"));
+        // Combined snapshot → restore both
+        if (parsed?.kind === "liquidity-lab-combined" && Array.isArray(parsed.rows)) {
+          if (parsed.config) setConfig({ ...defaultLabConfig(), ...parsed.config });
+          setImportedRows(parsed.rows as MatrixRow[]);
+          toast.success(`Loaded combined snapshot · ${parsed.rows.length} rows`);
+          return;
+        }
+        // Matrix-only snapshot
+        if (parsed?.kind === "liquidity-lab-matrix" && Array.isArray(parsed.rows)) {
+          setImportedRows(parsed.rows as MatrixRow[]);
+          toast.success(`Loaded matrix snapshot · ${parsed.rows.length} rows`);
+          return;
+        }
+        // Fallback = plain config preset
         setConfig({ ...defaultLabConfig(), ...parsed });
         toast.success("Preset imported");
       } catch { toast.error("Invalid JSON"); }

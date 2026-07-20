@@ -152,6 +152,22 @@ function LabPage() {
   }, [matrixMut.data, mxSort]);
 
 
+  // Combined insights across the matrix (all rows, not just visible)
+  const matrixRows = matrixMut.data?.rows ?? [];
+  const insights = useMemo(() => {
+    if (!matrixRows.length) return null;
+    return {
+      totals: computeTotals(matrixRows),
+      bySymbol: bySymbol(matrixRows),
+      byTf: byTimeframe(matrixRows),
+      byZone: byZone(matrixRows),
+      byDir: byDirection(matrixRows),
+      byOut: byOutcome(matrixRows),
+      byDow: byWeekday(matrixRows),
+      byHour: byHourUTC(matrixRows),
+    };
+  }, [matrixRows]);
+
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
 

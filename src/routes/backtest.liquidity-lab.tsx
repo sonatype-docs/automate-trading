@@ -26,6 +26,10 @@ import {
   type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
 import { LAB_SYMBOLS } from "@/lib/liquidity-lab/simulator";
+import {
+  computeTotals, bySymbol, byTimeframe, byZone, byDirection, byOutcome,
+  byWeekday, byHourUTC, tradesCsv, downloadCsv,
+} from "@/lib/liquidity-lab/matrix-insights";
 import { TIMEFRAMES, TIMEZONES } from "@/lib/market-data/types";
 import { Beaker, Download, Upload, Save, Copy, Trash2, Play, Grid3x3 } from "lucide-react";
 
@@ -147,6 +151,22 @@ function LabPage() {
     return rows;
   }, [matrixMut.data, mxSort]);
 
+
+  // Combined insights across the matrix (all rows, not just visible)
+  const matrixRows = matrixMut.data?.rows ?? [];
+  const insights = useMemo(() => {
+    if (!matrixRows.length) return null;
+    return {
+      totals: computeTotals(matrixRows),
+      bySymbol: bySymbol(matrixRows),
+      byTf: byTimeframe(matrixRows),
+      byZone: byZone(matrixRows),
+      byDir: byDirection(matrixRows),
+      byOut: byOutcome(matrixRows),
+      byDow: byWeekday(matrixRows),
+      byHour: byHourUTC(matrixRows),
+    };
+  }, [matrixRows]);
 
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
@@ -325,7 +345,82 @@ function LabPage() {
         </div>
       </ResultCard>
 
+      {/* Combined Insights */}
+      {insights && (
+        <ResultCard title={<><Beaker className="w-4 h-4 inline mr-1" /> Combined Insights — All Matrix Trades</>}>
+          <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {insights.totals.okRuns}/{insights.totals.runs} runs OK · {insights.totals.failed} failed
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {insights.totals.totalTrades} trades · {insights.totals.totalSignals} signals
+              </Badge>
+              <div className="ml-auto flex items-center gap-2">
+                <Button size="sm" variant="outline"
+                  onClick={() => downloadCsv(`${config.name.replace(/\s+/g, "_")}_matrix_trades.csv`, tradesCsv(matrixRows))}>
+                  <Download className="w-3.5 h-3.5 mr-1" /> Export all trades CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Headline KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              <KPI label="Total P&L" value={`$${insights.totals.totalPnlUsd.toFixed(0)}`}
+                   tone={insights.totals.totalPnlUsd > 0 ? "pos" : insights.totals.totalPnlUsd < 0 ? "neg" : undefined} />
+              <KPI label="Profit Factor" value={insights.totals.profitFactor === 999 ? "∞" : insights.totals.profitFactor.toFixed(2)} />
+              <KPI label="Win Rate" value={`${insights.totals.winRate.toFixed(1)}%`} />
+              <KPI label="Expectancy" value={`${insights.totals.expectancyR.toFixed(2)}R`} />
+              <KPI label="Avg R:R" value={insights.totals.avgRR.toFixed(2)} />
+              <KPI label="Max DD" value={`$${insights.totals.maxDrawdownUsd.toFixed(0)}`} tone="neg" />
+              <KPI label="Wins" value={String(insights.totals.wins)} tone="pos" />
+              <KPI label="Losses" value={String(insights.totals.losses)} tone="neg" />
+              <KPI label="Open" value={String(insights.totals.open)} />
+              <KPI label="Longs WR" value={`${insights.totals.longWinRate.toFixed(1)}%`} sub={`${insights.totals.longs} trades`} />
+              <KPI label="Shorts WR" value={`${insights.totals.shortWinRate.toFixed(1)}%`} sub={`${insights.totals.shorts} trades`} />
+              <KPI label="Gross W / L" value={`$${insights.totals.grossWinUsd.toFixed(0)} / $${insights.totals.grossLossUsd.toFixed(0)}`} />
+            </div>
+
+            {/* Best / worst combo */}
+            {insights.totals.bestCombo && insights.totals.worstCombo && (
+              <div className="grid md:grid-cols-2 gap-2">
+                <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-[11px] font-mono">
+                  <div className="text-emerald-500 uppercase text-[10px] tracking-widest">Best combo</div>
+                  <div>{insights.totals.bestCombo.key} · ${insights.totals.bestCombo.pnl.toFixed(0)}</div>
+                </div>
+                <div className="rounded border border-red-500/30 bg-red-500/5 p-2 text-[11px] font-mono">
+                  <div className="text-red-500 uppercase text-[10px] tracking-widest">Worst combo</div>
+                  <div>{insights.totals.worstCombo.key} · ${insights.totals.worstCombo.pnl.toFixed(0)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Breakdown tables */}
+            <Tabs defaultValue="symbol">
+              <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="symbol">By Symbol</TabsTrigger>
+                <TabsTrigger value="tf">By Timeframe</TabsTrigger>
+                <TabsTrigger value="zone">By Zone</TabsTrigger>
+                <TabsTrigger value="dir">By Direction</TabsTrigger>
+                <TabsTrigger value="out">By Outcome</TabsTrigger>
+                <TabsTrigger value="dow">By Weekday (UTC)</TabsTrigger>
+                <TabsTrigger value="hour">By Hour (UTC)</TabsTrigger>
+              </TabsList>
+              <TabsContent value="symbol"><BucketTable rows={insights.bySymbol} keyLabel="Symbol" /></TabsContent>
+              <TabsContent value="tf"><BucketTable rows={insights.byTf} keyLabel="Timeframe" /></TabsContent>
+              <TabsContent value="zone"><BucketTable rows={insights.byZone} keyLabel="Zone(s)" /></TabsContent>
+              <TabsContent value="dir"><BucketTable rows={insights.byDir} keyLabel="Direction" /></TabsContent>
+              <TabsContent value="out"><BucketTable rows={insights.byOut} keyLabel="Outcome" /></TabsContent>
+              <TabsContent value="dow"><BucketTable rows={insights.byDow} keyLabel="Weekday" /></TabsContent>
+              <TabsContent value="hour"><BucketTable rows={insights.byHour} keyLabel="Hour" /></TabsContent>
+            </Tabs>
+          </div>
+        </ResultCard>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+
 
         {/* Left: config */}
         <ResultCard title="Configuration">
@@ -873,3 +968,51 @@ function FilterToggle({ label, enabled, onToggle, children }: {
     </div>
   );
 }
+
+function KPI({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "pos" | "neg" }) {
+  const color = tone === "pos" ? "text-emerald-500" : tone === "neg" ? "text-red-500" : "";
+  return (
+    <div className="rounded border border-border/60 p-2">
+      <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-mono">{label}</div>
+      <div className={`text-sm font-mono font-semibold ${color}`}>{value}</div>
+      {sub && <div className="text-[9px] text-muted-foreground font-mono">{sub}</div>}
+    </div>
+  );
+}
+
+function BucketTable({ rows, keyLabel }: { rows: Array<{ key: string; trades: number; wins: number; losses: number; winRate: number; pnlUsd: number; profitFactor: number; expectancyR: number }>; keyLabel: string }) {
+  if (!rows.length) return <div className="text-xs text-muted-foreground p-2">No trades.</div>;
+  return (
+    <div className="overflow-x-auto max-h-[360px] border border-border/50 rounded-md mt-2">
+      <table className="w-full text-[11px] font-mono">
+        <thead className="sticky top-0 bg-background">
+          <tr className="text-left border-b text-muted-foreground">
+            <th className="py-1 px-2">{keyLabel}</th>
+            <th className="py-1 px-2 text-right">Trades</th>
+            <th className="py-1 px-2 text-right">Wins</th>
+            <th className="py-1 px-2 text-right">Losses</th>
+            <th className="py-1 px-2 text-right">Win %</th>
+            <th className="py-1 px-2 text-right">PF</th>
+            <th className="py-1 px-2 text-right">Exp (R)</th>
+            <th className="py-1 px-2 text-right">P&L $</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-b border-border/30">
+              <td className="py-1 px-2">{r.key}</td>
+              <td className="py-1 px-2 text-right">{r.trades}</td>
+              <td className="py-1 px-2 text-right text-emerald-500">{r.wins}</td>
+              <td className="py-1 px-2 text-right text-red-500">{r.losses}</td>
+              <td className="py-1 px-2 text-right">{r.winRate.toFixed(1)}</td>
+              <td className="py-1 px-2 text-right">{r.profitFactor === 999 ? "∞" : r.profitFactor.toFixed(2)}</td>
+              <td className="py-1 px-2 text-right">{r.expectancyR.toFixed(2)}</td>
+              <td className={`py-1 px-2 text-right ${r.pnlUsd > 0 ? "text-emerald-500" : r.pnlUsd < 0 ? "text-red-500" : ""}`}>{r.pnlUsd.toFixed(0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+

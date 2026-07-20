@@ -192,6 +192,7 @@ export interface MatrixRow {
   bars: number;
   signals: number;
   stats: LabStats | null;
+  trades: LabTrade[];
   elapsedMs: number;
 }
 
@@ -254,7 +255,7 @@ export const runLiquidityLabMatrix = createServerFn({ method: "POST" })
           if (cached.error) {
             rows.push({
               symbol, timeframe: tf, zones, ok: false, error: cached.error,
-              bars: 0, signals: 0, stats: null, elapsedMs: Date.now() - started,
+              bars: 0, signals: 0, stats: null, trades: [], elapsedMs: Date.now() - started,
             });
             continue;
           }
@@ -268,17 +269,17 @@ export const runLiquidityLabMatrix = createServerFn({ method: "POST" })
             effective.strategyName = `${symbol} ${tf} ${zones.join("+")}`;
 
             const res = runStrategy(cached.enriched, effective, { mode: "historical", symbol });
-            const { labStats } = simulateTrades(cached.enriched, res.signals, cfg.riskUsd);
+            const { trades, labStats } = simulateTrades(cached.enriched, res.signals, cfg.riskUsd);
             rows.push({
               symbol, timeframe: tf, zones, ok: true, error: null,
               bars: cached.enriched.length, signals: res.signals.length,
-              stats: labStats, elapsedMs: Date.now() - started,
+              stats: labStats, trades, elapsedMs: Date.now() - started,
             });
           } catch (e) {
             rows.push({
               symbol, timeframe: tf, zones, ok: false,
               error: e instanceof Error ? e.message : String(e),
-              bars: cached.enriched.length, signals: 0, stats: null,
+              bars: cached.enriched.length, signals: 0, stats: null, trades: [],
               elapsedMs: Date.now() - started,
             });
           }

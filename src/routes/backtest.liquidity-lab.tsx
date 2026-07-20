@@ -232,7 +232,101 @@ function LabPage() {
         )}
       </ResultCard>
 
+      {/* Matrix sweep */}
+      <ResultCard title={<><Grid3x3 className="w-4 h-4 inline mr-1" /> Matrix Sweep — Symbols × Timeframes × Zones</>}>
+        <div className="space-y-3">
+          <ChipsMultiLabeled title="Symbols" values={mxSymbols} options={LAB_SYMBOLS as unknown as string[]} onChange={setMxSymbols} />
+          <ChipsMultiLabeled title="Timeframes" values={mxTfs} options={TIMEFRAMES as unknown as string[]} onChange={setMxTfs} />
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Zones</div>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxZoneMode === "each"} onChange={() => setMxZoneMode("each")} />
+                  Each zone alone
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxZoneMode === "combined"} onChange={() => setMxZoneMode("combined")} />
+                  Combined (one run, all zones)
+                </label>
+              </div>
+            </div>
+            <ChipsMulti values={mxZones} options={ZONE_KINDS as unknown as string[]} onChange={setMxZones} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {mxSymbols.length} × {mxTfs.length} × {mxZoneMode === "each" ? mxZones.length : 1} = {mxSymbols.length * mxTfs.length * (mxZoneMode === "each" ? mxZones.length : 1)} combos
+            </Badge>
+            <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length}>
+              <Play className="w-3.5 h-3.5 mr-1" /> {matrixMut.isPending ? "Running matrix…" : "Run matrix"}
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Sort</Label>
+              <select value={mxSort} onChange={(e) => setMxSort(e.target.value as typeof mxSort)} className={selCls + " max-w-[140px]"}>
+                <option value="pf">Profit factor</option>
+                <option value="pnl">Total P&L</option>
+                <option value="wr">Win rate</option>
+                <option value="trades">Trades</option>
+                <option value="expectancy">Expectancy (R)</option>
+              </select>
+            </div>
+          </div>
+
+          {matrixMut.data && (
+            <div className="overflow-x-auto max-h-[420px] border border-border/50 rounded-md">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="text-left border-b text-muted-foreground">
+                    <th className="py-1 px-2">#</th>
+                    <th className="py-1 px-2">Symbol</th>
+                    <th className="py-1 px-2">TF</th>
+                    <th className="py-1 px-2">Zones</th>
+                    <th className="py-1 px-2 text-right">Trades</th>
+                    <th className="py-1 px-2 text-right">Win %</th>
+                    <th className="py-1 px-2 text-right">PF</th>
+                    <th className="py-1 px-2 text-right">Exp (R)</th>
+                    <th className="py-1 px-2 text-right">P&L $</th>
+                    <th className="py-1 px-2 text-right">Max DD</th>
+                    <th className="py-1 px-2 text-right">Signals</th>
+                    <th className="py-1 px-2">Load</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedMatrix.map((r, i) => (
+                    <tr key={i} className={`border-b border-border/30 ${r.ok ? "" : "opacity-50"}`}>
+                      <td className="py-1 px-2 text-muted-foreground">{i + 1}</td>
+                      <td className="py-1 px-2">{r.symbol}</td>
+                      <td className="py-1 px-2">{r.timeframe}</td>
+                      <td className="py-1 px-2 text-[10px]">{r.zones.join("+")}</td>
+                      <td className="py-1 px-2 text-right">{r.stats?.trades ?? 0}</td>
+                      <td className="py-1 px-2 text-right">{r.stats ? r.stats.winRate.toFixed(1) : "—"}</td>
+                      <td className="py-1 px-2 text-right">{r.stats ? (r.stats.profitFactor === 999 ? "∞" : r.stats.profitFactor.toFixed(2)) : "—"}</td>
+                      <td className="py-1 px-2 text-right">{r.stats ? r.stats.expectancyR.toFixed(2) : "—"}</td>
+                      <td className={`py-1 px-2 text-right ${r.stats && r.stats.totalPnlUsd > 0 ? "text-emerald-500" : r.stats && r.stats.totalPnlUsd < 0 ? "text-red-500" : ""}`}>
+                        {r.stats ? r.stats.totalPnlUsd.toFixed(0) : (r.error ?? "—")}
+                      </td>
+                      <td className="py-1 px-2 text-right">{r.stats ? r.stats.maxDrawdownUsd.toFixed(0) : "—"}</td>
+                      <td className="py-1 px-2 text-right text-muted-foreground">{r.signals}</td>
+                      <td className="py-1 px-2">
+                        {r.ok && (
+                          <button className="text-primary hover:underline text-[10px]"
+                            onClick={() => {
+                              setConfig((c) => ({ ...c, symbol: r.symbol, entryTimeframe: r.timeframe as never, zones: r.zones as never }));
+                              toast.success(`Loaded ${r.symbol} ${r.timeframe} ${r.zones.join("+")} into config`);
+                            }}>Load</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </ResultCard>
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+
         {/* Left: config */}
         <ResultCard title="Configuration">
           <Accordion type="multiple" defaultValue={["data", "zones", "breakout", "entry"]} className="w-full">

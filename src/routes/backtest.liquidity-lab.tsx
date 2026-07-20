@@ -453,7 +453,15 @@ function LabPage() {
           <Input value={config.name}
             onChange={(e) => update("name", e.target.value)}
             className="h-8 max-w-xs font-mono text-xs" placeholder="Preset name" />
-          <Button size="sm" onClick={() => saveMut.mutate(config.name)} disabled={saveMut.isPending}>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (!authed) { toast.error("Sign in to save presets"); return; }
+              saveMut.mutate(config.name);
+            }}
+            disabled={saveMut.isPending}
+            title={authed ? "Save preset" : "Sign in to save presets"}
+          >
             <Save className="w-3.5 h-3.5 mr-1" /> Save
           </Button>
           <Button size="sm" variant="outline" onClick={exportPreset}>

@@ -295,7 +295,7 @@ function LabPage() {
               {mxSymbols.length} × {mxTfs.length} × {mxZoneMode === "each" ? mxZones.length : 1} = {mxSymbols.length * mxTfs.length * (mxZoneMode === "each" ? mxZones.length : 1)} combos
             </Badge>
             <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length}>
-              <Play className="w-3.5 h-3.5 mr-1" /> {matrixMut.isPending ? "Running matrix…" : "Run matrix"}
+              <Play className="w-3.5 h-3.5 mr-1" /> {matrixMut.isPending ? (mxProgress ? `Running ${mxProgress.done}/${mxProgress.total}…` : "Running matrix…") : "Run matrix"}
             </Button>
             <div className="ml-auto flex items-center gap-2">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Sort</Label>

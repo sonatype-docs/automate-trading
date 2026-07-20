@@ -130,7 +130,7 @@ function LabPage() {
       // fetches small and prevents one slow source window from killing the
       // whole matrix. Failed slices are kept as failed rows, not lost.
       const tasks = mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ symbol, timeframe })));
-      const totalCombos = mxSymbols.length * perSymbolCombos;
+      const totalCombos = mxSymbols.length * mxTfs.length * zoneSets.length;
       setMxProgress({ done: 0, total: totalCombos });
       const startedAll = Date.now();
       const allRows: MatrixRow[] = [];

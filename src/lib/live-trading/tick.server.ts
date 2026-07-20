@@ -525,7 +525,7 @@ function timeframeToMs(tf: string): number {
  *  down through a ladder ($20 → $15 → $10 by default), recomputing qty each
  *  step. Retries only while last price is still within the original stop
  *  distance of the planned entry (i.e. our setup zone is still valid). */
-async function placeWithMarginRetry(
+export async function placeWithMarginRetry(
   client: ReturnType<typeof createSharkClient>,
   args: {
     symbol: string;

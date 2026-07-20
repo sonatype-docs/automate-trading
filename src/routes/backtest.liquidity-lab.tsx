@@ -23,6 +23,7 @@ import {
 import {
   runLiquidityLab, listLabPresets, saveLabPreset,
   deleteLabPreset, duplicateLabPreset, runLiquidityLabMatrix,
+  LAB_FILTER_KEYS, type LabFilterKey,
   type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
 import { deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
@@ -118,6 +119,25 @@ function LabPage() {
   const [mxDirection, setMxDirection] = useState<"long" | "short" | "both">("both");
   const [mxSkipSat, setMxSkipSat] = useState<boolean>(true);
   const [mxSkipSun, setMxSkipSun] = useState<boolean>(true);
+  const [mxSources, setMxSources] = useState<Array<"yahoo" | "shark">>(["yahoo"]);
+  const [mxConfMethods, setMxConfMethods] = useState<string[]>(["opposite_candle"]);
+  const [mxConfMode, setMxConfMode] = useState<"each" | "combined">("each");
+  const [mxFilters, setMxFilters] = useState<LabFilterKey[]>([]);
+  const [mxFilterMode, setMxFilterMode] = useState<"off" | "each" | "all">("off");
+
+  const mxConfSets: string[][] = useMemo(() => {
+    if (!mxConfMethods.length) return [["opposite_candle"]];
+    return mxConfMode === "each" ? mxConfMethods.map((m) => [m]) : [mxConfMethods];
+  }, [mxConfMethods, mxConfMode]);
+  const mxFilterSets: LabFilterKey[][] = useMemo(() => {
+    if (mxFilterMode === "off" || mxFilters.length === 0) return [[]];
+    if (mxFilterMode === "all") return [mxFilters];
+    return [[], ...mxFilters.map((k) => [k])];
+  }, [mxFilters, mxFilterMode]);
+
+  const totalCombos = mxSources.length * mxSymbols.length * mxTfs.length
+    * (mxZoneMode === "each" ? mxZones.length : 1)
+    * mxConfSets.length * mxFilterSets.length;
 
   const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
   const matrixMut = useMutation({
@@ -125,16 +145,17 @@ function LabPage() {
       const zoneSets = mxZoneMode === "each"
         ? mxZones.map((z) => [z])
         : [mxZones];
-      if (mxTfs.length === 0 || zoneSets.length === 0 || mxSymbols.length === 0) throw new Error("Select symbols, timeframes and zones.");
-      // Run one symbol × timeframe per server call. This keeps Yahoo/Shark
-      // fetches small and prevents one slow source window from killing the
-      // whole matrix. Failed slices are kept as failed rows, not lost.
-      const tasks = mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ symbol, timeframe })));
-      const totalCombos = mxSymbols.length * mxTfs.length * zoneSets.length;
+      if (mxTfs.length === 0 || zoneSets.length === 0 || mxSymbols.length === 0 || mxSources.length === 0) {
+        throw new Error("Select sources, symbols, timeframes and zones.");
+      }
+      // Chunk: one (source, symbol, timeframe) per server call — sweeps all
+      // zones / confirmation stacks / filter sets inside that call.
+      const tasks = mxSources.flatMap((source) =>
+        mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ source, symbol, timeframe }))),
+      );
       setMxProgress({ done: 0, total: totalCombos });
       const startedAll = Date.now();
       const allRows: MatrixRow[] = [];
-      // Build effective base config: matrix settings override lab config.
       const weekdays = [0, 1, 2, 3, 4, 5, 6].filter(
         (d) => !(mxSkipSat && d === 6) && !(mxSkipSun && d === 0),
       );
@@ -155,25 +176,34 @@ function LabPage() {
             symbols: [task.symbol],
             timeframes: [task.timeframe] as never,
             zoneSets: zoneSets as never,
-            source: effectiveBase.source,
+            confirmationSets: mxConfSets as never,
+            filterSets: mxFilterSets as never,
+            sources: [task.source],
             daysBack: mxDaysBack,
           }});
           allRows.push(...r.rows);
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
           for (const zones of zoneSets) {
-            allRows.push({
-              symbol: task.symbol,
-              timeframe: task.timeframe as MatrixRow["timeframe"],
-              zones,
-              ok: false,
-              error,
-              bars: 0,
-              signals: 0,
-              stats: null,
-              trades: [],
-              elapsedMs: 0,
-            });
+            for (const conf of mxConfSets) {
+              for (const filters of mxFilterSets) {
+                allRows.push({
+                  symbol: task.symbol,
+                  timeframe: task.timeframe as MatrixRow["timeframe"],
+                  zones,
+                  source: task.source,
+                  confirmation: conf,
+                  filters,
+                  ok: false,
+                  error,
+                  bars: 0,
+                  signals: 0,
+                  stats: null,
+                  trades: [],
+                  elapsedMs: 0,
+                });
+              }
+            }
           }
         }
         setMxProgress({ done: allRows.length, total: totalCombos });
@@ -526,9 +556,11 @@ function LabPage() {
       </ResultCard>
 
       {/* Matrix sweep */}
-      <ResultCard title={<><Grid3x3 className="w-4 h-4 inline mr-1" /> Matrix Sweep — Symbols × Timeframes × Zones</>}>
+      <ResultCard title={<><Grid3x3 className="w-4 h-4 inline mr-1" /> Matrix Sweep — Source × Symbol × TF × Zones × Confirmation × Filters</>}>
         <div className="space-y-3">
+          <ChipsMultiLabeled title="Sources" values={mxSources} options={["yahoo", "shark"]} onChange={(v) => setMxSources(v as Array<"yahoo" | "shark">)} />
           <ChipsMultiLabeled title="Symbols" values={mxSymbols} options={LAB_SYMBOLS as unknown as string[]} onChange={setMxSymbols} />
+
           <ChipsMultiLabeled title="Timeframes" values={mxTfs} options={TIMEFRAMES as unknown as string[]} onChange={setMxTfs} />
           <div className="space-y-1">
             <div className="flex items-center gap-3">
@@ -547,7 +579,49 @@ function LabPage() {
             <ChipsMulti values={mxZones} options={ZONE_KINDS as unknown as string[]} onChange={setMxZones} />
           </div>
 
-          {/* Matrix-only settings: days back, direction, weekend skips */}
+          {/* Confirmation stack sweep */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Confirmation stack</div>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxConfMode === "each"} onChange={() => setMxConfMode("each")} />
+                  Each method alone
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxConfMode === "combined"} onChange={() => setMxConfMode("combined")} />
+                  Combined (all together)
+                </label>
+              </div>
+            </div>
+            <ChipsMulti values={mxConfMethods} options={CONFIRMATION_METHODS as unknown as string[]} onChange={setMxConfMethods} />
+          </div>
+
+          {/* Filters sweep */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Filters</div>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "off"} onChange={() => setMxFilterMode("off")} />
+                  Baseline (all off)
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "each"} onChange={() => setMxFilterMode("each")} />
+                  Baseline + each alone
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "all"} onChange={() => setMxFilterMode("all")} />
+                  All selected on
+                </label>
+              </div>
+            </div>
+            <ChipsMulti values={mxFilters as unknown as string[]}
+              options={LAB_FILTER_KEYS as unknown as string[]}
+              onChange={(v) => setMxFilters(v as LabFilterKey[])} />
+          </div>
+
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border border-border/60 p-3">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Days back</Label>
@@ -593,9 +667,9 @@ function LabPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="font-mono text-[10px]">
-              {mxSymbols.length} × {mxTfs.length} × {mxZoneMode === "each" ? mxZones.length : 1} = {mxSymbols.length * mxTfs.length * (mxZoneMode === "each" ? mxZones.length : 1)} combos
+              {mxSources.length} src × {mxSymbols.length} sym × {mxTfs.length} tf × {mxZoneMode === "each" ? mxZones.length : 1} zn × {mxConfSets.length} conf × {mxFilterSets.length} flt = {totalCombos} combos
             </Badge>
-            <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length}>
+            <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length || !mxSources.length}>
               <Play className="w-3.5 h-3.5 mr-1" /> {matrixMut.isPending ? (mxProgress ? `Running ${mxProgress.done}/${mxProgress.total}…` : "Running matrix…") : "Run matrix"}
             </Button>
             <div className="ml-auto flex items-center gap-2">
@@ -616,9 +690,12 @@ function LabPage() {
                 <thead className="sticky top-0 bg-background">
                   <tr className="text-left border-b text-muted-foreground">
                     <th className="py-1 px-2">#</th>
+                    <th className="py-1 px-2">Src</th>
                     <th className="py-1 px-2">Symbol</th>
                     <th className="py-1 px-2">TF</th>
                     <th className="py-1 px-2">Zones</th>
+                    <th className="py-1 px-2">Conf</th>
+                    <th className="py-1 px-2">Filters</th>
                     <th className="py-1 px-2 text-right">Trades</th>
                     <th className="py-1 px-2 text-right">Win %</th>
                     <th className="py-1 px-2 text-right">PF</th>
@@ -633,9 +710,13 @@ function LabPage() {
                   {sortedMatrix.map((r, i) => (
                     <tr key={i} className={`border-b border-border/30 ${r.ok ? "" : "opacity-50"}`}>
                       <td className="py-1 px-2 text-muted-foreground">{i + 1}</td>
+                      <td className="py-1 px-2 text-[10px] uppercase">{r.source}</td>
                       <td className="py-1 px-2">{r.symbol}</td>
                       <td className="py-1 px-2">{r.timeframe}</td>
                       <td className="py-1 px-2 text-[10px]">{r.zones.join("+")}</td>
+                      <td className="py-1 px-2 text-[10px]">{r.confirmation.join("+")}</td>
+                      <td className="py-1 px-2 text-[10px]">{r.filters.length ? r.filters.join("+") : "—"}</td>
+
                       <td className="py-1 px-2 text-right">{r.stats?.trades ?? 0}</td>
                       <td className="py-1 px-2 text-right">{r.stats ? r.stats.winRate.toFixed(1) : "—"}</td>
                       <td className="py-1 px-2 text-right">{r.stats ? (r.stats.profitFactor === 999 ? "∞" : r.stats.profitFactor.toFixed(2)) : "—"}</td>
@@ -649,8 +730,21 @@ function LabPage() {
                         {r.ok && (
                           <button className="text-primary hover:underline text-[10px]"
                             onClick={() => {
-                              setConfig((c) => ({ ...c, symbol: r.symbol, entryTimeframe: r.timeframe as never, zones: r.zones as never }));
-                              toast.success(`Loaded ${r.symbol} ${r.timeframe} ${r.zones.join("+")} into config`);
+                              setConfig((c) => ({
+                                ...c,
+                                source: r.source,
+                                symbol: r.symbol,
+                                entryTimeframe: r.timeframe as never,
+                                zones: r.zones as never,
+                                confirmation: { ...c.confirmation, methods: r.confirmation as never },
+                                filters: Object.fromEntries(
+                                  (Object.keys(c.filters) as Array<keyof typeof c.filters>).map((k) => [
+                                    k,
+                                    { ...c.filters[k], enabled: (r.filters as string[]).includes(k as string) },
+                                  ]),
+                                ) as typeof c.filters,
+                              }));
+                              toast.success(`Loaded ${r.source}·${r.symbol} ${r.timeframe} ${r.zones.join("+")} into config`);
                             }}>Load</button>
                         )}
                       </td>

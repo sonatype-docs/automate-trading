@@ -576,8 +576,17 @@ function LabPage() {
             </div>
 
 
+            {filtersActive && insights.totals.totalTrades === 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] font-mono text-amber-600 dark:text-amber-400">
+                No trades match the current filters ({insights.totals.totalSignals} raw signals in view).
+                Common cause: Direction is set to only <b>{fltDirs.join(" / ") || "—"}</b>, or Outcome / Weekday / Hour are too narrow.
+                Try <button type="button" className="underline" onClick={clearFilters}>Clear filters</button> and re-narrow one facet at a time.
+              </div>
+            )}
+
             {/* Headline KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+
               <KPI label="Total P&L" value={`$${insights.totals.totalPnlUsd.toFixed(0)}`}
                    tone={insights.totals.totalPnlUsd > 0 ? "pos" : insights.totals.totalPnlUsd < 0 ? "neg" : undefined} />
               <KPI label="Profit Factor" value={insights.totals.profitFactor === 999 ? "∞" : insights.totals.profitFactor.toFixed(2)} />

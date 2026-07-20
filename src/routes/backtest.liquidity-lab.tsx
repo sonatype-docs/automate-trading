@@ -345,7 +345,82 @@ function LabPage() {
         </div>
       </ResultCard>
 
+      {/* Combined Insights */}
+      {insights && (
+        <ResultCard title={<><Beaker className="w-4 h-4 inline mr-1" /> Combined Insights — All Matrix Trades</>}>
+          <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {insights.totals.okRuns}/{insights.totals.runs} runs OK · {insights.totals.failed} failed
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {insights.totals.totalTrades} trades · {insights.totals.totalSignals} signals
+              </Badge>
+              <div className="ml-auto flex items-center gap-2">
+                <Button size="sm" variant="outline"
+                  onClick={() => downloadCsv(`${config.name.replace(/\s+/g, "_")}_matrix_trades.csv`, tradesCsv(matrixRows))}>
+                  <Download className="w-3.5 h-3.5 mr-1" /> Export all trades CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Headline KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              <KPI label="Total P&L" value={`$${insights.totals.totalPnlUsd.toFixed(0)}`}
+                   tone={insights.totals.totalPnlUsd > 0 ? "pos" : insights.totals.totalPnlUsd < 0 ? "neg" : undefined} />
+              <KPI label="Profit Factor" value={insights.totals.profitFactor === 999 ? "∞" : insights.totals.profitFactor.toFixed(2)} />
+              <KPI label="Win Rate" value={`${insights.totals.winRate.toFixed(1)}%`} />
+              <KPI label="Expectancy" value={`${insights.totals.expectancyR.toFixed(2)}R`} />
+              <KPI label="Avg R:R" value={insights.totals.avgRR.toFixed(2)} />
+              <KPI label="Max DD" value={`$${insights.totals.maxDrawdownUsd.toFixed(0)}`} tone="neg" />
+              <KPI label="Wins" value={String(insights.totals.wins)} tone="pos" />
+              <KPI label="Losses" value={String(insights.totals.losses)} tone="neg" />
+              <KPI label="Open" value={String(insights.totals.open)} />
+              <KPI label="Longs WR" value={`${insights.totals.longWinRate.toFixed(1)}%`} sub={`${insights.totals.longs} trades`} />
+              <KPI label="Shorts WR" value={`${insights.totals.shortWinRate.toFixed(1)}%`} sub={`${insights.totals.shorts} trades`} />
+              <KPI label="Gross W / L" value={`$${insights.totals.grossWinUsd.toFixed(0)} / $${insights.totals.grossLossUsd.toFixed(0)}`} />
+            </div>
+
+            {/* Best / worst combo */}
+            {insights.totals.bestCombo && insights.totals.worstCombo && (
+              <div className="grid md:grid-cols-2 gap-2">
+                <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-[11px] font-mono">
+                  <div className="text-emerald-500 uppercase text-[10px] tracking-widest">Best combo</div>
+                  <div>{insights.totals.bestCombo.key} · ${insights.totals.bestCombo.pnl.toFixed(0)}</div>
+                </div>
+                <div className="rounded border border-red-500/30 bg-red-500/5 p-2 text-[11px] font-mono">
+                  <div className="text-red-500 uppercase text-[10px] tracking-widest">Worst combo</div>
+                  <div>{insights.totals.worstCombo.key} · ${insights.totals.worstCombo.pnl.toFixed(0)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Breakdown tables */}
+            <Tabs defaultValue="symbol">
+              <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="symbol">By Symbol</TabsTrigger>
+                <TabsTrigger value="tf">By Timeframe</TabsTrigger>
+                <TabsTrigger value="zone">By Zone</TabsTrigger>
+                <TabsTrigger value="dir">By Direction</TabsTrigger>
+                <TabsTrigger value="out">By Outcome</TabsTrigger>
+                <TabsTrigger value="dow">By Weekday (UTC)</TabsTrigger>
+                <TabsTrigger value="hour">By Hour (UTC)</TabsTrigger>
+              </TabsList>
+              <TabsContent value="symbol"><BucketTable rows={insights.bySymbol} keyLabel="Symbol" /></TabsContent>
+              <TabsContent value="tf"><BucketTable rows={insights.byTf} keyLabel="Timeframe" /></TabsContent>
+              <TabsContent value="zone"><BucketTable rows={insights.byZone} keyLabel="Zone(s)" /></TabsContent>
+              <TabsContent value="dir"><BucketTable rows={insights.byDir} keyLabel="Direction" /></TabsContent>
+              <TabsContent value="out"><BucketTable rows={insights.byOut} keyLabel="Outcome" /></TabsContent>
+              <TabsContent value="dow"><BucketTable rows={insights.byDow} keyLabel="Weekday" /></TabsContent>
+              <TabsContent value="hour"><BucketTable rows={insights.byHour} keyLabel="Hour" /></TabsContent>
+            </Tabs>
+          </div>
+        </ResultCard>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+
 
         {/* Left: config */}
         <ResultCard title="Configuration">

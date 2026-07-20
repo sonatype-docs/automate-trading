@@ -17,7 +17,9 @@ const Input = z.object({
   toMs: z.number(),
   presetId: z.string(),
   mode: z.enum(["historical", "live", "replay", "paper"]).default("historical"),
+  configOverrides: z.record(z.string(), z.unknown()).optional(),
 });
+
 
 export interface RunStrategyResult {
   presetId: string;

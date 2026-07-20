@@ -82,6 +82,36 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
   const { isCalendarBlocked } = await import("@/lib/economic-calendar");
 
   const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const thirtyMinAgoIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  // 0) Cross-runner sweep: any LIMIT that was placed to the exchange and got
+  //    cancelled within 60s of placement — likely rejected by exchange (post-only
+  //    trip, price crossed, or transient error). Repair by clearing the row and
+  //    letting the next tick re-place.
+  try {
+    const { data: quickCancels } = await supabaseAdmin
+      .from("live_trades")
+      .select("id, runner_id, symbol, created_at, exit_ts, exit_reason, status")
+      .gte("created_at", thirtyMinAgoIso)
+      .eq("status", "closed")
+      .not("exit_reason", "is", null);
+    const suspects = (quickCancels ?? []).filter((t) => {
+      const reason = String(t.exit_reason ?? "").toLowerCase();
+      if (!reason.includes("cancel") && !reason.includes("reject")) return false;
+      if (!t.exit_ts || !t.created_at) return false;
+      const ageMs = new Date(t.exit_ts).getTime() - new Date(t.created_at).getTime();
+      return ageMs >= 0 && ageMs <= 60_000;
+    });
+    if (suspects.length) {
+      await logDiagnosis(
+        "warning",
+        `[watchdog] detected ${suspects.length} order(s) cancelled within 60s of placement — will retry via tickOne`,
+        { suspects: suspects.map((s) => ({ id: s.id, runner_id: s.runner_id, symbol: s.symbol, exit_reason: s.exit_reason })) },
+      );
+    }
+  } catch {
+    /* non-fatal */
+  }
 
   for (const rr of runners) {
     const r = rr as RunnerRow & { last_tick_error: string | null };

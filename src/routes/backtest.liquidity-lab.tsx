@@ -113,6 +113,10 @@ function LabPage() {
   const [mxZoneMode, setMxZoneMode] = useState<"each" | "combined">("each");
   const [mxZones, setMxZones] = useState<string[]>(["PDH", "PDL", "PWH", "PWL"]);
   const [mxSort, setMxSort] = useState<"pnl" | "pf" | "wr" | "trades" | "expectancy">("pf");
+  const [mxDaysBack, setMxDaysBack] = useState<number>(60);
+  const [mxDirection, setMxDirection] = useState<"long" | "short" | "both">("both");
+  const [mxSkipSat, setMxSkipSat] = useState<boolean>(true);
+  const [mxSkipSun, setMxSkipSun] = useState<boolean>(true);
 
   const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
   const matrixMut = useMutation({

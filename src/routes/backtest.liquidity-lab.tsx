@@ -195,10 +195,10 @@ function LabPage() {
               <Grid>
                 <Field label="Symbol">
                   <select value={config.symbol} onChange={(e) => update("symbol", e.target.value)} className={selCls}>
-                    <option>XAUUSDT</option><option>BTCUSDT</option><option>ETHUSDT</option>
-                    <option>SOLUSDT</option><option>BNBUSDT</option>
+                    {LAB_SYMBOLS.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </Field>
+
                 <Field label="Source">
                   <select value={config.source} onChange={(e) => update("source", e.target.value as typeof config.source)} className={selCls}>
                     <option value="yahoo">Yahoo</option><option value="shark">Shark</option>

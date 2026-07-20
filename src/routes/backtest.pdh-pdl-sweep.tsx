@@ -286,14 +286,15 @@ function PdhPdlPage() {
               <tbody>
                 {data.result.signals.slice(-200).reverse().map((s, i) => (
                   <tr key={i} className="border-b border-border/30">
-                    <td className="py-1 pr-3">{new Date(s.detectedAt).toISOString().replace("T", " ").slice(0, 16)}</td>
+                    <td className="py-1 pr-3">{new Date(s.timestamp).toISOString().replace("T", " ").slice(0, 16)}</td>
                     <td className={`py-1 pr-3 ${s.direction === "long" ? "text-emerald-500" : "text-red-500"}`}>{s.direction}</td>
                     <td className="py-1 pr-3">{s.entryPrice.toFixed(2)}</td>
-                    <td className="py-1 pr-3">{s.stopPrice.toFixed(2)}</td>
-                    <td className="py-1 pr-3">{s.targets[0]?.price.toFixed(2) ?? "—"}</td>
-                    <td className="py-1 pr-3">{s.rrPlanned.toFixed(2)}</td>
-                    <td className="py-1 pr-3">{s.strengthScore.toFixed(0)}</td>
+                    <td className="py-1 pr-3">{s.stopLoss.toFixed(2)}</td>
+                    <td className="py-1 pr-3">{s.takeProfit.toFixed(2)}</td>
+                    <td className="py-1 pr-3">{s.rr.toFixed(2)}</td>
+                    <td className="py-1 pr-3">{s.signalStrength.toFixed(0)}</td>
                   </tr>
+
                 ))}
               </tbody>
             </table>

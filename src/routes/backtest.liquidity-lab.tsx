@@ -665,8 +665,8 @@ function LabPage() {
                   </select>
                 </Field>
                 <Field label="Days back">
-                  <Input type="number" value={config.daysBack}
-                    onChange={(e) => update("daysBack", Math.max(7, Math.min(720, Number(e.target.value) || 60)))}
+                  <Input type="number" min={1} value={config.daysBack}
+                    onChange={(e) => update("daysBack", Math.max(1, Number(e.target.value) || 1))}
                     className={inpCls} />
                 </Field>
                 <Field label="Strategy TZ">

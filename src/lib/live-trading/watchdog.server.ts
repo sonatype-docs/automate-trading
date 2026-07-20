@@ -60,7 +60,7 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("live_runners")
     .select(
-      "id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist, last_tick_error",
+      "id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist, config_overrides, last_tick_error",
     )
     .eq("running", true);
   if (error) throw new Error(error.message);
@@ -298,9 +298,12 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
     // 3) Re-run the strategy to see if there SHOULD have been an entry.
     let candidate: ReturnType<typeof pickLiveEntryCandidate> = null;
     try {
-      const scfg = STRATEGY_PRESETS[r.strategy_preset];
+      const basePreset = STRATEGY_PRESETS[r.strategy_preset];
       const baseE = EXEC_PRESETS[r.exec_preset];
-      if (!scfg || !baseE) throw new Error("unknown preset");
+      if (!basePreset || !baseE) throw new Error("unknown preset");
+      const scfg = r.config_overrides && Object.keys(r.config_overrides).length
+        ? wdDeepMerge(basePreset, r.config_overrides as Record<string, unknown>)
+        : basePreset;
       const ecfg = withRiskUsd(baseE, Number(r.risk_usd));
       const toMs = Date.now();
       const fromMs = toMs - Number(r.lookback_days) * 24 * 60 * 60 * 1000;

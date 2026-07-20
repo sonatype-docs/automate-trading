@@ -128,7 +128,8 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
   return { ok: true, runners: out.length, results: out };
 }
 
-async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: number }> {
+export type { RunnerRow };
+export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: number }> {
   const scfg = STRATEGY_PRESETS[r.strategy_preset];
   if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
   const baseE = EXEC_PRESETS[r.exec_preset];

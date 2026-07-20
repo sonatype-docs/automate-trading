@@ -43,6 +43,7 @@ import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/pu
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
 import { Route as ApiPublicHooksManualPlaceRouteImport } from './routes/api/public/hooks/manual-place'
+import { Route as ApiPublicHooksLiveWatchdogRouteImport } from './routes/api/public/hooks/live-watchdog'
 import { Route as ApiPublicHooksLiveTickRouteImport } from './routes/api/public/hooks/live-tick'
 
 const TradeIntelligenceRoute = TradeIntelligenceRouteImport.update({
@@ -218,6 +219,12 @@ const ApiPublicHooksManualPlaceRoute =
     path: '/api/public/hooks/manual-place',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksLiveWatchdogRoute =
+  ApiPublicHooksLiveWatchdogRouteImport.update({
+    id: '/api/public/hooks/live-watchdog',
+    path: '/api/public/hooks/live-watchdog',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksLiveTickRoute = ApiPublicHooksLiveTickRouteImport.update({
   id: '/api/public/hooks/live-tick',
   path: '/api/public/hooks/live-tick',
@@ -256,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
+  '/api/public/hooks/live-watchdog': typeof ApiPublicHooksLiveWatchdogRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -291,6 +299,7 @@ export interface FileRoutesByTo {
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
+  '/api/public/hooks/live-watchdog': typeof ApiPublicHooksLiveWatchdogRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -329,6 +338,7 @@ export interface FileRoutesById {
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
+  '/api/public/hooks/live-watchdog': typeof ApiPublicHooksLiveWatchdogRoute
   '/api/public/hooks/manual-place': typeof ApiPublicHooksManualPlaceRoute
   '/api/public/hooks/paper-tick': typeof ApiPublicHooksPaperTickRoute
   '/api/public/hooks/strategy-tick': typeof ApiPublicHooksStrategyTickRoute
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
+    | '/api/public/hooks/live-watchdog'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
     | '/api/public/hooks/live-tick'
+    | '/api/public/hooks/live-watchdog'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
@@ -440,6 +452,7 @@ export interface FileRouteTypes {
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
+    | '/api/public/hooks/live-watchdog'
     | '/api/public/hooks/manual-place'
     | '/api/public/hooks/paper-tick'
     | '/api/public/hooks/strategy-tick'
@@ -474,6 +487,7 @@ export interface RootRouteChildren {
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicExportSnapshotRoute: typeof ApiPublicExportSnapshotRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
+  ApiPublicHooksLiveWatchdogRoute: typeof ApiPublicHooksLiveWatchdogRoute
   ApiPublicHooksManualPlaceRoute: typeof ApiPublicHooksManualPlaceRoute
   ApiPublicHooksPaperTickRoute: typeof ApiPublicHooksPaperTickRoute
   ApiPublicHooksStrategyTickRoute: typeof ApiPublicHooksStrategyTickRoute
@@ -720,6 +734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksManualPlaceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/live-watchdog': {
+      id: '/api/public/hooks/live-watchdog'
+      path: '/api/public/hooks/live-watchdog'
+      fullPath: '/api/public/hooks/live-watchdog'
+      preLoaderRoute: typeof ApiPublicHooksLiveWatchdogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/live-tick': {
       id: '/api/public/hooks/live-tick'
       path: '/api/public/hooks/live-tick'
@@ -786,6 +807,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicExportSnapshotRoute: ApiPublicExportSnapshotRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
+  ApiPublicHooksLiveWatchdogRoute: ApiPublicHooksLiveWatchdogRoute,
   ApiPublicHooksManualPlaceRoute: ApiPublicHooksManualPlaceRoute,
   ApiPublicHooksPaperTickRoute: ApiPublicHooksPaperTickRoute,
   ApiPublicHooksStrategyTickRoute: ApiPublicHooksStrategyTickRoute,

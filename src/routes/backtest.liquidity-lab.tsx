@@ -690,9 +690,12 @@ function LabPage() {
                 <thead className="sticky top-0 bg-background">
                   <tr className="text-left border-b text-muted-foreground">
                     <th className="py-1 px-2">#</th>
+                    <th className="py-1 px-2">Src</th>
                     <th className="py-1 px-2">Symbol</th>
                     <th className="py-1 px-2">TF</th>
                     <th className="py-1 px-2">Zones</th>
+                    <th className="py-1 px-2">Conf</th>
+                    <th className="py-1 px-2">Filters</th>
                     <th className="py-1 px-2 text-right">Trades</th>
                     <th className="py-1 px-2 text-right">Win %</th>
                     <th className="py-1 px-2 text-right">PF</th>
@@ -707,9 +710,13 @@ function LabPage() {
                   {sortedMatrix.map((r, i) => (
                     <tr key={i} className={`border-b border-border/30 ${r.ok ? "" : "opacity-50"}`}>
                       <td className="py-1 px-2 text-muted-foreground">{i + 1}</td>
+                      <td className="py-1 px-2 text-[10px] uppercase">{r.source}</td>
                       <td className="py-1 px-2">{r.symbol}</td>
                       <td className="py-1 px-2">{r.timeframe}</td>
                       <td className="py-1 px-2 text-[10px]">{r.zones.join("+")}</td>
+                      <td className="py-1 px-2 text-[10px]">{r.confirmation.join("+")}</td>
+                      <td className="py-1 px-2 text-[10px]">{r.filters.length ? r.filters.join("+") : "—"}</td>
+
                       <td className="py-1 px-2 text-right">{r.stats?.trades ?? 0}</td>
                       <td className="py-1 px-2 text-right">{r.stats ? r.stats.winRate.toFixed(1) : "—"}</td>
                       <td className="py-1 px-2 text-right">{r.stats ? (r.stats.profitFactor === 999 ? "∞" : r.stats.profitFactor.toFixed(2)) : "—"}</td>

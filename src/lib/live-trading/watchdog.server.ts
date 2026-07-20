@@ -485,3 +485,18 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
 
   return report;
 }
+
+
+function wdIsPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function wdDeepMerge<T>(base: T, overrides: Record<string, unknown>): T {
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) continue;
+    const cur = out[k];
+    if (wdIsPlainObject(cur) && wdIsPlainObject(v)) out[k] = wdDeepMerge(cur, v);
+    else out[k] = v;
+  }
+  return out as T;
+}

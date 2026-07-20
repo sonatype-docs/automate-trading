@@ -370,12 +370,16 @@ function LabPage() {
     };
   }, [matrixRows]);
   const filtersActive =
-    fltSymbols.length + fltTfs.length + fltZones.length + fltDows.length + fltHours.length > 0
-    || fltDirs.length !== 2 || fltOutcomes.length !== 3 || fltMinTrades > 0;
+    fltSymbols.length + fltTfs.length + fltZones.length + fltSources.length + fltConfs.length
+      + fltFilterTags.length + fltDows.length + fltHours.length > 0
+    || fltDirs.length !== 2 || fltOutcomes.length !== 3
+    || fltMinTrades > 0 || fltMinPF > 0 || fltMinWR > 0 || fltMinPnL !== 0;
   const clearFilters = () => {
     setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltSources([]); setFltConfs([]); setFltFilterTags([]);
     setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
-    setFltDows([]); setFltHours([]); setFltMinTrades(0);
+    setFltDows([]); setFltHours([]);
+    setFltMinTrades(0); setFltMinPF(0); setFltMinWR(0); setFltMinPnL(0);
   };
 
   // ── Ship filtered combos → Live runners ──

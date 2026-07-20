@@ -785,3 +785,20 @@ async function reconcileOpen(
   }
   return n;
 }
+
+// Deep-merge Lab config overrides onto a base strategy preset. Plain-object
+// keys recurse; arrays/primitives replace. Used to wire per-runner tuning
+// (zones, buffers, entry model, stops, filters) into the live engine.
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function deepMergeConfig<T>(base: T, overrides: Record<string, unknown>): T {
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) continue;
+    const cur = out[k];
+    if (isPlainObject(cur) && isPlainObject(v)) out[k] = deepMergeConfig(cur, v);
+    else out[k] = v;
+  }
+  return out as T;
+}

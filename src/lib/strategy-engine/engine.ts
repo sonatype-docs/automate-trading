@@ -172,8 +172,15 @@ export function runStrategy(
 
     // 6) Plan entry / stop / targets.
     const entry = planEntry(bar, trig.direction, trig.level, cfg.entry, i);
+    if (isPdhPdl) {
+      // Override: stop-entry at trigger candle high (long) / low (short).
+      entry.price = trig.direction === "long" ? bar.high : bar.low;
+      entry.type = "stop";
+      entry.expiryBarIndex = cfg.entry.expiryBars ? i + cfg.entry.expiryBars : i + 3;
+    }
     const sweepExtreme = typeof trig.meta.sweepExtreme === "number" ? trig.meta.sweepExtreme : undefined;
     const stop = planStop(bar, trig.direction, entry.price, cfg.stop, { sweepExtreme });
+
     const legs = planTargets(bar, trig.direction, entry.price, stop, cfg.targets);
     const rDist = Math.abs(entry.price - stop);
     if (rDist <= 0 || !Number.isFinite(rDist)) continue;

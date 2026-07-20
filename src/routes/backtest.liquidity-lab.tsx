@@ -219,26 +219,39 @@ function LabPage() {
   });
 
   // ── Post-run insight filters (multi-select, research-style) ──
-  const rawRows: MatrixRow[] = matrixMut.data?.rows ?? [];
+  // Rows can come from the last matrix run OR from an imported snapshot.
+  const [importedRows, setImportedRows] = useState<MatrixRow[] | null>(null);
+  const rawRows: MatrixRow[] = importedRows ?? matrixMut.data?.rows ?? [];
   const [fltSymbols, setFltSymbols] = useState<string[]>([]);
   const [fltTfs, setFltTfs] = useState<string[]>([]);
   const [fltZones, setFltZones] = useState<string[]>([]);
+  const [fltSources, setFltSources] = useState<string[]>([]);
+  const [fltConfs, setFltConfs] = useState<string[]>([]);
+  const [fltFilterTags, setFltFilterTags] = useState<string[]>([]);
   const [fltDirs, setFltDirs] = useState<string[]>(["long", "short"]);
   const [fltOutcomes, setFltOutcomes] = useState<string[]>(["win", "loss", "open"]);
   const [fltDows, setFltDows] = useState<string[]>([]);
   const [fltHours, setFltHours] = useState<string[]>([]);
   const [fltMinTrades, setFltMinTrades] = useState<number>(0);
+  const [fltMinPF, setFltMinPF] = useState<number>(0);
+  const [fltMinWR, setFltMinWR] = useState<number>(0);
+  const [fltMinPnL, setFltMinPnL] = useState<number>(0);
 
-  // Reset filters whenever a new matrix run finishes.
-  useEffect(() => { if (matrixMut.data) {
+  // Reset filters whenever a new matrix run finishes or a snapshot is loaded.
+  useEffect(() => { if (matrixMut.data || importedRows) {
     setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltSources([]); setFltConfs([]); setFltFilterTags([]);
     setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
-    setFltDows([]); setFltHours([]); setFltMinTrades(0);
-  }}, [matrixMut.data]);
+    setFltDows([]); setFltHours([]);
+    setFltMinTrades(0); setFltMinPF(0); setFltMinWR(0); setFltMinPnL(0);
+  }}, [matrixMut.data, importedRows]);
 
   const optSymbols = useMemo(() => Array.from(new Set(rawRows.map((r) => r.symbol))).sort(), [rawRows]);
   const optTfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.timeframe))).sort(), [rawRows]);
   const optZones = useMemo(() => Array.from(new Set(rawRows.map((r) => r.zones.join("+")))).sort(), [rawRows]);
+  const optSources = useMemo(() => Array.from(new Set(rawRows.map((r) => r.source))).sort(), [rawRows]);
+  const optConfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.confirmation.join("+")))).sort(), [rawRows]);
+  const optFilterTags = useMemo(() => Array.from(new Set(rawRows.map((r) => r.filters.join("+") || "none"))).sort(), [rawRows]);
   const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const optHours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 
@@ -249,6 +262,9 @@ function LabPage() {
     const symOk = (s: string) => !fltSymbols.length || fltSymbols.includes(s);
     const tfOk = (t: string) => !fltTfs.length || fltTfs.includes(t);
     const zoneOk = (z: string) => !fltZones.length || fltZones.includes(z);
+    const srcOk = (s: string) => !fltSources.length || fltSources.includes(s);
+    const confOk = (c: string) => !fltConfs.length || fltConfs.includes(c);
+    const flagOk = (f: string) => !fltFilterTags.length || fltFilterTags.includes(f);
     const dirOk = (d: string) => !fltDirs.length || fltDirs.includes(d);
     const outOk = (o: string) => !fltOutcomes.length || fltOutcomes.includes(o);
     const dowOk = (n: string) => !fltDows.length || fltDows.includes(n);
@@ -257,6 +273,7 @@ function LabPage() {
     const out: MatrixRow[] = [];
     for (const r of rawRows) {
       if (!symOk(r.symbol) || !tfOk(r.timeframe) || !zoneOk(r.zones.join("+"))) continue;
+      if (!srcOk(r.source) || !confOk(r.confirmation.join("+")) || !flagOk(r.filters.join("+") || "none")) continue;
       if (!r.ok) { out.push(r); continue; }
       const kept = r.trades.filter((t) => {
         if (!dirOk(t.direction) || !outOk(t.outcome)) return false;
@@ -308,8 +325,16 @@ function LabPage() {
         },
       });
     }
-    return out;
-  }, [rawRows, fltSymbols, fltTfs, fltZones, fltDirs, fltOutcomes, fltDows, fltHours, fltMinTrades]);
+    // Row-level thresholds — apply after per-row stat recomputation.
+    return out.filter((r) => {
+      if (!r.ok || !r.stats) return true;
+      if (fltMinPF > 0 && (r.stats.profitFactor === 999 ? 999 : r.stats.profitFactor) < fltMinPF) return false;
+      if (fltMinWR > 0 && r.stats.winRate < fltMinWR) return false;
+      if (fltMinPnL !== 0 && r.stats.totalPnlUsd < fltMinPnL) return false;
+      return true;
+    });
+  }, [rawRows, fltSymbols, fltTfs, fltZones, fltSources, fltConfs, fltFilterTags,
+      fltDirs, fltOutcomes, fltDows, fltHours, fltMinTrades, fltMinPF, fltMinWR, fltMinPnL]);
 
   const sortedMatrix: MatrixRow[] = useMemo(() => {
     const rows = [...filteredMatrixRows];
@@ -345,12 +370,16 @@ function LabPage() {
     };
   }, [matrixRows]);
   const filtersActive =
-    fltSymbols.length + fltTfs.length + fltZones.length + fltDows.length + fltHours.length > 0
-    || fltDirs.length !== 2 || fltOutcomes.length !== 3 || fltMinTrades > 0;
+    fltSymbols.length + fltTfs.length + fltZones.length + fltSources.length + fltConfs.length
+      + fltFilterTags.length + fltDows.length + fltHours.length > 0
+    || fltDirs.length !== 2 || fltOutcomes.length !== 3
+    || fltMinTrades > 0 || fltMinPF > 0 || fltMinWR > 0 || fltMinPnL !== 0;
   const clearFilters = () => {
     setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltSources([]); setFltConfs([]); setFltFilterTags([]);
     setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
-    setFltDows([]); setFltHours([]); setFltMinTrades(0);
+    setFltDows([]); setFltHours([]);
+    setFltMinTrades(0); setFltMinPF(0); setFltMinWR(0); setFltMinPnL(0);
   };
 
   // ── Ship filtered combos → Live runners ──
@@ -478,11 +507,45 @@ function LabPage() {
     URL.revokeObjectURL(url);
   };
 
-  const importPreset = (file: File) => {
+  // ── Save / load matrix snapshots (JSON) ──
+  const downloadJson = (name: string, payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const exportMatrixOnly = () => {
+    if (!rawRows.length) { toast.error("No matrix rows to save."); return; }
+    downloadJson(`${config.name.replace(/\s+/g, "_")}_matrix.json`,
+      { kind: "liquidity-lab-matrix", version: 1, savedAt: new Date().toISOString(), rows: rawRows });
+    toast.success(`Saved ${rawRows.length} matrix rows`);
+  };
+  const exportCombined = () => {
+    if (!rawRows.length) { toast.error("Run a matrix first."); return; }
+    downloadJson(`${config.name.replace(/\s+/g, "_")}_combined.json`,
+      { kind: "liquidity-lab-combined", version: 1, savedAt: new Date().toISOString(), config, rows: rawRows });
+    toast.success("Saved combined config + matrix");
+  };
+  const importSnapshot = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(String(e.target?.result ?? "{}"));
+        // Combined snapshot → restore both
+        if (parsed?.kind === "liquidity-lab-combined" && Array.isArray(parsed.rows)) {
+          if (parsed.config) setConfig({ ...defaultLabConfig(), ...parsed.config });
+          setImportedRows(parsed.rows as MatrixRow[]);
+          toast.success(`Loaded combined snapshot · ${parsed.rows.length} rows`);
+          return;
+        }
+        // Matrix-only snapshot
+        if (parsed?.kind === "liquidity-lab-matrix" && Array.isArray(parsed.rows)) {
+          setImportedRows(parsed.rows as MatrixRow[]);
+          toast.success(`Loaded matrix snapshot · ${parsed.rows.length} rows`);
+          return;
+        }
+        // Fallback = plain config preset
         setConfig({ ...defaultLabConfig(), ...parsed });
         toast.success("Preset imported");
       } catch { toast.error("Invalid JSON"); }
@@ -521,13 +584,27 @@ function LabPage() {
           <Button size="sm" variant="outline" onClick={exportPreset}>
             <Download className="w-3.5 h-3.5 mr-1" /> Export
           </Button>
+          <Button size="sm" variant="outline" onClick={exportMatrixOnly} disabled={!rawRows.length}
+            title="Download matrix rows as JSON">
+            <Download className="w-3.5 h-3.5 mr-1" /> Save matrix
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportCombined} disabled={!rawRows.length}
+            title="Download config + matrix rows as one JSON">
+            <Download className="w-3.5 h-3.5 mr-1" /> Save combined
+          </Button>
           <label className="inline-flex">
             <Button size="sm" variant="outline" asChild>
               <span><Upload className="w-3.5 h-3.5 mr-1" /> Import</span>
             </Button>
             <input type="file" accept="application/json" className="hidden"
-              onChange={(e) => e.target.files?.[0] && importPreset(e.target.files[0])} />
+              onChange={(e) => e.target.files?.[0] && importSnapshot(e.target.files[0])} />
           </label>
+          {importedRows && (
+            <Button size="sm" variant="ghost" onClick={() => setImportedRows(null)}
+              title="Clear loaded snapshot and use last matrix run again">
+              <X className="w-3.5 h-3.5 mr-1" /> Clear snapshot
+            </Button>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <Button size="sm" onClick={() => runMut.mutate()} disabled={runMut.isPending}>
               <Play className="w-3.5 h-3.5 mr-1" /> {runMut.isPending ? "Running…" : "Run backtest"}
@@ -890,17 +967,42 @@ function LabPage() {
               <ChipsMultiLabeled title="Symbols" values={fltSymbols} options={optSymbols} onChange={setFltSymbols} />
               <ChipsMultiLabeled title="Timeframes" values={fltTfs} options={optTfs} onChange={setFltTfs} />
               <ChipsMultiLabeled title="Zones" values={fltZones} options={optZones} onChange={setFltZones} />
+              <div className="grid md:grid-cols-3 gap-3">
+                <ChipsMultiLabeled title="Sources" values={fltSources} options={optSources} onChange={setFltSources} />
+                <ChipsMultiLabeled title="Confirmation" values={fltConfs} options={optConfs} onChange={setFltConfs} />
+                <ChipsMultiLabeled title="Filter tags" values={fltFilterTags} options={optFilterTags} onChange={setFltFilterTags} />
+              </div>
               <div className="grid md:grid-cols-2 gap-3">
                 <ChipsMultiLabeled title="Direction" values={fltDirs} options={["long", "short"]} onChange={setFltDirs} />
                 <ChipsMultiLabeled title="Outcome" values={fltOutcomes} options={["win", "loss", "open"]} onChange={setFltOutcomes} />
               </div>
               <ChipsMultiLabeled title="Weekday (UTC)" values={fltDows} options={DOW_NAMES} onChange={setFltDows} />
               <ChipsMultiLabeled title="Hour (UTC)" values={fltHours} options={optHours} onChange={setFltHours} />
-              <div className="flex items-center gap-2">
-                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min trades / combo</Label>
-                <Input type="number" min={0} max={9999} value={fltMinTrades}
-                  onChange={(e) => setFltMinTrades(Math.max(0, Number(e.target.value) || 0))}
-                  className="h-8 w-24 font-mono text-xs" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min trades / combo</Label>
+                  <Input type="number" min={0} max={99999} value={fltMinTrades}
+                    onChange={(e) => setFltMinTrades(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min PF</Label>
+                  <Input type="number" min={0} step={0.1} value={fltMinPF}
+                    onChange={(e) => setFltMinPF(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min WR %</Label>
+                  <Input type="number" min={0} max={100} step={1} value={fltMinWR}
+                    onChange={(e) => setFltMinWR(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min P&L $</Label>
+                  <Input type="number" step={10} value={fltMinPnL}
+                    onChange={(e) => setFltMinPnL(Number(e.target.value) || 0)}
+                    className="h-8 font-mono text-xs" />
+                </div>
               </div>
             </div>
 

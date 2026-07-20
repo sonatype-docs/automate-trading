@@ -67,6 +67,7 @@ export type Database = {
       }
       live_runners: {
         Row: {
+          config_overrides: Json | null
           created_at: string
           direction_filter: string | null
           exec_preset: string
@@ -89,6 +90,7 @@ export type Database = {
           window_start_hour_ist: number | null
         }
         Insert: {
+          config_overrides?: Json | null
           created_at?: string
           direction_filter?: string | null
           exec_preset: string
@@ -111,6 +113,7 @@ export type Database = {
           window_start_hour_ist?: number | null
         }
         Update: {
+          config_overrides?: Json | null
           created_at?: string
           direction_filter?: string | null
           exec_preset?: string
@@ -370,6 +373,7 @@ export type Database = {
       }
       paper_runners: {
         Row: {
+          config_overrides: Json | null
           created_at: string
           direction_filter: string | null
           exec_preset: string
@@ -392,6 +396,7 @@ export type Database = {
           window_start_hour_ist: number | null
         }
         Insert: {
+          config_overrides?: Json | null
           created_at?: string
           direction_filter?: string | null
           exec_preset?: string
@@ -414,6 +419,7 @@ export type Database = {
           window_start_hour_ist?: number | null
         }
         Update: {
+          config_overrides?: Json | null
           created_at?: string
           direction_filter?: string | null
           exec_preset?: string

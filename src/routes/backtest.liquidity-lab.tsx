@@ -408,8 +408,8 @@ function LabPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border border-border/60 p-3">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Days back</Label>
-              <Input type="number" min={7} max={720} value={mxDaysBack}
-                onChange={(e) => setMxDaysBack(Math.max(7, Math.min(720, Number(e.target.value) || 60)))}
+              <Input type="number" min={1} value={mxDaysBack}
+                onChange={(e) => setMxDaysBack(Math.max(1, Number(e.target.value) || 1))}
                 className="h-8 font-mono text-xs" />
             </div>
             <div className="space-y-1">
@@ -665,8 +665,8 @@ function LabPage() {
                   </select>
                 </Field>
                 <Field label="Days back">
-                  <Input type="number" value={config.daysBack}
-                    onChange={(e) => update("daysBack", Math.max(7, Math.min(720, Number(e.target.value) || 60)))}
+                  <Input type="number" min={1} value={config.daysBack}
+                    onChange={(e) => update("daysBack", Math.max(1, Number(e.target.value) || 1))}
                     className={inpCls} />
                 </Field>
                 <Field label="Strategy TZ">

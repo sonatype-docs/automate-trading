@@ -189,7 +189,7 @@ export const LiquiditySweepConfigSchema = z.object({
   entryTimeframe: z.enum([...TIMEFRAMES] as [string, ...string[]]).default("5m"),
   displayTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("IST"),
   strategyTimezone: z.enum([...TIMEZONES] as [string, ...string[]]).default("London"),
-  daysBack: z.number().min(7).max(720).default(60),
+  daysBack: z.number().min(1).max(3650).default(60),
 
   // Direction
   direction: z.enum(["long", "short", "both"]).default("both"),

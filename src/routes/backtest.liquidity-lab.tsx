@@ -309,6 +309,51 @@ function LabPage() {
             </div>
             <ChipsMulti values={mxZones} options={ZONE_KINDS as unknown as string[]} onChange={setMxZones} />
           </div>
+
+          {/* Matrix-only settings: days back, direction, weekend skips */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border border-border/60 p-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Days back</Label>
+              <Input type="number" min={7} max={720} value={mxDaysBack}
+                onChange={(e) => setMxDaysBack(Math.max(7, Math.min(720, Number(e.target.value) || 60)))}
+                className="h-8 font-mono text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Direction</Label>
+              <div className="flex gap-1">
+                {(["long", "short", "both"] as const).map((d) => (
+                  <button key={d} type="button" onClick={() => setMxDirection(d)}
+                    className={`flex-1 h-8 rounded border text-[11px] font-mono uppercase transition-colors ${
+                      mxDirection === d
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:border-border"
+                    }`}>
+                    {d === "long" ? "L" : d === "short" ? "S" : "L+S"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Skip weekends</Label>
+              <div className="flex gap-1">
+                {([
+                  { k: "sat", label: "Skip Sat", on: mxSkipSat, toggle: () => setMxSkipSat((v) => !v) },
+                  { k: "sun", label: "Skip Sun", on: mxSkipSun, toggle: () => setMxSkipSun((v) => !v) },
+                  { k: "both", label: "Skip Both", on: mxSkipSat && mxSkipSun,
+                    toggle: () => { const v = !(mxSkipSat && mxSkipSun); setMxSkipSat(v); setMxSkipSun(v); } },
+                ] as const).map((t) => (
+                  <button key={t.k} type="button" onClick={t.toggle}
+                    className={`flex-1 h-8 rounded border text-[11px] font-mono transition-colors ${
+                      t.on
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:border-border"
+                    }`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="font-mono text-[10px]">
               {mxSymbols.length} × {mxTfs.length} × {mxZoneMode === "each" ? mxZones.length : 1} = {mxSymbols.length * mxTfs.length * (mxZoneMode === "each" ? mxZones.length : 1)} combos

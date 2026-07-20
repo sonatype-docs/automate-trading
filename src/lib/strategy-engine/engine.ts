@@ -113,18 +113,20 @@ export function runStrategy(
 
     if (isPdhPdl) {
       const prev = bars[i - 1];
-      // Arm on prev-bar wick beyond PDH/PDL (fresh sweep resets attempts).
-      if (prev && prev.prevDayLow != null && prev.low < prev.prevDayLow) {
+      // Arm when previous candle CLOSES outside PDH/PDL (sweep + close).
+      // Bear close beyond PDL → arm LONG reversal.
+      if (prev && prev.prevDayLow != null && prev.close < prev.prevDayLow) {
         if (!armedByDir.long || armedByDir.long.sweepTs !== prev.ts) {
           armedByDir.long = { level: prev.prevDayLow, sweepExtreme: prev.low, sweepTs: prev.ts, attempts: 0 };
         }
       }
-      if (prev && prev.prevDayHigh != null && prev.high > prev.prevDayHigh) {
+      // Bull close beyond PDH → arm SHORT reversal.
+      if (prev && prev.prevDayHigh != null && prev.close > prev.prevDayHigh) {
         if (!armedByDir.short || armedByDir.short.sweepTs !== prev.ts) {
           armedByDir.short = { level: prev.prevDayHigh, sweepExtreme: prev.high, sweepTs: prev.ts, attempts: 0 };
         }
       }
-      // Emit trigger on green/red trigger candle while armed.
+      // Trigger on opposite-color candle. No body/distance/close rules.
       trig = null;
       const green = bar.close > bar.open;
       const red = bar.close < bar.open;
@@ -135,6 +137,7 @@ export function runStrategy(
           swingHigh: bar.swingHigh, swingLow: bar.swingLow,
           meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
                   sweepExtreme: armedByDir.long.sweepExtreme, sweepLevel: armedByDir.long.level,
+                  triggerHigh: bar.high, triggerLow: bar.low,
                   attempt: armedByDir.long.attempts + 1 },
         };
       } else if (armedByDir.short && red && !pendingByDir.short && armedByDir.short.attempts < maxAttempts) {
@@ -144,6 +147,7 @@ export function runStrategy(
           swingHigh: bar.swingHigh, swingLow: bar.swingLow,
           meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
                   sweepExtreme: armedByDir.short.sweepExtreme, sweepLevel: armedByDir.short.level,
+                  triggerHigh: bar.high, triggerLow: bar.low,
                   attempt: armedByDir.short.attempts + 1 },
         };
       }
@@ -154,8 +158,11 @@ export function runStrategy(
     setupsDetected++;
     emit("OnSetupDetected", bar.ts, { kind: trig.kind, direction: trig.direction, level: trig.level });
 
-    // 5) Confirmation.
-    const conf = evalConfirmation(bars, i, trig.direction, trig.level, cfg.confirmation);
+    // 5) Confirmation. PDH/PDL sweep is self-confirming (close-outside + opposite candle) — skip extra rules.
+    const conf = isPdhPdl
+      ? { pass: true, passed: ["oppositeCandle"], failed: [] as string[] }
+      : evalConfirmation(bars, i, trig.direction, trig.level, cfg.confirmation);
+
     passed.push(...conf.passed.map((p) => `conf.${p}`));
     failed.push(...conf.failed.map((p) => `conf.${p}`));
     if (!conf.pass) {
@@ -165,8 +172,15 @@ export function runStrategy(
 
     // 6) Plan entry / stop / targets.
     const entry = planEntry(bar, trig.direction, trig.level, cfg.entry, i);
+    if (isPdhPdl) {
+      // Override: stop-entry at trigger candle high (long) / low (short).
+      entry.price = trig.direction === "long" ? bar.high : bar.low;
+      entry.type = "stop";
+      entry.expiryBarIndex = cfg.entry.expiryBars ? i + cfg.entry.expiryBars : i + 3;
+    }
     const sweepExtreme = typeof trig.meta.sweepExtreme === "number" ? trig.meta.sweepExtreme : undefined;
     const stop = planStop(bar, trig.direction, entry.price, cfg.stop, { sweepExtreme });
+
     const legs = planTargets(bar, trig.direction, entry.price, stop, cfg.targets);
     const rDist = Math.abs(entry.price - stop);
     if (rDist <= 0 || !Number.isFinite(rDist)) continue;

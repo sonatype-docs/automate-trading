@@ -608,7 +608,7 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
       { loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG },
       { runStrategy }, { STRATEGY_PRESETS },
       { evalSessionFilter, evalTrendFilter, evalVolatilityFilter },
-      { windowsForPreset, isWindowActive },
+      { windowsForPreset, isWindowActive, isRunnerAllowedNow },
     ] = await Promise.all([
       import("@/lib/market-data/loader.server"),
       import("@/lib/market-data/enrich"),
@@ -660,9 +660,20 @@ export const getRunnersStatusSummary = createServerFn({ method: "GET" })
         const sres = runStrategy(enriched, scfg, { mode: "live", symbol: rr.symbol });
 
         const windows = windowsForPreset(rr.strategy_preset);
-        const windowActive = windows.length === 0 || windows.some(isWindowActive);
+        const presetWindowActive = windows.length === 0 || windows.some(isWindowActive);
+        const runnerWindowActive = isRunnerAllowedNow({
+          window_start_hour_ist: rr.window_start_hour_ist ?? null,
+          window_end_hour_ist: rr.window_end_hour_ist ?? null,
+          weekdays_ist: rr.weekdays_ist ?? null,
+        });
+        const windowActive = presetWindowActive && runnerWindowActive;
         if (!windowActive) {
-          return { runner_id: rr.id, state: "session_closed", detail: "outside trading window", direction: null };
+          return {
+            runner_id: rr.id,
+            state: "session_closed",
+            detail: !runnerWindowActive ? "outside selected Time Edge window" : "outside preset session window",
+            direction: null,
+          };
         }
 
         const invIds = new Set(sres.invalidated.map((x) => x.signalId));

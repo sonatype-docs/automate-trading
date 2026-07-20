@@ -828,6 +828,19 @@ function Section({ id, title, children }: { id: string; title: string; children:
     </AccordionItem>
   );
 }
+function ChipsMultiLabeled({ title, values, options, onChange }: { title: string; values: string[]; options: string[]; onChange: (v: string[]) => void }) {
+  const allOn = values.length === options.length;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-3">
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">{title}</div>
+        <button type="button" className="text-[10px] font-mono text-muted-foreground hover:text-foreground"
+          onClick={() => onChange(allOn ? [] : options)}>{allOn ? "None" : "All"}</button>
+      </div>
+      <ChipsMulti values={values} options={options} onChange={onChange} />
+    </div>
+  );
+
 function ChipsMulti({ values, options, onChange }: { values: string[]; options: string[]; onChange: (v: string[]) => void }) {
   return (
     <div className="flex flex-wrap gap-1">

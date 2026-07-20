@@ -68,3 +68,22 @@ export const runUniversalStrategy = createServerFn({ method: "POST" })
     result.events = result.events.slice(-500);
     return { presetId: data.presetId, result, barsIn: enriched.length };
   });
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function deepMerge<T>(base: T, overrides: Record<string, unknown>): T {
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) continue;
+    const cur = out[k];
+    if (isPlainObject(cur) && isPlainObject(v)) {
+      out[k] = deepMerge(cur, v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
+}
+

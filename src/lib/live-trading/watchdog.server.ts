@@ -118,17 +118,35 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
     report.checked += 1;
 
     // 1) Recent activity? Any live_trade row created in the last hour counts
-    //    (placed / queued / errored — all mean the tick DID run and reach
-    //    the DB). Zero rows means either no signal or a silent gap.
-    const { count: recent } = await supabaseAdmin
+    //    as healthy — UNLESS every one of them was cancelled within 60s of
+    //    placement (exchange rejected / auto-cancelled). Those are the exact
+    //    "order sent then immediately cancelled" cases the user asked to fix.
+    const { data: recentTrades } = await supabaseAdmin
       .from("live_trades")
-      .select("id", { count: "exact", head: true })
+      .select("id, status, created_at, exit_ts, exit_reason")
       .eq("runner_id", r.id)
       .gte("created_at", oneHourAgoIso);
-    if ((recent ?? 0) > 0) {
+    const genuineActivity = (recentTrades ?? []).filter((t) => {
+      const reason = String(t.exit_reason ?? "").toLowerCase();
+      const isQuickCancel =
+        t.status === "closed" &&
+        (reason.includes("cancel") || reason.includes("reject")) &&
+        t.exit_ts &&
+        t.created_at &&
+        new Date(t.exit_ts).getTime() - new Date(t.created_at).getTime() <= 60_000;
+      return !isQuickCancel;
+    });
+    if (genuineActivity.length > 0) {
       report.healthy += 1;
       report.results.push({ runner_id: r.id, label: r.label, verdict: "healthy" });
       continue;
+    }
+    if ((recentTrades?.length ?? 0) > 0) {
+      await logDiagnosis(
+        "warning",
+        `[watchdog] ${r.label} had ${recentTrades!.length} order(s) but all were cancelled within 60s — treating as broken and forcing repair`,
+        { runner_id: r.id, quick_cancels: recentTrades!.length },
+      );
     }
 
     // 2) In-window check — mirrors the tick.

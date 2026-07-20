@@ -29,6 +29,7 @@ interface RunnerRow {
   window_start_hour_ist: number | null;
   window_end_hour_ist: number | null;
   weekdays_ist: number[] | null;
+  config_overrides: Record<string, unknown> | null;
 }
 
 interface LiveEntryCandidate {
@@ -60,7 +61,7 @@ let idleTickCounter = 0;
 export async function runLiveTradingTick(): Promise<LiveTickReport> {
   const { data: runners, error } = await supabaseAdmin
     .from("live_runners")
-    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist")
+    .select("id, label, source, symbol, timeframe, strategy_preset, exec_preset, risk_usd, lookback_days, leverage, direction_filter, window_start_hour_ist, window_end_hour_ist, weekdays_ist, config_overrides")
     .eq("running", true);
   if (error) throw new Error(error.message);
 
@@ -130,8 +131,14 @@ export async function runLiveTradingTick(): Promise<LiveTickReport> {
 
 export type { RunnerRow };
 export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: number }> {
-  const scfg = STRATEGY_PRESETS[r.strategy_preset];
-  if (!scfg) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
+  const basePreset = STRATEGY_PRESETS[r.strategy_preset];
+  if (!basePreset) throw new Error(`Unknown strategy preset ${r.strategy_preset}`);
+  // Deep-merge stored Lab overrides on top of the base preset so live trades
+  // use the same tuned config that was backtested (zones, buffers, entry,
+  // stop, targets, filters, session). No overrides = plain preset behavior.
+  const scfg = r.config_overrides && Object.keys(r.config_overrides).length
+    ? deepMergeConfig(basePreset, r.config_overrides)
+    : basePreset;
   const baseE = EXEC_PRESETS[r.exec_preset];
   if (!baseE) throw new Error(`Unknown exec preset ${r.exec_preset}`);
   const ecfg = withRiskUsd(baseE, Number(r.risk_usd));

@@ -74,7 +74,10 @@ function LabPage() {
 
   const runMut = useMutation({
     mutationFn: () => run({ data: { config } }),
-    onSuccess: (r) => toast.success(`${r.result.stats.signalsCreated} signals · ${r.result.stats.setupsDetected} setups · ${r.barsIn.toLocaleString()} bars`),
+    onSuccess: (r) => {
+      const s = r.labStats;
+      toast.success(`${s.trades} trades · WR ${s.winRate.toFixed(1)}% · PF ${s.profitFactor.toFixed(2)} · P&L $${s.totalPnlUsd.toFixed(0)}`);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -532,17 +535,67 @@ function LabPage() {
               <Tabs defaultValue="stats" className="w-full">
                 <TabsList>
                   <TabsTrigger value="stats">Stats</TabsTrigger>
+                  <TabsTrigger value="trades">Trades ({data.trades.length})</TabsTrigger>
                   <TabsTrigger value="signals">Signals ({data.result.signals.length})</TabsTrigger>
                   <TabsTrigger value="rejects">Filter rejects</TabsTrigger>
                   <TabsTrigger value="config">Effective config</TabsTrigger>
                 </TabsList>
                 <TabsContent value="stats">
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <Stat label="Bars" value={data.result.stats.barsProcessed.toLocaleString()} />
-                    <Stat label="Setups" value={data.result.stats.setupsDetected.toLocaleString()} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Stat label="Trades" value={data.labStats.trades.toLocaleString()} />
+                    <Stat label="Win rate" value={`${data.labStats.winRate.toFixed(1)}%`} />
+                    <Stat label="Profit factor" value={data.labStats.profitFactor === 999 ? "∞" : data.labStats.profitFactor.toFixed(2)} />
+                    <Stat label="Total P&L" value={`$${data.labStats.totalPnlUsd.toFixed(2)}`} />
+                    <Stat label="Wins" value={data.labStats.wins.toLocaleString()} />
+                    <Stat label="Losses" value={data.labStats.losses.toLocaleString()} />
+                    <Stat label="Open" value={data.labStats.open.toLocaleString()} />
+                    <Stat label="Expectancy (R)" value={data.labStats.expectancyR.toFixed(3)} />
+                    <Stat label="Avg planned R:R" value={data.labStats.avgRR.toFixed(2)} />
+                    <Stat label="Avg win (R)" value={data.labStats.avgWinR.toFixed(2)} />
+                    <Stat label="Avg loss (R)" value={data.labStats.avgLossR.toFixed(2)} />
+                    <Stat label="Max drawdown" value={`$${data.labStats.maxDrawdownUsd.toFixed(2)}`} />
+                    <Stat label="Gross win" value={`$${data.labStats.grossWinUsd.toFixed(2)}`} />
+                    <Stat label="Gross loss" value={`$${data.labStats.grossLossUsd.toFixed(2)}`} />
+                    <Stat label={`Longs (${data.labStats.longs})`} value={`${data.labStats.longWinRate.toFixed(1)}% WR`} />
+                    <Stat label={`Shorts (${data.labStats.shorts})`} value={`${data.labStats.shortWinRate.toFixed(1)}% WR`} />
+                    <Stat label="Setups detected" value={data.result.stats.setupsDetected.toLocaleString()} />
                     <Stat label="Signals" value={data.result.stats.signalsCreated.toLocaleString()} />
                     <Stat label="Invalidated" value={data.result.stats.signalsInvalidated.toLocaleString()} />
-                    <Stat label="Bars in" value={data.barsIn.toLocaleString()} />
+                    <Stat label="Bars processed" value={data.barsIn.toLocaleString()} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="trades">
+                  <div className="overflow-x-auto max-h-[500px]">
+                    <table className="w-full text-[11px] font-mono">
+                      <thead className="sticky top-0 bg-background">
+                        <tr className="text-left border-b text-muted-foreground">
+                          <th className="py-1 pr-3">Entry time</th>
+                          <th className="py-1 pr-3">Dir</th>
+                          <th className="py-1 pr-3">Entry</th>
+                          <th className="py-1 pr-3">SL</th>
+                          <th className="py-1 pr-3">TP</th>
+                          <th className="py-1 pr-3">Outcome</th>
+                          <th className="py-1 pr-3">R</th>
+                          <th className="py-1 pr-3">P&L $</th>
+                          <th className="py-1 pr-3">Bars</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...data.trades].reverse().slice(0, 500).map((t, i) => (
+                          <tr key={i} className="border-b border-border/30">
+                            <td className="py-1 pr-3">{new Date(t.ts).toISOString().replace("T", " ").slice(0, 16)}</td>
+                            <td className={`py-1 pr-3 ${t.direction === "long" ? "text-emerald-500" : "text-red-500"}`}>{t.direction}</td>
+                            <td className="py-1 pr-3">{t.entry.toFixed(2)}</td>
+                            <td className="py-1 pr-3">{t.stop.toFixed(2)}</td>
+                            <td className="py-1 pr-3">{t.target.toFixed(2)}</td>
+                            <td className={`py-1 pr-3 ${t.outcome === "win" ? "text-emerald-500" : t.outcome === "loss" ? "text-red-500" : "text-muted-foreground"}`}>{t.outcome}</td>
+                            <td className="py-1 pr-3">{t.rMultiple.toFixed(2)}</td>
+                            <td className={`py-1 pr-3 ${t.pnlUsd > 0 ? "text-emerald-500" : t.pnlUsd < 0 ? "text-red-500" : ""}`}>{t.pnlUsd.toFixed(2)}</td>
+                            <td className="py-1 pr-3">{t.barsHeld}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </TabsContent>
                 <TabsContent value="signals">

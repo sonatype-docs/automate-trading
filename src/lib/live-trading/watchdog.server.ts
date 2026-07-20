@@ -82,23 +82,71 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
   const { isCalendarBlocked } = await import("@/lib/economic-calendar");
 
   const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const thirtyMinAgoIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  // 0) Cross-runner sweep: any LIMIT that was placed to the exchange and got
+  //    cancelled within 60s of placement — likely rejected by exchange (post-only
+  //    trip, price crossed, or transient error). Repair by clearing the row and
+  //    letting the next tick re-place.
+  try {
+    const { data: quickCancels } = await supabaseAdmin
+      .from("live_trades")
+      .select("id, runner_id, symbol, created_at, exit_ts, exit_reason, status")
+      .gte("created_at", thirtyMinAgoIso)
+      .eq("status", "closed")
+      .not("exit_reason", "is", null);
+    const suspects = (quickCancels ?? []).filter((t) => {
+      const reason = String(t.exit_reason ?? "").toLowerCase();
+      if (!reason.includes("cancel") && !reason.includes("reject")) return false;
+      if (!t.exit_ts || !t.created_at) return false;
+      const ageMs = new Date(t.exit_ts).getTime() - new Date(t.created_at).getTime();
+      return ageMs >= 0 && ageMs <= 60_000;
+    });
+    if (suspects.length) {
+      await logDiagnosis(
+        "warning",
+        `[watchdog] detected ${suspects.length} order(s) cancelled within 60s of placement — will retry via tickOne`,
+        { suspects: suspects.map((s) => ({ id: s.id, runner_id: s.runner_id, symbol: s.symbol, exit_reason: s.exit_reason })) },
+      );
+    }
+  } catch {
+    /* non-fatal */
+  }
 
   for (const rr of runners) {
     const r = rr as RunnerRow & { last_tick_error: string | null };
     report.checked += 1;
 
     // 1) Recent activity? Any live_trade row created in the last hour counts
-    //    (placed / queued / errored — all mean the tick DID run and reach
-    //    the DB). Zero rows means either no signal or a silent gap.
-    const { count: recent } = await supabaseAdmin
+    //    as healthy — UNLESS every one of them was cancelled within 60s of
+    //    placement (exchange rejected / auto-cancelled). Those are the exact
+    //    "order sent then immediately cancelled" cases the user asked to fix.
+    const { data: recentTrades } = await supabaseAdmin
       .from("live_trades")
-      .select("id", { count: "exact", head: true })
+      .select("id, status, created_at, exit_ts, exit_reason")
       .eq("runner_id", r.id)
       .gte("created_at", oneHourAgoIso);
-    if ((recent ?? 0) > 0) {
+    const genuineActivity = (recentTrades ?? []).filter((t) => {
+      const reason = String(t.exit_reason ?? "").toLowerCase();
+      const isQuickCancel =
+        t.status === "closed" &&
+        (reason.includes("cancel") || reason.includes("reject")) &&
+        t.exit_ts &&
+        t.created_at &&
+        new Date(t.exit_ts).getTime() - new Date(t.created_at).getTime() <= 60_000;
+      return !isQuickCancel;
+    });
+    if (genuineActivity.length > 0) {
       report.healthy += 1;
       report.results.push({ runner_id: r.id, label: r.label, verdict: "healthy" });
       continue;
+    }
+    if ((recentTrades?.length ?? 0) > 0) {
+      await logDiagnosis(
+        "warning",
+        `[watchdog] ${r.label} had ${recentTrades!.length} order(s) but all were cancelled within 60s — treating as broken and forcing repair`,
+        { runner_id: r.id, quick_cancels: recentTrades!.length },
+      );
     }
 
     // 2) In-window check — mirrors the tick.

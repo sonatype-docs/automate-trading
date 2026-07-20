@@ -137,12 +137,27 @@ function LabPage() {
       setMxProgress({ done: 0, total: totalCombos });
       const startedAll = Date.now();
       const allRows: MatrixRow[] = [];
+      // Build effective base config: matrix settings override lab config.
+      const weekdays = [0, 1, 2, 3, 4, 5, 6].filter(
+        (d) => !(mxSkipSat && d === 6) && !(mxSkipSun && d === 0),
+      );
+      const effectiveBase: LiquiditySweepConfig = {
+        ...config,
+        daysBack: mxDaysBack,
+        direction: mxDirection,
+        session: {
+          ...config.session,
+          weekdays,
+          blockWeekend: mxSkipSat && mxSkipSun,
+        },
+      };
       for (const chunk of chunks) {
         const r = await runMatrix({ data: {
-          baseConfig: config,
+          baseConfig: effectiveBase,
           symbols: chunk,
           timeframes: mxTfs as never,
           zoneSets: zoneSets as never,
+          daysBack: mxDaysBack,
         }});
         allRows.push(...r.rows);
         setMxProgress({ done: allRows.length, total: totalCombos });

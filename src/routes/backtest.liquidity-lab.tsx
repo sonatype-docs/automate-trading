@@ -239,18 +239,21 @@ function LabPage() {
       if (kept.length === r.trades.length) { out.push(r); continue; }
       // Recompute row-level stats over the surviving trades.
       let wins = 0, losses = 0, open = 0, gw = 0, gl = 0, rSum = 0, rrSum = 0, rrN = 0;
-      let longs = 0, shorts = 0, lw = 0, sw = 0;
+      let longs = 0, shorts = 0, lw = 0, sw = 0, fees = 0, netSum = 0;
       let eq = 0, peak = 0, dd = 0;
       const sorted = [...kept].sort((a, b) => a.exitTs - b.exitTs);
       for (const t of sorted) {
         if (t.outcome === "win") wins++; else if (t.outcome === "loss") losses++; else open++;
-        if (t.pnlUsd > 0) gw += t.pnlUsd; else if (t.pnlUsd < 0) gl += -t.pnlUsd;
+        const net = t.netPnlUsd ?? t.pnlUsd;
+        if (net > 0) gw += net; else if (net < 0) gl += -net;
+        netSum += net;
+        fees += t.feesUsd ?? 0;
         rSum += t.rMultiple;
         const rr = Math.abs((t.target - t.entry) / (t.entry - t.stop || 1));
         if (Number.isFinite(rr) && rr > 0) { rrSum += rr; rrN++; }
         if (t.direction === "long") { longs++; if (t.outcome === "win") lw++; }
         else { shorts++; if (t.outcome === "win") sw++; }
-        eq += t.pnlUsd; if (eq > peak) peak = eq; if (peak - eq > dd) dd = peak - eq;
+        eq += net; if (eq > peak) peak = eq; if (peak - eq > dd) dd = peak - eq;
       }
       const closed = wins + losses;
       out.push({
@@ -264,7 +267,9 @@ function LabPage() {
           avgLossR: losses ? sorted.filter((t) => t.outcome === "loss").reduce((a, t) => a + t.rMultiple, 0) / losses : 0,
           expectancyR: closed ? rSum / closed : 0,
           profitFactor: gl > 0 ? gw / gl : (gw > 0 ? 999 : 0),
-          totalPnlUsd: gw - gl,
+          totalPnlUsd: sorted.reduce((a, t) => a + t.pnlUsd, 0),
+          netPnlUsd: netSum,
+          totalFeesUsd: fees,
           grossWinUsd: gw, grossLossUsd: gl,
           maxDrawdownUsd: dd,
           longs, shorts,

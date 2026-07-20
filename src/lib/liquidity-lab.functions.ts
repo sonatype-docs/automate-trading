@@ -1,51 +1,23 @@
 // Server functions for the Liquidity Sweep Research Lab.
 // - runLab: executes a Lab config against enriched market data via the
 //   Universal Strategy Engine.
+// - runLiquidityLabMatrix: sweeps symbols × timeframes × zones combos and
+//   returns a ranked summary table.
 // - Preset CRUD: list / save / rename / duplicate / delete / import.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { LiquiditySweepConfigSchema, type LiquiditySweepConfig } from "./liquidity-lab/config";
+import { LiquiditySweepConfigSchema, type LiquiditySweepConfig, ZONE_KINDS } from "./liquidity-lab/config";
 import { toStrategyOverrides } from "./liquidity-lab/to-strategy-config";
 import type { EngineRunResult, StrategyConfig } from "./strategy-engine/types";
+import { simulateTrades, type LabTrade, type LabStats } from "./liquidity-lab/simulator";
+import { TIMEFRAMES, type Timeframe } from "./market-data/types";
 
 const RunInput = z.object({
   config: LiquiditySweepConfigSchema,
 });
 
-export interface LabTrade {
-  ts: number;
-  exitTs: number;
-  direction: "long" | "short";
-  entry: number;
-  stop: number;
-  target: number;
-  outcome: "win" | "loss" | "open";
-  rMultiple: number;
-  pnlUsd: number;
-  barsHeld: number;
-}
-
-export interface LabStats {
-  trades: number;
-  wins: number;
-  losses: number;
-  open: number;
-  winRate: number;      // 0..100
-  avgRR: number;        // avg planned R:R across signals
-  avgWinR: number;
-  avgLossR: number;
-  expectancyR: number;
-  profitFactor: number;
-  totalPnlUsd: number;
-  grossWinUsd: number;
-  grossLossUsd: number;
-  maxDrawdownUsd: number;
-  longs: number;
-  shorts: number;
-  longWinRate: number;
-  shortWinRate: number;
-}
+export type { LabTrade, LabStats };
 
 export interface RunLabResult {
   result: EngineRunResult;
@@ -54,6 +26,7 @@ export interface RunLabResult {
   trades: LabTrade[];
   labStats: LabStats;
 }
+
 
 
 export const runLiquidityLab = createServerFn({ method: "POST" })

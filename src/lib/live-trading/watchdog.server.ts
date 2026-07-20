@@ -202,20 +202,75 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
         .eq("id", r.id);
     }
 
+    let placed = 0;
+    let lastErr: string | undefined;
+    let repairSteps: string[] = [];
     try {
-      const res = await tickOne(r);
-      const fixed = res.placed > 0;
-      if (fixed) {
+      const res1 = await tickOne(r);
+      placed = res1.placed;
+
+      // If first retry still placed nothing, aggressively clear known blockers
+      // and try one more time — never leave the runner stuck.
+      if (placed === 0) {
+        const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
+        const client = createSharkClient();
+
+        // A) Cancel every open exchange order for this symbol (stuck limits,
+        //    orphan SL/TP children) so the symbol lock can release.
+        try {
+          const openOrders = await client.getOpenOrders(r.symbol);
+          for (const o of openOrders) {
+            if (o.clientOrderId) {
+              await client.cancelOrder(o.clientOrderId).catch(() => undefined);
+            }
+          }
+          repairSteps.push(`cancelled ${openOrders.length} exchange order(s)`);
+        } catch (e) {
+          repairSteps.push(`cancel-all failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+
+        // B) Force-close every stuck pending/queued live_trades row for this
+        //    runner+symbol — they are the reason the symbol-lock check trips.
+        //    Only touches THIS runner's rows to avoid closing another
+        //    strategy's live position.
+        const { data: stuck } = await supabaseAdmin
+          .from("live_trades")
+          .select("id, status")
+          .eq("runner_id", r.id)
+          .eq("symbol", r.symbol)
+          .in("status", ["pending", "queued"]);
+        for (const s of stuck ?? []) {
+          await supabaseAdmin
+            .from("live_trades")
+            .update({
+              status: "closed",
+              exit_ts: new Date().toISOString(),
+              exit_reason: `watchdog_cleared_${s.status}`,
+            })
+            .eq("id", s.id);
+        }
+        if ((stuck?.length ?? 0) > 0) {
+          repairSteps.push(`cleared ${stuck!.length} stuck ${stuck![0].status} row(s)`);
+        }
+
+        // C) Retry tickOne now that blockers are gone.
+        const res2 = await tickOne(r);
+        placed = res2.placed;
+      }
+
+      if (placed > 0) {
         report.fixed += 1;
         report.results.push({
           runner_id: r.id,
           label: r.label,
           verdict: "fixed",
-          placed: res.placed,
+          placed,
+          reason: repairSteps.join("; ") || "tickOne on first retry",
         });
-        await logDiagnosis("info", `[watchdog] repaired ${r.label} — placed ${res.placed}`, {
+        await logDiagnosis("info", `[watchdog] repaired ${r.label} — placed ${placed}`, {
           runner_id: r.id,
-          placed: res.placed,
+          placed,
+          repairSteps,
         });
       } else {
         report.stillBroken += 1;
@@ -223,12 +278,12 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
           runner_id: r.id,
           label: r.label,
           verdict: "still_broken",
-          reason: "tickOne ran cleanly but placed 0 (likely symbol locked, queued, or dedup)",
+          reason: `even after cleanup (${repairSteps.join("; ") || "none"}) tickOne placed 0 — candidate may have gone stale`,
         });
         await logDiagnosis(
           "warning",
-          `[watchdog] ${r.label} still broken — tickOne placed 0`,
-          { runner_id: r.id, reconciled: res.reconciled },
+          `[watchdog] ${r.label} still broken after auto-repair`,
+          { runner_id: r.id, repairSteps },
         );
       }
       await supabaseAdmin
@@ -236,21 +291,23 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
         .update({ last_tick_at: new Date().toISOString() })
         .eq("id", r.id);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      lastErr = e instanceof Error ? e.message : String(e);
       report.stillBroken += 1;
       report.results.push({
         runner_id: r.id,
         label: r.label,
         verdict: "still_broken",
-        error: msg,
+        error: lastErr,
+        reason: repairSteps.join("; ") || undefined,
       });
       await supabaseAdmin
         .from("live_runners")
-        .update({ last_tick_error: msg })
+        .update({ last_tick_error: lastErr })
         .eq("id", r.id);
       await logDiagnosis("error", `[watchdog] repair attempt threw for ${r.label}`, {
         runner_id: r.id,
-        error: msg,
+        error: lastErr,
+        repairSteps,
       });
     }
   }

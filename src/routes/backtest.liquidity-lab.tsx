@@ -125,16 +125,12 @@ function LabPage() {
       const zoneSets = mxZoneMode === "each"
         ? mxZones.map((z) => [z])
         : [mxZones];
-      const perSymbolCombos = mxTfs.length * zoneSets.length;
-      if (perSymbolCombos === 0 || mxSymbols.length === 0) throw new Error("Select symbols, timeframes and zones.");
-      // Chunk symbols so each server call stays within Worker CPU limits.
-      // Target ~80 combos per call.
-      const symbolsPerChunk = Math.max(1, Math.floor(80 / Math.max(1, perSymbolCombos)));
-      const chunks: string[][] = [];
-      for (let i = 0; i < mxSymbols.length; i += symbolsPerChunk) {
-        chunks.push(mxSymbols.slice(i, i + symbolsPerChunk));
-      }
-      const totalCombos = mxSymbols.length * perSymbolCombos;
+      if (mxTfs.length === 0 || zoneSets.length === 0 || mxSymbols.length === 0) throw new Error("Select symbols, timeframes and zones.");
+      // Run one symbol × timeframe per server call. This keeps Yahoo/Shark
+      // fetches small and prevents one slow source window from killing the
+      // whole matrix. Failed slices are kept as failed rows, not lost.
+      const tasks = mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ symbol, timeframe })));
+      const totalCombos = mxSymbols.length * mxTfs.length * zoneSets.length;
       setMxProgress({ done: 0, total: totalCombos });
       const startedAll = Date.now();
       const allRows: MatrixRow[] = [];
@@ -152,20 +148,43 @@ function LabPage() {
           blockWeekend: mxSkipSat && mxSkipSun,
         },
       };
-      for (const chunk of chunks) {
-        const r = await runMatrix({ data: {
-          baseConfig: effectiveBase,
-          symbols: chunk,
-          timeframes: mxTfs as never,
-          zoneSets: zoneSets as never,
-          daysBack: mxDaysBack,
-        }});
-        allRows.push(...r.rows);
+      for (const task of tasks) {
+        try {
+          const r = await runMatrix({ data: {
+            baseConfig: effectiveBase,
+            symbols: [task.symbol],
+            timeframes: [task.timeframe] as never,
+            zoneSets: zoneSets as never,
+            source: effectiveBase.source,
+            daysBack: mxDaysBack,
+          }});
+          allRows.push(...r.rows);
+        } catch (e) {
+          const error = e instanceof Error ? e.message : String(e);
+          for (const zones of zoneSets) {
+            allRows.push({
+              symbol: task.symbol,
+              timeframe: task.timeframe as MatrixRow["timeframe"],
+              zones,
+              ok: false,
+              error,
+              bars: 0,
+              signals: 0,
+              stats: null,
+              trades: [],
+              elapsedMs: 0,
+            });
+          }
+        }
         setMxProgress({ done: allRows.length, total: totalCombos });
       }
       return { rows: allRows, totalCombos, totalMs: Date.now() - startedAll };
     },
-    onSuccess: (r) => { setMxProgress(null); toast.success(`Matrix: ${r.rows.length} runs in ${(r.totalMs/1000).toFixed(1)}s`); },
+    onSuccess: (r) => {
+      setMxProgress(null);
+      const failed = r.rows.filter((row) => !row.ok).length;
+      toast.success(`Matrix: ${r.rows.length} runs in ${(r.totalMs/1000).toFixed(1)}s${failed ? ` · ${failed} failed rows kept` : ""}`);
+    },
     onError: (e: Error) => { setMxProgress(null); toast.error(e.message); },
   });
 

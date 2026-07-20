@@ -30,12 +30,17 @@ function toYahooInterval(interval: string): string {
   // 1h and 60m are equivalent; use 60m as the canonical form.
   switch (interval) {
     case "1m":
+    case "2m":
     case "5m":
     case "15m":
     case "30m":
     case "1d":
-    case "1wk":
       return interval;
+    case "1w":
+    case "1wk":
+      return "1wk";
+    case "1M":
+      return "1mo";
     case "1h":
       return "60m";
     case "4h":
@@ -160,14 +165,25 @@ export function createYahooClient(): YahooKlineSource {
       // Per-request window cap enforced by Yahoo's chart API.
       const perRequestMs =
         interval === "1m" ? 7 * 86_400_000 :
-        interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
+        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
         interval === "1h" || interval === "60m" ? 729 * 86_400_000 :
         365 * 5 * 86_400_000;
+      // Yahoo hard-limits intraday lookback by interval. Clamp the requested
+      // start before chunking so a 500-day matrix on 1m/2m does not burn time
+      // on hundreds of guaranteed-rejected windows and fail mid-run.
+      const availableHistoryMs =
+        interval === "1m" ? 7 * 86_400_000 :
+        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
+        interval === "1h" || interval === "60m" ? 729 * 86_400_000 :
+        Infinity;
+      const effectiveFromMs = Number.isFinite(availableHistoryMs)
+        ? Math.max(fromMs, toMs - availableHistoryMs)
+        : fromMs;
       // Chunk large ranges into sequential per-request windows so lookbacks
       // beyond the single-request cap still return data (Yahoo serves older
       // intraday history when asked in ≤cap slices).
       const chunks: Kline[] = [];
-      let cursor = fromMs;
+      let cursor = effectiveFromMs;
       const seen = new Set<number>();
       while (cursor < toMs) {
         const end = Math.min(cursor + perRequestMs, toMs);

@@ -239,18 +239,21 @@ function LabPage() {
       if (kept.length === r.trades.length) { out.push(r); continue; }
       // Recompute row-level stats over the surviving trades.
       let wins = 0, losses = 0, open = 0, gw = 0, gl = 0, rSum = 0, rrSum = 0, rrN = 0;
-      let longs = 0, shorts = 0, lw = 0, sw = 0;
+      let longs = 0, shorts = 0, lw = 0, sw = 0, fees = 0, netSum = 0;
       let eq = 0, peak = 0, dd = 0;
       const sorted = [...kept].sort((a, b) => a.exitTs - b.exitTs);
       for (const t of sorted) {
         if (t.outcome === "win") wins++; else if (t.outcome === "loss") losses++; else open++;
-        if (t.pnlUsd > 0) gw += t.pnlUsd; else if (t.pnlUsd < 0) gl += -t.pnlUsd;
+        const net = t.netPnlUsd ?? t.pnlUsd;
+        if (net > 0) gw += net; else if (net < 0) gl += -net;
+        netSum += net;
+        fees += t.feesUsd ?? 0;
         rSum += t.rMultiple;
         const rr = Math.abs((t.target - t.entry) / (t.entry - t.stop || 1));
         if (Number.isFinite(rr) && rr > 0) { rrSum += rr; rrN++; }
         if (t.direction === "long") { longs++; if (t.outcome === "win") lw++; }
         else { shorts++; if (t.outcome === "win") sw++; }
-        eq += t.pnlUsd; if (eq > peak) peak = eq; if (peak - eq > dd) dd = peak - eq;
+        eq += net; if (eq > peak) peak = eq; if (peak - eq > dd) dd = peak - eq;
       }
       const closed = wins + losses;
       out.push({
@@ -264,7 +267,9 @@ function LabPage() {
           avgLossR: losses ? sorted.filter((t) => t.outcome === "loss").reduce((a, t) => a + t.rMultiple, 0) / losses : 0,
           expectancyR: closed ? rSum / closed : 0,
           profitFactor: gl > 0 ? gw / gl : (gw > 0 ? 999 : 0),
-          totalPnlUsd: gw - gl,
+          totalPnlUsd: sorted.reduce((a, t) => a + t.pnlUsd, 0),
+          netPnlUsd: netSum,
+          totalFeesUsd: fees,
           grossWinUsd: gw, grossLossUsd: gl,
           maxDrawdownUsd: dd,
           longs, shorts,
@@ -1226,6 +1231,63 @@ function LabPage() {
                 </Field>
               </Grid>
             </Section>
+
+            {/* Realism: fees, slippage, intrabar SL/TP model */}
+            <Section id="realism" title="Realism (fees · slippage · intrabar)">
+              <Grid>
+                <Field label="Intrabar SL/TP model">
+                  <select value={config.realism.intrabar}
+                    onChange={(e) => updateNested("realism", { intrabar: e.target.value as "conservative" | "optimistic" | "proximity" })}
+                    className={selCls}>
+                    <option value="conservative">Conservative — SL first when both hit</option>
+                    <option value="optimistic">Optimistic — TP first when both hit</option>
+                    <option value="proximity">Proximity — closer-to-open wins</option>
+                  </select>
+                </Field>
+                <Field label="Slippage model">
+                  <select value={config.realism.slippage.model}
+                    onChange={(e) => updateNested("realism", { slippage: { ...config.realism.slippage, model: e.target.value as "none" | "fixed_pts" | "pct" | "atr_mult" } })}
+                    className={selCls}>
+                    <option value="none">None</option>
+                    <option value="fixed_pts">Fixed points</option>
+                    <option value="pct">% of price</option>
+                    <option value="atr_mult">ATR × mult</option>
+                  </select>
+                </Field>
+                <Field label="Slippage value">
+                  <Input type="number" step="0.01" value={config.realism.slippage.value}
+                    disabled={config.realism.slippage.model === "none"}
+                    onChange={(e) => updateNested("realism", { slippage: { ...config.realism.slippage, value: Math.max(0, Number(e.target.value) || 0) } })}
+                    className={inpCls} />
+                </Field>
+                <Field label="Include fees">
+                  <select value={config.realism.fees.enabled ? "y" : "n"}
+                    onChange={(e) => updateNested("realism", { fees: { ...config.realism.fees, enabled: e.target.value === "y" } })}
+                    className={selCls}>
+                    <option value="y">Yes (maker/taker)</option>
+                    <option value="n">No</option>
+                  </select>
+                </Field>
+                <Field label="Maker rate (fraction)">
+                  <Input type="number" step="0.0001" value={config.realism.fees.makerRate}
+                    onChange={(e) => updateNested("realism", { fees: { ...config.realism.fees, makerRate: Math.max(0, Number(e.target.value) || 0) } })}
+                    className={inpCls} />
+                </Field>
+                <Field label="Taker rate (fraction)">
+                  <Input type="number" step="0.0001" value={config.realism.fees.takerRate}
+                    onChange={(e) => updateNested("realism", { fees: { ...config.realism.fees, takerRate: Math.max(0, Number(e.target.value) || 0) } })}
+                    className={inpCls} />
+                </Field>
+                <Field label="Taker threshold (min)">
+                  <Input type="number" value={Math.round(config.realism.fees.takerThresholdMs / 60_000)}
+                    onChange={(e) => updateNested("realism", { fees: { ...config.realism.fees, takerThresholdMs: Math.max(0, Number(e.target.value) || 0) * 60_000 } })}
+                    className={inpCls} />
+                </Field>
+              </Grid>
+              <p className="text-[10px] text-muted-foreground mt-2 font-mono">
+                Exit &lt; taker threshold → market/taker (higher fee). Longer holds → limit/maker. Slippage applied against you on entry & exit.
+              </p>
+            </Section>
           </Accordion>
         </ResultCard>
 
@@ -1251,7 +1313,9 @@ function LabPage() {
                     <Stat label="Trades" value={data.labStats.trades.toLocaleString()} />
                     <Stat label="Win rate" value={`${data.labStats.winRate.toFixed(1)}%`} />
                     <Stat label="Profit factor" value={data.labStats.profitFactor === 999 ? "∞" : data.labStats.profitFactor.toFixed(2)} />
-                    <Stat label="Total P&L" value={`$${data.labStats.totalPnlUsd.toFixed(2)}`} />
+                    <Stat label="Gross P&L" value={`$${data.labStats.totalPnlUsd.toFixed(2)}`} />
+                    <Stat label="Fees" value={`$${data.labStats.totalFeesUsd.toFixed(2)}`} />
+                    <Stat label="Net P&L" value={`$${data.labStats.netPnlUsd.toFixed(2)}`} />
                     <Stat label="Wins" value={data.labStats.wins.toLocaleString()} />
                     <Stat label="Losses" value={data.labStats.losses.toLocaleString()} />
                     <Stat label="Open" value={data.labStats.open.toLocaleString()} />
@@ -1282,7 +1346,9 @@ function LabPage() {
                           <th className="py-1 pr-3">TP</th>
                           <th className="py-1 pr-3">Outcome</th>
                           <th className="py-1 pr-3">R</th>
-                          <th className="py-1 pr-3">P&L $</th>
+                          <th className="py-1 pr-3">Gross $</th>
+                          <th className="py-1 pr-3">Fees $</th>
+                          <th className="py-1 pr-3">Net $</th>
                           <th className="py-1 pr-3">Bars</th>
                         </tr>
                       </thead>
@@ -1297,6 +1363,8 @@ function LabPage() {
                             <td className={`py-1 pr-3 ${t.outcome === "win" ? "text-emerald-500" : t.outcome === "loss" ? "text-red-500" : "text-muted-foreground"}`}>{t.outcome}</td>
                             <td className="py-1 pr-3">{t.rMultiple.toFixed(2)}</td>
                             <td className={`py-1 pr-3 ${t.pnlUsd > 0 ? "text-emerald-500" : t.pnlUsd < 0 ? "text-red-500" : ""}`}>{t.pnlUsd.toFixed(2)}</td>
+                            <td className="py-1 pr-3 text-muted-foreground">{t.feesUsd.toFixed(2)}</td>
+                            <td className={`py-1 pr-3 ${t.netPnlUsd > 0 ? "text-emerald-500" : t.netPnlUsd < 0 ? "text-red-500" : ""}`}>{t.netPnlUsd.toFixed(2)}</td>
                             <td className="py-1 pr-3">{t.barsHeld}</td>
                           </tr>
                         ))}

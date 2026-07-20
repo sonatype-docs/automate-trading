@@ -73,7 +73,7 @@ export const runLiquidityLab = createServerFn({ method: "POST" })
     });
     result.events = result.events.slice(-500);
 
-    const { trades, labStats } = simulateTrades(enriched, result.signals, cfg.riskUsd);
+    const { trades, labStats } = simulateTrades(enriched, result.signals, cfg.riskUsd, cfg.realism);
 
     return {
       result,
@@ -269,7 +269,7 @@ export const runLiquidityLabMatrix = createServerFn({ method: "POST" })
             effective.strategyName = `${symbol} ${tf} ${zones.join("+")}`;
 
             const res = runStrategy(cached.enriched, effective, { mode: "historical", symbol });
-            const { trades, labStats } = simulateTrades(cached.enriched, res.signals, cfg.riskUsd);
+            const { trades, labStats } = simulateTrades(cached.enriched, res.signals, cfg.riskUsd, cfg.realism);
             rows.push({
               symbol, timeframe: tf, zones, ok: true, error: null,
               bars: cached.enriched.length, signals: res.signals.length,

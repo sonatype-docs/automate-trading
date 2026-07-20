@@ -192,6 +192,7 @@ export interface MatrixRow {
   bars: number;
   signals: number;
   stats: LabStats | null;
+  trades: LabTrade[];
   elapsedMs: number;
 }
 

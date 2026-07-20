@@ -22,10 +22,13 @@ import {
 } from "@/lib/liquidity-lab/config";
 import {
   runLiquidityLab, listLabPresets, saveLabPreset,
-  deleteLabPreset, duplicateLabPreset,
+  deleteLabPreset, duplicateLabPreset, runLiquidityLabMatrix,
+  type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
+import { LAB_SYMBOLS } from "@/lib/liquidity-lab/simulator";
 import { TIMEFRAMES, TIMEZONES } from "@/lib/market-data/types";
-import { Beaker, Download, Upload, Save, Copy, Trash2, Play } from "lucide-react";
+import { Beaker, Download, Upload, Save, Copy, Trash2, Play, Grid3x3 } from "lucide-react";
+
 
 type PresetKey = "pdh-pdl" | undefined;
 

@@ -325,8 +325,16 @@ function LabPage() {
         },
       });
     }
-    return out;
-  }, [rawRows, fltSymbols, fltTfs, fltZones, fltDirs, fltOutcomes, fltDows, fltHours, fltMinTrades]);
+    // Row-level thresholds — apply after per-row stat recomputation.
+    return out.filter((r) => {
+      if (!r.ok || !r.stats) return true;
+      if (fltMinPF > 0 && (r.stats.profitFactor === 999 ? 999 : r.stats.profitFactor) < fltMinPF) return false;
+      if (fltMinWR > 0 && r.stats.winRate < fltMinWR) return false;
+      if (fltMinPnL !== 0 && r.stats.totalPnlUsd < fltMinPnL) return false;
+      return true;
+    });
+  }, [rawRows, fltSymbols, fltTfs, fltZones, fltSources, fltConfs, fltFilterTags,
+      fltDirs, fltOutcomes, fltDows, fltHours, fltMinTrades, fltMinPF, fltMinWR, fltMinPnL]);
 
   const sortedMatrix: MatrixRow[] = useMemo(() => {
     const rows = [...filteredMatrixRows];

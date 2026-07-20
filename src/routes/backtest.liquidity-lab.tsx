@@ -262,6 +262,9 @@ function LabPage() {
     const symOk = (s: string) => !fltSymbols.length || fltSymbols.includes(s);
     const tfOk = (t: string) => !fltTfs.length || fltTfs.includes(t);
     const zoneOk = (z: string) => !fltZones.length || fltZones.includes(z);
+    const srcOk = (s: string) => !fltSources.length || fltSources.includes(s);
+    const confOk = (c: string) => !fltConfs.length || fltConfs.includes(c);
+    const flagOk = (f: string) => !fltFilterTags.length || fltFilterTags.includes(f);
     const dirOk = (d: string) => !fltDirs.length || fltDirs.includes(d);
     const outOk = (o: string) => !fltOutcomes.length || fltOutcomes.includes(o);
     const dowOk = (n: string) => !fltDows.length || fltDows.includes(n);
@@ -270,6 +273,7 @@ function LabPage() {
     const out: MatrixRow[] = [];
     for (const r of rawRows) {
       if (!symOk(r.symbol) || !tfOk(r.timeframe) || !zoneOk(r.zones.join("+"))) continue;
+      if (!srcOk(r.source) || !confOk(r.confirmation.join("+")) || !flagOk(r.filters.join("+") || "none")) continue;
       if (!r.ok) { out.push(r); continue; }
       const kept = r.trades.filter((t) => {
         if (!dirOk(t.direction) || !outOk(t.outcome)) return false;

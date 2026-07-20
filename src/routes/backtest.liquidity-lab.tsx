@@ -840,6 +840,9 @@ function ChipsMultiLabeled({ title, values, options, onChange }: { title: string
       <ChipsMulti values={values} options={options} onChange={onChange} />
     </div>
   );
+}
+
+
 
 function ChipsMulti({ values, options, onChange }: { values: string[]; options: string[]; onChange: (v: string[]) => void }) {
   return (

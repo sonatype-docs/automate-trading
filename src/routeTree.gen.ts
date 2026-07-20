@@ -35,6 +35,7 @@ import { Route as HandbookVolumeRouteImport } from './routes/handbook.$volume'
 import { Route as BacktestSilverBulletRouteImport } from './routes/backtest.silver-bullet'
 import { Route as BacktestPdhPdlSweepRouteImport } from './routes/backtest.pdh-pdl-sweep'
 import { Route as BacktestOrbRouteImport } from './routes/backtest.orb'
+import { Route as BacktestLiquidityLabRouteImport } from './routes/backtest.liquidity-lab'
 import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
@@ -177,6 +178,11 @@ const BacktestOrbRoute = BacktestOrbRouteImport.update({
   path: '/backtest/orb',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BacktestLiquidityLabRoute = BacktestLiquidityLabRouteImport.update({
+  id: '/backtest/liquidity-lab',
+  path: '/backtest/liquidity-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BacktestCompareRoute = BacktestCompareRouteImport.update({
   id: '/backtest/compare',
   path: '/backtest/compare',
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/liquidity-lab': typeof BacktestLiquidityLabRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
@@ -298,6 +305,7 @@ export interface FileRoutesByTo {
   '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/liquidity-lab': typeof BacktestLiquidityLabRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
@@ -337,6 +345,7 @@ export interface FileRoutesById {
   '/trade-intelligence': typeof TradeIntelligenceRoute
   '/backtest/asian-sweep': typeof BacktestAsianSweepRoute
   '/backtest/compare': typeof BacktestCompareRoute
+  '/backtest/liquidity-lab': typeof BacktestLiquidityLabRoute
   '/backtest/orb': typeof BacktestOrbRoute
   '/backtest/pdh-pdl-sweep': typeof BacktestPdhPdlSweepRoute
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
+    | '/backtest/liquidity-lab'
     | '/backtest/orb'
     | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
     | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
+    | '/backtest/liquidity-lab'
     | '/backtest/orb'
     | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/trade-intelligence'
     | '/backtest/asian-sweep'
     | '/backtest/compare'
+    | '/backtest/liquidity-lab'
     | '/backtest/orb'
     | '/backtest/pdh-pdl-sweep'
     | '/backtest/silver-bullet'
@@ -494,6 +506,7 @@ export interface RootRouteChildren {
   TradeIntelligenceRoute: typeof TradeIntelligenceRoute
   BacktestAsianSweepRoute: typeof BacktestAsianSweepRoute
   BacktestCompareRoute: typeof BacktestCompareRoute
+  BacktestLiquidityLabRoute: typeof BacktestLiquidityLabRoute
   BacktestOrbRoute: typeof BacktestOrbRoute
   BacktestPdhPdlSweepRoute: typeof BacktestPdhPdlSweepRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
@@ -691,6 +704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BacktestOrbRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backtest/liquidity-lab': {
+      id: '/backtest/liquidity-lab'
+      path: '/backtest/liquidity-lab'
+      fullPath: '/backtest/liquidity-lab'
+      preLoaderRoute: typeof BacktestLiquidityLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/backtest/compare': {
       id: '/backtest/compare'
       path: '/backtest/compare'
@@ -822,6 +842,7 @@ const rootRouteChildren: RootRouteChildren = {
   TradeIntelligenceRoute: TradeIntelligenceRoute,
   BacktestAsianSweepRoute: BacktestAsianSweepRoute,
   BacktestCompareRoute: BacktestCompareRoute,
+  BacktestLiquidityLabRoute: BacktestLiquidityLabRoute,
   BacktestOrbRoute: BacktestOrbRoute,
   BacktestPdhPdlSweepRoute: BacktestPdhPdlSweepRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,

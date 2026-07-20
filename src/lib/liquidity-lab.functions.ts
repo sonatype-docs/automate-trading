@@ -7,11 +7,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { LiquiditySweepConfigSchema, type LiquiditySweepConfig, ZONE_KINDS } from "./liquidity-lab/config";
+import { LiquiditySweepConfigSchema, type LiquiditySweepConfig, ZONE_KINDS, CONFIRMATION_METHODS } from "./liquidity-lab/config";
 import { toStrategyOverrides } from "./liquidity-lab/to-strategy-config";
 import type { EngineRunResult, StrategyConfig } from "./strategy-engine/types";
 import { simulateTrades, type LabTrade, type LabStats } from "./liquidity-lab/simulator";
 import { TIMEFRAMES, type Timeframe } from "./market-data/types";
+
+export const LAB_FILTER_KEYS = [
+  "ema", "vwap", "adx", "atr", "volume", "rsi", "htfTrend", "structure", "premiumDiscount", "priorSweep",
+] as const;
+export type LabFilterKey = (typeof LAB_FILTER_KEYS)[number];
 
 const RunInput = z.object({
   config: LiquiditySweepConfigSchema,

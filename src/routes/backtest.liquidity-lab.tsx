@@ -579,7 +579,49 @@ function LabPage() {
             <ChipsMulti values={mxZones} options={ZONE_KINDS as unknown as string[]} onChange={setMxZones} />
           </div>
 
-          {/* Matrix-only settings: days back, direction, weekend skips */}
+          {/* Confirmation stack sweep */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Confirmation stack</div>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxConfMode === "each"} onChange={() => setMxConfMode("each")} />
+                  Each method alone
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxConfMode === "combined"} onChange={() => setMxConfMode("combined")} />
+                  Combined (all together)
+                </label>
+              </div>
+            </div>
+            <ChipsMulti values={mxConfMethods} options={CONFIRMATION_METHODS as unknown as string[]} onChange={setMxConfMethods} />
+          </div>
+
+          {/* Filters sweep */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Filters</div>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "off"} onChange={() => setMxFilterMode("off")} />
+                  Baseline (all off)
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "each"} onChange={() => setMxFilterMode("each")} />
+                  Baseline + each alone
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" checked={mxFilterMode === "all"} onChange={() => setMxFilterMode("all")} />
+                  All selected on
+                </label>
+              </div>
+            </div>
+            <ChipsMulti values={mxFilters as unknown as string[]}
+              options={LAB_FILTER_KEYS as unknown as string[]}
+              onChange={(v) => setMxFilters(v as LabFilterKey[])} />
+          </div>
+
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border border-border/60 p-3">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Days back</Label>

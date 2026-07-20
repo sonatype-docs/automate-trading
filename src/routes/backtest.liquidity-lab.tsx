@@ -532,13 +532,49 @@ function LabPage() {
               <Badge variant="outline" className="font-mono text-[10px]">
                 {insights.totals.totalTrades} trades · {insights.totals.totalSignals} signals
               </Badge>
+              {filtersActive && (
+                <Badge variant="outline" className="font-mono text-[10px] border-primary/60 text-primary">
+                  filters active
+                </Badge>
+              )}
               <div className="ml-auto flex items-center gap-2">
+                {filtersActive && (
+                  <Button size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>
+                )}
                 <Button size="sm" variant="outline"
                   onClick={() => downloadCsv(`${config.name.replace(/\s+/g, "_")}_matrix_trades.csv`, tradesCsv(matrixRows))}>
-                  <Download className="w-3.5 h-3.5 mr-1" /> Export all trades CSV
+                  <Download className="w-3.5 h-3.5 mr-1" /> Export {filtersActive ? "filtered" : "all"} trades CSV
                 </Button>
               </div>
             </div>
+
+            {/* Multi-select filter panel */}
+            <div className="rounded-md border border-border/60 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">
+                  Filters — play with the report
+                </div>
+                <div className="text-[10px] font-mono text-muted-foreground">
+                  {matrixRows.filter((r) => r.ok).length}/{rawRows.filter((r) => r.ok).length} combos shown
+                </div>
+              </div>
+              <ChipsMultiLabeled title="Symbols" values={fltSymbols} options={optSymbols} onChange={setFltSymbols} />
+              <ChipsMultiLabeled title="Timeframes" values={fltTfs} options={optTfs} onChange={setFltTfs} />
+              <ChipsMultiLabeled title="Zones" values={fltZones} options={optZones} onChange={setFltZones} />
+              <div className="grid md:grid-cols-2 gap-3">
+                <ChipsMultiLabeled title="Direction" values={fltDirs} options={["long", "short"]} onChange={setFltDirs} />
+                <ChipsMultiLabeled title="Outcome" values={fltOutcomes} options={["win", "loss", "open"]} onChange={setFltOutcomes} />
+              </div>
+              <ChipsMultiLabeled title="Weekday (UTC)" values={fltDows} options={DOW_NAMES} onChange={setFltDows} />
+              <ChipsMultiLabeled title="Hour (UTC)" values={fltHours} options={optHours} onChange={setFltHours} />
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min trades / combo</Label>
+                <Input type="number" min={0} max={9999} value={fltMinTrades}
+                  onChange={(e) => setFltMinTrades(Math.max(0, Number(e.target.value) || 0))}
+                  className="h-8 w-24 font-mono text-xs" />
+              </div>
+            </div>
+
 
             {/* Headline KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">

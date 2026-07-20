@@ -219,22 +219,32 @@ function LabPage() {
   });
 
   // ── Post-run insight filters (multi-select, research-style) ──
-  const rawRows: MatrixRow[] = matrixMut.data?.rows ?? [];
+  // Rows can come from the last matrix run OR from an imported snapshot.
+  const [importedRows, setImportedRows] = useState<MatrixRow[] | null>(null);
+  const rawRows: MatrixRow[] = importedRows ?? matrixMut.data?.rows ?? [];
   const [fltSymbols, setFltSymbols] = useState<string[]>([]);
   const [fltTfs, setFltTfs] = useState<string[]>([]);
   const [fltZones, setFltZones] = useState<string[]>([]);
+  const [fltSources, setFltSources] = useState<string[]>([]);
+  const [fltConfs, setFltConfs] = useState<string[]>([]);
+  const [fltFilterTags, setFltFilterTags] = useState<string[]>([]);
   const [fltDirs, setFltDirs] = useState<string[]>(["long", "short"]);
   const [fltOutcomes, setFltOutcomes] = useState<string[]>(["win", "loss", "open"]);
   const [fltDows, setFltDows] = useState<string[]>([]);
   const [fltHours, setFltHours] = useState<string[]>([]);
   const [fltMinTrades, setFltMinTrades] = useState<number>(0);
+  const [fltMinPF, setFltMinPF] = useState<number>(0);
+  const [fltMinWR, setFltMinWR] = useState<number>(0);
+  const [fltMinPnL, setFltMinPnL] = useState<number>(0);
 
-  // Reset filters whenever a new matrix run finishes.
-  useEffect(() => { if (matrixMut.data) {
+  // Reset filters whenever a new matrix run finishes or a snapshot is loaded.
+  useEffect(() => { if (matrixMut.data || importedRows) {
     setFltSymbols([]); setFltTfs([]); setFltZones([]);
+    setFltSources([]); setFltConfs([]); setFltFilterTags([]);
     setFltDirs(["long", "short"]); setFltOutcomes(["win", "loss", "open"]);
-    setFltDows([]); setFltHours([]); setFltMinTrades(0);
-  }}, [matrixMut.data]);
+    setFltDows([]); setFltHours([]);
+    setFltMinTrades(0); setFltMinPF(0); setFltMinWR(0); setFltMinPnL(0);
+  }}, [matrixMut.data, importedRows]);
 
   const optSymbols = useMemo(() => Array.from(new Set(rawRows.map((r) => r.symbol))).sort(), [rawRows]);
   const optTfs = useMemo(() => Array.from(new Set(rawRows.map((r) => r.timeframe))).sort(), [rawRows]);

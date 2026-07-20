@@ -584,13 +584,27 @@ function LabPage() {
           <Button size="sm" variant="outline" onClick={exportPreset}>
             <Download className="w-3.5 h-3.5 mr-1" /> Export
           </Button>
+          <Button size="sm" variant="outline" onClick={exportMatrixOnly} disabled={!rawRows.length}
+            title="Download matrix rows as JSON">
+            <Download className="w-3.5 h-3.5 mr-1" /> Save matrix
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportCombined} disabled={!rawRows.length}
+            title="Download config + matrix rows as one JSON">
+            <Download className="w-3.5 h-3.5 mr-1" /> Save combined
+          </Button>
           <label className="inline-flex">
             <Button size="sm" variant="outline" asChild>
               <span><Upload className="w-3.5 h-3.5 mr-1" /> Import</span>
             </Button>
             <input type="file" accept="application/json" className="hidden"
-              onChange={(e) => e.target.files?.[0] && importPreset(e.target.files[0])} />
+              onChange={(e) => e.target.files?.[0] && importSnapshot(e.target.files[0])} />
           </label>
+          {importedRows && (
+            <Button size="sm" variant="ghost" onClick={() => setImportedRows(null)}
+              title="Clear loaded snapshot and use last matrix run again">
+              <X className="w-3.5 h-3.5 mr-1" /> Clear snapshot
+            </Button>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <Button size="sm" onClick={() => runMut.mutate()} disabled={runMut.isPending}>
               <Play className="w-3.5 h-3.5 mr-1" /> {runMut.isPending ? "Running…" : "Run backtest"}

@@ -667,9 +667,9 @@ function LabPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="font-mono text-[10px]">
-              {mxSymbols.length} × {mxTfs.length} × {mxZoneMode === "each" ? mxZones.length : 1} = {mxSymbols.length * mxTfs.length * (mxZoneMode === "each" ? mxZones.length : 1)} combos
+              {mxSources.length} src × {mxSymbols.length} sym × {mxTfs.length} tf × {mxZoneMode === "each" ? mxZones.length : 1} zn × {mxConfSets.length} conf × {mxFilterSets.length} flt = {totalCombos} combos
             </Badge>
-            <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length}>
+            <Button size="sm" onClick={() => matrixMut.mutate()} disabled={matrixMut.isPending || !mxSymbols.length || !mxTfs.length || !mxZones.length || !mxSources.length}>
               <Play className="w-3.5 h-3.5 mr-1" /> {matrixMut.isPending ? (mxProgress ? `Running ${mxProgress.done}/${mxProgress.total}…` : "Running matrix…") : "Run matrix"}
             </Button>
             <div className="ml-auto flex items-center gap-2">

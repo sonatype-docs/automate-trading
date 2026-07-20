@@ -439,6 +439,10 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
       stopDist,
       riskUsd: Number(r.risk_usd),
       minRiskUsd: 10,
+      // Attach a HARD reduce-only stop on the exchange as a safety backstop.
+      // The tick loop still manages the "smart" exit (market <30m, limit >=30m),
+      // but if ticks stall the exchange will still take us out at stop_price.
+      stopLossPrice: candidate.stopPrice,
     });
     const res = attempt.res;
     const filled = res.status === "filled";

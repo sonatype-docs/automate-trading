@@ -199,8 +199,8 @@ function LabPage() {
     const symOk = (s: string) => !fltSymbols.length || fltSymbols.includes(s);
     const tfOk = (t: string) => !fltTfs.length || fltTfs.includes(t);
     const zoneOk = (z: string) => !fltZones.length || fltZones.includes(z);
-    const dirOk = (d: string) => fltDirs.includes(d);
-    const outOk = (o: string) => fltOutcomes.includes(o);
+    const dirOk = (d: string) => !fltDirs.length || fltDirs.includes(d);
+    const outOk = (o: string) => !fltOutcomes.length || fltOutcomes.includes(o);
     const dowOk = (n: string) => !fltDows.length || fltDows.includes(n);
     const hrOk = (h: string) => !fltHours.length || fltHours.includes(h);
 

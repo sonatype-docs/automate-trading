@@ -62,7 +62,7 @@ export const runLiquidityLab = createServerFn({ method: "POST" })
       symbol: cfg.symbol,
     });
     result.events = result.events.slice(-500);
-    return { result, barsIn: enriched.length, effectiveConfig: effective };
+    return { result, barsIn: enriched.length, effectiveConfigJson: JSON.stringify(effective) };
   });
 
 // ── Preset CRUD ────────────────────────────────────────────────────────

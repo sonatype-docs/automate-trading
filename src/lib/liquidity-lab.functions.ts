@@ -13,11 +13,48 @@ const RunInput = z.object({
   config: LiquiditySweepConfigSchema,
 });
 
+export interface LabTrade {
+  ts: number;
+  exitTs: number;
+  direction: "long" | "short";
+  entry: number;
+  stop: number;
+  target: number;
+  outcome: "win" | "loss" | "open";
+  rMultiple: number;
+  pnlUsd: number;
+  barsHeld: number;
+}
+
+export interface LabStats {
+  trades: number;
+  wins: number;
+  losses: number;
+  open: number;
+  winRate: number;      // 0..100
+  avgRR: number;        // avg planned R:R across signals
+  avgWinR: number;
+  avgLossR: number;
+  expectancyR: number;
+  profitFactor: number;
+  totalPnlUsd: number;
+  grossWinUsd: number;
+  grossLossUsd: number;
+  maxDrawdownUsd: number;
+  longs: number;
+  shorts: number;
+  longWinRate: number;
+  shortWinRate: number;
+}
+
 export interface RunLabResult {
   result: EngineRunResult;
   barsIn: number;
   effectiveConfigJson: string;
+  trades: LabTrade[];
+  labStats: LabStats;
 }
+
 
 export const runLiquidityLab = createServerFn({ method: "POST" })
   .inputValidator((raw) => RunInput.parse(raw))

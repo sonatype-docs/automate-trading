@@ -128,6 +128,9 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   const client = createSharkClient();
 
   // 0) Sweep stale PENDING limits older than 15 min — prevents orphan queue buildup.
+  // NOTE: use created_at (actual placement time on exchange), NOT entry_ts
+  // (signal bar time) — a signal bar can be minutes old when the order is
+  // actually placed, which would otherwise cancel the limit almost instantly.
   const STALE_MS = 15 * 60 * 1000;
   const cutoff = new Date(Date.now() - STALE_MS).toISOString();
   const { data: stale } = await supabaseAdmin
@@ -135,7 +138,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
     .select("id, client_order_id")
     .eq("runner_id", r.id)
     .eq("status", "pending")
-    .lt("entry_ts", cutoff);
+    .lt("created_at", cutoff);
   for (const sp of stale ?? []) {
     if (sp.client_order_id) {
       await client.cancelOrder(sp.client_order_id).catch(() => undefined);
@@ -146,6 +149,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
       exit_reason: "expired",
     }).eq("id", sp.id);
   }
+
 
   // 0.5) Promote QUEUED signals when the symbol is now free.
   // Queued rows carry full entry data; place them on the exchange in order.

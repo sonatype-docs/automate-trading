@@ -122,7 +122,7 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
           ? "outside session window"
           : !inRunnerWindow
             ? "outside runner IST window / weekday"
-            : `calendar block: ${cal.reason ?? "event"}`,
+            : `calendar block: ${cal.event?.name ?? "event"}`,
       });
       continue;
     }

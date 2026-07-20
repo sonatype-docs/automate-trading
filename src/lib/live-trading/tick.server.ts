@@ -536,6 +536,7 @@ export async function placeWithMarginRetry(
     stopDist: number;
     riskUsd: number;
     minRiskUsd: number; // kept for backward-compat; treated as floor
+    stopLossPrice?: number;
   },
 ): Promise<{ res: Awaited<ReturnType<ReturnType<typeof createSharkClient>["placeOrder"]>>; qty: number; note?: string }> {
   // Build ladder: start at current risk, step down through 15 & 10 (or whatever
@@ -557,7 +558,9 @@ export async function placeWithMarginRetry(
       const res = await client.placeOrder({
         symbol: args.symbol, side: args.side, qty: q,
         type: "limit", price: args.price,
+        stopLossPrice: args.stopLossPrice,
       });
+
       const note = i === 0
         ? undefined
         : `margin_retry: risk $${priorRisk}→$${risk}, qty ${priorQty}→${q}`;

@@ -119,6 +119,25 @@ function LabPage() {
   const [mxDirection, setMxDirection] = useState<"long" | "short" | "both">("both");
   const [mxSkipSat, setMxSkipSat] = useState<boolean>(true);
   const [mxSkipSun, setMxSkipSun] = useState<boolean>(true);
+  const [mxSources, setMxSources] = useState<Array<"yahoo" | "shark">>(["yahoo"]);
+  const [mxConfMethods, setMxConfMethods] = useState<string[]>(["opposite_candle"]);
+  const [mxConfMode, setMxConfMode] = useState<"each" | "combined">("each");
+  const [mxFilters, setMxFilters] = useState<LabFilterKey[]>([]);
+  const [mxFilterMode, setMxFilterMode] = useState<"off" | "each" | "all">("off");
+
+  const mxConfSets: string[][] = useMemo(() => {
+    if (!mxConfMethods.length) return [["opposite_candle"]];
+    return mxConfMode === "each" ? mxConfMethods.map((m) => [m]) : [mxConfMethods];
+  }, [mxConfMethods, mxConfMode]);
+  const mxFilterSets: LabFilterKey[][] = useMemo(() => {
+    if (mxFilterMode === "off" || mxFilters.length === 0) return [[]];
+    if (mxFilterMode === "all") return [mxFilters];
+    return [[], ...mxFilters.map((k) => [k])];
+  }, [mxFilters, mxFilterMode]);
+
+  const totalCombos = mxSources.length * mxSymbols.length * mxTfs.length
+    * (mxZoneMode === "each" ? mxZones.length : 1)
+    * mxConfSets.length * mxFilterSets.length;
 
   const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
   const matrixMut = useMutation({
@@ -126,16 +145,17 @@ function LabPage() {
       const zoneSets = mxZoneMode === "each"
         ? mxZones.map((z) => [z])
         : [mxZones];
-      if (mxTfs.length === 0 || zoneSets.length === 0 || mxSymbols.length === 0) throw new Error("Select symbols, timeframes and zones.");
-      // Run one symbol × timeframe per server call. This keeps Yahoo/Shark
-      // fetches small and prevents one slow source window from killing the
-      // whole matrix. Failed slices are kept as failed rows, not lost.
-      const tasks = mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ symbol, timeframe })));
-      const totalCombos = mxSymbols.length * mxTfs.length * zoneSets.length;
+      if (mxTfs.length === 0 || zoneSets.length === 0 || mxSymbols.length === 0 || mxSources.length === 0) {
+        throw new Error("Select sources, symbols, timeframes and zones.");
+      }
+      // Chunk: one (source, symbol, timeframe) per server call — sweeps all
+      // zones / confirmation stacks / filter sets inside that call.
+      const tasks = mxSources.flatMap((source) =>
+        mxSymbols.flatMap((symbol) => mxTfs.map((timeframe) => ({ source, symbol, timeframe }))),
+      );
       setMxProgress({ done: 0, total: totalCombos });
       const startedAll = Date.now();
       const allRows: MatrixRow[] = [];
-      // Build effective base config: matrix settings override lab config.
       const weekdays = [0, 1, 2, 3, 4, 5, 6].filter(
         (d) => !(mxSkipSat && d === 6) && !(mxSkipSun && d === 0),
       );
@@ -156,25 +176,34 @@ function LabPage() {
             symbols: [task.symbol],
             timeframes: [task.timeframe] as never,
             zoneSets: zoneSets as never,
-            source: effectiveBase.source,
+            confirmationSets: mxConfSets as never,
+            filterSets: mxFilterSets as never,
+            sources: [task.source],
             daysBack: mxDaysBack,
           }});
           allRows.push(...r.rows);
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
           for (const zones of zoneSets) {
-            allRows.push({
-              symbol: task.symbol,
-              timeframe: task.timeframe as MatrixRow["timeframe"],
-              zones,
-              ok: false,
-              error,
-              bars: 0,
-              signals: 0,
-              stats: null,
-              trades: [],
-              elapsedMs: 0,
-            });
+            for (const conf of mxConfSets) {
+              for (const filters of mxFilterSets) {
+                allRows.push({
+                  symbol: task.symbol,
+                  timeframe: task.timeframe as MatrixRow["timeframe"],
+                  zones,
+                  source: task.source,
+                  confirmation: conf,
+                  filters,
+                  ok: false,
+                  error,
+                  bars: 0,
+                  signals: 0,
+                  stats: null,
+                  trades: [],
+                  elapsedMs: 0,
+                });
+              }
+            }
           }
         }
         setMxProgress({ done: allRows.length, total: totalCombos });

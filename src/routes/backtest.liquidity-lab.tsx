@@ -919,17 +919,42 @@ function LabPage() {
               <ChipsMultiLabeled title="Symbols" values={fltSymbols} options={optSymbols} onChange={setFltSymbols} />
               <ChipsMultiLabeled title="Timeframes" values={fltTfs} options={optTfs} onChange={setFltTfs} />
               <ChipsMultiLabeled title="Zones" values={fltZones} options={optZones} onChange={setFltZones} />
+              <div className="grid md:grid-cols-3 gap-3">
+                <ChipsMultiLabeled title="Sources" values={fltSources} options={optSources} onChange={setFltSources} />
+                <ChipsMultiLabeled title="Confirmation" values={fltConfs} options={optConfs} onChange={setFltConfs} />
+                <ChipsMultiLabeled title="Filter tags" values={fltFilterTags} options={optFilterTags} onChange={setFltFilterTags} />
+              </div>
               <div className="grid md:grid-cols-2 gap-3">
                 <ChipsMultiLabeled title="Direction" values={fltDirs} options={["long", "short"]} onChange={setFltDirs} />
                 <ChipsMultiLabeled title="Outcome" values={fltOutcomes} options={["win", "loss", "open"]} onChange={setFltOutcomes} />
               </div>
               <ChipsMultiLabeled title="Weekday (UTC)" values={fltDows} options={DOW_NAMES} onChange={setFltDows} />
               <ChipsMultiLabeled title="Hour (UTC)" values={fltHours} options={optHours} onChange={setFltHours} />
-              <div className="flex items-center gap-2">
-                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min trades / combo</Label>
-                <Input type="number" min={0} max={9999} value={fltMinTrades}
-                  onChange={(e) => setFltMinTrades(Math.max(0, Number(e.target.value) || 0))}
-                  className="h-8 w-24 font-mono text-xs" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min trades / combo</Label>
+                  <Input type="number" min={0} max={99999} value={fltMinTrades}
+                    onChange={(e) => setFltMinTrades(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min PF</Label>
+                  <Input type="number" min={0} step={0.1} value={fltMinPF}
+                    onChange={(e) => setFltMinPF(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min WR %</Label>
+                  <Input type="number" min={0} max={100} step={1} value={fltMinWR}
+                    onChange={(e) => setFltMinWR(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-8 font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Min P&L $</Label>
+                  <Input type="number" step={10} value={fltMinPnL}
+                    onChange={(e) => setFltMinPnL(Number(e.target.value) || 0)}
+                    className="h-8 font-mono text-xs" />
+                </div>
               </div>
             </div>
 

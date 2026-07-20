@@ -114,22 +114,39 @@ function LabPage() {
   const [mxZones, setMxZones] = useState<string[]>(["PDH", "PDL", "PWH", "PWL"]);
   const [mxSort, setMxSort] = useState<"pnl" | "pf" | "wr" | "trades" | "expectancy">("pf");
 
+  const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
   const matrixMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const zoneSets = mxZoneMode === "each"
         ? mxZones.map((z) => [z])
         : [mxZones];
-      const total = mxSymbols.length * mxTfs.length * zoneSets.length;
-      if (total > 300) throw new Error(`Too many combos (${total}). Cap is 300 — narrow selection.`);
-      return runMatrix({ data: {
-        baseConfig: config,
-        symbols: mxSymbols,
-        timeframes: mxTfs as never,
-        zoneSets: zoneSets as never,
-      }});
+      const perSymbolCombos = mxTfs.length * zoneSets.length;
+      if (perSymbolCombos === 0 || mxSymbols.length === 0) throw new Error("Select symbols, timeframes and zones.");
+      // Chunk symbols so each server call stays within Worker CPU limits.
+      // Target ~80 combos per call.
+      const symbolsPerChunk = Math.max(1, Math.floor(80 / Math.max(1, perSymbolCombos)));
+      const chunks: string[][] = [];
+      for (let i = 0; i < mxSymbols.length; i += symbolsPerChunk) {
+        chunks.push(mxSymbols.slice(i, i + symbolsPerChunk));
+      }
+      const totalCombos = mxSymbols.length * perSymbolCombos;
+      setMxProgress({ done: 0, total: totalCombos });
+      const startedAll = Date.now();
+      const allRows: MatrixRow[] = [];
+      for (const chunk of chunks) {
+        const r = await runMatrix({ data: {
+          baseConfig: config,
+          symbols: chunk,
+          timeframes: mxTfs as never,
+          zoneSets: zoneSets as never,
+        }});
+        allRows.push(...r.rows);
+        setMxProgress({ done: allRows.length, total: totalCombos });
+      }
+      return { rows: allRows, totalCombos, totalMs: Date.now() - startedAll };
     },
-    onSuccess: (r) => toast.success(`Matrix: ${r.rows.length} runs in ${(r.totalMs/1000).toFixed(1)}s`),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (r) => { setMxProgress(null); toast.success(`Matrix: ${r.rows.length} runs in ${(r.totalMs/1000).toFixed(1)}s`); },
+    onError: (e: Error) => { setMxProgress(null); toast.error(e.message); },
   });
 
   const sortedMatrix: MatrixRow[] = useMemo(() => {

@@ -730,8 +730,21 @@ function LabPage() {
                         {r.ok && (
                           <button className="text-primary hover:underline text-[10px]"
                             onClick={() => {
-                              setConfig((c) => ({ ...c, symbol: r.symbol, entryTimeframe: r.timeframe as never, zones: r.zones as never }));
-                              toast.success(`Loaded ${r.symbol} ${r.timeframe} ${r.zones.join("+")} into config`);
+                              setConfig((c) => ({
+                                ...c,
+                                source: r.source,
+                                symbol: r.symbol,
+                                entryTimeframe: r.timeframe as never,
+                                zones: r.zones as never,
+                                confirmation: { ...c.confirmation, methods: r.confirmation as never },
+                                filters: Object.fromEntries(
+                                  (Object.keys(c.filters) as Array<keyof typeof c.filters>).map((k) => [
+                                    k,
+                                    { ...c.filters[k], enabled: (r.filters as string[]).includes(k as string) },
+                                  ]),
+                                ) as typeof c.filters,
+                              }));
+                              toast.success(`Loaded ${r.source}·${r.symbol} ${r.timeframe} ${r.zones.join("+")} into config`);
                             }}>Load</button>
                         )}
                       </td>

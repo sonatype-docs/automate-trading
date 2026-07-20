@@ -99,7 +99,16 @@ export const runLiquidityLab = createServerFn({ method: "POST" })
       symbol: cfg.symbol,
     });
     result.events = result.events.slice(-500);
-    return { result, barsIn: enriched.length, effectiveConfigJson: JSON.stringify(effective) };
+
+    const { trades, labStats } = simulateTrades(enriched, result.signals, cfg.riskUsd);
+
+    return {
+      result,
+      barsIn: enriched.length,
+      effectiveConfigJson: JSON.stringify(effective),
+      trades,
+      labStats,
+    };
   });
 
 // ── Preset CRUD ────────────────────────────────────────────────────────

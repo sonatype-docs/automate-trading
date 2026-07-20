@@ -178,6 +178,25 @@ export const SessionSchema = z.object({
   custom: CustomSessionSchema.optional(),
 });
 
+// ── Realism (fees / slippage / intrabar SL/TP model) ───────────────────
+export const INTRABAR_MODES = ["conservative", "optimistic", "proximity"] as const;
+export const SLIPPAGE_MODELS = ["none", "fixed_pts", "pct", "atr_mult"] as const;
+
+export const RealismSchema = z.object({
+  intrabar: z.enum(INTRABAR_MODES).default("conservative"),
+  slippage: z.object({
+    model: z.enum(SLIPPAGE_MODELS).default("none"),
+    value: z.number().min(0).default(0),
+  }).default({}),
+  fees: z.object({
+    enabled: z.boolean().default(true),
+    makerRate: z.number().min(0).default(0.0002),
+    takerRate: z.number().min(0).default(0.0005),
+    takerThresholdMs: z.number().min(0).default(30 * 60_000),
+  }).default({}),
+});
+export type RealismConfig = z.infer<typeof RealismSchema>;
+
 // ── Top-level Lab config ───────────────────────────────────────────────
 export const LiquiditySweepConfigSchema = z.object({
   version: z.literal(1).default(1),
@@ -208,11 +227,13 @@ export const LiquiditySweepConfigSchema = z.object({
   attempts: AttemptsSchema.default({}),
   filters: FiltersSchema.default({}),
   session: SessionSchema.default({}),
+  realism: RealismSchema.default({}),
 
   // Risk
   riskUsd: z.number().min(1).default(10),
   maxDailyTrades: z.number().min(1).default(2),
 });
+
 
 export type LiquiditySweepConfig = z.infer<typeof LiquiditySweepConfigSchema>;
 

@@ -464,7 +464,7 @@ async function tickOne(r: RunnerRow): Promise<{ placed: number; reconciled: numb
   return { placed: placedOk, reconciled };
 }
 
-function pickLiveEntryCandidate(
+export function pickLiveEntryCandidate(
   r: RunnerRow,
   sres: ReturnType<typeof runStrategy>,
   eres: ReturnType<typeof runExecution>,

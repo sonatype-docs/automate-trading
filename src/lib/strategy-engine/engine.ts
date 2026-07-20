@@ -131,7 +131,7 @@ export function runStrategy(
       if (armedByDir.long && green && !pendingByDir.long && armedByDir.long.attempts < maxAttempts) {
         trig = {
           kind: "pdh_pdl_sweep", direction: "long",
-          level: bar.high,
+          level: armedByDir.long.level,
           swingHigh: bar.swingHigh, swingLow: bar.swingLow,
           meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
                   sweepExtreme: armedByDir.long.sweepExtreme, sweepLevel: armedByDir.long.level,
@@ -140,7 +140,7 @@ export function runStrategy(
       } else if (armedByDir.short && red && !pendingByDir.short && armedByDir.short.attempts < maxAttempts) {
         trig = {
           kind: "pdh_pdl_sweep", direction: "short",
-          level: bar.low,
+          level: armedByDir.short.level,
           swingHigh: bar.swingHigh, swingLow: bar.swingLow,
           meta: { session: bar.session, atr: bar.atr, structure: bar.structure,
                   sweepExtreme: armedByDir.short.sweepExtreme, sweepLevel: armedByDir.short.level,

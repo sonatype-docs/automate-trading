@@ -199,8 +199,8 @@ function LabPage() {
     const symOk = (s: string) => !fltSymbols.length || fltSymbols.includes(s);
     const tfOk = (t: string) => !fltTfs.length || fltTfs.includes(t);
     const zoneOk = (z: string) => !fltZones.length || fltZones.includes(z);
-    const dirOk = (d: string) => fltDirs.includes(d);
-    const outOk = (o: string) => fltOutcomes.includes(o);
+    const dirOk = (d: string) => !fltDirs.length || fltDirs.includes(d);
+    const outOk = (o: string) => !fltOutcomes.length || fltOutcomes.includes(o);
     const dowOk = (n: string) => !fltDows.length || fltDows.includes(n);
     const hrOk = (h: string) => !fltHours.length || fltHours.includes(h);
 
@@ -576,8 +576,17 @@ function LabPage() {
             </div>
 
 
+            {filtersActive && insights.totals.totalTrades === 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] font-mono text-amber-600 dark:text-amber-400">
+                No trades match the current filters ({insights.totals.totalSignals} raw signals in view).
+                Common cause: Direction is set to only <b>{fltDirs.join(" / ") || "—"}</b>, or Outcome / Weekday / Hour are too narrow.
+                Try <button type="button" className="underline" onClick={clearFilters}>Clear filters</button> and re-narrow one facet at a time.
+              </div>
+            )}
+
             {/* Headline KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+
               <KPI label="Total P&L" value={`$${insights.totals.totalPnlUsd.toFixed(0)}`}
                    tone={insights.totals.totalPnlUsd > 0 ? "pos" : insights.totals.totalPnlUsd < 0 ? "neg" : undefined} />
               <KPI label="Profit Factor" value={insights.totals.profitFactor === 999 ? "∞" : insights.totals.profitFactor.toFixed(2)} />
@@ -1136,12 +1145,18 @@ function Section({ id, title, children }: { id: string; title: string; children:
 }
 function ChipsMultiLabeled({ title, values, options, onChange }: { title: string; values: string[]; options: string[]; onChange: (v: string[]) => void }) {
   const allOn = values.length === options.length;
+  const noneOn = values.length === 0;
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">{title}</div>
+        <div className="text-[10px] font-mono text-muted-foreground">
+          {noneOn ? "no filter" : allOn ? "all" : `${values.length}/${options.length}`}
+        </div>
+        <button type="button" className="text-[10px] font-mono text-primary hover:underline"
+          onClick={() => onChange(options)}>select all</button>
         <button type="button" className="text-[10px] font-mono text-muted-foreground hover:text-foreground"
-          onClick={() => onChange(allOn ? [] : options)}>{allOn ? "None" : "All"}</button>
+          onClick={() => onChange([])}>clear</button>
       </div>
       <ChipsMulti values={values} options={options} onChange={onChange} />
     </div>

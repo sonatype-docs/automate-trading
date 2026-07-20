@@ -299,6 +299,100 @@ function LabPage() {
     setFltDows([]); setFltHours([]); setFltMinTrades(0);
   };
 
+  // ── Ship filtered combos → Live runners ──
+  const deployFn = useServerFn(deployTimeEdgeBuckets);
+  const [deployOpen, setDeployOpen] = useState(false);
+  const [deployRisk, setDeployRisk] = useState<number>(10);
+  const [deployReplace, setDeployReplace] = useState<boolean>(true);
+
+  const plannedBuckets = useMemo(() => {
+    // One bucket per (symbol, tf, zoneKey) that has trades after filters.
+    // Direction/weekdays/hours pulled from the active filter chips so the
+    // live runner only fires inside the same slice you're viewing.
+    const okRows = filteredMatrixRows.filter((r) => r.ok && r.trades.length > 0);
+    if (okRows.length === 0) return [] as Array<{
+      label: string; symbol: string; timeframe: string; zones: string[];
+      direction: "long" | "short" | "both";
+      weekdays: number[] | undefined;
+      windowStartHourIst: number | undefined;
+      windowEndHourIst: number | undefined;
+      trades: number; pnlUsd: number; pf: number; wr: number;
+    }>;
+
+    const direction: "long" | "short" | "both" =
+      fltDirs.length === 1 && (fltDirs[0] === "long" || fltDirs[0] === "short")
+        ? (fltDirs[0] as "long" | "short") : "both";
+
+    // Weekdays: filter uses JS getUTCDay (Sun=0..Sat=6). Live gating accepts
+    // both JS and ISO indices — pass JS as-is. Empty = all days.
+    const weekdays = fltDows.length
+      ? fltDows.map((n) => DOW_NAMES.indexOf(n)).filter((i) => i >= 0)
+      : undefined;
+
+    // Hours: convert UTC hour set → IST (UTC+5:30, hour = (h+5) mod 24 approx)
+    // then compress to a single contiguous window (min..max+1). If the set is
+    // non-contiguous, the window will be a widened superset (documented in UI).
+    let windowStartHourIst: number | undefined;
+    let windowEndHourIst: number | undefined;
+    if (fltHours.length) {
+      const istHours = Array.from(new Set(
+        fltHours.map((h) => (parseInt(h, 10) + 5) % 24),
+      )).sort((a, b) => a - b);
+      windowStartHourIst = istHours[0];
+      windowEndHourIst = Math.min(24, istHours[istHours.length - 1] + 1);
+    }
+
+    return okRows.map((r) => {
+      const st = r.stats!;
+      return {
+        label: `${r.symbol} · ${r.timeframe} · ${r.zones.join("+")}`,
+        symbol: r.symbol,
+        timeframe: r.timeframe,
+        zones: r.zones,
+        direction,
+        weekdays,
+        windowStartHourIst,
+        windowEndHourIst,
+        trades: st.trades,
+        pnlUsd: st.totalPnlUsd,
+        pf: st.profitFactor,
+        wr: st.winRate,
+      };
+    });
+  }, [filteredMatrixRows, fltDirs, fltDows, fltHours]);
+
+  const hourFilterNonContiguous = useMemo(() => {
+    if (fltHours.length < 2) return false;
+    const ist = Array.from(new Set(fltHours.map((h) => (parseInt(h, 10) + 5) % 24))).sort((a, b) => a - b);
+    for (let i = 1; i < ist.length; i++) if (ist[i] !== ist[i - 1] + 1) return true;
+    return false;
+  }, [fltHours]);
+
+  const deployMut = useMutation({
+    mutationFn: async () => {
+      if (plannedBuckets.length === 0) throw new Error("Nothing to deploy.");
+      const buckets = plannedBuckets.map((b) => ({
+        label: b.label,
+        symbol: b.symbol,
+        timeframe: b.timeframe,
+        strategyPreset: "pdh_pdl_sweep_1m",
+        execPreset: "conservative_default",
+        riskUsd: deployRisk,
+        lookbackDays: 30,
+        direction: b.direction,
+        weekdays: b.weekdays,
+        windowStartHourIst: b.windowStartHourIst,
+        windowEndHourIst: b.windowEndHourIst,
+      }));
+      return await deployFn({ data: { target: "live", buckets, replaceExisting: deployReplace } });
+    },
+    onSuccess: (s) => {
+      toast.success(`Live: +${s.live.inserted} inserted · −${s.live.removed} removed${s.skipped.length ? ` · ${s.skipped.length} skipped` : ""}`);
+      setDeployOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const update = <K extends keyof LiquiditySweepConfig>(k: K, v: LiquiditySweepConfig[K]) =>
     setConfig((c) => ({ ...c, [k]: v }));
 

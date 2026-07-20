@@ -23,6 +23,7 @@ import {
 import {
   runLiquidityLab, listLabPresets, saveLabPreset,
   deleteLabPreset, duplicateLabPreset, runLiquidityLabMatrix,
+  LAB_FILTER_KEYS, type LabFilterKey,
   type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
 import { deployTimeEdgeBuckets } from "@/lib/time-edge.functions";

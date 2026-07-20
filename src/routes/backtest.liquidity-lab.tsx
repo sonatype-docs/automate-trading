@@ -74,7 +74,10 @@ function LabPage() {
 
   const runMut = useMutation({
     mutationFn: () => run({ data: { config } }),
-    onSuccess: (r) => toast.success(`${r.result.stats.signalsCreated} signals · ${r.result.stats.setupsDetected} setups · ${r.barsIn.toLocaleString()} bars`),
+    onSuccess: (r) => {
+      const s = r.labStats;
+      toast.success(`${s.trades} trades · WR ${s.winRate.toFixed(1)}% · PF ${s.profitFactor.toFixed(2)} · P&L $${s.totalPnlUsd.toFixed(0)}`);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 

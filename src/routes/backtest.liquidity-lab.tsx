@@ -285,6 +285,51 @@ function LabPage() {
               </div>
             ))}
           </div>
+
+          {/* Matrix-only settings: days back, direction, weekend skips */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border border-border/60 p-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Days back</Label>
+              <Input type="number" min={7} max={720} value={mxDaysBack}
+                onChange={(e) => setMxDaysBack(Math.max(7, Math.min(720, Number(e.target.value) || 60)))}
+                className="h-8 font-mono text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Direction</Label>
+              <div className="flex gap-1">
+                {(["long", "short", "both"] as const).map((d) => (
+                  <button key={d} type="button" onClick={() => setMxDirection(d)}
+                    className={`flex-1 h-8 rounded border text-[11px] font-mono uppercase transition-colors ${
+                      mxDirection === d
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:border-border"
+                    }`}>
+                    {d === "long" ? "L" : d === "short" ? "S" : "L+S"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Skip weekends</Label>
+              <div className="flex gap-1">
+                {([
+                  { k: "sat", label: "Skip Sat", on: mxSkipSat, set: setMxSkipSat },
+                  { k: "sun", label: "Skip Sun", on: mxSkipSun, set: setMxSkipSun },
+                  { k: "both", label: "Skip Both", on: mxSkipSat && mxSkipSun,
+                    set: (_: boolean) => { const v = !(mxSkipSat && mxSkipSun); setMxSkipSat(v); setMxSkipSun(v); } },
+                ] as const).map((t) => (
+                  <button key={t.k} type="button" onClick={() => t.set(!t.on)}
+                    className={`flex-1 h-8 rounded border text-[11px] font-mono transition-colors ${
+                      t.on
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:border-border"
+                    }`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </ResultCard>
 

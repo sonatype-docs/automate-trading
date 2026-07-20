@@ -558,7 +558,9 @@ function LabPage() {
       {/* Matrix sweep */}
       <ResultCard title={<><Grid3x3 className="w-4 h-4 inline mr-1" /> Matrix Sweep — Source × Symbol × TF × Zones × Confirmation × Filters</>}>
         <div className="space-y-3">
+          <ChipsMultiLabeled title="Sources" values={mxSources} options={["yahoo", "shark"]} onChange={(v) => setMxSources(v as Array<"yahoo" | "shark">)} />
           <ChipsMultiLabeled title="Symbols" values={mxSymbols} options={LAB_SYMBOLS as unknown as string[]} onChange={setMxSymbols} />
+
           <ChipsMultiLabeled title="Timeframes" values={mxTfs} options={TIMEFRAMES as unknown as string[]} onChange={setMxTfs} />
           <div className="space-y-1">
             <div className="flex items-center gap-3">

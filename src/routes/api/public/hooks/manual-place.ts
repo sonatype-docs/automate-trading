@@ -1,16 +1,14 @@
 // Debug endpoint — place a manual order on the exchange with explicit params.
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeScheduledRequest } from "@/lib/scheduler-auth.server";
 
 export const Route = createFileRoute("/api/public/hooks/manual-place")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
+        const unauthorized = authorizeScheduledRequest(request);
+        if (unauthorized) return unauthorized;
         const url = new URL(request.url);
-        const apikey = request.headers.get("apikey") ?? url.searchParams.get("apikey");
-        if (expected && apikey !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
         try {
           const symbol = url.searchParams.get("symbol") ?? "XAUUSDT";
           const side = (url.searchParams.get("side") ?? "sell") as "buy" | "sell";

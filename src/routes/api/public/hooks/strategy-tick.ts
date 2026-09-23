@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeScheduledRequest } from "@/lib/scheduler-auth.server";
 
 export const Route = createFileRoute("/api/public/hooks/strategy-tick")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        const apikey = request.headers.get("apikey");
-        if (expected && apikey !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const unauthorized = authorizeScheduledRequest(request);
+        if (unauthorized) return unauthorized;
         const { runStrategyTick } = await import("@/lib/strategy/engine.server");
         try {
           const result = await runStrategyTick();

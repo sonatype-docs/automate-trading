@@ -10,7 +10,10 @@
 - [ ] Validate data, access rules, storage, and paper/live safety flows
 - [ ] Resume paper, then live automation after reconciliation
 - [ ] Retire the old backend only after explicit approval
+- [ ] Connect the project to the user's GitHub repository and verify code plus database migrations sync
+- [ ] Deliver database records and private files through a secure backup outside GitHub
 
 ## Current blocker
 
 - Destination entered recovery after its connection dropped during the bulk restore and is not accepting connections. Source runners, safety switch, and schedules remain paused. Resume only after the destination reports healthy; inspect and clean the partial restore before retrying.
+- GitHub repository sync requires the user to authorize GitHub and create/select the repository in Lovable.

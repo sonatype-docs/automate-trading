@@ -1,16 +1,14 @@
 // Hourly watchdog — auto-diagnoses "runner ready but 0 orders placed" gaps
 // and forces a repair tick when a valid strategy candidate is being ignored.
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeScheduledRequest } from "@/lib/scheduler-auth.server";
 
 export const Route = createFileRoute("/api/public/hooks/live-watchdog")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        const apikey = request.headers.get("apikey");
-        if (expected && apikey !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const unauthorized = authorizeScheduledRequest(request);
+        if (unauthorized) return unauthorized;
         const { runLiveWatchdog } = await import("@/lib/live-trading/watchdog.server");
         try {
           const result = await runLiveWatchdog();

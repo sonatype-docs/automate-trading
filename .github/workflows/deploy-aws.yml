@@ -11,7 +11,6 @@ env:
   AWS_REGION: ap-southeast-2
   STACK: shark-auto-trader
   REPO: shark-auto-trader-app
-  PREFIX_LIST: pl-b8a742d1
 
 jobs:
   deploy:
@@ -27,6 +26,17 @@ jobs:
         run: aws ecr describe-repositories --repository-names $REPO || aws ecr create-repository --repository-name $REPO --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - name: Resolve CloudFront origin prefix list
+        run: |
+          PREFIX_LIST=$(aws ec2 describe-managed-prefix-lists \
+            --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing \
+            --query 'PrefixLists[0].PrefixListId' \
+            --output text)
+          if [ -z "$PREFIX_LIST" ] || [ "$PREFIX_LIST" = "None" ]; then
+            echo "CloudFront origin-facing prefix list was not found in $AWS_REGION" >&2
+            exit 1
+          fi
+          echo "PREFIX_LIST=$PREFIX_LIST" >> "$GITHUB_ENV"
       - name: Build and push image
         run: |
           IMAGE=${{ steps.ecr.outputs.registry }}/$REPO:${GITHUB_SHA::12}

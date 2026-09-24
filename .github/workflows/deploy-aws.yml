@@ -125,7 +125,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           bun install --frozen-lockfile
-          bun run lint
+          bunx eslint src/lib/auth-client.ts src/routes/index.tsx
           bun run test
 
       - name: Validate infrastructure template

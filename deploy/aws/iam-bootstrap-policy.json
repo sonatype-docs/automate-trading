@@ -45,13 +45,13 @@
       "Resource": "arn:aws:iam::438456517782:role/shark-auto-trader-*"
     },
     {
-      "Sid": "CreateElasticLoadBalancingServiceRole",
+      "Sid": "CreateRequiredServiceRoles",
       "Effect": "Allow",
       "Action": "iam:CreateServiceLinkedRole",
-      "Resource": "arn:aws:iam::438456517782:role/aws-service-role/elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing*",
+      "Resource": "*",
       "Condition": {
         "StringEquals": {
-          "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
+          "iam:AWSServiceName": ["elasticloadbalancing.amazonaws.com", "rds.amazonaws.com", "ecs.amazonaws.com"]
         }
       }
     },

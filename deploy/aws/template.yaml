@@ -107,10 +107,10 @@ Resources:
           SourcePrefixListId: !Ref CloudFrontPrefixListId
       SecurityGroupEgress:
         - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
- ApplicationSecurityGroup:
-   Type: AWS::EC2::SecurityGroup
-   Properties:
-     GroupDescription: Load balancer and ECS task access to the application
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load balancer and ECS task access to the application
       VpcId: !Ref ExistingVpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -172,9 +172,9 @@ Resources:
       Scheme: internet-facing
       SecurityGroups: [!Ref LoadBalancerSecurityGroup]
       Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
- TargetGroup:
-   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-   Properties:
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
       VpcId: !Ref ExistingVpcId
       Port: 3000
       Protocol: HTTP

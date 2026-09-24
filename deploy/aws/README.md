@@ -5,13 +5,15 @@ This directory contains the AWS foundation for Sydney (`ap-southeast-2`). It doe
 ## Safety state
 
 - Live and paper trading remain paused during provisioning and migration.
-- All schedules are created disabled.
+- The application starts with zero running tasks (`DesiredTaskCount` defaults to 0), so nothing trades on deployment.
+- Trading schedules are intentionally not created yet. They are added only after data migration and paper verification pass.
 - The existing deployment and database remain the rollback source.
-- No old resource is deleted by this stack.
+- No old resource is deleted by this stack. Data-bearing resources are retained on stack deletion.
 
 ## Foundation
 
-The AWS template covers private S3 storage, CloudFront, container hosting, private PostgreSQL, Cognito, Secrets Manager, monitoring, and disabled schedules. The application image is built with `Dockerfile.aws` and listens on port 3000. The load balancer checks `/api/public/health`.
+The template creates 39 resources: private S3 storage for assets, files, and backups; CloudFront with private origin access; a load-balanced container service; encrypted Multi-AZ PostgreSQL with deletion protection; Cognito; Secrets Manager entries; logs; and a health alarm. The application image is built with `Dockerfile.aws` and listens on port 3000. The load balancer checks `/api/public/health`.
+
 
 ## Required sequence
 
@@ -26,4 +28,4 @@ The AWS template covers private S3 storage, CloudFront, container hosting, priva
 
 ## Rollback
 
-Disable schedules and set the ECS desired count to zero. The source deployment and database remain unchanged until separate retirement approval.
+Disable any schedules, set the container desired count to zero, and stop sending traffic to CloudFront. The source deployment and database remain unchanged until separate retirement approval.

@@ -37,6 +37,12 @@ jobs:
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
       - name: Deploy stack
         run: |
+          STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Removing failed empty stack before retry"
+            aws cloudformation delete-stack --stack-name "$STACK"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK"
+          fi
           aws cloudformation deploy \
             --stack-name $STACK \
             --template-file deploy/aws/template.yaml \

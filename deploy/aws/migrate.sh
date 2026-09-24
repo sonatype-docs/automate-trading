@@ -109,7 +109,7 @@ for table in "${bases[@]}"; do
   psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "TRUNCATE TABLE public.\"${table}\" CASCADE"
   # Map by the exported header names, not physical target-column order. The
   # additive drift migrations can change that order between source and target.
-  cols="$(cat "${work}/migration/${table}"*.csv.gz.?? | gunzip | head -n 1 | tr -d '\r' | sed 's/[^,]*/"&"/g' || true)"
+  cols="$(for f in ${work}/migration/${table}.csv.gz.?? ${work}/migration/${table}.part*.csv.gz.??; do [[ -f "${f}" ]] || continue; cat "${f}"; done | gunzip | head -n 1 | tr -d '\r' | sed 's/[^,]*/"&"/g' || true)"
   if [[ -z "${cols}" ]]; then
     echo "Missing CSV header for ${table}" >&2
     exit 1
@@ -117,8 +117,8 @@ for table in "${bases[@]}"; do
   # Shards are byte-split gzip streams, so concatenate before decompression.
   # Each logical CSV shard also carries a repeated header; remove duplicates
   # after decompression while preserving the first header for COPY.
-  printf '\\copy public."%s" (%s) FROM PROGRAM '\''cat %s*.csv.gz.?? | gunzip | awk "NR==1 { header=\$0; print; next } \$0 != header"'\'' WITH (FORMAT csv, HEADER true)\n' \
-    "${table}" "${cols}" "${work}/migration/${table}" |
+  printf '\\copy public."%s" (%s) FROM PROGRAM '\''for f in %s.csv.gz.?? %s.part*.csv.gz.??; do [ -f "$f" ] || continue; cat "$f"; done | gunzip | awk "NR==1 { header=\$0; print; next } \$0 != header"'\'' WITH (FORMAT csv, HEADER true)\n' \
+    "${table}" "${cols}" "${work}/migration/${table}" "${work}/migration/${table}" |
     psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}"
 done
 

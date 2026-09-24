@@ -216,7 +216,8 @@ Resources:
       UserPoolName: shark-auto-trader-users
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
-      DeletionProtection: ACTIVE
+      # Keep bootstrap rollback recoverable; enable after migration validation.
+      DeletionProtection: INACTIVE
       MfaConfiguration: OPTIONAL
       EnabledMfas: [SOFTWARE_TOKEN_MFA]
       Policies: { PasswordPolicy: { MinimumLength: 12, RequireLowercase: true, RequireNumbers: true, RequireSymbols: true, RequireUppercase: true } }

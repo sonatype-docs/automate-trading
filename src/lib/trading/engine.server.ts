@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { createSharkClient } from "@/lib/exchange/shark-client.server";
 
 export interface TradeSignal {

@@ -29,7 +29,7 @@ const MatrixSchema = z.object({
 export const startPipelineRun = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ matrix: MatrixSchema, total: z.number().int().nonnegative() }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: ownerRow } = await supabaseAdmin.from("owner").select("user_id").eq("id", true).maybeSingle();
     const userId = ownerRow?.user_id ?? "00000000-0000-0000-0000-000000000000";
     const { data: row, error } = await supabaseAdmin
@@ -76,7 +76,7 @@ const ProgressPatch = z.object({
 export const updatePipelineRun = createServerFn({ method: "POST" })
   .inputValidator((raw) => ProgressPatch.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const patch: Record<string, unknown> = { progress: data.progress };
     if (data.logEntry) {
       const { data: existing } = await supabaseAdmin
@@ -102,7 +102,7 @@ export const finishPipelineRun = createServerFn({ method: "POST" })
     progress: z.record(z.string(), z.unknown()).optional(),
   }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const patch: Record<string, unknown> = {
       status: data.status,
       finished_at: new Date().toISOString(),
@@ -120,7 +120,7 @@ export const finishPipelineRun = createServerFn({ method: "POST" })
 export const listPipelineRuns = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ limit: z.number().int().positive().max(50).default(20) }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("pipeline_runs")
       .select("id,status,matrix,progress,error,started_at,finished_at")
@@ -133,7 +133,7 @@ export const listPipelineRuns = createServerFn({ method: "POST" })
 // ---------- resumable run (latest paused/stopped/running-orphan) ----------
 
 export const getResumableRun = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: rows, error } = await supabaseAdmin
     .from("pipeline_runs")
     .select("id,status,matrix,progress,log,error,started_at,finished_at")
@@ -147,7 +147,7 @@ export const getResumableRun = createServerFn({ method: "POST" }).handler(async 
 // ---------- latest run with failed combos (for retry-after-refresh) ----------
 
 export const getLastFailedRun = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: rows, error } = await supabaseAdmin
     .from("pipeline_runs")
     .select("id,status,matrix,progress,log,started_at,finished_at")

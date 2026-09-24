@@ -2,7 +2,7 @@
 // lookback_days of candles, re-runs the strategy + execution engine, then
 // inserts any newly closed trades and refreshes the runner's live open
 // position. Idempotent — a trade is keyed by runner_id + signalId.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { loadRawCandles } from "@/lib/market-data/loader.server";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import { DEFAULT_CONFIG, type Timeframe } from "@/lib/market-data/types";

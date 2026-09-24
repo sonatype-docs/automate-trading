@@ -137,7 +137,7 @@ class Builder implements PromiseLike<Result> {
   private off: number | null = null;
   private countMode: "exact" | null = null;
   private head = false;
-  private single: "one" | "maybe" | null = null;
+  private singleMode: "one" | "maybe" | null = null;
   private payload: Row[] = [];
   private onConflict: string | null = null;
   private ignoreDuplicates = false;
@@ -203,8 +203,8 @@ class Builder implements PromiseLike<Result> {
   }
   limit(n: number) { this.lim = n; return this; }
   range(from: number, to: number) { this.off = from; this.lim = to - from + 1; return this; }
-  single() { this.single = "one"; return this; }
-  maybeSingle() { this.single = "maybe"; return this; }
+  single() { this.singleMode = "one"; return this; }
+  maybeSingle() { this.singleMode = "maybe"; return this; }
   returns() { return this; }
   abortSignal() { return this; }
   throwOnError() { return this; }
@@ -270,9 +270,9 @@ class Builder implements PromiseLike<Result> {
       const res = await this.pool.query(sql, values);
       if (this.action !== "select" && this.countMode) count = res.rowCount ?? 0;
       let data: any = this.action === "select" || this.returning !== null ? res.rows : null;
-      if (this.single && Array.isArray(data)) {
+      if (this.singleMode && Array.isArray(data)) {
         if (data.length === 1) data = data[0];
-        else if (data.length === 0 && this.single === "maybe") data = null;
+        else if (data.length === 0 && this.singleMode === "maybe") data = null;
         else return { data: null, error: { code: "PGRST116", message: `JSON object requested, multiple (or no) rows returned (${data.length})` }, count, status: 406, statusText: "Not Acceptable" };
       }
       return { data, error: null, count, status: 200, statusText: "OK" };

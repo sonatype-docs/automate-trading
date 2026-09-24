@@ -5,7 +5,7 @@ import { FiltersZod } from "@/lib/strategy/filters";
 
 
 async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   return supabaseAdmin;
 }
 

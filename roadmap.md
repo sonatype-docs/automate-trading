@@ -44,6 +44,7 @@
 
 - [x] Diagnose and repair the latest failed GitHub AWS deployment (`ec2:AssociateRouteTable` was missing; retry cleanup and container packaging corrected).
 - [x] Apply the updated deployment policy to the AWS deployment identity and diagnose the cleanup retry failure (ungranted identity lookup).
-- [ ] Rerun infrastructure with permission-independent cleanup, then complete data migration validation.
+- [x] Diagnose GitHub run 4: application build succeeded, but Docker copied `/app/dist` while Vite produced `/app/.output`.
+- [ ] Rerun infrastructure with the corrected application image, then complete data migration validation.
 - Destination entered recovery after its connection dropped during the bulk restore and is not accepting connections. Source runners, safety switch, and schedules remain paused. Resume only after the destination reports healthy; inspect and clean the partial restore before retrying.
 - GitHub repository sync requires the user to authorize GitHub and create/select the repository in Lovable.

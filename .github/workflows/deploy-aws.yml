@@ -44,7 +44,7 @@ jobs:
           set -Eeuo pipefail
           ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
           test "$ACCOUNT_ID" = "438456517782"
-          test "$(aws configure get region)" = "$AWS_REGION"
+          test "${AWS_DEFAULT_REGION:-$AWS_REGION}" = "$AWS_REGION"
           for bucket in "$FILES_BUCKET" "$BACKUPS_BUCKET"; do
             aws s3api head-bucket --bucket "$bucket"
             versioning="$(aws s3api get-bucket-versioning --bucket "$bucket" --query Status --output text)"

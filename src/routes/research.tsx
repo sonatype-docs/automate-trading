@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/table";
 import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw, Layers, FileDown } from "lucide-react";
 import { listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
-import { supabase } from "@/integrations/supabase/client";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
 import {

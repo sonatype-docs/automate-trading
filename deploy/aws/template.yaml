@@ -111,7 +111,7 @@ Resources:
     DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub shark-auto-trader-assets-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub shark-auto-trader-assets-v2-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -129,7 +129,7 @@ Resources:
     DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub shark-auto-trader-files-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub shark-auto-trader-files-v2-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -147,7 +147,7 @@ Resources:
     DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub shark-auto-trader-backups-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub shark-auto-trader-backups-v2-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -356,7 +356,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: RetainExceptOnCreate
     Properties:
-      LogGroupName: /aws/ecs/shark-auto-trader
+      LogGroupName: /aws/ecs/shark-auto-trader-v2
       RetentionInDays: 30
 
   TaskExecutionRole:

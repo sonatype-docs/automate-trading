@@ -348,7 +348,9 @@ Resources:
       ClientName: shark-auto-trader-web
       GenerateSecret: false
       PreventUserExistenceErrors: ENABLED
-      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH, ALLOW_USE_REFRESH_TOKEN_ONLY]
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
 
   ApplicationLogGroup:
     Type: AWS::Logs::LogGroup

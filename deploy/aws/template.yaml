@@ -190,7 +190,7 @@ Resources:
     Properties:
       DBInstanceIdentifier: shark-auto-trader
       Engine: postgres
-      EngineVersion: "16"
+      EngineVersion: "16.13"
       DBInstanceClass: !Ref DatabaseInstanceClass
       AllocatedStorage: 100
       MaxAllocatedStorage: 500

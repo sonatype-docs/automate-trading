@@ -42,6 +42,7 @@
 
 ## Current blocker
 
-- [ ] Diagnose and repair the latest failed GitHub AWS deployment, then complete infrastructure and data migration validation.
+- [x] Diagnose and repair the latest failed GitHub AWS deployment (`ec2:AssociateRouteTable` was missing; retry cleanup and container packaging corrected).
+- [ ] Apply the updated deployment policy to the AWS deployment identity, rerun infrastructure, then complete data migration validation.
 - Destination entered recovery after its connection dropped during the bulk restore and is not accepting connections. Source runners, safety switch, and schedules remain paused. Resume only after the destination reports healthy; inspect and clean the partial restore before retrying.
 - GitHub repository sync requires the user to authorize GitHub and create/select the repository in Lovable.

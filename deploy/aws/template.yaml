@@ -223,7 +223,7 @@ Resources:
       AllocatedStorage: "20"
       StorageType: gp3
       StorageEncrypted: true
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: 0
       CopyTagsToSnapshot: true
       DBName: sharktrader
       DBSubnetGroupName: !Ref DatabaseSubnetGroup

@@ -16,7 +16,7 @@ permissions:
 
 env:
   AWS_REGION: ap-southeast-2
-  STACK: shark-auto-trader
+  STACK: shark-auto-trader-runtime
   REPO: shark-auto-trader-app
   FILES_BUCKET: shark-auto-trader-files-438456517782-ap-southeast-2
   BACKUPS_BUCKET: shark-auto-trader-backups-438456517782-ap-southeast-2
@@ -54,6 +54,15 @@ jobs:
             aws secretsmanager describe-secret --secret-id "$secret" >/dev/null
           done
           aws cognito-idp describe-user-pool --user-pool-id "$USER_POOL_ID" >/dev/null
+          read -r db_host vpc_id db_sg < <(aws rds describe-db-instances --db-instance-identifier shark-auto-trader --query "DBInstances[0].[Endpoint.Address,DBSubnetGroup.VpcId,VpcSecurityGroups[0].VpcSecurityGroupId]" --output text)
+          test -n "$db_host" && test "$db_host" != None
+          test -n "$vpc_id" && test "$vpc_id" != None
+          test -n "$db_sg" && test "$db_sg" != None
+          {
+            echo "DATABASE_HOST=$db_host"
+            echo "EXISTING_VPC_ID=$vpc_id"
+            echo "DATABASE_SECURITY_GROUP_ID=$db_sg"
+          } >> "$GITHUB_ENV"
 
       - name: Ensure image repository
         shell: bash
@@ -180,8 +189,11 @@ jobs:
               BackupsBucketName="$BACKUPS_BUCKET" \
               ApplicationSecretName="$APP_SECRET" \
               SchedulerSecretName="$SCHEDULER_SECRET" \
-              DatabaseSecretName="$DATABASE_SECRET" \
-              CognitoUserPoolId="$USER_POOL_ID" \
+             DatabaseSecretName="$DATABASE_SECRET" \
+              ExistingVpcId="$EXISTING_VPC_ID" \
+              DatabaseHost="$DATABASE_HOST" \
+              DatabaseSecurityGroupId="$DATABASE_SECURITY_GROUP_ID" \
+             CognitoUserPoolId="$USER_POOL_ID" \
               CognitoUserPoolClientId="$COGNITO_CLIENT_ID" \
               DesiredTaskCount="$DESIRED_TASKS"
 

@@ -32,6 +32,15 @@ Parameters:
   ApplicationLogGroupName:
     Type: String
     Default: /aws/ecs/shark-auto-trader
+  ExistingVpcId:
+    Type: String
+    Default: vpc-09bab6b4cc11a4e50
+  DatabaseHost:
+    Type: String
+    Default: shark-auto-trader.cng2wy6mkioz.ap-southeast-2.rds.amazonaws.com
+  DatabaseSecurityGroupId:
+    Type: String
+    Default: sg-09380c4de14177398
   DesiredTaskCount:
     Type: Number
     Default: 1
@@ -43,54 +52,31 @@ Parameters:
     AllowedValues: [db.t3.micro]
 
 Resources:
-  Vpc:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.42.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags:
-        - { Key: Name, Value: shark-auto-trader-vpc }
-        - { Key: Project, Value: shark-auto-trader }
   InternetGateway:
     Type: AWS::EC2::InternetGateway
   GatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref ExistingVpcId
       InternetGatewayId: !Ref InternetGateway
   PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref ExistingVpcId
       AvailabilityZone: !Select [0, !GetAZs ""]
-      CidrBlock: 10.42.0.0/24
+      CidrBlock: 10.42.20.0/24
       MapPublicIpOnLaunch: true
   PublicSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref ExistingVpcId
       AvailabilityZone: !Select [1, !GetAZs ""]
-      CidrBlock: 10.42.1.0/24
+      CidrBlock: 10.42.21.0/24
       MapPublicIpOnLaunch: true
-  DatabaseSubnetA:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      AvailabilityZone: !Select [0, !GetAZs ""]
-      CidrBlock: 10.42.10.0/24
-      MapPublicIpOnLaunch: false
-  DatabaseSubnetB:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      AvailabilityZone: !Select [1, !GetAZs ""]
-      CidrBlock: 10.42.11.0/24
-      MapPublicIpOnLaunch: false
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref ExistingVpcId
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: GatewayAttachment
@@ -113,7 +99,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: CloudFront access to the application load balancer
-      VpcId: !Ref Vpc
+      VpcId: !Ref ExistingVpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -121,11 +107,11 @@ Resources:
           SourcePrefixListId: !Ref CloudFrontPrefixListId
       SecurityGroupEgress:
         - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
-  ApplicationSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Load balancer and ECS task access to the application
-      VpcId: !Ref Vpc
+ ApplicationSecurityGroup:
+   Type: AWS::EC2::SecurityGroup
+   Properties:
+     GroupDescription: Load balancer and ECS task access to the application
+      VpcId: !Ref ExistingVpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3000
@@ -133,16 +119,14 @@ Resources:
           SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
       SecurityGroupEgress:
         - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
-  DatabaseSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  DatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupDescription: Application and migration access to PostgreSQL
-      VpcId: !Ref Vpc
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+      GroupId: !Ref DatabaseSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref ApplicationSecurityGroup
 
   AssetsBucket:
     Type: AWS::S3::Bucket
@@ -188,10 +172,10 @@ Resources:
       Scheme: internet-facing
       SecurityGroups: [!Ref LoadBalancerSecurityGroup]
       Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
-  TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref Vpc
+ TargetGroup:
+   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+   Properties:
+      VpcId: !Ref ExistingVpcId
       Port: 3000
       Protocol: HTTP
       TargetType: ip
@@ -206,33 +190,6 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
-
-  DatabaseSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Private subnets for Shark Auto Trader PostgreSQL
-      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
-  Database:
-    Type: AWS::RDS::DBInstance
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      DBInstanceIdentifier: shark-auto-trader
-      DBInstanceClass: !Ref DatabaseInstanceClass
-      Engine: postgres
-      AllocatedStorage: "20"
-      StorageType: gp3
-      StorageEncrypted: true
-      BackupRetentionPeriod: 0
-      CopyTagsToSnapshot: true
-      DBName: sharktrader
-      DBSubnetGroupName: !Ref DatabaseSubnetGroup
-      DeletionProtection: true
-      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecretName}:SecretString:username}}"
-      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecretName}:SecretString:password}}"
-      MultiAZ: false
-      PubliclyAccessible: false
-      VPCSecurityGroups: [!GetAtt DatabaseSecurityGroup.GroupId]
 
   MigrationLogGroup:
     Type: AWS::Logs::LogGroup
@@ -310,8 +267,8 @@ Resources:
           Image: !Ref MigrationImageUri
           Essential: true
           Environment:
-            - { Name: PGHOST, Value: !GetAtt Database.Endpoint.Address }
-            - { Name: PGPORT, Value: !GetAtt Database.Endpoint.Port }
+            - { Name: PGHOST, Value: !Ref DatabaseHost }
+            - { Name: PGPORT, Value: "5432" }
             - { Name: PGDATABASE, Value: sharktrader }
             - { Name: FILES_BUCKET, Value: !Ref FilesBucketName }
             - { Name: MIGRATION_ID, Value: lovable-export-2026-09-24 }
@@ -346,8 +303,8 @@ Resources:
             - { Name: PORT, Value: "3000" }
             - { Name: AWS_FILES_BUCKET, Value: !Ref FilesBucketName }
             - { Name: AWS_BACKUPS_BUCKET, Value: !Ref BackupsBucketName }
-            - { Name: DATABASE_HOST, Value: !GetAtt Database.Endpoint.Address }
-            - { Name: DATABASE_PORT, Value: !GetAtt Database.Endpoint.Port }
+            - { Name: DATABASE_HOST, Value: !Ref DatabaseHost }
+            - { Name: DATABASE_PORT, Value: "5432" }
             - { Name: DATABASE_NAME, Value: sharktrader }
             - { Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId }
             - { Name: COGNITO_CLIENT_ID, Value: !Ref CognitoUserPoolClientId }
@@ -459,7 +416,7 @@ Outputs:
   AssetsBucketName: { Value: !Ref AssetsBucket }
   FilesBucketName: { Value: !Ref FilesBucketName }
   BackupsBucketName: { Value: !Ref BackupsBucketName }
-  DatabaseEndpoint: { Value: !GetAtt Database.Endpoint.Address }
+  DatabaseEndpoint: { Value: !Ref DatabaseHost }
   UserPoolId: { Value: !Ref CognitoUserPoolId }
   UserPoolClientId: { Value: !Ref CognitoUserPoolClientId }
   ClusterName: { Value: !Ref EcsCluster }

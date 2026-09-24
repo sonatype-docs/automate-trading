@@ -377,6 +377,7 @@ Resources:
     Properties:
       ServiceName: shark-auto-trader-app
       Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref TaskDefinition
       DesiredCount: !Ref DesiredTaskCount
       LaunchType: FARGATE
       EnableExecuteCommand: true

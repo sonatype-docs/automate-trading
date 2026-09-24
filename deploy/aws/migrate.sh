@@ -109,14 +109,12 @@ for table in "${bases[@]}"; do
   psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "TRUNCATE TABLE public.\"${table}\" CASCADE"
   # Each split export shard carries its own CSV header. Keep the first header
   # for COPY and discard the first line from every subsequent shard.
-  printf '\\copy public."%s" FROM PROGRAM '\''first=1; for f in %s*.csv.gz.??; do if [ "\$first" -eq 1 ]; then gunzip -c "\$f"; first=0; else gunzip -c "\$f" | tail -n +2; fi; done'\'' WITH (FORMAT csv, HEADER true)\n' \
+  printf '\\copy public."%s" FROM PROGRAM '\''first=1; for f in %s*.csv.gz.??; do if [ "$first" -eq 1 ]; then gunzip -c "$f"; first=0; else gunzip -c "$f" | tail -n +2; fi; done'\'' WITH (FORMAT csv, HEADER true)\n' \
     "${table}" "${work}/migration/${table}" |
     psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}"
 done
 
 psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" \
-  -v migration_id="${migration_id}" \
-  -v object_count="${#bases[@]}" \
-  -c "INSERT INTO public.aws_migration_control (migration_id, source_prefix, object_count) VALUES (:'migration_id', 's3://${FILES_BUCKET}/migration/', :'object_count'::integer) ON CONFLICT (migration_id) DO NOTHING"
+  -c "INSERT INTO public.aws_migration_control (migration_id, source_prefix, object_count) VALUES ('${migration_id}', 's3://${FILES_BUCKET}/migration/', ${#bases[@]}) ON CONFLICT (migration_id) DO NOTHING"
 
 echo "Migration ${migration_id} completed; no S3 objects were deleted or overwritten."

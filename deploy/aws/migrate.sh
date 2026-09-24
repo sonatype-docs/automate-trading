@@ -107,9 +107,10 @@ for table in "${bases[@]}"; do
   fi
   echo "Loading ${table}"
   psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "TRUNCATE TABLE public.\"${table}\" CASCADE"
-  # Each split export shard carries its own CSV header. Keep the first header
-  # for COPY and discard the first line from every subsequent shard.
-  printf '\\copy public."%s" FROM PROGRAM '\''first=1; for f in %s*.csv.gz.??; do if [ "$first" -eq 1 ]; then gunzip -c "$f"; first=0; else gunzip -c "$f" | tail -n +2; fi; done'\'' WITH (FORMAT csv, HEADER true)\n' \
+  # Shards are byte-split gzip streams, so concatenate before decompression.
+  # Each logical CSV shard also carries a repeated header; remove duplicates
+  # after decompression while preserving the first header for COPY.
+  printf '\\copy public."%s" FROM PROGRAM '\''cat %s*.csv.gz.?? | gunzip | awk "NR==1 { header=\$0; print; next } \$0 != header"'\'' WITH (FORMAT csv, HEADER true)\n' \
     "${table}" "${work}/migration/${table}" |
     psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}"
 done

@@ -44,12 +44,11 @@ jobs:
               "shark-auto-trader-assets-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
               "shark-auto-trader-files-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
               "shark-auto-trader-backups-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION"; do
-              OBJECTS=$(aws s3api list-object-versions --bucket "$BUCKET" --query 'length(Versions || `[]`) + length(DeleteMarkers || `[]`)' --output text 2>/dev/null || echo missing)
-              if [ "$OBJECTS" = "0" ]; then
-                aws s3api delete-bucket --bucket "$BUCKET"
-              elif [ "$OBJECTS" != "missing" ]; then
-                echo "Refusing to delete non-empty retained bucket: $BUCKET" >&2
-                exit 1
+              if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+                aws s3api delete-bucket --bucket "$BUCKET" || {
+                  echo "Refusing to delete non-empty retained bucket: $BUCKET" >&2
+                  exit 1
+                }
               fi
             done
             for SECRET in shark-auto-trader/application shark-auto-trader/scheduler shark-auto-trader/database; do
@@ -57,6 +56,7 @@ jobs:
             done
             USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name=='shark-auto-trader-users'].Id | [0]" --output text)
             if [ -n "$USER_POOL_ID" ] && [ "$USER_POOL_ID" != "None" ]; then
+              aws cognito-idp update-user-pool --user-pool-id "$USER_POOL_ID" --deletion-protection INACTIVE
               aws cognito-idp delete-user-pool --user-pool-id "$USER_POOL_ID"
             fi
             aws logs delete-log-group --log-group-name /aws/ecs/shark-auto-trader 2>/dev/null || true

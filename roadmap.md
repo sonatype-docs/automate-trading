@@ -51,3 +51,9 @@
 - [x] AWS foundation stack created successfully (CREATE_COMPLETE, 0 running copies).
 - Destination entered recovery after its connection dropped during the bulk restore and is not accepting connections. Source runners, safety switch, and schedules remain paused. Resume only after the destination reports healthy; inspect and clean the partial restore before retrying.
 - GitHub repository sync requires the user to authorize GitHub and create/select the repository in Lovable.
+## AWS go-live (full rewrite, approved plan)
+- [x] Server data layer switched to the AWS database when DATA_BACKEND=aws (tested against real data)
+- [x] Sign-in switched to Cognito on AWS builds; /login page added
+- [x] Exchange, webhook, AI and scheduler keys stored in AWS Secrets Manager
+- [ ] Deploy with 1 running copy after code reaches GitHub (sync happens at end of turn), then test every page on the AWS address
+- [ ] Create paused schedules; final data re-sync; cutover approval

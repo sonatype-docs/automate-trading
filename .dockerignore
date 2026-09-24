@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.*
+!.env.example
+.output
+.tanstack
+.nitro
+dist
+coverage
+database-backups
+*.log

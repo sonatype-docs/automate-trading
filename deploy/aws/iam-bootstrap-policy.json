@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ProtectExistingQuantDbBucket",
+      "Effect": "Deny",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::quant-db", "arn:aws:s3:::quant-db/*"]
+    },
+    {
+      "Sid": "DeployTaggedApplicationFoundation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:*", "cloudfront:*", "wafv2:*", "acm:Describe*", "acm:List*",
+        "backup:*", "cognito-idp:*", "ec2:Describe*", "ec2:CreateVpc", "ec2:DeleteVpc",
+        "ec2:CreateSubnet", "ec2:DeleteSubnet", "ec2:CreateRoute*", "ec2:DeleteRoute*",
+        "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway", "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway", "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress", "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:ModifySubnetAttribute", "ec2:ModifyVpcAttribute", "ec2:CreateTags",
+        "ecr:*", "ecs:*", "elasticloadbalancing:*", "events:*", "lambda:*",
+        "logs:*", "rds:*", "scheduler:*", "secretsmanager:*", "sns:*", "cloudwatch:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DedicatedDeploymentBuckets",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::shark-auto-trader-*", "arn:aws:s3:::shark-auto-trader-*/*"]
+    },
+    {
+      "Sid": "PassOnlyApplicationRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::438456517782:role/shark-auto-trader-*",
+      "Condition": {"StringEquals": {"iam:PassedToService": ["ecs-tasks.amazonaws.com", "lambda.amazonaws.com", "scheduler.amazonaws.com", "backup.amazonaws.com"]}}
+    },
+    {
+      "Sid": "ManageOnlyApplicationRoles",
+      "Effect": "Allow",
+      "Action": ["iam:AttachRolePolicy", "iam:CreateRole", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:DetachRolePolicy", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:PutRolePolicy", "iam:TagRole"],
+      "Resource": "arn:aws:iam::438456517782:role/shark-auto-trader-*"
+    },
+    {
+      "Sid": "ReadOnlyGlobalInventory",
+      "Effect": "Allow",
+      "Action": ["route53:Get*", "route53:List*", "iam:GetAccountSummary", "iam:ListRoles"],
+      "Resource": "*"
+    }
+  ]
+}

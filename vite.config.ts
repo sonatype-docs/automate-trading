@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Lovable previews keep their Worker preset. AWS container builds set
+  // NITRO_PRESET=node-server so the same application runs as a Node service.
+  nitro: process.env.NITRO_PRESET
+    ? { preset: process.env.NITRO_PRESET }
+    : undefined,
 });

@@ -40,6 +40,7 @@ import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
 import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicExportSnapshotRouteImport } from './routes/api/public/export-snapshot'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
@@ -203,6 +204,11 @@ const HandbookVolumeStrategyRoute = HandbookVolumeStrategyRouteImport.update({
   path: '/$strategy',
   getParentRoute: () => HandbookVolumeRoute,
 } as any)
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicExportSnapshotRoute = ApiPublicExportSnapshotRouteImport.update({
   id: '/api/public/export-snapshot',
   path: '/api/public/export-snapshot',
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/backtest': typeof BacktestIndexRoute
   '/handbook': typeof HandbookIndexRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/backtest/'
     | '/handbook/'
     | '/api/public/export-snapshot'
+    | '/api/public/health'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/backtest'
     | '/handbook'
     | '/api/public/export-snapshot'
+    | '/api/public/health'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
     | '/api/public/hooks/live-tick'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/backtest/'
     | '/handbook/'
     | '/api/public/export-snapshot'
+    | '/api/public/health'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -512,6 +524,7 @@ export interface RootRouteChildren {
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
   ApiPublicExportSnapshotRoute: typeof ApiPublicExportSnapshotRoute
+  ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksLiveWatchdogRoute: typeof ApiPublicHooksLiveWatchdogRoute
   ApiPublicHooksManualPlaceRoute: typeof ApiPublicHooksManualPlaceRoute
@@ -739,6 +752,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HandbookVolumeStrategyRouteImport
       parentRoute: typeof HandbookVolumeRoute
     }
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/export-snapshot': {
       id: '/api/public/export-snapshot'
       path: '/api/public/export-snapshot'
@@ -848,6 +868,7 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
   ApiPublicExportSnapshotRoute: ApiPublicExportSnapshotRoute,
+  ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksLiveWatchdogRoute: ApiPublicHooksLiveWatchdogRoute,
   ApiPublicHooksManualPlaceRoute: ApiPublicHooksManualPlaceRoute,

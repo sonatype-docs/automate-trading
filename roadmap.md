@@ -1,11 +1,12 @@
 # Full AWS migration
 
-- [ ] Connect a dedicated least-privilege AWS account identity
-- [ ] Inventory accessible AWS account, regions, domains, and existing resources (read-only)
+- [x] Connect a dedicated least-privilege AWS account identity
+- [x] Inventory accessible AWS account, regions, domains, and existing resources (read-only; blocked services recorded)
 - [x] Finalize the production region (Sydney / ap-southeast-2)
 - [ ] Add a production domain later; use the AWS-generated address initially
-- [ ] Produce and approve the exact AWS architecture, monthly estimate, and blast radius
-- [ ] Add infrastructure-as-code for CloudFront, S3, compute, PostgreSQL, identity, schedules, secrets, monitoring, backups, and networking
+- [x] Produce and approve the AWS architecture and migration plan
+- [ ] Approve the final named resources, refined monthly estimate, and provisioning blast radius
+- [ ] Add infrastructure-as-code, container packaging, IAM policy, and deployment runbook
 - [ ] Export and transfer the complete application database and private files
 - [ ] Deploy and validate the application on AWS while trading remains paused
 - [ ] Reconcile exchange orders and positions; resume paper, then live trading

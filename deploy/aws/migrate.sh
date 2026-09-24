@@ -64,6 +64,42 @@ if (( ${#bases[@]} == 0 )); then
   exit 1
 fi
 
+# The export filenames sort alphabetically, but several tables have foreign-key
+# dependencies. Load known parents first so a retry remains deterministic and
+# does not require disabling referential-integrity checks.
+preferred_tables=(
+  webhook_events
+  strategy_presets
+  strategy_setups
+  paper_runners
+  live_runners
+  research_projects
+  research_experiments
+)
+ordered_bases=()
+for preferred in "${preferred_tables[@]}"; do
+  for table in "${bases[@]}"; do
+    if [[ "${table}" == "${preferred}" ]]; then
+      ordered_bases+=("${table}")
+      break
+    fi
+  done
+done
+for table in "${bases[@]}"; do
+  found=0
+  for preferred in "${preferred_tables[@]}"; do
+    if [[ "${table}" == "${preferred}" ]]; then
+      found=1
+      break
+    fi
+  done
+  if (( found == 0 )); then
+    ordered_bases+=("${table}")
+  fi
+done
+bases=("${ordered_bases[@]}")
+echo "Load order: ${bases[*]}"
+
 for table in "${bases[@]}"; do
   if [[ ! "${table}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
     echo "Unsafe table name from export: ${table}" >&2

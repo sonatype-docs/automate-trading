@@ -23,6 +23,15 @@ Parameters:
   DatabaseSecretName:
     Type: String
     Default: shark-auto-trader/database
+  ApplicationSecretArn:
+    Type: String
+    Default: arn:aws:secretsmanager:ap-southeast-2:438456517782:secret:shark-auto-trader/application-xlmKH9
+  SchedulerSecretArn:
+    Type: String
+    Default: arn:aws:secretsmanager:ap-southeast-2:438456517782:secret:shark-auto-trader/scheduler-T5qtFw
+  DatabaseSecretArn:
+    Type: String
+    Default: arn:aws:secretsmanager:ap-southeast-2:438456517782:secret:shark-auto-trader/database-vYzHkt
   CognitoUserPoolId:
     Type: String
     Default: ap-southeast-2_3CQ298jr5
@@ -229,8 +238,8 @@ Resources:
             - { Name: FILES_BUCKET, Value: !Ref FilesBucketName }
             - { Name: MIGRATION_ID, Value: lovable-export-2026-09-24 }
           Secrets:
-            - { Name: PGUSER, ValueFrom: !Sub "${DatabaseSecretName}:username::" }
-            - { Name: PGPASSWORD, ValueFrom: !Sub "${DatabaseSecretName}:password::" }
+            - { Name: PGUSER, ValueFrom: !Sub "${DatabaseSecretArn}:username::" }
+            - { Name: PGPASSWORD, ValueFrom: !Sub "${DatabaseSecretArn}:password::" }
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -265,13 +274,13 @@ Resources:
             - { Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId }
             - { Name: COGNITO_CLIENT_ID, Value: !Ref CognitoUserPoolClientId }
           Secrets:
-            - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretName}:SHARKEXCHANGE_API_KEY::" }
-            - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretName}:SHARKEXCHANGE_API_SECRET::" }
-            - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecretName}:TRADINGVIEW_WEBHOOK_SECRET::" }
-            - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecretName}:LOVABLE_API_KEY::" }
-            - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecretName}:SCHEDULER_SECRET::" }
-            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecretName}:username::" }
-            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecretName}:password::" }
+            - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_KEY::" }
+            - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_SECRET::" }
+            - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:TRADINGVIEW_WEBHOOK_SECRET::" }
+            - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:LOVABLE_API_KEY::" }
+            - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecretArn}:SCHEDULER_SECRET::" }
+            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecretArn}:username::" }
+            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecretArn}:password::" }
           LogConfiguration:
             LogDriver: awslogs
             Options:

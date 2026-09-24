@@ -55,6 +55,9 @@ jobs:
           for secret in "$APP_SECRET" "$SCHEDULER_SECRET" "$DATABASE_SECRET"; do
             aws secretsmanager describe-secret --secret-id "$secret" >/dev/null
           done
+          app_secret_arn="$(aws secretsmanager describe-secret --secret-id "$APP_SECRET" --query ARN --output text)"
+          scheduler_secret_arn="$(aws secretsmanager describe-secret --secret-id "$SCHEDULER_SECRET" --query ARN --output text)"
+          database_secret_arn="$(aws secretsmanager describe-secret --secret-id "$DATABASE_SECRET" --query ARN --output text)"
           aws cognito-idp describe-user-pool --user-pool-id "$USER_POOL_ID" >/dev/null
           read -r db_host vpc_id db_sg < <(aws rds describe-db-instances --db-instance-identifier shark-auto-trader --query "DBInstances[0].[Endpoint.Address,DBSubnetGroup.VpcId,VpcSecurityGroups[0].VpcSecurityGroupId]" --output text)
           test -n "$db_host" && test "$db_host" != None
@@ -68,6 +71,9 @@ jobs:
             echo "DATABASE_HOST=$db_host"
             echo "EXISTING_VPC_ID=$vpc_id"
             echo "DATABASE_SECURITY_GROUP_ID=$db_sg"
+            echo "APPLICATION_SECRET_ARN=$app_secret_arn"
+            echo "SCHEDULER_SECRET_ARN=$scheduler_secret_arn"
+            echo "DATABASE_SECRET_ARN=$database_secret_arn"
             echo "TASK_EXECUTION_ROLE_ARN=$execution_role_arn"
             echo "TASK_ROLE_ARN=$task_role_arn"
           } >> "$GITHUB_ENV"
@@ -198,6 +204,9 @@ jobs:
               ApplicationSecretName="$APP_SECRET" \
               SchedulerSecretName="$SCHEDULER_SECRET" \
              DatabaseSecretName="$DATABASE_SECRET" \
+              ApplicationSecretArn="$APPLICATION_SECRET_ARN" \
+              SchedulerSecretArn="$SCHEDULER_SECRET_ARN" \
+              DatabaseSecretArn="$DATABASE_SECRET_ARN" \
               ExistingVpcId="$EXISTING_VPC_ID" \
               DatabaseHost="$DATABASE_HOST" \
               DatabaseSecurityGroupId="$DATABASE_SECURITY_GROUP_ID" \

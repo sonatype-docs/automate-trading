@@ -1,4 +1,20 @@
-# External backend migration
+# Full AWS migration
+
+- [ ] Connect a dedicated least-privilege AWS account identity
+- [ ] Inventory accessible AWS account, regions, domains, and existing resources (read-only)
+- [ ] Finalize the production region and domain
+- [ ] Produce and approve the exact AWS architecture, monthly estimate, and blast radius
+- [ ] Add infrastructure-as-code for CloudFront, S3, compute, PostgreSQL, identity, schedules, secrets, monitoring, backups, and networking
+- [ ] Export and transfer the complete application database and private files
+- [ ] Deploy and validate the application on AWS while trading remains paused
+- [ ] Reconcile exchange orders and positions; resume paper, then live trading
+- [ ] Retire Lovable hosting and the old backend only after explicit approval
+
+## Superseded destination
+
+- The incomplete external Supabase restore is superseded by the requested full AWS migration. Do not resume or retire anything until AWS validation succeeds.
+
+## Previous external backend migration
 
 - [x] Inventory source schema, auth, storage, and running automation
 - [x] Create a private backup of the complete public schema and data

@@ -6,7 +6,9 @@
 - [ ] Add a production domain later; use the AWS-generated address initially
 - [x] Produce and approve the AWS architecture and migration plan
 - [ ] Approve the final named resources, refined monthly estimate, and provisioning blast radius
-- [ ] Add infrastructure-as-code, container packaging, IAM policy, and deployment runbook
+- [x] Add infrastructure-as-code, container packaging, deployment permission policy, and runbook (`deploy/aws/`, `Dockerfile.aws`)
+- [ ] Add trading schedules and backup plan after data migration and paper verification
+
 - [ ] Export and transfer the complete application database and private files
 - [ ] Deploy and validate the application on AWS while trading remains paused
 - [ ] Reconcile exchange orders and positions; resume paper, then live trading

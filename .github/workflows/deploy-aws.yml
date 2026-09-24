@@ -11,7 +11,6 @@ env:
   AWS_REGION: ap-southeast-2
   STACK: shark-auto-trader
   REPO: shark-auto-trader-app
-  PREFIX_LIST: pl-b8a742d1
 
 jobs:
   deploy:
@@ -27,6 +26,17 @@ jobs:
         run: aws ecr describe-repositories --repository-names $REPO || aws ecr create-repository --repository-name $REPO --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - name: Resolve CloudFront origin prefix list
+        run: |
+          PREFIX_LIST=$(aws ec2 describe-managed-prefix-lists \
+            --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing \
+            --query 'PrefixLists[0].PrefixListId' \
+            --output text)
+          if [ -z "$PREFIX_LIST" ] || [ "$PREFIX_LIST" = "None" ]; then
+            echo "CloudFront origin-facing prefix list was not found in $AWS_REGION" >&2
+            exit 1
+          fi
+          echo "PREFIX_LIST=$PREFIX_LIST" >> "$GITHUB_ENV"
       - name: Build and push image
         run: |
           IMAGE=${{ steps.ecr.outputs.registry }}/$REPO:${GITHUB_SHA::12}
@@ -37,6 +47,33 @@ jobs:
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
       - name: Deploy stack
         run: |
+          STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Removing resources retained by the failed first deployment"
+            for BUCKET in \
+              "shark-auto-trader-assets-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
+              "shark-auto-trader-files-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
+              "shark-auto-trader-backups-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION"; do
+              if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+                aws s3api delete-bucket --bucket "$BUCKET" || {
+                  echo "Refusing to delete non-empty retained bucket: $BUCKET" >&2
+                  exit 1
+                }
+              fi
+            done
+            for SECRET in shark-auto-trader/application shark-auto-trader/scheduler shark-auto-trader/database; do
+              aws secretsmanager delete-secret --secret-id "$SECRET" --force-delete-without-recovery >/dev/null 2>&1 || true
+            done
+            USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name=='shark-auto-trader-users'].Id | [0]" --output text)
+            if [ -n "$USER_POOL_ID" ] && [ "$USER_POOL_ID" != "None" ]; then
+              aws cognito-idp update-user-pool --user-pool-id "$USER_POOL_ID" --deletion-protection INACTIVE
+              aws cognito-idp delete-user-pool --user-pool-id "$USER_POOL_ID"
+            fi
+            aws logs delete-log-group --log-group-name /aws/ecs/shark-auto-trader 2>/dev/null || true
+            echo "Removing failed stack before retry"
+            aws cloudformation delete-stack --stack-name "$STACK"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK"
+          fi
           aws cloudformation deploy \
             --stack-name $STACK \
             --template-file deploy/aws/template.yaml \

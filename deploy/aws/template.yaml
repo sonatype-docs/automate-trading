@@ -80,7 +80,7 @@ Resources:
 
   AssetsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub shark-auto-trader-assets-${AWS::AccountId}-${AWS::Region}
@@ -89,7 +89,7 @@ Resources:
       VersioningConfiguration: { Status: Enabled }
   FilesBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub shark-auto-trader-files-${AWS::AccountId}-${AWS::Region}
@@ -98,7 +98,7 @@ Resources:
       VersioningConfiguration: { Status: Enabled }
   BackupsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub shark-auto-trader-backups-${AWS::AccountId}-${AWS::Region}
@@ -160,21 +160,21 @@ Resources:
 
   ApplicationSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       Name: shark-auto-trader/application
       SecretString: '{"SHARKEXCHANGE_API_KEY":"SET_AFTER_CREATION","SHARKEXCHANGE_API_SECRET":"SET_AFTER_CREATION","TRADINGVIEW_WEBHOOK_SECRET":"SET_AFTER_CREATION","LOVABLE_API_KEY":"SET_AFTER_CREATION"}'
   SchedulerSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       Name: shark-auto-trader/scheduler
       GenerateSecretString: { PasswordLength: 64, ExcludePunctuation: true, GenerateStringKey: SCHEDULER_SECRET, SecretStringTemplate: "{}" }
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       Name: shark-auto-trader/database
@@ -210,7 +210,7 @@ Resources:
 
   UserPool:
     Type: AWS::Cognito::UserPool
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       UserPoolName: shark-auto-trader-users
@@ -226,7 +226,7 @@ Resources:
 
   ApplicationLogGroup:
     Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties: { LogGroupName: /aws/ecs/shark-auto-trader, RetentionInDays: 30 }
   TaskExecutionRole:

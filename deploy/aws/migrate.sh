@@ -107,7 +107,9 @@ for table in "${bases[@]}"; do
   fi
   echo "Loading ${table}"
   psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "TRUNCATE TABLE public.\"${table}\" CASCADE"
-  printf '\\copy public."%s" FROM PROGRAM '\''cat %s*.csv.gz.?? | gunzip'\'' WITH (FORMAT csv, HEADER true)\n' \
+  # Each split export shard carries its own CSV header. Keep the first header
+  # for COPY and discard the first line from every subsequent shard.
+  printf '\\copy public."%s" FROM PROGRAM '\''first=1; for f in %s*.csv.gz.??; do if [ "\$first" -eq 1 ]; then gunzip -c "\$f"; first=0; else gunzip -c "\$f" | tail -n +2; fi; done'\'' WITH (FORMAT csv, HEADER true)\n' \
     "${table}" "${work}/migration/${table}" |
     psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}"
 done

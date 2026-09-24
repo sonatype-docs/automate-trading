@@ -30,8 +30,10 @@ jobs:
       - name: Build and push image
         run: |
           IMAGE=${{ steps.ecr.outputs.registry }}/$REPO:${GITHUB_SHA::12}
-          docker build -f Dockerfile.aws -t $IMAGE .
-          docker push $IMAGE
+          if ! aws ecr describe-images --repository-name $REPO --image-ids imageTag=${GITHUB_SHA::12} >/dev/null 2>&1; then
+            docker build -f Dockerfile.aws -t $IMAGE .
+            docker push $IMAGE
+          fi
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
       - name: Deploy stack
         run: |

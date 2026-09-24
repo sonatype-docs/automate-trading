@@ -85,7 +85,7 @@ Resources:
     Properties:
       BucketName: !Sub shark-auto-trader-assets-${AWS::AccountId}-${AWS::Region}
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: &PrivateBucket { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
       VersioningConfiguration: { Status: Enabled }
   FilesBucket:
     Type: AWS::S3::Bucket
@@ -94,7 +94,7 @@ Resources:
     Properties:
       BucketName: !Sub shark-auto-trader-files-${AWS::AccountId}-${AWS::Region}
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: *PrivateBucket
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
       VersioningConfiguration: { Status: Enabled }
   BackupsBucket:
     Type: AWS::S3::Bucket
@@ -103,7 +103,7 @@ Resources:
     Properties:
       BucketName: !Sub shark-auto-trader-backups-${AWS::AccountId}-${AWS::Region}
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: *PrivateBucket
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
       VersioningConfiguration: { Status: Enabled }
       LifecycleConfiguration:
         Rules:
@@ -190,7 +190,7 @@ Resources:
     Properties:
       DBInstanceIdentifier: shark-auto-trader
       Engine: postgres
-      EngineVersion: "16.4"
+      EngineVersion: "16.13"
       DBInstanceClass: !Ref DatabaseInstanceClass
       AllocatedStorage: 100
       MaxAllocatedStorage: 500

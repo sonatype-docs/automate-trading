@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { onAuthChange } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,9 +69,7 @@ function LabPage() {
 
   const [authed, setAuthed] = useState(false);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setAuthed(!!s));
-    return () => sub.subscription.unsubscribe();
+    return onAuthChange(setAuthed);
   }, []);
 
   const presets = useQuery({
@@ -573,7 +571,7 @@ function LabPage() {
           <Button
             size="sm"
             onClick={() => {
-              if (!authed) { toast.error("Sign in to save presets"); return; }
+              if (!authed) { toast.error("Sign in to save presets", { action: { label: "Sign in", onClick: () => { window.location.href = "/login"; } } }); return; }
               saveMut.mutate(config.name);
             }}
             disabled={saveMut.isPending}

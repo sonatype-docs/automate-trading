@@ -3,7 +3,7 @@
 // opened live_trades against the exchange to detect SL/TP exits.
 //
 // Idempotency: each trade is keyed by runner_id + strategy signalId.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { loadRawCandles } from "@/lib/market-data/loader.server";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import { DEFAULT_CONFIG, type Timeframe } from "@/lib/market-data/types";

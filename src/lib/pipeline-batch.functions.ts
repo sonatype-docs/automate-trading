@@ -56,7 +56,7 @@ export const runComboBatch = createServerFn({ method: "POST" })
   .inputValidator((raw) => BatchInput.parse(raw))
   .handler(async ({ data }): Promise<BatchResult> => {
     const startedAll = Date.now();
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const [
       { loadRawCandles },
       { enrichCandles },

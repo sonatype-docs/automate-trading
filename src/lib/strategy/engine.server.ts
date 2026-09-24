@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { createSharkClient, type Kline } from "@/lib/exchange/shark-client.server";
 import { getKlineSource } from "@/lib/exchange/kline-source.server";
 import { processSignal } from "@/lib/trading/engine.server";

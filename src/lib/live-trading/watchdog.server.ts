@@ -6,7 +6,7 @@
 //   - Else (candidate exists but nothing was placed) → this is the bug the
 //     user cares about. Log a diagnosis to activity_log, clear the runner's
 //     last_tick_error, and force a tickOne(r) retry. Log the retry outcome.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { loadRawCandles } from "@/lib/market-data/loader.server";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import { DEFAULT_CONFIG, type Timeframe } from "@/lib/market-data/types";

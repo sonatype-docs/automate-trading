@@ -2,7 +2,7 @@
 // runner's strategy + execution engine over a large historical window and
 // upserting the resulting closed trades. Idempotent: dedup on
 // runner_id + signalId, so re-running merges new trades without duplicates.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db-admin.server";
 import { loadRawCandles } from "@/lib/market-data/loader.server";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import { DEFAULT_CONFIG, type Timeframe } from "@/lib/market-data/types";

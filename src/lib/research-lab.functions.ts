@@ -23,7 +23,7 @@ const ProjectInput = z.object({
 });
 
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_projects").select("*").order("updated_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -33,7 +33,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
 export const upsertProject = createServerFn({ method: "POST" })
   .inputValidator((raw) => ProjectInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("research_projects").upsert(data).select().single();
     if (error) throw new Error(error.message);
@@ -47,7 +47,7 @@ export const upsertProject = createServerFn({ method: "POST" })
 export const deleteProject = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ id: Uuid }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { error } = await supabaseAdmin.from("research_projects").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -83,7 +83,7 @@ const ExperimentInput = z.object({
 export const listExperiments = createServerFn({ method: "GET" })
   .inputValidator((raw) => z.object({ projectId: Uuid.optional() }).parse(raw ?? {}))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     let q = supabaseAdmin.from("research_experiments").select("*").order("created_at", { ascending: false });
     if (data.projectId) q = q.eq("project_id", data.projectId);
     const { data: rows, error } = await q;
@@ -94,7 +94,7 @@ export const listExperiments = createServerFn({ method: "GET" })
 export const upsertExperiment = createServerFn({ method: "POST" })
   .inputValidator((raw) => ExperimentInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("research_experiments").upsert(data).select().single();
     if (error) throw new Error(error.message);
@@ -114,7 +114,7 @@ export const setExperimentDecision = createServerFn({ method: "POST" })
     reason: z.string().optional().nullable(),
   }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin.from("research_experiments")
       .update({ decision: data.decision, decision_reason: data.reason ?? null })
       .eq("id", data.id).select().single();
@@ -133,7 +133,7 @@ export const setExperimentDecision = createServerFn({ method: "POST" })
 export const diffExperiments = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ a: Uuid, b: Uuid }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("research_experiments").select("*").in("id", [data.a, data.b]);
     if (error) throw new Error(error.message);
@@ -172,7 +172,7 @@ const HypInput = z.object({
 });
 
 export const listHypotheses = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_hypotheses").select("*").order("updated_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -182,7 +182,7 @@ export const listHypotheses = createServerFn({ method: "GET" }).handler(async ()
 export const upsertHypothesis = createServerFn({ method: "POST" })
   .inputValidator((raw) => HypInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("research_hypotheses").upsert(data).select().single();
     if (error) throw new Error(error.message);
@@ -203,7 +203,7 @@ const TaskInput = z.object({
 });
 
 export const listTasks = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_tasks").select("*").order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -213,7 +213,7 @@ export const listTasks = createServerFn({ method: "GET" }).handler(async () => {
 export const upsertTask = createServerFn({ method: "POST" })
   .inputValidator((raw) => TaskInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("research_tasks").upsert(data).select().single();
     if (error) throw new Error(error.message);
@@ -233,7 +233,7 @@ const NoteInput = z.object({
 });
 
 export const listNotes = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_notes").select("*").order("updated_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -243,7 +243,7 @@ export const listNotes = createServerFn({ method: "GET" }).handler(async () => {
 export const upsertNote = createServerFn({ method: "POST" })
   .inputValidator((raw) => NoteInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("research_notes").upsert(data).select().single();
     if (error) throw new Error(error.message);
@@ -255,7 +255,7 @@ export const upsertNote = createServerFn({ method: "POST" })
 export const listChangelog = createServerFn({ method: "GET" })
   .inputValidator((raw) => z.object({ limit: z.number().int().min(1).max(500).default(200) }).parse(raw ?? {}))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("research_changelog").select("*")
       .order("created_at", { ascending: false }).limit(data.limit);
@@ -268,7 +268,7 @@ export const listChangelog = createServerFn({ method: "GET" })
 export const searchLab = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ q: z.string().min(1) }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const q = `%${data.q}%`;
     const [projects, experiments, hypotheses, tasks, notes] = await Promise.all([
       supabaseAdmin.from("research_projects").select("id,name,description").or(`name.ilike.${q},description.ilike.${q}`).limit(20),
@@ -289,7 +289,7 @@ export const searchLab = createServerFn({ method: "POST" })
 /* ---------------- Metrics ---------------- */
 
 export const labMetrics = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: exps } = await supabaseAdmin.from("research_experiments").select("decision,strategy_id,metrics");
   const rows = exps ?? [];
   const decisions: Record<string, number> = {};

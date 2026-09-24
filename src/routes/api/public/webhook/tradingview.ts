@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/public/webhook/tradingview")({
         }
 
         const { supabaseAdmin } = await import(
-          "@/integrations/supabase/client.server"
+          "@/lib/db-admin.server"
         );
         const { processSignal } = await import("@/lib/trading/engine.server");
 

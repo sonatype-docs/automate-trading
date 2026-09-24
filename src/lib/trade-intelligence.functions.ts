@@ -35,7 +35,7 @@ export const recordTradesFromExecution = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => RunAndRecordInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const [{ loadRawCandles }, { enrichCandles }, { DEFAULT_CONFIG }, { runStrategy }, { runExecution }, { STRATEGY_PRESETS }, { EXEC_PRESETS, withRiskUsd }, { toTradeRecord }, { recordToRow }] =
       await Promise.all([
         import("@/lib/market-data/loader.server"),
@@ -150,7 +150,7 @@ export const queryTrades = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => QueryInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const { applyQuery } = await import("./trade-intelligence/query");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
     const spec = data as TradeQuerySpec;
@@ -471,7 +471,7 @@ export const exportTrades = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => QueryInput.extend({ format: z.enum(["json", "csv"]) }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const { applyQuery } = await import("./trade-intelligence/query");
     const { exportRecords } = await import("./trade-intelligence/exporter");
     const { rowToRecord } = await import("./trade-intelligence/mapper");
@@ -505,7 +505,7 @@ export const deleteTrade = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => z.object({ tradeId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const { error } = await supabase
       .from("trade_intelligence").delete().eq("trade_id", data.tradeId);
     if (error) throw new Error(error.message);
@@ -516,7 +516,7 @@ export const clearStrategy = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => z.object({ strategyId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin: supabase } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: supabase } = await import("@/lib/db-admin.server");
     const { error, count } = await supabase
       .from("trade_intelligence").delete({ count: "exact" }).eq("strategy_id", data.strategyId);
     if (error) throw new Error(error.message);
@@ -538,7 +538,7 @@ export const dedupeTrades = createServerFn({ method: "POST" })
     if (data?.dataset && data.dataset !== "live") {
       throw new Error("Dedupe only runs on the live dataset.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = supabaseAdmin as any;
 
@@ -610,7 +610,7 @@ export const summariseTrades = createServerFn({ method: "POST" })
 
   .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = supabaseAdmin as any;
     const { table, snapshotName } = resolveTable(data?.dataset);
@@ -644,7 +644,7 @@ export const summariseTrades = createServerFn({ method: "POST" })
   });
 
 export const listSnapshots = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/db-admin.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = supabaseAdmin as any;
   // Prefer the maintained stats cache (fast, no full scan). Fall back to the
@@ -682,7 +682,7 @@ const PreviewInput = z.object({ name: z.string().min(1).max(120) });
 export const getSnapshotPreview = createServerFn({ method: "POST" })
   .inputValidator((raw) => PreviewInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = supabaseAdmin as any;
     const { count, error: cErr } = await supabase
@@ -724,7 +724,7 @@ const DeleteInput = z.object({ name: z.string().min(1).max(120) });
 export const deleteSnapshot = createServerFn({ method: "POST" })
   .inputValidator((raw) => DeleteInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = supabaseAdmin as any;
     const { error, count } = await supabase
@@ -743,7 +743,7 @@ export const renameSnapshot = createServerFn({ method: "POST" })
   .inputValidator((raw) => RenameInput.parse(raw))
   .handler(async ({ data }) => {
     if (data.from === data.to) return { updated: 0 };
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = supabaseAdmin as any;
     const { data: existing, error: existErr } = await supabase

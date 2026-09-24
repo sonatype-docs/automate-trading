@@ -6,7 +6,7 @@
 // - Preset CRUD: list / save / rename / duplicate / delete / import.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/auth-middleware";
 import { LiquiditySweepConfigSchema, type LiquiditySweepConfig, ZONE_KINDS, CONFIRMATION_METHODS } from "./liquidity-lab/config";
 import { toStrategyOverrides } from "./liquidity-lab/to-strategy-config";
 import type { EngineRunResult, StrategyConfig } from "./strategy-engine/types";
@@ -92,7 +92,7 @@ export const runLiquidityLab = createServerFn({ method: "POST" })
 // ── Preset CRUD ────────────────────────────────────────────────────────
 
 export const listLabPresets = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context as { supabase: import("@supabase/supabase-js").SupabaseClient; userId: string };
     const { data, error } = await supabase
@@ -111,7 +111,7 @@ const SaveInput = z.object({
 });
 
 export const saveLabPreset = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((raw) => SaveInput.parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as { supabase: import("@supabase/supabase-js").SupabaseClient; userId: string };
@@ -132,7 +132,7 @@ export const saveLabPreset = createServerFn({ method: "POST" })
   });
 
 export const deleteLabPreset = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as { supabase: import("@supabase/supabase-js").SupabaseClient; userId: string };
@@ -143,7 +143,7 @@ export const deleteLabPreset = createServerFn({ method: "POST" })
   });
 
 export const duplicateLabPreset = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid(), newName: z.string().min(1).max(80) }).parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as { supabase: import("@supabase/supabase-js").SupabaseClient; userId: string };

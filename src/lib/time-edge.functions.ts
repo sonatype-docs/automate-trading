@@ -161,7 +161,7 @@ function defaultLeverage(symbol: string): number {
 export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
   .inputValidator((raw) => DeployInput.parse(raw))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { presetDirectionConflict } = await import("@/lib/session-windows");
     const s = supabaseAdmin;
     const validStrategies = new Set(Object.keys(STRATEGY_PRESETS));

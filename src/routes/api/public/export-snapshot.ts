@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/public/export-snapshot")({
         const snapshot = url.searchParams.get("snapshot");
         if (!snapshot) return new Response("Missing snapshot", { status: 400 });
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { supabaseAdmin } = await import("@/lib/db-admin.server");
 
         const PAGE = 300;
         const header = ALL_COLUMNS.join(",") + "\n";

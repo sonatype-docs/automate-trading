@@ -55,5 +55,6 @@
 - [x] Server data layer switched to the AWS database when DATA_BACKEND=aws (tested against real data)
 - [x] Sign-in switched to Cognito on AWS builds; /login page added
 - [x] Exchange, webhook, AI and scheduler keys stored in AWS Secrets Manager
-- [ ] Deploy with 1 running copy after code reaches GitHub (sync happens at end of turn), then test every page on the AWS address
+- [x] Live on AWS with 1 running copy; 12 main pages load with AWS data
+- [ ] Add iam:GetRolePolicy to SharkAutoTraderDeploy so future GitHub deploys succeed (needs user)
 - [ ] Create paused schedules; final data re-sync; cutover approval

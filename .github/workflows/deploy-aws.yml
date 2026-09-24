@@ -48,7 +48,7 @@ jobs:
       - name: Deploy stack
         run: |
           STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STATUS" = "ROLLBACK_FAILED" ]; then
             echo "Removing resources retained by the failed first deployment"
             ACCOUNT_ID="${{ steps.ecr.outputs.registry }}"
             ACCOUNT_ID="${ACCOUNT_ID%%.*}"

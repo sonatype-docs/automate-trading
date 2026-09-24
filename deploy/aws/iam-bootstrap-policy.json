@@ -45,6 +45,17 @@
       "Resource": "arn:aws:iam::438456517782:role/shark-auto-trader-*"
     },
     {
+      "Sid": "CreateElasticLoadBalancingServiceRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::438456517782:role/aws-service-role/elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
+        }
+      }
+    },
+    {
       "Sid": "ReadOnlyGlobalInventory",
       "Effect": "Allow",
       "Action": ["route53:Get*", "route53:List*", "iam:GetAccountSummary", "iam:ListRoles"],

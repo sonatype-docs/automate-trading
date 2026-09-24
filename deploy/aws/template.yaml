@@ -145,7 +145,7 @@ Resources:
           OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
         CacheBehaviors:
           - PathPattern: /assets/*
-            TargetOriginId: assets
+            TargetOriginId: application
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD, OPTIONS]

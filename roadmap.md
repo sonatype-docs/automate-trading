@@ -46,6 +46,7 @@
 - [x] Apply the updated deployment policy to the AWS deployment identity and diagnose the cleanup retry failure (ungranted identity lookup).
 - [x] Diagnose GitHub run 4: application build succeeded, but Docker copied `/app/dist` while Vite produced `/app/.output`.
 - [x] Diagnose GitHub run 5: image succeeded; stack failed because AWS could not create the load-balancer service role, then user-pool deletion protection blocked rollback.
+- [x] Diagnose GitHub run 6: image succeeded; AWS free-plan rules rejected the 14-day database backup setting. Align the database with free-plan limits (single-AZ micro, 20 GB, one-day retention, no Performance Insights during bootstrap).
 - [ ] Rerun infrastructure with the corrected application image, then complete data migration validation.
 - Destination entered recovery after its connection dropped during the bulk restore and is not accepting connections. Source runners, safety switch, and schedules remain paused. Resume only after the destination reports healthy; inspect and clean the partial restore before retrying.
 - GitHub repository sync requires the user to authorize GitHub and create/select the repository in Lovable.

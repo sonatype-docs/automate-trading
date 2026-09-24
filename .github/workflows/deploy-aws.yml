@@ -37,6 +37,8 @@ jobs:
             exit 1
           fi
           echo "PREFIX_LIST=$PREFIX_LIST" >> "$GITHUB_ENV"
+      - name: Validate infrastructure template
+        run: aws cloudformation validate-template --template-body file://deploy/aws/template.yaml >/dev/null
       - name: Build and push image
         run: |
           IMAGE=${{ steps.ecr.outputs.registry }}/$REPO:${GITHUB_SHA::12}
@@ -80,14 +82,21 @@ jobs:
             aws cloudformation delete-stack --stack-name "$STACK"
             aws cloudformation wait stack-delete-complete --stack-name "$STACK"
           fi
-          aws cloudformation deploy \
-            --stack-name $STACK \
-            --template-file deploy/aws/template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              ApplicationImageUri=$IMAGE \
-              CloudFrontPrefixListId=$PREFIX_LIST \
-              DesiredTaskCount=${{ inputs.desired_tasks }}
+          if ! aws cloudformation deploy \
+              --stack-name $STACK \
+              --template-file deploy/aws/template.yaml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset \
+              --parameter-overrides \
+                ApplicationImageUri=$IMAGE \
+                CloudFrontPrefixListId=$PREFIX_LIST \
+                DesiredTaskCount=${{ inputs.desired_tasks }}; then
+            echo "AWS deployment failed. Exact failed resources:" >&2
+            aws cloudformation describe-stack-events \
+              --stack-name "$STACK" \
+              --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[Timestamp,LogicalResourceId,ResourceStatusReason]' \
+              --output table >&2 || true
+            exit 1
+          fi
       - name: Show outputs
         run: aws cloudformation describe-stacks --stack-name $STACK --query "Stacks[0].Outputs" --output table

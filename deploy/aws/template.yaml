@@ -13,6 +13,10 @@ Parameters:
     Default: 0
     MinValue: 0
     MaxValue: 4
+  DatabaseInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro]
 
 Resources:
   Vpc:
@@ -21,9 +25,7 @@ Resources:
       CidrBlock: 10.42.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - { Key: Name, Value: shark-auto-trader-vpc }
-        - { Key: Project, Value: shark-auto-trader }
+      Tags: [{ Key: Name, Value: shark-auto-trader-vpc }, { Key: Project, Value: shark-auto-trader }]
   InternetGateway:
     Type: AWS::EC2::InternetGateway
   GatewayAttachment:
@@ -178,7 +180,7 @@ Resources:
       GenerateSecretString: { PasswordLength: 64, ExcludePunctuation: true, GenerateStringKey: SCHEDULER_SECRET, SecretStringTemplate: "{}" }
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       Name: shark-auto-trader/database
@@ -187,34 +189,29 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties: { DBSubnetGroupDescription: Private database subnets, SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB] }
-  DatabaseCluster:
-    Type: AWS::RDS::DBCluster
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
-    Properties:
-      Engine: aurora-postgresql
-      EngineVersion: "16.4"
-      DatabaseName: sharktrader
-      MasterUsername: shark_admin
-      ManageMasterUserPassword: true
-      DBSubnetGroupName: !Ref DatabaseSubnetGroup
-      VpcSecurityGroupIds: [!Ref DatabaseSecurityGroup]
-      ServerlessV2ScalingConfiguration:
-        MinCapacity: 0
-        MaxCapacity: 4
-      EnableHttpEndpoint: false
-      StorageEncrypted: true
-      BackupRetentionPeriod: 1
-      DeletionProtection: false
   Database:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
     Properties:
-      DBClusterIdentifier: !Ref DatabaseCluster
-      DBInstanceClass: db.serverless
-      Engine: aurora-postgresql
-      DBInstanceIdentifier: shark-auto-trader-instance
+      DBInstanceIdentifier: shark-auto-trader
+      Engine: postgres
+      EngineVersion: "16.13"
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: false
+      PubliclyAccessible: false
+      DBName: sharktrader
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}"
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+      BackupRetentionPeriod: 1
+      CopyTagsToSnapshot: true
+      DeletionProtection: false
+      EnablePerformanceInsights: false
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -249,7 +246,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: [!Ref ApplicationSecret, !Ref SchedulerSecret, !GetAtt DatabaseCluster.MasterUserSecret.SecretArn]
+                Resource: [!Ref ApplicationSecret, !Ref SchedulerSecret, !Ref DatabaseSecret]
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -285,8 +282,8 @@ Resources:
             - { Name: HOST, Value: 0.0.0.0 }
             - { Name: PORT, Value: "3000" }
             - { Name: AWS_FILES_BUCKET, Value: !Ref FilesBucket }
-            - { Name: DATABASE_HOST, Value: !GetAtt DatabaseCluster.Endpoint.Address }
-            - { Name: DATABASE_PORT, Value: !GetAtt DatabaseCluster.Endpoint.Port }
+            - { Name: DATABASE_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DATABASE_PORT, Value: !GetAtt Database.Endpoint.Port }
             - { Name: DATABASE_NAME, Value: sharktrader }
             - { Name: COGNITO_USER_POOL_ID, Value: !Ref UserPool }
             - { Name: COGNITO_CLIENT_ID, Value: !Ref UserPoolClient }
@@ -296,8 +293,8 @@ Resources:
             - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecret}:TRADINGVIEW_WEBHOOK_SECRET::" }
             - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecret}:LOVABLE_API_KEY::" }
             - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecret}:SCHEDULER_SECRET::" }
-            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseCluster.MasterUserSecret.SecretArn}:username::" }
-            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseCluster.MasterUserSecret.SecretArn}:password::" }
+            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecret}:username::" }
+            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecret}:password::" }
           LogConfiguration: { LogDriver: awslogs, Options: { awslogs-group: !Ref ApplicationLogGroup, awslogs-region: !Ref 'AWS::Region', awslogs-stream-prefix: app } }
           HealthCheck: { Command: [CMD-SHELL, "wget -q -O /dev/null http://localhost:3000/api/public/health || exit 1"], Interval: 30, Timeout: 5, Retries: 3, StartPeriod: 60 }
   EcsService:
@@ -337,7 +334,7 @@ Outputs:
   AssetsBucketName: { Value: !Ref AssetsBucket }
   FilesBucketName: { Value: !Ref FilesBucket }
   BackupsBucketName: { Value: !Ref BackupsBucket }
-  DatabaseEndpoint: { Value: !GetAtt DatabaseCluster.Endpoint.Address }
+  DatabaseEndpoint: { Value: !GetAtt Database.Endpoint.Address }
   UserPoolId: { Value: !Ref UserPool }
   UserPoolClientId: { Value: !Ref UserPoolClient }
   AlarmTopicArn: { Value: !Ref AlarmTopic }

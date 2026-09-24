@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS public.aws_migration_control (
 SQL
 
 mapfile -t bases < <(
-  find "${work}/migration" -maxdepth 1 -type f -name '*.csv.gz.*' -printf '%f\n' |
+  find "${work}/migration" -maxdepth 1 -type f -name '*.csv.gz.*' -print |
+    sed 's#^.*/##' |
     sed -E 's/(\.part[0-9]+)?\.csv\.gz\.[^.]+$//' |
     sort -u
 )

@@ -33,8 +33,15 @@ for sql in schema.sql drift.sql; do
     echo "Missing migration/${sql}" >&2
     exit 1
   fi
-  psql -v ON_ERROR_STOP=1 -f "${work}/migration/${sql}"
 done
+
+schema_ready="$(psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -Atqc "SELECT (to_regclass('public.owner') IS NOT NULL)")"
+if [[ "${schema_ready}" == "t" ]]; then
+  echo "Target schema already exists; skipping non-idempotent baseline schema replay."
+else
+  psql -v ON_ERROR_STOP=1 -f "${work}/migration/schema.sql"
+fi
+psql -v ON_ERROR_STOP=1 -f "${work}/migration/drift.sql"
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
 CREATE TABLE IF NOT EXISTS public.aws_migration_control (

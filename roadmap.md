@@ -2,7 +2,8 @@
 
 - [ ] Connect a dedicated least-privilege AWS account identity
 - [ ] Inventory accessible AWS account, regions, domains, and existing resources (read-only)
-- [ ] Finalize the production region and domain
+- [x] Finalize the production region (Sydney / ap-southeast-2)
+- [ ] Add a production domain later; use the AWS-generated address initially
 - [ ] Produce and approve the exact AWS architecture, monthly estimate, and blast radius
 - [ ] Add infrastructure-as-code for CloudFront, S3, compute, PostgreSQL, identity, schedules, secrets, monitoring, backups, and networking
 - [ ] Export and transfer the complete application database and private files
@@ -13,6 +14,13 @@
 ## Superseded destination
 
 - The incomplete external Supabase restore is superseded by the requested full AWS migration. Do not resume or retire anything until AWS validation succeeds.
+
+## AWS decisions and blockers
+
+- Region: Sydney (`ap-southeast-2`).
+- Existing `quant-db` bucket: leave untouched; create dedicated deployment and backup buckets.
+- Domain: not provided; use the AWS-generated address until a domain is supplied.
+- Connected IAM user can list S3 but is denied CloudFront, RDS, Lambda, and Route 53 inventory. Provisioning cannot begin until least-privilege deployment permissions are granted.
 
 ## Previous external backend migration
 

@@ -158,15 +158,6 @@ Resources:
             Resource: !Sub ${AssetsBucket.Arn}/*
             Condition: { StringEquals: { "AWS:SourceArn": !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}" } }
 
-  EcrRepository:
-    Type: AWS::ECR::Repository
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      RepositoryName: shark-auto-trader-app
-      ImageScanningConfiguration: { ScanOnPush: true }
-      ImageTagMutability: IMMUTABLE
-
   ApplicationSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
@@ -334,7 +325,6 @@ Outputs:
   AssetsBucketName: { Value: !Ref AssetsBucket }
   FilesBucketName: { Value: !Ref FilesBucket }
   BackupsBucketName: { Value: !Ref BackupsBucket }
-  EcrRepositoryUri: { Value: !GetAtt EcrRepository.RepositoryUri }
   DatabaseEndpoint: { Value: !GetAtt Database.Endpoint.Address }
   UserPoolId: { Value: !Ref UserPool }
   UserPoolClientId: { Value: !Ref UserPoolClient }

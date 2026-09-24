@@ -1,17 +1,41 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Shark Auto Trader production foundation in AWS Sydney
+Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted.
 
 Parameters:
   ApplicationImageUri:
     Type: String
-    Description: Immutable ECR image URI including a version tag or digest
+  MigrationImageUri:
+    Type: String
   CloudFrontPrefixListId:
     Type: String
-    Description: CloudFront origin-facing managed prefix-list ID in ap-southeast-2
+  FilesBucketName:
+    Type: String
+    Default: shark-auto-trader-files-438456517782-ap-southeast-2
+  BackupsBucketName:
+    Type: String
+    Default: shark-auto-trader-backups-438456517782-ap-southeast-2
+  ApplicationSecretName:
+    Type: String
+    Default: shark-auto-trader/application
+  SchedulerSecretName:
+    Type: String
+    Default: shark-auto-trader/scheduler
+  DatabaseSecretName:
+    Type: String
+    Default: shark-auto-trader/database
+  CognitoUserPoolId:
+    Type: String
+    Default: ap-southeast-2_3CQ298jr5
+  CognitoUserPoolClientId:
+    Type: String
+    Default: 5s7f0br06vd6qdo3u4pmr97m7m
+  ApplicationLogGroupName:
+    Type: String
+    Default: /aws/ecs/shark-auto-trader
   DesiredTaskCount:
     Type: Number
-    Default: 0
-    MinValue: 0
+    Default: 1
+    MinValue: 1
     MaxValue: 4
   DatabaseInstanceClass:
     Type: String
@@ -25,126 +49,123 @@ Resources:
       CidrBlock: 10.42.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags: [{ Key: Name, Value: shark-auto-trader-vpc }, { Key: Project, Value: shark-auto-trader }]
+      Tags:
+        - { Key: Name, Value: shark-auto-trader-vpc }
+        - { Key: Project, Value: shark-auto-trader }
   InternetGateway:
     Type: AWS::EC2::InternetGateway
   GatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
-    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref InternetGateway }
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
   PublicSubnetA:
     Type: AWS::EC2::Subnet
-    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ""], CidrBlock: 10.42.0.0/24, MapPublicIpOnLaunch: true }
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.42.0.0/24
+      MapPublicIpOnLaunch: true
   PublicSubnetB:
     Type: AWS::EC2::Subnet
-    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [1, !GetAZs ""], CidrBlock: 10.42.1.0/24, MapPublicIpOnLaunch: true }
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.42.1.0/24
+      MapPublicIpOnLaunch: true
   DatabaseSubnetA:
     Type: AWS::EC2::Subnet
-    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ""], CidrBlock: 10.42.10.0/24, MapPublicIpOnLaunch: false }
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.42.10.0/24
+      MapPublicIpOnLaunch: false
   DatabaseSubnetB:
     Type: AWS::EC2::Subnet
-    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [1, !GetAZs ""], CidrBlock: 10.42.11.0/24, MapPublicIpOnLaunch: false }
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.42.11.0/24
+      MapPublicIpOnLaunch: false
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
-    Properties: { VpcId: !Ref Vpc }
+    Properties:
+      VpcId: !Ref Vpc
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: GatewayAttachment
-    Properties: { RouteTableId: !Ref PublicRouteTable, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref InternetGateway }
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
   PublicAssociationA:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties: { SubnetId: !Ref PublicSubnetA, RouteTableId: !Ref PublicRouteTable }
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
   PublicAssociationB:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties: { SubnetId: !Ref PublicSubnetB, RouteTableId: !Ref PublicRouteTable }
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
 
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: CloudFront access to the application load balancer
       VpcId: !Ref Vpc
-      SecurityGroupIngress: [{ IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }]
-      SecurityGroupEgress: [{ IpProtocol: "-1", CidrIp: 0.0.0.0/0 }]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+      SecurityGroupEgress:
+        - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
   ApplicationSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Load balancer access to the app
+      GroupDescription: Load balancer and ECS task access to the application
       VpcId: !Ref Vpc
-      SecurityGroupIngress: [{ IpProtocol: tcp, FromPort: 3000, ToPort: 3000, SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup }]
-      SecurityGroupEgress: [{ IpProtocol: "-1", CidrIp: 0.0.0.0/0 }]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      SecurityGroupEgress:
+        - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Application access to PostgreSQL
+      GroupDescription: Application and migration access to PostgreSQL
       VpcId: !Ref Vpc
-      SecurityGroupIngress: [{ IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref ApplicationSecurityGroup }]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
 
   AssetsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: RetainExceptOnCreate
+    DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub shark-auto-trader-assets-${AWS::AccountId}-${AWS::Region}
-      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       VersioningConfiguration: { Status: Enabled }
-  FilesBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName: !Sub shark-auto-trader-files-${AWS::AccountId}-${AWS::Region}
-      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
-      VersioningConfiguration: { Status: Enabled }
-  BackupsBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName: !Sub shark-auto-trader-backups-${AWS::AccountId}-${AWS::Region}
-      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
-      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
-      VersioningConfiguration: { Status: Enabled }
-      LifecycleConfiguration:
-        Rules:
-          - Id: archive
-            Status: Enabled
-            Transitions: [{ StorageClass: STANDARD_IA, TransitionInDays: 30 }, { StorageClass: GLACIER, TransitionInDays: 90 }]
-            NoncurrentVersionExpiration: { NoncurrentDays: 365 }
-
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
-      OriginAccessControlConfig: { Name: shark-auto-trader-assets, OriginAccessControlOriginType: s3, SigningBehavior: always, SigningProtocol: sigv4 }
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties: { Name: shark-auto-trader, Scheme: internet-facing, SecurityGroups: [!Ref LoadBalancerSecurityGroup], Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB] }
-  TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties: { Name: shark-auto-trader-app, VpcId: !Ref Vpc, Port: 3000, Protocol: HTTP, TargetType: ip, HealthCheckPath: /api/public/health, Matcher: { HttpCode: "200" } }
-  Listener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties: { LoadBalancerArn: !Ref LoadBalancer, Port: 80, Protocol: HTTP, DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }] }
-  Distribution:
-    Type: AWS::CloudFront::Distribution
-    DependsOn: Listener
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        HttpVersion: http2and3
-        IPV6Enabled: true
-        Origins:
-          - { Id: assets, DomainName: !GetAtt AssetsBucket.RegionalDomainName, OriginAccessControlId: !Ref OriginAccessControl, S3OriginConfig: { OriginAccessIdentity: "" } }
-          - { Id: application, DomainName: !GetAtt LoadBalancer.DNSName, CustomOriginConfig: { HTTPPort: 80, OriginProtocolPolicy: http-only } }
-        DefaultCacheBehavior:
-          TargetOriginId: application
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-          CachedMethods: [GET, HEAD]
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
-        CacheBehaviors:
-          - { PathPattern: /assets/*, TargetOriginId: assets, ViewerProtocolPolicy: redirect-to-https, AllowedMethods: [GET, HEAD, OPTIONS], CachedMethods: [GET, HEAD, OPTIONS], Compress: true, CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 }
+      OriginAccessControlConfig:
+        Name: shark-auto-trader-assets
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
   AssetsBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -152,113 +173,160 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Effect: Allow
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
             Principal: { Service: cloudfront.amazonaws.com }
             Action: s3:GetObject
-            Resource: !Sub ${AssetsBucket.Arn}/*
-            Condition: { StringEquals: { "AWS:SourceArn": !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}" } }
+            Resource: !Sub "${AssetsBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
 
-  ApplicationSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: shark-auto-trader/application
-      SecretString: '{"SHARKEXCHANGE_API_KEY":"SET_AFTER_CREATION","SHARKEXCHANGE_API_SECRET":"SET_AFTER_CREATION","TRADINGVIEW_WEBHOOK_SECRET":"SET_AFTER_CREATION","LOVABLE_API_KEY":"SET_AFTER_CREATION"}'
-  SchedulerSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
+      Scheme: internet-facing
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: shark-auto-trader/scheduler
-      GenerateSecretString: { PasswordLength: 64, ExcludePunctuation: true, GenerateStringKey: SCHEDULER_SECRET, SecretStringTemplate: "{}" }
-  DatabaseSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
+      VpcId: !Ref Vpc
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /api/public/health
+      Matcher: { HttpCode: "200" }
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      Name: shark-auto-trader/database
-      GenerateSecretString: { PasswordLength: 40, ExcludeCharacters: '"@/\\', GenerateStringKey: password, SecretStringTemplate: '{"username":"shark_admin"}' }
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
-    Properties: { DBSubnetGroupDescription: Private database subnets, SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB] }
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Shark Auto Trader PostgreSQL
+      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
   Database:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       DBInstanceIdentifier: shark-auto-trader
-      Engine: postgres
-      EngineVersion: "16.13"
       DBInstanceClass: !Ref DatabaseInstanceClass
-      AllocatedStorage: 20
+      Engine: postgres
+      AllocatedStorage: "20"
       StorageType: gp3
       StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DBName: sharktrader
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DeletionProtection: true
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecretName}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecretName}:SecretString:password}}"
       MultiAZ: false
       PubliclyAccessible: false
-      DBName: sharktrader
-      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}"
-      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}"
-      DBSubnetGroupName: !Ref DatabaseSubnetGroup
-      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
-      # AWS free-plan accounts permit only one day of automated retention.
-      BackupRetentionPeriod: 1
-      CopyTagsToSnapshot: true
-      # Enable these protections after the initial migration is validated.
-      DeletionProtection: false
-      EnablePerformanceInsights: false
+      VPCSecurityGroups: [!GetAtt DatabaseSecurityGroup.GroupId]
 
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    DeletionPolicy: RetainExceptOnCreate
+  MigrationLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      UserPoolName: shark-auto-trader-users
-      UsernameAttributes: [email]
-      AutoVerifiedAttributes: [email]
-      # Keep bootstrap rollback recoverable; enable after migration validation.
-      DeletionProtection: INACTIVE
-      MfaConfiguration: OPTIONAL
-      EnabledMfas: [SOFTWARE_TOKEN_MFA]
-      Policies: { PasswordPolicy: { MinimumLength: 12, RequireLowercase: true, RequireNumbers: true, RequireSymbols: true, RequireUppercase: true } }
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties: { UserPoolId: !Ref UserPool, ClientName: shark-auto-trader-web, GenerateSecret: false, PreventUserExistenceErrors: ENABLED, ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH, ALLOW_USER_SRP_AUTH] }
-
-  ApplicationLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: RetainExceptOnCreate
-    UpdateReplacePolicy: Retain
-    Properties: { LogGroupName: /aws/ecs/shark-auto-trader, RetentionInDays: 30 }
+      RetentionInDays: 30
   TaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: shark-auto-trader-task-execution
-      AssumeRolePolicyDocument: { Version: "2012-10-17", Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: 'sts:AssumeRole' }] }
-      ManagedPolicyArns: [!Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
       Policies:
-        - PolicyName: secrets
-          PolicyDocument: { Version: "2012-10-17", Statement: [{ Effect: Allow, Action: secretsmanager:GetSecretValue, Resource: [!Ref ApplicationSecret, !Ref SchedulerSecret, !Ref DatabaseSecret] }] }
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: shark-auto-trader-task
-      AssumeRolePolicyDocument: { Version: "2012-10-17", Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: 'sts:AssumeRole' }] }
-      Policies:
-        - PolicyName: files
+        - PolicyName: protected-secrets
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - { Effect: Allow, Action: [s3:GetObject, s3:PutObject, s3:DeleteObject], Resource: !Sub "${FilesBucket.Arn}/*" }
-              - { Effect: Allow, Action: s3:ListBucket, Resource: !GetAtt FilesBucket.Arn }
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ApplicationSecretName}-*"
+                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SchedulerSecretName}-*"
+                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DatabaseSecretName}-*"
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: protected-files-and-exec
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}"
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: "*"
+
   EcsCluster:
     Type: AWS::ECS::Cluster
-    Properties: { ClusterName: shark-auto-trader }
+    Properties:
+      ClusterSettings:
+        - { Name: containerInsights, Value: enabled }
+  MigrationTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "1024"
+      Memory: "2048"
+      EphemeralStorage: { SizeInGiB: 50 }
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: migration
+          Image: !Ref MigrationImageUri
+          Essential: true
+          Environment:
+            - { Name: PGHOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: PGPORT, Value: !GetAtt Database.Endpoint.Port }
+            - { Name: PGDATABASE, Value: sharktrader }
+            - { Name: FILES_BUCKET, Value: !Ref FilesBucketName }
+            - { Name: MIGRATION_ID, Value: lovable-export-2026-09-24 }
+          Secrets:
+            - { Name: PGUSER, ValueFrom: !Sub "${DatabaseSecretName}:username::" }
+            - { Name: PGPASSWORD, ValueFrom: !Sub "${DatabaseSecretName}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref MigrationLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: migration
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: shark-auto-trader
       RequiresCompatibilities: [FARGATE]
       NetworkMode: awsvpc
       Cpu: "512"
@@ -269,51 +337,114 @@ Resources:
         - Name: application
           Image: !Ref ApplicationImageUri
           Essential: true
-          PortMappings: [{ ContainerPort: 3000 }]
+          PortMappings:
+            - { ContainerPort: 3000, Protocol: tcp }
           Environment:
             - { Name: NODE_ENV, Value: production }
+            - { Name: DATA_BACKEND, Value: aws }
             - { Name: HOST, Value: 0.0.0.0 }
             - { Name: PORT, Value: "3000" }
-            - { Name: AWS_FILES_BUCKET, Value: !Ref FilesBucket }
+            - { Name: AWS_FILES_BUCKET, Value: !Ref FilesBucketName }
+            - { Name: AWS_BACKUPS_BUCKET, Value: !Ref BackupsBucketName }
             - { Name: DATABASE_HOST, Value: !GetAtt Database.Endpoint.Address }
             - { Name: DATABASE_PORT, Value: !GetAtt Database.Endpoint.Port }
             - { Name: DATABASE_NAME, Value: sharktrader }
-            - { Name: COGNITO_USER_POOL_ID, Value: !Ref UserPool }
-            - { Name: COGNITO_CLIENT_ID, Value: !Ref UserPoolClient }
+            - { Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId }
+            - { Name: COGNITO_CLIENT_ID, Value: !Ref CognitoUserPoolClientId }
           Secrets:
-            - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecret}:SHARKEXCHANGE_API_KEY::" }
-            - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecret}:SHARKEXCHANGE_API_SECRET::" }
-            - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecret}:TRADINGVIEW_WEBHOOK_SECRET::" }
-            - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecret}:LOVABLE_API_KEY::" }
-            - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecret}:SCHEDULER_SECRET::" }
-            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecret}:username::" }
-            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecret}:password::" }
-          LogConfiguration: { LogDriver: awslogs, Options: { awslogs-group: !Ref ApplicationLogGroup, awslogs-region: !Ref 'AWS::Region', awslogs-stream-prefix: app } }
-          HealthCheck: { Command: [CMD-SHELL, "wget -q -O /dev/null http://localhost:3000/api/public/health || exit 1"], Interval: 30, Timeout: 5, Retries: 3, StartPeriod: 60 }
+            - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretName}:SHARKEXCHANGE_API_KEY::" }
+            - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretName}:SHARKEXCHANGE_API_SECRET::" }
+            - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecretName}:TRADINGVIEW_WEBHOOK_SECRET::" }
+            - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecretName}:LOVABLE_API_KEY::" }
+            - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecretName}:SCHEDULER_SECRET::" }
+            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecretName}:username::" }
+            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecretName}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApplicationLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+          HealthCheck:
+            Command: [CMD-SHELL, "wget -q -O /dev/null http://localhost:3000/api/public/health || exit 1"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
   EcsService:
     Type: AWS::ECS::Service
     DependsOn: Listener
     Properties:
       ServiceName: shark-auto-trader-app
       Cluster: !Ref EcsCluster
-      TaskDefinition: !Ref TaskDefinition
       DesiredCount: !Ref DesiredTaskCount
       LaunchType: FARGATE
-      DeploymentConfiguration: { MinimumHealthyPercent: 100, MaximumPercent: 200, DeploymentCircuitBreaker: { Enable: true, Rollback: true } }
+      EnableExecuteCommand: true
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
       HealthCheckGracePeriodSeconds: 90
-      LoadBalancers: [{ ContainerName: application, ContainerPort: 3000, TargetGroupArn: !Ref TargetGroup }]
-      NetworkConfiguration: { AwsvpcConfiguration: { AssignPublicIp: ENABLED, SecurityGroups: [!Ref ApplicationSecurityGroup], Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB] } }
+      LoadBalancers:
+        - { ContainerName: application, ContainerPort: 3000, TargetGroupArn: !Ref TargetGroup }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref ApplicationSecurityGroup]
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: Listener
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: app-origin
+            DomainName: !GetAtt LoadBalancer.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+          - Id: assets-origin
+            DomainName: !GetAtt AssetsBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: app-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          ForwardedValues:
+            QueryString: true
+            Cookies: { Forward: all }
+            Headers: [Authorization, Host]
+        CacheBehaviors:
+          - PathPattern: assets/*
+            TargetOriginId: assets-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            ForwardedValues:
+              QueryString: false
+              Cookies: { Forward: none }
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        Restrictions:
+          GeoRestriction: { RestrictionType: none }
+        ViewerCertificate: { CloudFrontDefaultCertificate: true }
 
   AlarmTopic:
     Type: AWS::SNS::Topic
-    Properties: { TopicName: shark-auto-trader-alarms }
   UnhealthyTargetsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: shark-auto-trader-unhealthy-targets
       Namespace: AWS/ApplicationELB
       MetricName: UnHealthyHostCount
-      Dimensions: [{ Name: LoadBalancer, Value: !GetAtt LoadBalancer.LoadBalancerFullName }, { Name: TargetGroup, Value: !GetAtt TargetGroup.TargetGroupFullName }]
+      Dimensions:
+        - { Name: LoadBalancer, Value: !GetAtt LoadBalancer.LoadBalancerFullName }
+        - { Name: TargetGroup, Value: !GetAtt TargetGroup.TargetGroupFullName }
       Statistic: Maximum
       Period: 60
       EvaluationPeriods: 2
@@ -325,9 +456,14 @@ Resources:
 Outputs:
   CloudFrontUrl: { Value: !Sub "https://${Distribution.DomainName}" }
   AssetsBucketName: { Value: !Ref AssetsBucket }
-  FilesBucketName: { Value: !Ref FilesBucket }
-  BackupsBucketName: { Value: !Ref BackupsBucket }
+  FilesBucketName: { Value: !Ref FilesBucketName }
+  BackupsBucketName: { Value: !Ref BackupsBucketName }
   DatabaseEndpoint: { Value: !GetAtt Database.Endpoint.Address }
-  UserPoolId: { Value: !Ref UserPool }
-  UserPoolClientId: { Value: !Ref UserPoolClient }
-  AlarmTopicArn: { Value: !Ref AlarmTopic }
+  UserPoolId: { Value: !Ref CognitoUserPoolId }
+  UserPoolClientId: { Value: !Ref CognitoUserPoolClientId }
+  ClusterName: { Value: !Ref EcsCluster }
+  ServiceName: { Value: shark-auto-trader-app }
+  MigrationTaskDefinitionArn: { Value: !Ref MigrationTaskDefinition }
+  PublicSubnetA: { Value: !Ref PublicSubnetA }
+  PublicSubnetB: { Value: !Ref PublicSubnetB }
+  ApplicationSecurityGroup: { Value: !Ref ApplicationSecurityGroup }

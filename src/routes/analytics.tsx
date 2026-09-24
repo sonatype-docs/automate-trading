@@ -55,7 +55,7 @@ function shiftMonth(m: string, delta: number): string {
 
 type Cell = { date: string; realized: number; trades: number; wins: number; losses: number };
 
-function AnalyticsPage() {
+export function AnalyticsPage() {
   const [month, setMonth] = useState<string>(currentIstMonth());
   const [symbol, setSymbol] = useState<string>("all");
   const [mode, setMode] = useState<"all" | "paper" | "live">("all");

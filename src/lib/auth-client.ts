@@ -2,14 +2,15 @@
 export const AUTH_BACKEND: "aws" | "cloud" =
   import.meta.env.VITE_DATA_BACKEND === "aws" ? "aws" : "cloud";
 
-const POOL_ID = (import.meta.env.VITE_COGNITO_USER_POOL_ID as string | undefined) ?? "ap-southeast-2_3CQ298jr5";
-const CLIENT_ID = (import.meta.env.VITE_COGNITO_CLIENT_ID as string | undefined) ?? "4e1pclujqdgd24nljmbriu2e7l";
+const POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID as string | undefined;
+const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID as string | undefined;
 
 type Listener = (signedIn: boolean) => void;
 const listeners = new Set<Listener>();
 const emit = (v: boolean) => listeners.forEach((l) => l(v));
 
 async function cognito() {
+  if (!POOL_ID || !CLIENT_ID) throw new Error("Cognito is not configured for this AWS build");
   if (typeof (globalThis as any).global === "undefined") (globalThis as any).global = globalThis;
   const m = await import("amazon-cognito-identity-js");
   const pool = new m.CognitoUserPool({ UserPoolId: POOL_ID, ClientId: CLIENT_ID });

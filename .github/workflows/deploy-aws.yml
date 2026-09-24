@@ -1,102 +1,239 @@
 name: Deploy to AWS (Sydney)
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       desired_tasks:
-        description: "Running app copies (0 = infra only)"
-        default: "0"
+        description: Running application copies
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+  id-token: write
 
 env:
   AWS_REGION: ap-southeast-2
   STACK: shark-auto-trader
   REPO: shark-auto-trader-app
+  FILES_BUCKET: shark-auto-trader-files-438456517782-ap-southeast-2
+  BACKUPS_BUCKET: shark-auto-trader-backups-438456517782-ap-southeast-2
+  USER_POOL_ID: ap-southeast-2_3CQ298jr5
+  APP_SECRET: shark-auto-trader/application
+  SCHEDULER_SECRET: shark-auto-trader/scheduler
+  DATABASE_SECRET: shark-auto-trader/database
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify account and protected production resources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          test "$ACCOUNT_ID" = "438456517782"
+          test "$(aws configure get region)" = "$AWS_REGION"
+          for bucket in "$FILES_BUCKET" "$BACKUPS_BUCKET"; do
+            aws s3api head-bucket --bucket "$bucket"
+            versioning="$(aws s3api get-bucket-versioning --bucket "$bucket" --query Status --output text)"
+            test "$versioning" = "Enabled"
+          done
+          for secret in "$APP_SECRET" "$SCHEDULER_SECRET" "$DATABASE_SECRET"; do
+            aws secretsmanager describe-secret --secret-id "$secret" >/dev/null
+          done
+          aws cognito-idp describe-user-pool --user-pool-id "$USER_POOL_ID" >/dev/null
+
       - name: Ensure image repository
-        run: aws ecr describe-repositories --repository-names $REPO || aws ecr create-repository --repository-name $REPO --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1; then
+            aws ecr create-repository \
+              --repository-name "$REPO" \
+              --image-tag-mutability IMMUTABLE \
+              --image-scanning-configuration scanOnPush=true >/dev/null
+          fi
+
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Resolve CloudFront origin prefix list
+
+      - name: Resolve CloudFront origin prefix list and Cognito client
+        shell: bash
         run: |
-          PREFIX_LIST=$(aws ec2 describe-managed-prefix-lists \
+          set -Eeuo pipefail
+          prefix_list="$(aws ec2 describe-managed-prefix-lists \
             --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing \
-            --query 'PrefixLists[0].PrefixListId' \
-            --output text)
-          if [ -z "$PREFIX_LIST" ] || [ "$PREFIX_LIST" = "None" ]; then
-            echo "CloudFront origin-facing prefix list was not found in $AWS_REGION" >&2
-            exit 1
+            --query 'PrefixLists[0].PrefixListId' --output text)"
+          test -n "$prefix_list" && test "$prefix_list" != None
+          client_id="$(aws cognito-idp list-user-pool-clients \
+            --user-pool-id "$USER_POOL_ID" --max-results 60 \
+            --query 'UserPoolClients[?ClientName==`shark-auto-trader-web`].ClientId | [0]' \
+            --output text)"
+          if [ -z "$client_id" ] || [ "$client_id" = None ]; then
+            client_id="$(aws cognito-idp create-user-pool-client \
+              --user-pool-id "$USER_POOL_ID" \
+              --client-name shark-auto-trader-web \
+              --no-generate-secret \
+              --prevent-user-existence-errors ENABLED \
+              --explicit-auth-flows ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_SRP_AUTH \
+              --query UserPoolClient.ClientId --output text)"
           fi
-          echo "PREFIX_LIST=$PREFIX_LIST" >> "$GITHUB_ENV"
-      - name: Validate infrastructure template
-        run: aws cloudformation validate-template --template-body file://deploy/aws/template.yaml >/dev/null
-      - name: Build and push image
+          {
+            echo "PREFIX_LIST=$prefix_list"
+            echo "COGNITO_CLIENT_ID=$client_id"
+          } >> "$GITHUB_ENV"
+
+      - name: Remove only empty failed CloudFormation metadata
+        shell: bash
         run: |
-          IMAGE=${{ steps.ecr.outputs.registry }}/$REPO:${GITHUB_SHA::12}
-          if ! aws ecr describe-images --repository-name $REPO --image-ids imageTag=${GITHUB_SHA::12} >/dev/null 2>&1; then
-            docker build -f Dockerfile.aws -t $IMAGE .
-            docker push $IMAGE
-          fi
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
-      - name: Deploy stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
-          if [ "$STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STATUS" = "ROLLBACK_FAILED" ]; then
-            echo "Removing resources retained by the failed first deployment"
-            ACCOUNT_ID="${{ steps.ecr.outputs.registry }}"
-            ACCOUNT_ID="${ACCOUNT_ID%%.*}"
-            if ! [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
-              echo "Could not derive the AWS account number from the authenticated image registry" >&2
+          set -Eeuo pipefail
+          status="$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)"
+          if [ "$status" = ROLLBACK_COMPLETE ]; then
+            live_count="$(aws cloudformation list-stack-resources --stack-name "$STACK" \
+              --output json | jq '[.StackResourceSummaries[] | select(.ResourceStatus != "DELETE_COMPLETE" and .ResourceStatus != "DELETE_SKIPPED")] | length')"
+            if [ "$live_count" -ne 0 ]; then
+              echo "Failed stack still has non-deleted resources; refusing cleanup." >&2
               exit 1
             fi
-            for BUCKET in \
-              "shark-auto-trader-assets-$ACCOUNT_ID-$AWS_REGION" \
-              "shark-auto-trader-files-$ACCOUNT_ID-$AWS_REGION" \
-              "shark-auto-trader-backups-$ACCOUNT_ID-$AWS_REGION"; do
-              if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-                aws s3api delete-bucket --bucket "$BUCKET" || {
-                  echo "Refusing to delete non-empty retained bucket: $BUCKET" >&2
-                  exit 1
-                }
-              fi
-            done
-            for SECRET in shark-auto-trader/application shark-auto-trader/scheduler shark-auto-trader/database; do
-              aws secretsmanager delete-secret --secret-id "$SECRET" --force-delete-without-recovery >/dev/null 2>&1 || true
-            done
-            USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name=='shark-auto-trader-users'].Id | [0]" --output text)
-            if [ -n "$USER_POOL_ID" ] && [ "$USER_POOL_ID" != "None" ]; then
-              aws cognito-idp update-user-pool --user-pool-id "$USER_POOL_ID" --deletion-protection INACTIVE
-              aws cognito-idp delete-user-pool --user-pool-id "$USER_POOL_ID"
-            fi
-            aws logs delete-log-group --log-group-name /aws/ecs/shark-auto-trader 2>/dev/null || true
-            echo "Removing failed stack before retry"
             aws cloudformation delete-stack --stack-name "$STACK"
             aws cloudformation wait stack-delete-complete --stack-name "$STACK"
-          fi
-          if ! aws cloudformation deploy \
-              --stack-name $STACK \
-              --template-file deploy/aws/template.yaml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset \
-              --parameter-overrides \
-                ApplicationImageUri=$IMAGE \
-                CloudFrontPrefixListId=$PREFIX_LIST \
-                DesiredTaskCount=${{ inputs.desired_tasks }}; then
-            echo "AWS deployment failed. Exact failed resources:" >&2
-            aws cloudformation describe-stack-events \
-              --stack-name "$STACK" \
-              --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[Timestamp,LogicalResourceId,ResourceStatusReason]' \
-              --output table >&2 || true
+          elif [ "$status" = ROLLBACK_FAILED ] || [ "$status" = DELETE_FAILED ]; then
+            echo "CloudFormation stack is $status; refusing to delete or replace resources." >&2
             exit 1
           fi
-      - name: Show outputs
-        run: aws cloudformation describe-stacks --stack-name $STACK --query "Stacks[0].Outputs" --output table
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Install and test application
+        shell: bash
+        env:
+          VITE_DATA_BACKEND: aws
+          VITE_COGNITO_USER_POOL_ID: ${{ env.USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ env.COGNITO_CLIENT_ID }}
+        run: |
+          set -Eeuo pipefail
+          bun install --frozen-lockfile
+          bun run lint
+          bun run test
+
+      - name: Validate infrastructure template
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          aws cloudformation validate-template \
+            --template-body file://deploy/aws/template.yaml >/dev/null
+
+      - name: Build and push immutable application and migration images
+        shell: bash
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -Eeuo pipefail
+          image="$REGISTRY/$REPO:${GITHUB_SHA::12}"
+          migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
+          if ! aws ecr describe-images --repository-name "$REPO" \
+              --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f Dockerfile.aws \
+              --build-arg VITE_DATA_BACKEND=aws \
+              --build-arg VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID" \
+              --build-arg VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" \
+              -t "$image" .
+            docker push "$image"
+          fi
+          if ! aws ecr describe-images --repository-name "$REPO" \
+              --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f Dockerfile.migration -t "$migration_image" .
+            docker push "$migration_image"
+          fi
+          {
+            echo "IMAGE=$image"
+            echo "MIGRATION_IMAGE=$migration_image"
+          } >> "$GITHUB_ENV"
+
+      - name: Deploy infrastructure without destructive recovery
+        shell: bash
+        env:
+          DESIRED_TASKS: ${{ inputs.desired_tasks || '1' }}
+        run: |
+          set -Eeuo pipefail
+          aws cloudformation deploy \
+            --stack-name "$STACK" \
+            --template-file deploy/aws/template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              ApplicationImageUri="$IMAGE" \
+              MigrationImageUri="$MIGRATION_IMAGE" \
+              CloudFrontPrefixListId="$PREFIX_LIST" \
+              FilesBucketName="$FILES_BUCKET" \
+              BackupsBucketName="$BACKUPS_BUCKET" \
+              ApplicationSecretName="$APP_SECRET" \
+              SchedulerSecretName="$SCHEDULER_SECRET" \
+              DatabaseSecretName="$DATABASE_SECRET" \
+              CognitoUserPoolId="$USER_POOL_ID" \
+              CognitoUserPoolClientId="$COGNITO_CLIENT_ID" \
+              DesiredTaskCount="$DESIRED_TASKS"
+
+      - name: Run protected S3 to PostgreSQL migration task
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          output_json="$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query 'Stacks[0].Outputs' --output json)"
+          cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
+          migration_td="$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")"
+          subnet_a="$(jq -r '.[] | select(.OutputKey=="PublicSubnetA").OutputValue' <<< "$output_json")"
+          subnet_b="$(jq -r '.[] | select(.OutputKey=="PublicSubnetB").OutputValue' <<< "$output_json")"
+          app_sg="$(jq -r '.[] | select(.OutputKey=="ApplicationSecurityGroup").OutputValue' <<< "$output_json")"
+          task_arn="$(aws ecs run-task \
+            --cluster "$cluster" \
+            --launch-type FARGATE \
+            --task-definition "$migration_td" \
+            --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' --output text)"
+          test -n "$task_arn" && test "$task_arn" != None
+          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+          exit_code="$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
+            --query 'tasks[0].containers[?name==`migration`].exitCode | [0]' --output text)"
+          if [ "$exit_code" != 0 ]; then
+            aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
+              --query 'tasks[0].{LastStatus:lastStatus,StoppedReason:stoppedReason,Containers:containers}' --output json
+            exit 1
+          fi
+
+      - name: Wait for ECS and verify public health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          output_json="$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query 'Stacks[0].Outputs' --output json)"
+          cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
+          cloudfront_url="$(jq -r '.[] | select(.OutputKey=="CloudFrontUrl").OutputValue' <<< "$output_json")"
+          aws ecs wait services-stable --cluster "$cluster" --services shark-auto-trader-app
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "$cloudfront_url/api/public/health"; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "CloudFront health endpoint did not become ready." >&2
+          exit 1
+
+      - name: Print deployment outputs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query 'Stacks[0].Outputs' --output table

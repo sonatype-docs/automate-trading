@@ -41,6 +41,12 @@ Parameters:
   DatabaseSecurityGroupId:
     Type: String
     Default: sg-09380c4de14177398
+  TaskExecutionRoleArn:
+    Type: String
+    Default: arn:aws:iam::438456517782:role/shark-auto-trader-runtime-execution
+  TaskRoleArn:
+    Type: String
+    Default: arn:aws:iam::438456517782:role/shark-auto-trader-runtime-task
   DesiredTaskCount:
     Type: Number
     Default: 1
@@ -197,56 +203,6 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       RetentionInDays: 30
-  TaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-      Policies:
-        - PolicyName: protected-secrets
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource:
-                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ApplicationSecretName}-*"
-                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SchedulerSecretName}-*"
-                  - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DatabaseSecretName}-*"
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: protected-files-and-exec
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: [s3:GetObject, s3:PutObject]
-                Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}/*"
-              - Effect: Allow
-                Action: s3:ListBucket
-                Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}"
-              - Effect: Allow
-                Action:
-                  - ssmmessages:CreateControlChannel
-                  - ssmmessages:CreateDataChannel
-                  - ssmmessages:OpenControlChannel
-                  - ssmmessages:OpenDataChannel
-                Resource: "*"
-
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -260,8 +216,8 @@ Resources:
       Cpu: "1024"
       Memory: "2048"
       EphemeralStorage: { SizeInGiB: 50 }
-      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
       ContainerDefinitions:
         - Name: migration
           Image: !Ref MigrationImageUri
@@ -288,8 +244,8 @@ Resources:
       NetworkMode: awsvpc
       Cpu: "512"
       Memory: "1024"
-      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
       ContainerDefinitions:
         - Name: application
           Image: !Ref ApplicationImageUri

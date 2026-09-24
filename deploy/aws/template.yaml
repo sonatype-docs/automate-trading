@@ -508,7 +508,7 @@ Resources:
       TopicName: shark-auto-trader-alarms
 
   UnhealthyTargetsAlarm:
-    Type: AWS::CloudWatch:Alarm
+    Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: shark-auto-trader-unhealthy-targets
       Namespace: AWS/ApplicationELB

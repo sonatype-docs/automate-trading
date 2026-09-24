@@ -15,8 +15,8 @@ Parameters:
     MaxValue: 4
   DatabaseInstanceClass:
     Type: String
-    Default: db.t4g.small
-    AllowedValues: [db.t4g.micro, db.t4g.small, db.t4g.medium]
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro]
 
 Resources:
   Vpc:
@@ -192,21 +192,22 @@ Resources:
       Engine: postgres
       EngineVersion: "16.13"
       DBInstanceClass: !Ref DatabaseInstanceClass
-      AllocatedStorage: 100
-      MaxAllocatedStorage: 500
+      AllocatedStorage: 20
       StorageType: gp3
       StorageEncrypted: true
-      MultiAZ: true
+      MultiAZ: false
       PubliclyAccessible: false
       DBName: sharktrader
       MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}"
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}"
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
       VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
-      BackupRetentionPeriod: 14
+      # AWS free-plan accounts permit only one day of automated retention.
+      BackupRetentionPeriod: 1
       CopyTagsToSnapshot: true
-      DeletionProtection: true
-      EnablePerformanceInsights: true
+      # Enable these protections after the initial migration is validated.
+      DeletionProtection: false
+      EnablePerformanceInsights: false
 
   UserPool:
     Type: AWS::Cognito::UserPool

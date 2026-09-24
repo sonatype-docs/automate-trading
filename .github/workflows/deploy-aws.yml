@@ -50,10 +50,16 @@ jobs:
           STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || true)
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             echo "Removing resources retained by the failed first deployment"
+            ACCOUNT_ID="${{ steps.ecr.outputs.registry }}"
+            ACCOUNT_ID="${ACCOUNT_ID%%.*}"
+            if ! [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+              echo "Could not derive the AWS account number from the authenticated image registry" >&2
+              exit 1
+            fi
             for BUCKET in \
-              "shark-auto-trader-assets-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
-              "shark-auto-trader-files-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION" \
-              "shark-auto-trader-backups-$(aws sts get-caller-identity --query Account --output text)-$AWS_REGION"; do
+              "shark-auto-trader-assets-$ACCOUNT_ID-$AWS_REGION" \
+              "shark-auto-trader-files-$ACCOUNT_ID-$AWS_REGION" \
+              "shark-auto-trader-backups-$ACCOUNT_ID-$AWS_REGION"; do
               if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
                 aws s3api delete-bucket --bucket "$BUCKET" || {
                   echo "Refusing to delete non-empty retained bucket: $BUCKET" >&2

@@ -9,7 +9,7 @@
 - [x] Add infrastructure-as-code, container packaging, deployment permission policy, and runbook (`deploy/aws/`, `Dockerfile.aws`)
 - [ ] Add trading schedules and backup plan after data migration and paper verification
 
-- [ ] Export and transfer the complete application database and private files
+- [x] Export and transfer the complete application database (all 29 tables, counts verified; private files pending)
 - [ ] Deploy and validate the application on AWS while trading remains paused
 - [ ] Reconcile exchange orders and positions; resume paper, then live trading
 - [ ] Retire Lovable hosting and the old backend only after explicit approval

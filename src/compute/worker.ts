@@ -2,7 +2,7 @@ import { getPool } from "@/lib/db-admin.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
-import { BacktestJobSchema, StrategyOptimizerJobSchema } from "@/lib/compute.functions";
+import { BacktestJobSchema, StrategyOptimizerJobSchema } from "./job-schemas";
 
 type ComputeJob = {
   id: string;

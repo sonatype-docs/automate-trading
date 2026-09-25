@@ -96,7 +96,20 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          aws cloudformation update-stack             --stack-name "$STACK"             --use-previous-template             --capabilities CAPABILITY_NAMED_IAM             --parameters "ParameterKey=MigrationImageUri,ParameterValue=$MIGRATION_IMAGE"
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK" \
+            --query 'Stacks[0].Parameters' \
+            --output json |
+            jq --arg migration_image "$MIGRATION_IMAGE" \
+              'map({ParameterKey:.ParameterKey,ParameterValue:(if .ParameterKey=="MigrationImageUri" then $migration_image else .ParameterValue end)})' \
+            > /tmp/stack-parameters.json
+
+          aws cloudformation update-stack \
+            --stack-name "$STACK" \
+            --use-previous-template \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameters file:///tmp/stack-parameters.json
+
           aws cloudformation wait stack-update-complete --stack-name "$STACK"
           echo "Migration task definition now references $MIGRATION_IMAGE."
 

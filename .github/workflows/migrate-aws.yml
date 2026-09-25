@@ -137,9 +137,8 @@ jobs:
             --task-definition "$migration_td" \
             --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}" \
             --overrides "$(jq -n \
-              --arg image "$MIGRATION_IMAGE" \
               --arg migration_id "$MIGRATION_ID" \
-              '{containerOverrides:[{name:"migration",image:$image,environment:[{name:"MIGRATION_ID",value:$migration_id}]}]}')" \
+              '{containerOverrides:[{name:"migration",environment:[{name:"MIGRATION_ID",value:$migration_id}]}]}')" \
             --query 'tasks[0].taskArn' \
             --output text)"
 

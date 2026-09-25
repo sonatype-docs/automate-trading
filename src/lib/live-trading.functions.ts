@@ -769,7 +769,7 @@ export interface TopSelectionPreviewDTO {
   }>;
 }
 
-export const previewTopSelection = createServerFn({ method: "GET" })
+export const previewTopSelection = createServerFn({ method: "GET" }).middleware([requireAuth])
   .handler(async (): Promise<TopSelectionPreviewDTO> => {
     const s = await admin();
     const { data, error } = await s

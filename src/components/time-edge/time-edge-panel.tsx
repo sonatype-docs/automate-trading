@@ -17,7 +17,8 @@ import { useDatasetsProgress } from "@/hooks/use-datasets-progress";
 import { listSnapshots } from "@/lib/trade-intelligence.functions";
 import { generateTimeEdgeNarrative, deployTimeEdgeBuckets } from "@/lib/time-edge.functions";
 import { analyzeTimeEdges, analyzeDim } from "@/lib/time-edge/analysis";
-import { bucketMonteCarlo, bootstrapNetPerTrade, walkForward } from "@/lib/time-edge/validation";
+import { getComputeJob, submitTimeEdgeValidationJob } from "@/lib/compute.functions";
+import type { runTimeEdgeValidationCore } from "@/lib/time-edge-validation.core";
 import { groupByDim } from "@/lib/time-edge/buckets";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { applyFees, DEFAULT_FEE_MODEL } from "@/lib/trade-intelligence/fees";
@@ -1648,18 +1649,52 @@ function ValidationPanel({ report, trades }: { report: TimeEdgeReport; trades: T
   const [selectedKey, setSelectedKey] = useState<string>(candidates[0]?.key ?? "");
   const selected = candidates.find((c) => c.key === selectedKey) ?? candidates[0];
 
-  const result = useMemo(() => {
-    if (!selected) return null;
+  type ValidationResult = ReturnType<typeof runTimeEdgeValidationCore>;
+  const submit = useServerFn(submitTimeEdgeValidationJob);
+  const getJob = useServerFn(getComputeJob);
+  const [result, setResult] = useState<ValidationResult | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selected) return;
     const groups = groupByDim(trades, selected.dim);
     const g = groups.get(selected.key);
-    if (!g) return null;
-    return {
-      mc: bucketMonteCarlo(g.rows, trades, 1500),
-      boot: bootstrapNetPerTrade(g.rows, 800),
-      wf: walkForward(g.rows, 5),
-      rows: g.rows.length,
-    };
-  }, [selected, trades]);
+    if (!g) { setResult(null); return; }
+    let cancelled = false;
+    setPending(true);
+    setError(null);
+    setResult(null);
+    void (async () => {
+      try {
+        const queued = await submit({
+          data: {
+            bucketRows: g.rows as unknown as Record<string, unknown>[],
+            population: trades as unknown as Record<string, unknown>[],
+            iterations: 1500,
+            bootstrapIterations: 800,
+            folds: 5,
+          },
+        });
+        for (let attempt = 0; attempt < 1_200; attempt += 1) {
+          if (cancelled) return;
+          const job = await getJob({ data: { job_id: queued.job_id } });
+          if (job.status === "failed") throw new Error(job.error || "Time Edge validation failed");
+          if (job.status === "succeeded") {
+            if (!cancelled) setResult(job.result as ValidationResult);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        throw new Error("Time Edge validation timed out");
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setPending(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selected, trades, submit, getJob]);
 
   if (!selected) return <Card><CardContent className="p-6 text-sm text-muted-foreground">No buckets to validate.</CardContent></Card>;
 
@@ -1674,6 +1709,8 @@ function ValidationPanel({ report, trades }: { report: TimeEdgeReport; trades: T
           </Select>
         </CardHeader>
         <CardContent>
+          {pending && <div className="mb-3 rounded border border-primary/30 bg-primary/5 px-3 py-2 text-xs">Running validation on AWS compute…</div>}
+          {error && <div className="mb-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
           {!result ? (
             <div className="text-sm text-muted-foreground">Not enough trades for validation.</div>
           ) : (

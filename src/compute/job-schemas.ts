@@ -51,3 +51,11 @@ export const ResearchAnalyticsJobSchema = z.object({
 });
 
 export { LiquidityMatrixJobSchema } from "@/lib/liquidity-matrix.core";
+
+export const TimeEdgeValidationJobSchema = z.object({
+  bucketRows: z.array(z.record(z.string(), z.unknown())).max(20_000),
+  population: z.array(z.record(z.string(), z.unknown())).max(20_000),
+  iterations: z.number().int().min(100).max(10_000).default(1_500),
+  bootstrapIterations: z.number().int().min(100).max(10_000).default(800),
+  folds: z.number().int().min(2).max(10).default(5),
+});

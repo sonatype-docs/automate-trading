@@ -9,6 +9,7 @@ import {
   PipelineBatchJobSchema,
   ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
+  TimeEdgeValidationJobSchema,
 } from "./job-schemas";
 
 type ComputeJob = {
@@ -151,6 +152,12 @@ async function processJob(job: ComputeJob) {
         const { LiquidityMatrixJobSchema, runLiquidityLabMatrixCore } = await import("@/lib/liquidity-matrix.core");
         const payload = LiquidityMatrixJobSchema.parse(job.payload);
         result = await runLiquidityLabMatrixCore(payload);
+        break;
+      }
+      case "time_edge_validation": {
+        const payload = TimeEdgeValidationJobSchema.parse(job.payload);
+        const { runTimeEdgeValidationCore } = await import("@/lib/time-edge-validation.core");
+        result = runTimeEdgeValidationCore(payload);
         break;
       }
       default:

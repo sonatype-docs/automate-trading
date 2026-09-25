@@ -793,16 +793,14 @@ export const replaceLiveRunnersWithTopSelection = createServerFn({ method: "POST
       .select("id, label, symbol, timeframe, strategy_preset");
     if (exErr) throw new Error(exErr.message);
 
-    // Delete dependent live_trades first, then runners. CASCADE would handle
-    // trades but we count them explicitly so the UI can show it.
-    const { count: tradeCount } = await s
-      .from("live_trades")
-      .select("*", { count: "exact", head: true });
+    // Preserve all existing runners and live-trade history. This operation is
+    // provisioning-only and must never delete production rows as a side effect.
     if ((existing ?? []).length > 0) {
-      const { error: dtErr } = await s.from("live_trades").delete().not("id", "is", null);
-      if (dtErr) throw new Error(dtErr.message);
-      const { error: drErr } = await s.from("live_runners").delete().not("id", "is", null);
-      if (drErr) throw new Error(drErr.message);
+      const { error: disableErr } = await s
+        .from("live_runners")
+        .update({ running: false })
+        .not("id", "is", null);
+      if (disableErr) throw new Error(disableErr.message);
     }
 
     // Insert the curated selection.
@@ -821,9 +819,9 @@ export const replaceLiveRunnersWithTopSelection = createServerFn({ method: "POST
     if (inErr) throw new Error(inErr.message);
 
     return {
-      deleted: (existing ?? []) as ReplaceReportDTO["deleted"],
+      deleted: [],
       inserted: (inserted ?? []) as ReplaceReportDTO["inserted"],
-      deletedTrades: tradeCount ?? 0,
+      deletedTrades: 0,
       startRequested: data.startImmediately,
     };
   });

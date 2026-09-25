@@ -396,7 +396,7 @@ Resources:
         - Name: compute-worker
           Image: !Ref ApplicationImageUri
           Essential: true
-          Command: ["node", "/app/.output/compute-worker.mjs"]
+          Command: ["node", "/app/compute-worker.mjs"]
           StopTimeout: 120
           Environment:
             - { Name: NODE_ENV, Value: production }

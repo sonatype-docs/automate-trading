@@ -359,6 +359,9 @@ Resources:
             QueryString: true
             Cookies: { Forward: all }
             Headers: [Authorization, Host]
+          DefaultTTL: 0
+          MinTTL: 0
+          MaxTTL: 0
           Compress: true
         PriceClass: PriceClass_100
         HttpVersion: http2

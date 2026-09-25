@@ -25,8 +25,9 @@ import {
   startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun, getLastFailedRun,
   exportPipelineDatasetFn,
 } from "@/lib/pipeline.functions";
+import { getComputeArtifactUrl, getComputeJob, submitPipelineBatchJob } from "@/lib/compute.functions";
 
-import { runComboBatch } from "@/lib/pipeline-batch.functions";
+import type { BatchResult } from "@/lib/pipeline-batch.functions";
 import { useKeepAlive } from "@/hooks/use-keep-alive";
 import type {
   ComboResult, ComboSpec, PipelineProgress, PipelineStage, SliceProgress,
@@ -232,7 +233,9 @@ function PipelinePage() {
   const activeSnapshotRef = useRef<string>("");
 
   const runFn = useServerFn(recordTradesFromExecution);
-  const batchFn = useServerFn(runComboBatch);
+  const submitBatchJobFn = useServerFn(submitPipelineBatchJob);
+  const getComputeJobFn = useServerFn(getComputeJob);
+  const getComputeArtifactFn = useServerFn(getComputeArtifactUrl);
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
@@ -326,6 +329,41 @@ function PipelinePage() {
       await new Promise((r) => setTimeout(r, 200));
     }
     return controlRef.current !== "stopping";
+  }
+
+  async function runBatchOnAws(data: {
+    source: "yahoo" | "shark";
+    symbol: string;
+    timeframe: string;
+    displayTimezone: string;
+    strategyTimezone: string;
+    fromMs: number;
+    toMs: number;
+    combos: Array<{ strategyPresetId: string; execPresetId: string }>;
+    tags?: string[];
+    riskUsdOverride?: number;
+    snapshotName?: string;
+  }) {
+    const submitted = await submitBatchJobFn({ data: data as never });
+    const deadline = Date.now() + 30 * 60_000;
+    while (Date.now() < deadline) {
+      const job = await getComputeJobFn({ data: { job_id: submitted.job_id } });
+      if (job.status === "queued" || job.status === "running") {
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        continue;
+      }
+      if (job.status === "failed") throw new Error(job.error ?? "AWS pipeline batch failed");
+      if (job.status !== "succeeded" || !job.result) throw new Error(`AWS pipeline batch ended with status ${job.status}`);
+      const stored = job.result as { artifact?: { s3_key?: string } } | BatchResult;
+      if ("artifact" in stored && stored.artifact?.s3_key) {
+        const signed = await getComputeArtifactFn({ data: { job_id: submitted.job_id } });
+        const response = await fetch(signed.url);
+        if (!response.ok) throw new Error(`Could not download AWS batch result (${response.status})`);
+        return (await response.json()) as BatchResult;
+      }
+      return stored as BatchResult;
+    }
+    throw new Error("AWS pipeline batch timed out after 30 minutes");
   }
 
   async function runCombosLoop(opts: {
@@ -470,8 +508,7 @@ function PipelinePage() {
       let res: any = null;
       while (attempt < 2 && !batchOk) {
         try {
-          res = await batchFn({
-            data: {
+          res = await runBatchOnAws({
               source, symbol: first.symbol, timeframe: first.timeframe,
               displayTimezone: displayTz,
               strategyTimezone: (first.strategyTimezone ?? "London") as Timezone,
@@ -483,7 +520,6 @@ function PipelinePage() {
               tags: ["pipeline", `run:${id}`, `tz:${first.strategyTimezone ?? "London"}`],
               riskUsdOverride: riskUsd,
               snapshotName: activeSnapshotRef.current || defaultDatasetName(),
-            },
           });
           if (!res || !Array.isArray(res.results)) {
             throw new Error("batch returned no results");

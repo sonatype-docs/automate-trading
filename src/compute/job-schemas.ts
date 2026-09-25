@@ -29,3 +29,17 @@ export const BacktestJobSchema = z.object({
   dataSource: z.enum(["shark", "yahoo"]).optional(),
   skipWeekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
 });
+
+export const PipelineBatchJobSchema = z.object({
+  source: z.enum(["yahoo", "shark"]).default("shark"),
+  symbol: z.string().min(1).max(24),
+  timeframe: z.string().min(1).max(8),
+  displayTimezone: z.string().min(1).max(64).default("IST"),
+  strategyTimezone: z.string().min(1).max(64).default("London"),
+  fromMs: z.number().finite(),
+  toMs: z.number().finite(),
+  combos: z.array(z.object({ strategyPresetId: z.string(), execPresetId: z.string() })).min(1).max(48),
+  tags: z.array(z.string()).optional(),
+  riskUsdOverride: z.number().positive().optional(),
+  snapshotName: z.string().min(1).max(120).optional(),
+});

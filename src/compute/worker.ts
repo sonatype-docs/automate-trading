@@ -4,7 +4,7 @@ import { presignS3Url } from "@/lib/s3-presign.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
-import { BacktestJobSchema, StrategyOptimizerJobSchema } from "./job-schemas";
+import { BacktestJobSchema, PipelineBatchJobSchema, StrategyOptimizerJobSchema } from "./job-schemas";
 
 type ComputeJob = {
   id: string;
@@ -128,6 +128,12 @@ async function processJob(job: ComputeJob) {
           dataSource: payload.dataSource,
           skipWeekdays: payload.skipWeekdays as (0 | 1 | 2 | 3 | 4 | 5 | 6)[] | undefined,
         });
+        break;
+      }
+      case "pipeline_batch": {
+        const payload = PipelineBatchJobSchema.parse(job.payload);
+        const { runComboBatchCore } = await import("@/lib/pipeline-batch.core");
+        result = await runComboBatchCore(payload as never);
         break;
       }
       default:

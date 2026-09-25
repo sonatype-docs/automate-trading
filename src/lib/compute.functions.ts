@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   BacktestJobSchema,
   ComputeSmokeTestSchema,
+  PipelineBatchJobSchema,
   StrategyOptimizerJobSchema,
 } from "@/compute/job-schemas";
 import { requireAuth } from "./auth-middleware";
@@ -12,6 +13,7 @@ import { presignS3Url } from "./s3-presign.server";
 export {
   BacktestJobSchema,
   ComputeSmokeTestSchema,
+  PipelineBatchJobSchema,
   StrategyOptimizerJobSchema,
 } from "@/compute/job-schemas";
 
@@ -70,6 +72,20 @@ export const submitBacktestJob = createServerFn({ method: "POST" })
       `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
        VALUES ($1, 'backtest', 'queued', $2::jsonb)
        RETURNING id`,
+      [userId, JSON.stringify(data)],
+    );
+    return { job_id: rows[0].id, status: "queued" as const };
+  });
+
+export const submitPipelineBatchJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => PipelineBatchJobSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    const pool = await getPool();
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
+       VALUES ($1, 'pipeline_batch', 'queued', $2::jsonb) RETURNING id`,
       [userId, JSON.stringify(data)],
     );
     return { job_id: rows[0].id, status: "queued" as const };

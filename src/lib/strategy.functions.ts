@@ -401,7 +401,13 @@ export const flattenSymbol = createServerFn({ method: "POST" })
     const side: "buy" | "sell" = Number(pos.qty) > 0 ? "sell" : "buy";
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
     const client = createSharkClient();
-    const res = await client.placeOrder({ symbol: data.symbol, side, qty, type: "market" });
+    const res = await client.placeOrder({
+      symbol: data.symbol,
+      side,
+      qty,
+      type: "market",
+      reduceOnly: true,
+    });
     return { ok: true, message: `market ${side} ${qty} — ${res.status}`, exchange_order_id: res.exchangeOrderId };
   });
 

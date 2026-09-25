@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
+          lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","tagPatternList":["*"],"countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
           aws ecr put-lifecycle-policy \
             --repository-name "$REPO" \
             --lifecycle-policy-text "$lifecycle_policy" >/dev/null

@@ -83,10 +83,10 @@ function AllRunnersStatusPanel({
   const closedCount = statuses.filter((s) => s.state === "session_closed").length;
 
   return (
-    <div className="rounded-lg border border-gradient-sunset bg-gradient-sunset-soft p-3 sm:p-4 space-y-3 shadow-lg">
+    <div className="rounded-lg border border-primary/35 bg-primary/8 p-3 sm:p-4 space-y-3 shadow-lg">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-sunset-vivid shadow-md glow-sunset">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shadow-md shadow-[0_8px_18px_-12px_color-mix(in_oklch,var(--color-primary)_70%,transparent)]">
             <Radar className="h-4 w-4 text-white" />
           </div>
           <div>
@@ -186,7 +186,7 @@ function AllRunnersStatusPanel({
 
           const isBtc = r.symbol.toUpperCase().startsWith("BTC");
           const SymbolIcon = isBtc ? Bitcoin : Coins;
-          const symbolColor = isDim ? "text-muted-foreground/60" : isBtc ? "text-brand-ember" : "text-brand-copper";
+          const symbolColor = isDim ? "text-muted-foreground/60" : isBtc ? "text-brand-ember" : "text-primary";
 
           return (
             <div key={r.id} className={`rounded-md border p-2.5 flex flex-col gap-1.5 text-xs card-hover ${toneWrap} ${isDim ? "text-muted-foreground" : ""}`}>
@@ -215,7 +215,7 @@ function AllRunnersStatusPanel({
                   })()}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-mono font-bold tracking-wider ${
                     isDim ? "bg-muted/60 text-muted-foreground/70 border-border/50"
-                    : r.leverage >= 100 ? "bg-gradient-sunset-vivid text-white border-transparent shadow"
+                    : r.leverage >= 100 ? "bg-primary text-white border-transparent shadow"
                     : "bg-accent/40 text-accent-foreground border-accent"
                   }`}>
                     {r.leverage}×
@@ -268,7 +268,7 @@ function StatPill({ icon, label, value, tone }: {
     : tone === "destructive" ? "bg-destructive/15 text-destructive border-destructive/30"
     : tone === "primary" ? "bg-primary/15 text-primary border-primary/30"
     : tone === "warning" ? "bg-warning/15 text-warning border-warning/30"
-    : tone === "neutral" ? "bg-gradient-sunset-vivid text-white border-transparent"
+    : tone === "neutral" ? "bg-primary text-white border-transparent"
     : "bg-muted/50 text-muted-foreground border-border";
   return (
     <div className={`flex items-center justify-between gap-1 rounded-md border px-1.5 py-1 ${cls}`}>

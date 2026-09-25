@@ -667,7 +667,7 @@ function TickStatusCard({ runners }: { runners: LiveRunnerDTO[] }) {
     : "closed";
 
   return (
-    <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-1.5 text-xs bg-card ring-1 ring-[color-mix(in_oklch,var(--brand-copper)_25%,transparent)]">
+    <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-1.5 text-xs bg-card ring-1 ring-[color-mix(in_oklch,var(--color-primary)_25%,transparent)]">
       <div className="flex items-center gap-1.5">
         <Activity className="h-3 w-3 text-muted-foreground" />
         <span className="text-muted-foreground">Tick</span>

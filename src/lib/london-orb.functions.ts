@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 import type { LondonOrbOpts } from "@/lib/strategy/london-orb.server";
 
 const OrbSchema = z.object({
@@ -32,6 +33,7 @@ const OrbSchema = z.object({
 
 
 export const runLondonOrb = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => OrbSchema.parse(input))
   .handler(async ({ data }) => {
     const { runLondonOrbBacktest } = await import("@/lib/strategy/london-orb.server");
@@ -39,6 +41,7 @@ export const runLondonOrb = createServerFn({ method: "POST" })
   });
 
 export const optimizeLondonOrbFn = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) =>
     OrbSchema.extend({ topN: z.number().int().min(3).max(30).optional() }).parse(input),
   )

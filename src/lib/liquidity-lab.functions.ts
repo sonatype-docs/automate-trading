@@ -35,6 +35,7 @@ export interface RunLabResult {
 
 
 export const runLiquidityLab = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => RunInput.parse(raw))
   .handler(async ({ data }): Promise<RunLabResult> => {
     const cfg = data.config;
@@ -219,6 +220,7 @@ export interface MatrixResult {
 }
 
 export const runLiquidityLabMatrix = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => MatrixInput.parse(raw))
   .handler(async ({ data }): Promise<MatrixResult> => {
     const startedAll = Date.now();

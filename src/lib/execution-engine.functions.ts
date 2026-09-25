@@ -3,6 +3,7 @@
 // then feeds those signals into the Execution Engine.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
@@ -32,6 +33,7 @@ export interface RunExecutionResult {
 }
 
 export const runExecutionEngine = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => Input.parse(raw))
   .handler(async ({ data }): Promise<RunExecutionResult> => {
     const scfg = STRATEGY_PRESETS[data.strategyPresetId as keyof typeof STRATEGY_PRESETS];

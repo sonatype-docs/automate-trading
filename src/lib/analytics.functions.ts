@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -37,6 +38,7 @@ type DayCell = {
 };
 
 export const getPnlCalendar = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .validator((raw: unknown) => CalendarInput.parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -231,6 +233,7 @@ export interface StrategyPerfRow {
 }
 
 export const getStrategyPerformance = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .validator((raw: unknown) => PerfInput.parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();

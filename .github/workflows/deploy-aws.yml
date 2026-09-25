@@ -289,13 +289,7 @@ jobs:
           test -s /tmp/cloudfront-index.html
           grep -qi '<html' /tmp/cloudfront-index.html
 
-          asset_path="$(python3 - <<'PY'
-import re
-html = open("/tmp/cloudfront-index.html", "r", encoding="utf-8").read()
-match = re.search(r"/assets/[^\"'\\s>]+\\.(?:css|js)(?:\\?[^\"'\\s>]*)?", html)
-print(match.group(0) if match else "")
-PY
-)"
+          asset_path="$(python3 -c 'import re,pathlib; h=pathlib.Path("/tmp/cloudfront-index.html").read_text(); m=re.search(r"/assets/[^"\\s>]+\\.(?:css|js)(?:\\?[^"\\s>]*)?", h); print(m.group(0) if m else "")')"
           if [ -n "$asset_path" ]; then
             curl --fail --silent --show-error "$cloudfront_url$asset_path" -o /dev/null
             echo "Verified CloudFront asset: $asset_path"

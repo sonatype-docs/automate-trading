@@ -322,7 +322,6 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        DefaultRootObject: index.html
         Origins:
           - Id: app-origin
             DomainName: !GetAtt LoadBalancer.DNSName

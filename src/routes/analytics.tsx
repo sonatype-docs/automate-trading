@@ -135,8 +135,8 @@ export function AnalyticsPage() {
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1.5">
-                {weeks.map((day) => {
-                  if (!day) return <div key={Math.random()} className="h-20 rounded-md bg-muted/30" />;
+                {weeks.map((day, index) => {
+                  if (!day) return <div key={`empty-${index}`} className="h-20 rounded-md bg-muted/30" />;
                   const cell = byDate.get(day.date);
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);

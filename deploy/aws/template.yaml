@@ -2,10 +2,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted.
 
 Parameters:
-  SchedulePaper: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
-  ScheduleStrategy: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
-  ScheduleLive: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
-  ScheduleWatchdog: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  SchedulePaper: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
+  ScheduleStrategy: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
+  ScheduleLive: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
+  ScheduleWatchdog: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
   ApplicationImageUri:
     Type: String
   MigrationImageUri:

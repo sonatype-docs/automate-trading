@@ -10,6 +10,7 @@ import {
   ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
   TimeEdgeValidationJobSchema,
+  OptimizerSearchJobSchema,
 } from "./job-schemas";
 
 type ComputeJob = {
@@ -158,6 +159,12 @@ async function processJob(job: ComputeJob) {
         const payload = TimeEdgeValidationJobSchema.parse(job.payload);
         const { runTimeEdgeValidationCore } = await import("@/lib/time-edge-validation.core");
         result = runTimeEdgeValidationCore(payload);
+        break;
+      }
+      case "optimizer_search": {
+        const payload = OptimizerSearchJobSchema.parse(job.payload);
+        const { runOptimizerSearchCore } = await import("@/lib/optimizer-search.core");
+        result = runOptimizerSearchCore(payload);
         break;
       }
       default:

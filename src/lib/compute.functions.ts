@@ -7,6 +7,7 @@ import {
   ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
   TimeEdgeValidationJobSchema,
+  OptimizerSearchJobSchema,
 } from "@/compute/job-schemas";
 import { requireAuth } from "./auth-middleware";
 import { getPool } from "./db-admin.server";
@@ -20,6 +21,7 @@ export {
   ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
   TimeEdgeValidationJobSchema,
+  OptimizerSearchJobSchema,
 } from "@/compute/job-schemas";
 
 export async function enqueueStrategyOptimizer(
@@ -133,6 +135,20 @@ export const submitTimeEdgeValidationJob = createServerFn({ method: "POST" })
     const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
        VALUES ($1, 'time_edge_validation', 'queued', $2::jsonb) RETURNING id`,
+      [userId, JSON.stringify(data)],
+    );
+    return { job_id: rows[0].id, status: "queued" as const };
+  });
+
+export const submitOptimizerSearchJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => OptimizerSearchJobSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    const pool = await getPool();
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
+       VALUES ($1, 'optimizer_search', 'queued', $2::jsonb) RETURNING id`,
       [userId, JSON.stringify(data)],
     );
     return { job_id: rows[0].id, status: "queued" as const };

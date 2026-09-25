@@ -24,7 +24,6 @@ import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import type {
   ObjectiveKey, ObjectiveSpec, ParamDim, SearchMethod, OptimizationResult,
 } from "@/lib/optimizer/types";
-import { runOptimization } from "@/lib/optimizer/engine";
 import { walkForward } from "@/lib/optimizer/walk-forward";
 import { monteCarlo } from "@/lib/optimizer/monte-carlo";
 import { buildHeatmap, type HeatmapMetric } from "@/lib/optimizer/heatmap";
@@ -38,6 +37,7 @@ import { extractFeatures, allNumericKeys, allCategoricalKeys } from "@/lib/optim
 import { topToCsv, toJson, toMarkdown } from "@/lib/optimizer/report";
 import { candidateToRule, ruleToPredicate } from "@/lib/optimizer/filters";
 import { TimeEdgePanel } from "@/components/time-edge/time-edge-panel";
+import { getComputeArtifactUrl, getComputeJob, submitOptimizerSearchJob } from "@/lib/compute.functions";
 
 export const Route = createFileRoute("/optimizer")({
   head: () => ({
@@ -190,6 +190,9 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
   const [result, setResult] = useState<OptimizationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const submitSearch = useServerFn(submitOptimizerSearchJob);
+  const getSearchJob = useServerFn(getComputeJob);
+  const getSearchArtifact = useServerFn(getComputeArtifactUrl);
 
   const dims: ParamDim[] = useMemo(() => {
     const out: ParamDim[] = [];
@@ -208,14 +211,44 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
 
   const run = async () => {
     setRunning(true); setProgress(0);
-    const spec: ObjectiveSpec = { key: objectiveKey, formula: objectiveKey === "custom" ? formula : undefined, minTrades };
-    // let the UI paint first
-    await new Promise((r) => setTimeout(r, 20));
-    const res = runOptimization(rows, {
-      method, dims, objective: spec, budget,
-      onProgress: (done, total) => setProgress(Math.round((done / total) * 100)),
-    });
-    setResult(res); setRunning(false);
+    try {
+      const spec: ObjectiveSpec = { key: objectiveKey, formula: objectiveKey === "custom" ? formula : undefined, minTrades };
+      const queued = await submitSearch({
+        data: {
+          rows: rows as unknown as Record<string, unknown>[],
+          method,
+          dims: dims as unknown as Record<string, unknown>[],
+          objective: spec,
+          budget,
+        },
+      });
+      setProgress(10);
+      for (let attempt = 0; attempt < 1_200; attempt += 1) {
+        const job = await getSearchJob({ data: { job_id: queued.job_id } });
+        if (job.status === "failed") throw new Error(job.error || "Optimizer job failed");
+        if (job.status === "succeeded") {
+          let output = job.result as unknown;
+          const artifact = (output as { artifact?: { s3_key?: string } } | null)?.artifact;
+          if (artifact?.s3_key) {
+            const signed = await getSearchArtifact({ data: { job_id: queued.job_id } });
+            const response = await fetch(signed.url);
+            if (!response.ok) throw new Error(`Optimizer artifact download failed: ${response.status}`);
+            output = await response.json();
+          }
+          setResult(output as OptimizationResult);
+          setProgress(100);
+          return;
+        }
+        setProgress(Math.min(95, 10 + Math.round((attempt / 1200) * 85)));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      throw new Error("Optimizer job timed out");
+    } catch (error) {
+      setResult(null);
+      throw error;
+    } finally {
+      setRunning(false);
+    }
   };
 
   const originalScore = useMemo(() => {

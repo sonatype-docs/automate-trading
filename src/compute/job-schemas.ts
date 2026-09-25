@@ -59,3 +59,15 @@ export const TimeEdgeValidationJobSchema = z.object({
   bootstrapIterations: z.number().int().min(100).max(10_000).default(800),
   folds: z.number().int().min(2).max(10).default(5),
 });
+
+export const OptimizerSearchJobSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(20_000),
+  method: z.enum(["grid", "random", "genetic", "bayesian", "pso", "annealing"]),
+  dims: z.array(z.record(z.string(), z.unknown())).min(1).max(20),
+  objective: z.object({
+    key: z.string().min(1),
+    formula: z.string().optional(),
+    minTrades: z.number().int().min(1).max(100_000),
+  }),
+  budget: z.number().int().min(10).max(100_000),
+});

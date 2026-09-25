@@ -7,6 +7,7 @@ import {
 } from "@/compute/job-schemas";
 import { requireAuth } from "./auth-middleware";
 import { getPool } from "./db-admin.server";
+import { presignS3Url } from "./s3-presign.server";
 
 export {
   BacktestJobSchema,
@@ -81,7 +82,7 @@ export const getComputeJob = createServerFn({ method: "GET" })
     const { userId } = context as { userId: string };
     const pool = await getPool();
     const { rows } = await pool.query(
-      `SELECT id, job_type, status, result, error, attempts, created_at, started_at, completed_at
+      `SELECT id, job_type, status, result, result_s3_key, result_size_bytes, error, attempts, created_at, started_at, completed_at
        FROM public.compute_jobs
        WHERE id=$1 AND user_id=$2
        LIMIT 1`,
@@ -89,4 +90,30 @@ export const getComputeJob = createServerFn({ method: "GET" })
     );
     if (!rows[0]) throw new Response("Not Found", { status: 404 });
     return rows[0];
+  });
+
+export const getComputeArtifactUrl = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => z.object({ job_id: z.string().uuid() }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    const pool = await getPool();
+    const { rows } = await pool.query<{ result_s3_key: string | null }>(
+      `SELECT result_s3_key FROM public.compute_jobs WHERE id=$1 AND user_id=$2 LIMIT 1`,
+      [data.job_id, userId],
+    );
+    const key = rows[0]?.result_s3_key;
+    if (!key) throw new Response("Artifact Not Found", { status: 404 });
+    const bucket = process.env.QUANT_ARTIFACTS_BUCKET;
+    if (!bucket) throw new Error("QUANT_ARTIFACTS_BUCKET is not configured");
+    return {
+      url: await presignS3Url({
+        method: "GET",
+        bucket,
+        key,
+        region: process.env.AWS_REGION ?? "ap-southeast-2",
+        expiresSeconds: 600,
+      }),
+      expires_in: 600,
+    };
   });

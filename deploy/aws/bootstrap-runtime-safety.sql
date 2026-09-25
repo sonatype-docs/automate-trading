@@ -99,4 +99,8 @@ CREATE INDEX IF NOT EXISTS compute_jobs_user_created_idx
 CREATE INDEX IF NOT EXISTS compute_jobs_status_created_idx
   ON public.compute_jobs (status, created_at ASC);
 
+ALTER TABLE public.compute_jobs
+  ADD COLUMN IF NOT EXISTS result_s3_key text,
+  ADD COLUMN IF NOT EXISTS result_size_bytes bigint;
+
 GRANT SELECT, INSERT, UPDATE ON public.compute_jobs TO authenticated, service_role;

@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { getPool } from "@/lib/db-admin.server";
+import { presignS3Url } from "@/lib/s3-presign.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
@@ -6,9 +8,39 @@ import { BacktestJobSchema, StrategyOptimizerJobSchema } from "./job-schemas";
 
 type ComputeJob = {
   id: string;
+  user_id: string;
   job_type: string;
   payload: unknown;
 };
+
+const INLINE_RESULT_LIMIT = 512_000;
+
+async function persistResult(job: ComputeJob, result: unknown) {
+  const serialized = JSON.stringify(result);
+  const size = Buffer.byteLength(serialized, "utf8");
+  if (size <= INLINE_RESULT_LIMIT) {
+    return { resultJson: serialized, s3Key: null as string | null, size };
+  }
+
+  const bucket = process.env.QUANT_ARTIFACTS_BUCKET;
+  const region = process.env.AWS_REGION ?? "ap-southeast-2";
+  if (!bucket) throw new Error("QUANT_ARTIFACTS_BUCKET is not configured for the compute worker");
+  const s3Key = `private/accounts/${job.user_id}/compute/${job.id}.json`;
+  const url = await presignS3Url({ method: "PUT", bucket, key: s3Key, region, expiresSeconds: 600 });
+  const upload = await fetch(url, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: serialized,
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!upload.ok) throw new Error(`compute artifact upload failed: ${upload.status}`);
+  const digest = createHash("sha256").update(serialized).digest("hex");
+  return {
+    resultJson: JSON.stringify({ artifact: { s3_key: s3Key, size_bytes: size, sha256: digest } }),
+    s3Key,
+    size,
+  };
+}
 
 let lastSchemaWarningAt = 0;
 let stopping = false;
@@ -43,7 +75,7 @@ async function claimNextJob() {
            error=NULL
        FROM next_job
        WHERE j.id=next_job.id
-       RETURNING j.id, j.job_type, j.payload`,
+         RETURNING j.id, j.user_id, j.job_type, j.payload`,
     );
 
     return rows[0] ?? null;
@@ -102,11 +134,13 @@ async function processJob(job: ComputeJob) {
         throw new Error(`Unsupported compute job type: ${job.job_type}`);
     }
 
+    const persisted = await persistResult(job, result);
     await pool.query(
       `UPDATE public.compute_jobs
-       SET status='succeeded', result=$2::jsonb, completed_at=now(), error=NULL
+       SET status='succeeded', result=$2::jsonb, result_s3_key=$3, result_size_bytes=$4,
+           completed_at=now(), error=NULL
        WHERE id=$1`,
-      [job.id, JSON.stringify(result)],
+      [job.id, persisted.resultJson, persisted.s3Key, persisted.size],
     );
     console.log(`[compute-worker] completed ${job.job_type} job ${job.id}`);
   } catch (error) {

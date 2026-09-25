@@ -7,38 +7,52 @@ type ComputeJob = {
   payload: unknown;
 };
 
+let lastSchemaWarningAt = 0;
+
 async function claimNextJob() {
   const pool = await getPool();
 
-  // Requeue abandoned worker claims so a task replacement does not strand jobs.
-  await pool.query(
-    `UPDATE public.compute_jobs
-     SET status='queued', error=NULL
-     WHERE status='running'
-       AND started_at < now() - interval '2 hours'
-       AND attempts < 3`,
-  );
+  try {
+    // Requeue abandoned worker claims so a task replacement does not strand jobs.
+    await pool.query(
+      `UPDATE public.compute_jobs
+       SET status='queued', error=NULL
+       WHERE status='running'
+         AND started_at < now() - interval '2 hours'
+         AND attempts < 3`,
+    );
 
-  const { rows } = await pool.query<ComputeJob>(
-    `WITH next_job AS (
-       SELECT id
-       FROM public.compute_jobs
-       WHERE status='queued'
-       ORDER BY created_at ASC
-       FOR UPDATE SKIP LOCKED
-       LIMIT 1
-     )
-     UPDATE public.compute_jobs j
-     SET status='running',
-         attempts=j.attempts + 1,
-         started_at=COALESCE(j.started_at, now()),
-         error=NULL
-     FROM next_job
-     WHERE j.id=next_job.id
-     RETURNING j.id, j.job_type, j.payload`,
-  );
+    const { rows } = await pool.query<ComputeJob>(
+      `WITH next_job AS (
+         SELECT id
+         FROM public.compute_jobs
+         WHERE status='queued'
+         ORDER BY created_at ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       )
+       UPDATE public.compute_jobs j
+       SET status='running',
+           attempts=j.attempts + 1,
+           started_at=COALESCE(j.started_at, now()),
+           error=NULL
+       FROM next_job
+       WHERE j.id=next_job.id
+       RETURNING j.id, j.job_type, j.payload`,
+    );
 
-  return rows[0] ?? null;
+    return rows[0] ?? null;
+  } catch (error) {
+    if ((error as { code?: string })?.code === "42P01") {
+      const now = Date.now();
+      if (now - lastSchemaWarningAt > 30_000) {
+        lastSchemaWarningAt = now;
+        console.warn("[compute-worker] compute_jobs table is not ready yet; retrying");
+      }
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function processJob(job: ComputeJob) {

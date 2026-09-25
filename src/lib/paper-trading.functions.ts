@@ -1,6 +1,7 @@
 // Client-callable server functions for the Paper Trading dashboard.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -61,6 +62,7 @@ export interface TradeDTO {
 }
 
 export const listPaperRunners = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .handler(async (): Promise<RunnerDTO[]> => {
     const supabase = await admin();
     const { data, error } = await supabase
@@ -72,6 +74,7 @@ export const listPaperRunners = createServerFn({ method: "GET" })
   });
 
 export const listPaperPositions = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .handler(async (): Promise<PositionDTO[]> => {
     const supabase = await admin();
     const { data, error } = await supabase.from("paper_positions").select("*");
@@ -80,6 +83,7 @@ export const listPaperPositions = createServerFn({ method: "GET" })
   });
 
 export const listPaperTrades = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ limit: z.number().int().min(1).max(2000).default(500) }).parse(raw))
   .handler(async ({ data }): Promise<TradeDTO[]> => {
     const supabase = await admin();
@@ -93,6 +97,7 @@ export const listPaperTrades = createServerFn({ method: "GET" })
   });
 
 export const setRunnerRunning = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid(), running: z.boolean() }).parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -105,6 +110,7 @@ export const setRunnerRunning = createServerFn({ method: "POST" })
   });
 
 export const setAllRunnersRunning = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ running: z.boolean() }).parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -121,12 +127,14 @@ export const setAllRunnersRunning = createServerFn({ method: "POST" })
 
 
 export const runPaperTickNow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .handler(async () => {
     const { runPaperTradingTick } = await import("@/lib/paper-trading/tick.server");
     return await runPaperTradingTick();
   });
 
 export const backfillPaperTradesFromBacktest = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({
     topN: z.number().int().min(1).max(50).default(10),
     days: z.number().int().min(7).max(365).default(180),
@@ -138,6 +146,7 @@ export const backfillPaperTradesFromBacktest = createServerFn({ method: "POST" }
 
 
 export const resetPaperRunner = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ data }) => {
     const supabase = await admin();

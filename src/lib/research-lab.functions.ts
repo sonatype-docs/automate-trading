@@ -5,6 +5,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 
 const Uuid = z.string().uuid();
 
@@ -22,7 +23,7 @@ const ProjectInput = z.object({
   archived: z.boolean().default(false),
 });
 
-export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
+export const listProjects = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_projects").select("*").order("updated_at", { ascending: false });
@@ -31,6 +32,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
 });
 
 export const upsertProject = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => ProjectInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -45,6 +47,7 @@ export const upsertProject = createServerFn({ method: "POST" })
   });
 
 export const deleteProject = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: Uuid }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -81,6 +84,7 @@ const ExperimentInput = z.object({
 });
 
 export const listExperiments = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ projectId: Uuid.optional() }).parse(raw ?? {}))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -92,6 +96,7 @@ export const listExperiments = createServerFn({ method: "GET" })
   });
 
 export const upsertExperiment = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => ExperimentInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -108,6 +113,7 @@ export const upsertExperiment = createServerFn({ method: "POST" })
   });
 
 export const setExperimentDecision = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({
     id: Uuid,
     decision: z.enum(["accepted", "rejected", "pending", "needs_review", "deprecated", "archived"]),
@@ -131,6 +137,7 @@ export const setExperimentDecision = createServerFn({ method: "POST" })
 /* ---------------- Diff ---------------- */
 
 export const diffExperiments = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ a: Uuid, b: Uuid }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -171,7 +178,7 @@ const HypInput = z.object({
   tags: z.array(z.string()).default([]),
 });
 
-export const listHypotheses = createServerFn({ method: "GET" }).handler(async () => {
+export const listHypotheses = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_hypotheses").select("*").order("updated_at", { ascending: false });
@@ -180,6 +187,7 @@ export const listHypotheses = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const upsertHypothesis = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => HypInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -202,7 +210,7 @@ const TaskInput = z.object({
   tags: z.array(z.string()).default([]),
 });
 
-export const listTasks = createServerFn({ method: "GET" }).handler(async () => {
+export const listTasks = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_tasks").select("*").order("created_at", { ascending: false });
@@ -211,6 +219,7 @@ export const listTasks = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const upsertTask = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => TaskInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -232,7 +241,7 @@ const NoteInput = z.object({
   attachments: z.any().default([]),
 });
 
-export const listNotes = createServerFn({ method: "GET" }).handler(async () => {
+export const listNotes = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data, error } = await supabaseAdmin
     .from("research_notes").select("*").order("updated_at", { ascending: false });
@@ -241,6 +250,7 @@ export const listNotes = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const upsertNote = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => NoteInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -253,6 +263,7 @@ export const upsertNote = createServerFn({ method: "POST" })
 /* ---------------- Changelog / Timeline ---------------- */
 
 export const listChangelog = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ limit: z.number().int().min(1).max(500).default(200) }).parse(raw ?? {}))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -266,6 +277,7 @@ export const listChangelog = createServerFn({ method: "GET" })
 /* ---------------- Search ---------------- */
 
 export const searchLab = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ q: z.string().min(1) }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -288,7 +300,7 @@ export const searchLab = createServerFn({ method: "POST" })
 
 /* ---------------- Metrics ---------------- */
 
-export const labMetrics = createServerFn({ method: "GET" }).handler(async () => {
+export const labMetrics = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: exps } = await supabaseAdmin.from("research_experiments").select("decision,strategy_id,metrics");
   const rows = exps ?? [];

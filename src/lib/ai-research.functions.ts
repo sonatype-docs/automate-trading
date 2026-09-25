@@ -11,6 +11,7 @@ import { generateResearch } from "./ai-research/insights";
 import { toMarkdown } from "./ai-research/report";
 import { reviewTrade } from "./ai-research/trade-review";
 import { deriveAll } from "./ai-research/features-ext";
+import { requireAuth } from "./auth-middleware";
 
 const RunInput = z.object({
   strategyId: z.string().optional(),
@@ -39,6 +40,7 @@ async function fetchTrades(spec: z.infer<typeof RunInput>): Promise<TradeRecord[
 }
 
 export const runResearch = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => RunInput.parse(raw))
   .handler(async ({ data }) => {
     const trades = await fetchTrades(data);
@@ -50,6 +52,7 @@ export const runResearch = createServerFn({ method: "POST" })
   });
 
 export const reviewOneTrade = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ tradeId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -73,6 +76,7 @@ const AskInput = z.object({
 });
 
 export const askResearch = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => AskInput.parse(raw))
   .handler(async ({ data }) => {
     const trades = await fetchTrades({ strategyId: data.strategyId, symbol: data.symbol, limit: 5000 });

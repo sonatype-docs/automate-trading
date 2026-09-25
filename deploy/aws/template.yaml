@@ -350,15 +350,6 @@ Resources:
             QueryString: true
             Cookies: { Forward: all }
             Headers: [Authorization, Host]
-          CacheBehaviors:
-          - PathPattern: assets/*
-            TargetOriginId: assets-origin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            ForwardedValues:
-              QueryString: false
-              Cookies: { Forward: none }
         PriceClass: PriceClass_100
         HttpVersion: http2
         Restrictions:

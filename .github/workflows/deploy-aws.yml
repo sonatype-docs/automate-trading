@@ -3,6 +3,16 @@ name: Deploy to AWS (Sydney)
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "bun.lock"
+      - "vite.config.*"
+      - "tsconfig.json"
+      - "Dockerfile.aws"
+      - "deploy/aws/template.yaml"
+      - ".github/workflows/deploy-aws.yml"
   workflow_dispatch:
     inputs:
       desired_tasks:

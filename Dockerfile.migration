@@ -2,6 +2,7 @@ FROM postgres:16-alpine
 
 RUN apk add --no-cache aws-cli bash coreutils
 COPY deploy/aws/migrate.sh /migrate.sh
+COPY deploy/aws/bootstrap-runtime-safety.sql /bootstrap-runtime-safety.sql
 RUN chmod 0755 /migrate.sh
 
 ENTRYPOINT ["/migrate.sh"]

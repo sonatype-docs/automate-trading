@@ -23,6 +23,10 @@ else
 fi
 
 export PGDATABASE="${target_db}"
+
+echo "Applying idempotent runtime safety bootstrap"
+psql -v ON_ERROR_STOP=1 -f /bootstrap-runtime-safety.sql
+
 work=/work
 rm -rf "${work}"
 mkdir -p "${work}/migration"

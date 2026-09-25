@@ -30,6 +30,10 @@ export async function getPool(): Promise<import("pg").Pool> {
       types.setTypeParser(1184, tsText); // timestamptz
       types.setTypeParser(1114, (v: string) => v); // timestamp
       types.setTypeParser(1082, (v: string) => v); // date
+      const configuredPoolMax = Number(process.env.PGPOOL_MAX ?? "5");
+      const poolMax = Number.isFinite(configuredPoolMax)
+        ? Math.max(2, Math.min(8, Math.floor(configuredPoolMax)))
+        : 5;
       const pool = new Pool({
         host: process.env.DATABASE_HOST,
         port: Number(process.env.DATABASE_PORT ?? 5432),
@@ -37,7 +41,7 @@ export async function getPool(): Promise<import("pg").Pool> {
         user: process.env.DATABASE_USER,
         password: process.env.DATABASE_PASSWORD,
         ssl: { rejectUnauthorized: false },
-        max: 10,
+        max: poolMax,
         idleTimeoutMillis: 30_000,
         options: "-c timezone=UTC",
       });

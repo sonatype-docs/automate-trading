@@ -190,6 +190,7 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
   const [result, setResult] = useState<OptimizationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [runError, setRunError] = useState<string | null>(null);
   const submitSearch = useServerFn(submitOptimizerSearchJob);
   const getSearchJob = useServerFn(getComputeJob);
   const getSearchArtifact = useServerFn(getComputeArtifactUrl);
@@ -211,6 +212,7 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
 
   const run = async () => {
     setRunning(true); setProgress(0);
+    setRunError(null);
     try {
       const spec: ObjectiveSpec = { key: objectiveKey, formula: objectiveKey === "custom" ? formula : undefined, minTrades };
       const queued = await submitSearch({
@@ -245,7 +247,7 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
       throw new Error("Optimizer job timed out");
     } catch (error) {
       setResult(null);
-      throw error;
+      setRunError(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
     }
@@ -305,6 +307,8 @@ function OptimizePanel({ rows, baseMetrics }: { rows: TradeRecord[]; baseMetrics
           </Button>
         </CardContent>
       </Card>
+
+      {runError && <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{runError}</div>}
 
       <div className="space-y-4">
         {result && (

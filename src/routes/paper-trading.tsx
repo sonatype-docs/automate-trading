@@ -93,6 +93,10 @@ function PaperTradingPage() {
   const runnersList = runners.data ?? [];
   const positionsList = positions.data ?? [];
   const tradesList = trades.data ?? [];
+  const loadError = runners.error ?? positions.error ?? trades.error;
+  const retryAll = () => {
+    void Promise.all([runners.refetch(), positions.refetch(), trades.refetch()]);
+  };
   useNewTradeToasts(positionsList, "Paper", {
     keyFn: (p) => `${p.runner_id}:${p.symbol}:${p.entry_ts}`,
   });
@@ -124,6 +128,21 @@ function PaperTradingPage() {
             Sync
           </Button>
         </div>
+        {loadError && (
+          <Card className="border-destructive/50">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <div className="text-sm font-medium text-destructive">Paper trading data could not be loaded.</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {loadError instanceof Error ? loadError.message : "Check authentication or the database connection, then retry."}
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={retryAll} disabled={runners.isFetching || positions.isFetching || trades.isFetching}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <PaperStatsCard trades={tradesList} positions={positionsList} />
         <PnlCalendarCard defaultMode="paper" lockMode showStrategyFilter={false} showKpis={false} />
         <Card>

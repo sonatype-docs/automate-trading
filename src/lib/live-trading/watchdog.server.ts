@@ -483,6 +483,29 @@ export async function runLiveWatchdog(): Promise<WatchdogReport> {
     }
   }
 
+  // An unresolved runner fault is a safety incident, not merely a dashboard
+  // warning. Freeze the authoritative control row so subsequent entry paths
+  // fail closed until an operator deliberately clears the kill switch.
+  if (report.stillBroken > 0) {
+    try {
+      const pool = await (await import("@/lib/db-admin.server")).getPool();
+      await pool.query(
+        `update public.trading_controls
+         set global_live_enabled = false, mode = 'DISABLED', kill_switch = true,
+             reason = $1, updated_at = now()
+         where id = true`,
+        [`Watchdog detected ${report.stillBroken} unresolved live runner fault(s)`],
+      );
+      await logDiagnosis("error", "[watchdog] authoritative trading kill switch engaged", {
+        stillBroken: report.stillBroken,
+      });
+    } catch (error) {
+      await logDiagnosis("error", "[watchdog] failed to engage authoritative kill switch", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return report;
 }
 

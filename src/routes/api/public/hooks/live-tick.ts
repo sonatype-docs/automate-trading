@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/hooks/live-tick")({
           );
         }
       },
-      GET: async () => Response.json({ ok: true, hint: "POST to run a live tick" }),
+      GET: async () => Response.json({ error: "POST required" }, { status: 405, headers: { Allow: "POST" } }),
     },
   },
 });

@@ -20,7 +20,7 @@ export const Route = createFileRoute("/api/public/hooks/live-watchdog")({
           );
         }
       },
-      GET: async () => Response.json({ ok: true, hint: "POST to run the live watchdog" }),
+      GET: async () => Response.json({ error: "POST required" }, { status: 405, headers: { Allow: "POST" } }),
     },
   },
 });

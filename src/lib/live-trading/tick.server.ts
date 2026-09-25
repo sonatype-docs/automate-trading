@@ -12,6 +12,7 @@ import { runExecution } from "@/lib/execution-engine/engine";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
 import { createSharkClient } from "@/lib/exchange/shark-client.server";
+import { getGlobalLiveTradingEnabled } from "@/lib/trading-control.server";
 import type { KlineSourceId } from "@/lib/exchange/kline-source.server";
 
 interface RunnerRow {
@@ -144,6 +145,7 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   const ecfg = withRiskUsd(baseE, Number(r.risk_usd));
 
   const client = createSharkClient();
+  const liveEntriesEnabled = await getGlobalLiveTradingEnabled();
 
   // 0) Sweep stale PENDING limits older than 15 min — prevents orphan queue buildup.
   // NOTE: use created_at (actual placement time on exchange), NOT entry_ts
@@ -169,63 +171,70 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   }
 
 
-  // 0.5) Promote QUEUED signals when the symbol is now free.
-  // Queued rows carry full entry data; place them on the exchange in order.
-  const QUEUE_MAX_AGE_MS = 15 * 60 * 1000;
-  const { data: queuedRows } = await supabaseAdmin
-    .from("live_trades")
-    .select("id, direction, qty, entry_price, stop_price, target_price, entry_ts")
-    .eq("runner_id", r.id)
-    .eq("symbol", r.symbol)
-    .eq("status", "queued")
-    .order("entry_ts", { ascending: true });
-  for (const q of queuedRows ?? []) {
-    const ageMs = Date.now() - new Date(q.entry_ts as string).getTime();
-    if (ageMs > QUEUE_MAX_AGE_MS) {
-      await supabaseAdmin.from("live_trades").update({
-        status: "closed",
-        exit_ts: new Date().toISOString(),
-        exit_reason: "expired_queue",
-      }).eq("id", q.id);
-      continue;
-    }
-    const { count: busyNow } = await supabaseAdmin
+  // 0.5) Promote QUEUED signals only while NEW live entries are enabled.
+  // A global disable must not allow previously queued signals to become live
+  // later without an explicit re-enable.
+  if (liveEntriesEnabled) {
+    const QUEUE_MAX_AGE_MS = 15 * 60 * 1000;
+    const { data: queuedRows } = await supabaseAdmin
       .from("live_trades")
-      .select("id", { count: "exact", head: true })
+      .select("id, direction, qty, entry_price, stop_price, target_price, entry_ts")
+      .eq("runner_id", r.id)
       .eq("symbol", r.symbol)
-      .in("status", ["open", "pending"]);
-    if ((busyNow ?? 0) > 0) break;
-    try {
-      try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
-      const res = await client.placeOrder({
-        symbol: r.symbol,
-        side: q.direction === "long" ? "buy" : "sell",
-        qty: Number(q.qty),
-        type: "limit",
-        price: Number(q.entry_price),
-        // SL/TP are NOT attached at entry — engine manages exits based on age (30-min rule).
-      });
-      const filled = res.status === "filled";
-      await supabaseAdmin.from("live_trades").update({
-        client_order_id: res.exchangeOrderId || null,
-        fill_price: res.filledPrice ?? null,
-        status: filled ? "open" : "pending",
-        fill_ts: filled ? new Date().toISOString() : null,
-        raw_place: res.raw as never,
-      }).eq("id", q.id);
-      break; // symbol slot now taken — remaining queued rows wait
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await supabaseAdmin.from("live_trades").update({
-        status: "error",
-        error: msg.slice(0, 500),
-      }).eq("id", q.id);
+      .eq("status", "queued")
+      .order("entry_ts", { ascending: true });
+    for (const q of queuedRows ?? []) {
+      const ageMs = Date.now() - new Date(q.entry_ts as string).getTime();
+      if (ageMs > QUEUE_MAX_AGE_MS) {
+        await supabaseAdmin.from("live_trades").update({
+          status: "closed",
+          exit_ts: new Date().toISOString(),
+          exit_reason: "expired_queue",
+        }).eq("id", q.id);
+        continue;
+      }
+      const { count: busyNow } = await supabaseAdmin
+        .from("live_trades")
+        .select("id", { count: "exact", head: true })
+        .eq("symbol", r.symbol)
+        .in("status", ["open", "pending"]);
+      if ((busyNow ?? 0) > 0) break;
+      try {
+        try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
+        const res = await client.placeOrder({
+          symbol: r.symbol,
+          side: q.direction === "long" ? "buy" : "sell",
+          qty: Number(q.qty),
+          type: "limit",
+          price: Number(q.entry_price),
+          // SL/TP are NOT attached at entry — engine manages exits based on age (30-min rule).
+        });
+        const filled = res.status === "filled";
+        await supabaseAdmin.from("live_trades").update({
+          client_order_id: res.exchangeOrderId || null,
+          fill_price: res.filledPrice ?? null,
+          status: filled ? "open" : "pending",
+          fill_ts: filled ? new Date().toISOString() : null,
+          raw_place: res.raw as never,
+        }).eq("id", q.id);
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await supabaseAdmin.from("live_trades").update({
+          status: "error",
+          error: msg.slice(0, 500),
+        }).eq("id", q.id);
+      }
     }
   }
 
   // 1) Reconcile still-open live trades against the exchange.
   const reconciled = await reconcileOpen(r, client);
 
+
+  // No new live exposure while the global control is disabled. Reconciliation
+  // above still runs so existing positions/orders can be safely managed.
+  if (!liveEntriesEnabled) return { placed: 0, reconciled };
 
   // 2) Load fresh candles and run the strategy.
   const toMs = Date.now();

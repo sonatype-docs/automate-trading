@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted.
+Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted. Research jobs are queued in PostgreSQL and processed by isolated ECS workers.
 
 Parameters:
   SchedulePaper: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
@@ -174,25 +174,6 @@ Resources:
       FromPort: 5432
       ToPort: 5432
       SourceSecurityGroupId: !Ref ComputeWorkerSecurityGroup
-
-  ComputeJobsDlq:
-    Type: AWS::SQS::Queue
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 43200
-
-  ComputeJobsQueue:
-    Type: AWS::SQS::Queue
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      VisibilityTimeout: 43200
-      ReceiveMessageWaitTimeSeconds: 20
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ComputeJobsDlq.Arn
-        maxReceiveCount: 3
 
   QuantArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -544,7 +525,5 @@ Outputs:
   PublicSubnetA: { Value: !Ref PublicSubnetA }
   PublicSubnetB: { Value: !Ref PublicSubnetB }
   ApplicationSecurityGroup: { Value: !Ref ApplicationSecurityGroup }
-  ComputeJobsQueueUrl: { Value: !Ref ComputeJobsQueue }
-  ComputeJobsQueueArn: { Value: !GetAtt ComputeJobsQueue.Arn }
   QuantArtifactsBucketName: { Value: !Ref QuantArtifactsBucket }
   ComputeWorkerServiceName: { Value: shark-auto-trader-compute-worker }

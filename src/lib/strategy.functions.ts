@@ -842,7 +842,7 @@ export const runEntryZoneSweep = createServerFn({ method: "POST" })
   });
 
 
-export const listStrategyPresets = createServerFn({ method: "GET" }).handler(async () => {
+export const listStrategyPresets = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("strategy_presets")
@@ -860,6 +860,7 @@ const PresetCreateSchema = z.object({
 });
 
 export const createStrategyPreset = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => PresetCreateSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -878,6 +879,7 @@ export const createStrategyPreset = createServerFn({ method: "POST" })
   });
 
 export const deleteStrategyPreset = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -887,6 +889,7 @@ export const deleteStrategyPreset = createServerFn({ method: "POST" })
   });
 
 export const applyStrategyPreset = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -931,6 +934,7 @@ const SweepSchema = z.object({
 });
 
 export const sweepHoursBacktest = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => SweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSweep } = await import("@/lib/strategy/sweep.server");
@@ -958,7 +962,7 @@ export const runStrategyOptimizer = submitStrategyOptimizer;
 // (initial_sl_price and peak_r) so the ratchet recomputes from the new SL.
 // ------------------------------------------------------------------
 
-export const getLiveTriggeredSetup = createServerFn({ method: "GET" }).handler(async () => {
+export const getLiveTriggeredSetup = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data } = await supabase
     .from("strategy_setups")
@@ -977,6 +981,7 @@ const EditLevelSchema = z.object({
 });
 
 export const editLiveTradeLevels = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => EditLevelSchema.parse(input))
   .handler(async ({ data }) => {
     if (data.sl_price === undefined && data.tp_price === undefined) {
@@ -1121,6 +1126,7 @@ export const editLiveTradeLevels = createServerFn({ method: "POST" })
   });
 
 export const closeLiveTradeNow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => z.object({ setup_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -1197,6 +1203,7 @@ const GridSweepSchema = z.object({
 });
 
 export const backtestGridSweep = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => GridSweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");

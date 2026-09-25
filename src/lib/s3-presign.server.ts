@@ -31,7 +31,7 @@ export async function presignS3Url({
   region,
   expiresSeconds = 600,
 }: {
-  method: "GET" | "PUT";
+  method: "GET" | "PUT" | "HEAD";
   bucket: string;
   key: string;
   region: string;

@@ -1,9 +1,9 @@
-// Server functions for Time Edge Discovery — natural-language AI insights.
-// Uses Lovable AI Gateway (google/gemini-3-flash-preview).
+// Server functions for Time Edge Discovery — grounded, deterministic insights.
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
+import { requireAuth } from "@/lib/auth-middleware";
 
 const BucketSummary = z.object({
   label: z.string(),
@@ -26,60 +26,22 @@ const NarrativeInput = z.object({
 });
 
 export const generateTimeEdgeNarrative = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((input: unknown) => NarrativeInput.parse(input))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY not configured");
-
-    const prompt = [
-      `You are a senior quantitative trading analyst. Summarize the following time-based edge discovery results for a professional trader in 4-6 concise paragraphs. Be direct and specific — reference actual bucket labels and numbers. No fluff.`,
-      "",
-      `## Dataset`,
-      `- ${data.totalTrades.toLocaleString()} trades across ${data.symbols.length} symbols: ${data.symbols.slice(0, 10).join(", ")}`,
-      `- Strategies: ${data.strategies.slice(0, 10).join(", ")}`,
-      "",
-      `## Top Robust Time Edges`,
-      ...data.robustnessTop.map((b) => `- ${b.label}: expectancy ${b.expectancy.toFixed(2)}, PF ${b.profitFactor.toFixed(2)}, WR ${(b.winRate * 100).toFixed(1)}%, ${b.trades} trades, robustness ${b.robustness}/100`),
-      "",
-      `## Hidden Statistically Significant Edges (p<0.10)`,
-      ...data.hiddenEdges.map((b) => `- ${b.label}: expectancy ${b.expectancy.toFixed(2)}, confidence ${(b.confidence * 100).toFixed(0)}%, ${b.trades} trades`),
-      "",
-      `## Warnings — loss-generating windows`,
-      ...data.warnings.map((b) => `- ${b.label}: expectancy ${b.expectancy.toFixed(2)}, ${b.trades} trades`),
-      "",
-      data.clusterSummary ? `## Time Clusters\n${data.clusterSummary}` : "",
-      "",
-      `Structure the response as:`,
-      `1. **Headline Findings** — top 2-3 insights.`,
-      `2. **Hidden Edges** — which time windows deserve extra allocation.`,
-      `3. **Risk Warnings** — which windows to filter out.`,
-      `4. **Deployment Recommendation** — concrete next actions (which sessions/hours/weekdays to enable or disable).`,
+    const top = data.robustnessTop.slice(0, 3);
+    const hidden = data.hiddenEdges.slice(0, 3);
+    const warnings = data.warnings.slice(0, 3);
+    const line = (b: z.infer<typeof BucketSummary>) =>
+      `- ${b.label}: expectancy ${b.expectancy.toFixed(2)}, PF ${b.profitFactor.toFixed(2)}, WR ${(b.winRate * 100).toFixed(1)}%, ${b.trades} trades.`;
+    const narrative = [
+      `## Headline Findings\nThe dataset contains ${data.totalTrades.toLocaleString()} trades across ${data.symbols.length} symbols. The strongest robust windows are:`,
+      ...(top.length ? top.map(line) : ["- No robust windows were identified in the supplied results."]),
+      `\n## Hidden Edges\n${hidden.length ? hidden.map(line).join("\n") : "No hidden edge passed the supplied filters."}`,
+      `\n## Risk Warnings\n${warnings.length ? warnings.map(line).join("\n") : "No loss-generating windows were supplied."}`,
+      `\n## Deployment Recommendation\nKeep live trading disabled while validating these windows in paper mode. Prefer the robust windows, investigate hidden edges with out-of-sample testing, and exclude warning windows until they are explained.${data.clusterSummary ? `\n\nTime clusters: ${data.clusterSummary}` : ""}`,
     ].join("\n");
-
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": key,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "You are a senior quantitative trading analyst. Write with precision, brevity, and institutional tone." },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
-
-    if (!resp.ok) {
-      const errorBody = await resp.text();
-      if (resp.status === 429) throw new Error("Rate limited — please retry in a moment.");
-      if (resp.status === 402) throw new Error("Lovable AI credits exhausted — top up in Settings.");
-      throw new Error(`AI request failed [${resp.status}]: ${errorBody}`);
-    }
-    const json = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const content = json.choices?.[0]?.message?.content ?? "";
-    return { narrative: content };
+    return { narrative };
   });
 
 // ---------------------------------------------------------------------------
@@ -159,6 +121,7 @@ function defaultLeverage(symbol: string): number {
 }
 
 export const deployTimeEdgeBuckets = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => DeployInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");

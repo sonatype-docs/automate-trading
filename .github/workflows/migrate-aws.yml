@@ -92,26 +92,33 @@ jobs:
 
           echo "MIGRATION_IMAGE=$image" >> "$GITHUB_ENV"
 
-      - name: Point migration task definition at the immutable image
+      - name: Register immutable migration task definition
         shell: bash
         run: |
           set -Eeuo pipefail
-          aws cloudformation describe-stacks \
+          output_json="$(aws cloudformation describe-stacks \
             --stack-name "$STACK" \
-            --query 'Stacks[0].Parameters' \
+            --query 'Stacks[0].Outputs' \
+            --output json)"
+          cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
+          migration_td="${MIGRATION_TD:-$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")}"
+
+          aws ecs describe-task-definition \
+            --task-definition "$migration_td" \
+            --query 'taskDefinition' \
             --output json |
-            jq --arg migration_image "$MIGRATION_IMAGE" \
-              'map({ParameterKey:.ParameterKey,ParameterValue:(if .ParameterKey=="MigrationImageUri" then $migration_image else .ParameterValue end)})' \
-            > /tmp/stack-parameters.json
+            jq --arg image "$MIGRATION_IMAGE" '
+              .containerDefinitions[0].image=$image |
+              del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+            ' > /tmp/migration-task-definition.json
 
-          aws cloudformation update-stack \
-            --stack-name "$STACK" \
-            --use-previous-template \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameters file:///tmp/stack-parameters.json
-
-          aws cloudformation wait stack-update-complete --stack-name "$STACK"
-          echo "Migration task definition now references $MIGRATION_IMAGE."
+          registered_td="$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/migration-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)"
+          test -n "$registered_td" && test "$registered_td" != None
+          echo "Registered immutable migration task definition: $registered_td"
+          echo "MIGRATION_TD=$registered_td" >> "$GITHUB_ENV"
 
       - name: Run protected migration task
         shell: bash

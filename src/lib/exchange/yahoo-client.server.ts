@@ -89,9 +89,8 @@ async function fetchYahoo(
   const res = await fetch(url, {
     headers: {
       accept: "application/json",
-      // Yahoo blocks blank/unknown user-agents on some POPs; mimic a browser.
-      "user-agent":
-        "Mozilla/5.0 (compatible; LovableBacktest/1.0; +https://lovable.dev)",
+      // Yahoo blocks blank/unknown user-agents on some POPs; identify this service.
+      "user-agent": "SharkAutoTraderBacktest/1.0",
     },
   });
   const text = await res.text();

@@ -7,13 +7,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider, themeNoFlashScript } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -40,9 +39,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -89,8 +85,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Dashboard — Shark Auto-Trader" },
       { name: "twitter:description", content: "Live trading control panel." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9e1022da-fd77-46bc-9a82-0a19523ec4b1/id-preview-328e44d5--f6916707-ee15-4ce9-9999-1beab6542aaa.lovable.app-1783393512818.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9e1022da-fd77-46bc-9a82-0a19523ec4b1/id-preview-328e44d5--f6916707-ee15-4ce9-9999-1beab6542aaa.lovable.app-1783393512818.png" },
     ],
     links: [
       {

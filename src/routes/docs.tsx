@@ -14,7 +14,7 @@ function Docs() {
   const url =
     typeof window !== "undefined"
       ? `${window.location.origin}/api/public/webhook/tradingview`
-      : "https://<your-app>.lovable.app/api/public/webhook/tradingview";
+      : "/api/public/webhook/tradingview";
 
   const sample = `{
   "secret": "<TRADINGVIEW_WEBHOOK_SECRET>",

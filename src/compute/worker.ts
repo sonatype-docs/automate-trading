@@ -2,7 +2,7 @@ import { getPool } from "@/lib/db-admin.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
-import { BacktestJobSchema } from "@/lib/compute.functions";
+import { BacktestJobSchema, StrategyOptimizerJobSchema } from "@/lib/compute.functions";
 
 type ComputeJob = {
   id: string;
@@ -67,7 +67,19 @@ async function processJob(job: ComputeJob) {
     let result: unknown;
     switch (job.job_type) {
       case "strategy_optimizer":
-        result = await runOptimizer(job.payload);
+        {
+          const payload = StrategyOptimizerJobSchema.parse(job.payload);
+          result = await runOptimizer({
+            strategy: payload.strategy,
+            symbol: payload.symbol,
+            windows: payload.windows,
+            slRiskUsd: payload.sl_risk_usd,
+            skipWeekdays: payload.skip_weekdays,
+            population: payload.population,
+            generations: payload.generations,
+            topN: payload.top_n,
+          });
+        }
         break;
       case "smoke_test":
         result = executeSmokeTest(job.payload);

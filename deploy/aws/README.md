@@ -1,31 +1,75 @@
 # AWS production deployment
 
-This directory contains the AWS foundation for Sydney (`ap-southeast-2`). It does not use or modify the existing `quant-db` bucket.
+This directory contains the AWS runtime foundation for Sydney (`ap-southeast-2`). The application uses existing production data-bearing resources rather than recreating them.
 
-## Safety state
+## Current runtime architecture
 
-- Live and paper trading remain paused during provisioning and migration.
-- The application starts with zero running tasks (`DesiredTaskCount` defaults to 0), so nothing trades on deployment.
-- Trading schedules are intentionally not created yet. They are added only after data migration and paper verification pass.
-- The existing deployment and database remain the rollback source.
-- No old resource is deleted by this stack. Data-bearing resources are retained on stack deletion.
+```
+CloudFront
+  -> internet-facing ALB
+      -> ECS Fargate application task (1 by default)
+          -> private RDS PostgreSQL
+          -> Cognito
+          -> Secrets Manager
+          -> protected S3 buckets
+```
 
-## Foundation
+The runtime stack is `shark-auto-trader-runtime`. The protected production buckets are:
 
-The template creates 39 resources: private S3 storage for assets, files, and backups; CloudFront with private origin access; a load-balanced container service; encrypted Multi-AZ PostgreSQL with deletion protection; Cognito; Secrets Manager entries; logs; and a health alarm. The application image is built with `Dockerfile.aws` and listens on port 3000. The load balancer checks `/api/public/health`.
+- `shark-auto-trader-files-438456517782-ap-southeast-2`
+- `shark-auto-trader-backups-438456517782-ap-southeast-2`
 
+The existing 280K+ trade export and other migration data in those buckets must never be deleted, overwritten, or force-removed as a deployment recovery step.
 
-## Required sequence
+## Trading safety
 
-1. An AWS account administrator attaches `iam-bootstrap-policy.json` to the dedicated deployment identity, preferably with a permissions boundary.
-2. Repeat read-only inventory to detect conflicts.
-3. Build and push the image, create a CloudFormation change set from `template.yaml`, and review it before execution.
-4. Populate created secrets through AWS Secrets Manager; never commit or pass private values on a command line.
-5. Apply all 52 database migrations in filename order, then import the final paused export.
-6. Reconcile all 28 table counts and checksums, migrate identity, and verify private files.
-7. Test CloudFront, sign-in, protected data, exports, webhooks, and existing smoke tests.
-8. Reconcile exchange orders and positions before enabling paper trading. Live trading needs separate approval.
+- `SchedulePaper`, `ScheduleStrategy`, `ScheduleLive`, and `ScheduleWatchdog` default to `false`.
+- The normal application deployment workflow explicitly keeps all four schedules disabled.
+- The scheduler uses transaction-scoped PostgreSQL advisory locks so multiple ECS tasks cannot execute the same scheduled job concurrently.
+- A DB-backed `trading_controls` row gates NEW live exposure. Missing or unreadable control state fails closed.
+- Reduce-only exit orders remain allowed so disabling new live entries does not trap an existing position.
+- `live_trades` already has a unique `(runner_id, dedup_key)` constraint; scheduler locking plus that constraint provide the current duplicate-signal protection.
+- Never enable live trading as part of a deployment or migration operation.
 
-## Rollback
+## Health and readiness
 
-Disable any schedules, set the container desired count to zero, and stop sending traffic to CloudFront. The source deployment and database remain unchanged until separate retirement approval.
+- `/api/public/health` is intentionally cheap and is used for ECS/ALB liveness.
+- `/api/public/ready` performs a deeper operational check: database connectivity, required runtime environment, and required core table presence.
+- The deployment workflow waits for ECS stability and then verifies `/api/public/ready`.
+
+## Database
+
+The application uses a small PostgreSQL connection pool tuned for the current RDS micro instance. `PGPOOL_MAX` is supported and is clamped to a safe range.
+
+RDS is the transactional system of record. Heavy quantitative analytics should move toward S3/Parquet/DuckDB rather than large scans against the transactional database.
+
+## Deployment and migration separation
+
+The normal `.github/workflows/deploy-aws.yml` workflow builds the application image and deploys the runtime. It does **not** run the S3-to-PostgreSQL migration task.
+
+Use `.github/workflows/migrate-aws.yml` manually for schema/data migration work. It:
+
+1. Verifies the protected buckets, database, and database secret.
+2. Builds or reuses an immutable migration image.
+3. Runs the existing migration task definition.
+4. Requires exit code `0`.
+5. Never deletes or overwrites S3 objects.
+
+## CloudFront
+
+The current distribution keeps `app-origin` as the default origin. The previous `assets/*` routing is intentionally not restored because the application currently serves its built assets from the ECS app origin.
+
+CloudFront compression is enabled on the default behavior. More aggressive static-asset caching should only be added after the actual build asset paths are verified.
+
+## Infrastructure safety
+
+Do not:
+
+- delete or force-remove the protected S3 buckets
+- recreate the production RDS instance to recover from a deployment failure
+- delete Cognito or Secrets Manager resources as rollback cleanup
+- rebuild the existing VPC just to change runtime topology
+- run destructive CloudFormation recovery
+- deploy with live schedules enabled
+
+The repository workflow is designed to fail rather than destroy existing production resources when a failed CloudFormation stack still owns non-deleted resources.

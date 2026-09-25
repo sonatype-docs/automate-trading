@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Trash2, Download, Filter as FilterIcon, PlusCircle, LayoutDashboard, TrendingUp, ListOrdered, ShieldAlert, Globe, Clock, Compass, Grid3x3, BarChart3, Network, GitCompare, SlidersHorizontal, FileText, PanelLeftClose, PanelLeftOpen, Gauge, Pencil, Loader2, RefreshCw, Layers, FileDown } from "lucide-react";
 import { listSnapshots, renameSnapshot, deleteSnapshot } from "@/lib/trade-intelligence.functions";
+import { getAccessToken } from "@/lib/auth-client";
 import type { TradeRecord } from "@/lib/trade-intelligence/types";
 import { useDataset } from "@/hooks/use-dataset";
 import {
@@ -518,14 +519,20 @@ function ResearchPage() {
                 className="h-8 text-xs gap-1"
                 disabled={dataset === "live"}
                 title={dataset === "live" ? "Pick a saved snapshot to export" : "Download full CSV (all 68 columns incl. JSONB)"}
-                onClick={() => {
-                  const url = `/api/public/export-snapshot?snapshot=${encodeURIComponent(dataset)}`;
+                onClick={async () => {
+                  const token = await getAccessToken();
+                  const response = await fetch(`/api/public/export-snapshot?snapshot=${encodeURIComponent(dataset)}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                  });
+                  if (!response.ok) throw new Error(`Export failed (${response.status})`);
+                  const blob = await response.blob();
                   const a = document.createElement("a");
-                  a.href = url;
+                  a.href = URL.createObjectURL(blob);
                   a.download = `snapshot-${dataset}.csv`;
                   document.body.appendChild(a);
                   a.click();
                   a.remove();
+                  URL.revokeObjectURL(a.href);
                 }}
               >
                 <FileDown className="h-3.5 w-3.5" />

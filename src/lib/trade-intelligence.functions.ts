@@ -4,6 +4,7 @@
 // - deleteTrade / clearStrategy: cleanup helpers
 // - exportTrades: return CSV/JSON body for download
 import { createServerFn } from "@tanstack/react-start";
+import { requireAuth } from "./auth-middleware";
 import { z } from "zod";
 // admin client loaded inside handlers (project uses admin-only server access)
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
@@ -32,6 +33,7 @@ const RunAndRecordInput = z.object({
 // across every server-fn module and safe under the server-fn split transform).
 
 export const recordTradesFromExecution = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => RunAndRecordInput.parse(raw))
   .handler(async ({ data }) => {
@@ -147,6 +149,7 @@ function resolveTable(dataset?: string): { table: string; snapshotName?: string 
 }
 
 export const queryTrades = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => QueryInput.parse(raw))
   .handler(async ({ data }) => {
@@ -468,6 +471,7 @@ export const queryTrades = createServerFn({ method: "POST" })
   });
 
 export const exportTrades = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => QueryInput.extend({ format: z.enum(["json", "csv"]) }).parse(raw))
   .handler(async ({ data }) => {
@@ -502,6 +506,7 @@ export const exportTrades = createServerFn({ method: "POST" })
   });
 
 export const deleteTrade = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => z.object({ tradeId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
@@ -513,6 +518,7 @@ export const deleteTrade = createServerFn({ method: "POST" })
   });
 
 export const clearStrategy = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => z.object({ strategyId: z.string() }).parse(raw))
   .handler(async ({ data }) => {
@@ -531,6 +537,7 @@ export const clearStrategy = createServerFn({ method: "POST" })
  * archived snapshots are read-only.
  */
 export const dedupeTrades = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) =>
     z.object({ dataset: z.string().optional() }).optional().parse(raw),
   )
@@ -607,6 +614,7 @@ export const dedupeTrades = createServerFn({ method: "POST" })
   });
 
 export const summariseTrades = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
 
   .inputValidator((raw) => z.object({ dataset: z.string().optional() }).optional().parse(raw))
   .handler(async ({ data }) => {
@@ -643,7 +651,7 @@ export const summariseTrades = createServerFn({ method: "POST" })
     return { total, winners, losers, netPnl: net, strategies, symbols };
   });
 
-export const listSnapshots = createServerFn({ method: "POST" }).handler(async () => {
+export const listSnapshots = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = supabaseAdmin as any;
@@ -680,6 +688,7 @@ export const listSnapshots = createServerFn({ method: "POST" }).handler(async ()
 
 const PreviewInput = z.object({ name: z.string().min(1).max(120) });
 export const getSnapshotPreview = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => PreviewInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -722,6 +731,7 @@ export const getSnapshotPreview = createServerFn({ method: "POST" })
 
 const DeleteInput = z.object({ name: z.string().min(1).max(120) });
 export const deleteSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => DeleteInput.parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -740,6 +750,7 @@ const RenameInput = z.object({
   to: z.string().min(1).max(120).regex(/^[A-Za-z0-9_\-.: ]+$/, "Only letters, numbers, spaces and _-.: allowed"),
 });
 export const renameSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => RenameInput.parse(raw))
   .handler(async ({ data }) => {
     if (data.from === data.to) return { updated: 0 };

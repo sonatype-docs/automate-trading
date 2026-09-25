@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCognitoRequest } from "@/lib/auth-middleware";
 
 // Streams the FULL snapshot (all 68 columns, including JSONB) as CSV.
 // JSONB / array fields are serialized as JSON strings so nothing is lost.
@@ -37,6 +38,8 @@ export const Route = createFileRoute("/api/public/export-snapshot")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        try { await verifyCognitoRequest(request); }
+        catch (error) { return error instanceof Response ? error : new Response("Unauthorized", { status: 401 }); }
         const url = new URL(request.url);
         const snapshot = url.searchParams.get("snapshot");
         if (!snapshot) return new Response("Missing snapshot", { status: 400 });

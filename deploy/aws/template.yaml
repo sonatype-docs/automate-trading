@@ -65,10 +65,17 @@ Parameters:
     Default: 1
     MinValue: 1
     MaxValue: 4
+  EnableContainerInsights:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
   DatabaseInstanceClass:
     Type: String
     Default: db.t3.micro
     AllowedValues: [db.t3.micro]
+
+Conditions:
+  EnableContainerInsightsCondition: !Equals [!Ref EnableContainerInsights, "true"]
 
 Resources:
   InternetGateway:
@@ -219,8 +226,10 @@ Resources:
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterSettings:
-        - { Name: containerInsights, Value: enabled }
+      ClusterSettings: !If
+        - EnableContainerInsightsCondition
+        - [{ Name: containerInsights, Value: enabled }]
+        - !Ref AWS::NoValue
   MigrationTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -350,6 +359,7 @@ Resources:
             QueryString: true
             Cookies: { Forward: all }
             Headers: [Authorization, Host]
+          Compress: true
         PriceClass: PriceClass_100
         HttpVersion: http2
         Restrictions:

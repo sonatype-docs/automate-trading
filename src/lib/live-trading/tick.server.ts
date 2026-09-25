@@ -147,30 +147,6 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   const client = createSharkClient();
   const liveEntriesEnabled = await getGlobalLiveTradingEnabled();
 
-  // 0) Sweep stale PENDING limits older than 15 min — prevents orphan queue buildup.
-  // NOTE: use created_at (actual placement time on exchange), NOT entry_ts
-  // (signal bar time) — a signal bar can be minutes old when the order is
-  // actually placed, which would otherwise cancel the limit almost instantly.
-  const STALE_MS = 15 * 60 * 1000;
-  const cutoff = new Date(Date.now() - STALE_MS).toISOString();
-  const { data: stale } = await supabaseAdmin
-    .from("live_trades")
-    .select("id, client_order_id")
-    .eq("runner_id", r.id)
-    .eq("status", "pending")
-    .lt("created_at", cutoff);
-  for (const sp of stale ?? []) {
-    if (sp.client_order_id) {
-      await client.cancelOrder(sp.client_order_id).catch(() => undefined);
-    }
-    await supabaseAdmin.from("live_trades").update({
-      status: "closed",
-      exit_ts: new Date().toISOString(),
-      exit_reason: "expired",
-    }).eq("id", sp.id);
-  }
-
-
   // 0.5) Promote QUEUED signals only while NEW live entries are enabled.
   // A global disable must not allow previously queued signals to become live
   // later without an explicit re-enable.
@@ -228,8 +204,33 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
     }
   }
 
-  // 1) Reconcile still-open live trades against the exchange.
+  // 1) Reconcile still-open live trades against the exchange. This MUST happen
+  // before expiry cleanup: a filled limit can remain marked `pending` until the
+  // next reconciliation. Expiring it first would close the database row while
+  // leaving its real exchange position unmanaged.
   const reconciled = await reconcileOpen(r, client);
+
+  // 1.5) Sweep stale limits only after reconciliation has promoted any fills.
+  // Use created_at (actual placement time on exchange), not entry_ts (signal
+  // bar time), because a signal can be older than the order placement itself.
+  const STALE_MS = 15 * 60 * 1000;
+  const cutoff = new Date(Date.now() - STALE_MS).toISOString();
+  const { data: stale } = await supabaseAdmin
+    .from("live_trades")
+    .select("id, client_order_id")
+    .eq("runner_id", r.id)
+    .eq("status", "pending")
+    .lt("created_at", cutoff);
+  for (const sp of stale ?? []) {
+    if (sp.client_order_id) {
+      await client.cancelOrder(sp.client_order_id).catch(() => undefined);
+    }
+    await supabaseAdmin.from("live_trades").update({
+      status: "closed",
+      exit_ts: new Date().toISOString(),
+      exit_reason: "expired",
+    }).eq("id", sp.id);
+  }
 
 
   // No new live exposure while the global control is disabled. Reconciliation

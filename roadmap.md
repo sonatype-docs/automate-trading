@@ -61,3 +61,5 @@
 - [x] Schedules built into the app on AWS, all switched off by default
 - [ ] Owner account sign-up on AWS (user sets password once)
 - [ ] Final data re-sync, then paper schedules on; live only after user says go live
+- [x] GO LIVE on AWS (2026-09-25): 20 live + 20 paper runners running; live/paper/strategy/watchdog schedules on (template defaults now "true"); first ticks verified, 0 errors. Lovable runners stay stopped (no double trading).
+- [ ] Owner account at /login; iam:GetRolePolicy for future stack deploys; private export folder copy

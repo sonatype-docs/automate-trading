@@ -223,9 +223,16 @@ jobs:
         env:
           DESIRED_TASKS: ${{ inputs.desired_tasks || '1' }}
         run: |
-          trap 'echo "CloudFormation deployment failed; recent stack events:"; aws cloudformation describe-stack-events --stack-name "$STACK" --max-items 30 --query 'StackEvents[].{Time:Timestamp,Logical:LogicalResourceId,Status:ResourceStatus,Reason:ResourceStatusReason}' --output table || true' ERR
-
           set -Eeuo pipefail
+          on_cfn_error() {
+            echo "CloudFormation deployment failed; recent stack events:" >&2
+            aws cloudformation describe-stack-events \
+              --stack-name "$STACK" \
+              --max-items 30 \
+              --query "StackEvents[].{Time:Timestamp,Logical:LogicalResourceId,Status:ResourceStatus,Reason:ResourceStatusReason}" \
+              --output table || true
+          }
+          trap on_cfn_error ERR
           aws cloudformation deploy \
             --stack-name "$STACK" \
             --template-file deploy/aws/template.yaml \

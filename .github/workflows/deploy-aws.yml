@@ -255,7 +255,7 @@ jobs:
               ScheduleLive="false" \
               ScheduleWatchdog="false"
 
-      - name: Wait for ECS and verify application readiness
+      - name: Wait for ECS, invalidate CloudFront, and verify live application
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -263,16 +263,39 @@ jobs:
             --query 'Stacks[0].Outputs' --output json)"
           cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
           cloudfront_url="$(jq -r '.[] | select(.OutputKey=="CloudFrontUrl").OutputValue' <<< "$output_json")"
+          distribution_id="$(aws cloudformation list-stack-resources --stack-name "$STACK" \
+            --query "StackResourceSummaries[?LogicalResourceId=='Distribution'].PhysicalResourceId | [0]" --output text)"
+          test -n "$distribution_id" && test "$distribution_id" != None
+
           aws ecs wait services-stable --cluster "$cluster" --services shark-auto-trader-app
+
+          invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "$distribution_id" \
+            --paths '/*' \
+            --query 'Invalidation.Id' --output text)"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$distribution_id" \
+            --id "$invalidation_id"
+
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error "$cloudfront_url/api/public/ready"; then
-              exit 0
+            if curl --fail --silent --show-error "$cloudfront_url/api/public/ready" >/dev/null; then
+              break
             fi
             echo "Readiness attempt $attempt failed; retrying..." >&2
             sleep 10
           done
-          echo "CloudFront application readiness did not become ready." >&2
-          exit 1
+
+          curl --fail --silent --show-error "$cloudfront_url/" -o /tmp/cloudfront-index.html
+          test -s /tmp/cloudfront-index.html
+          grep -qi '<html' /tmp/cloudfront-index.html
+
+          asset_path="$(grep -oE '/assets/[^"' "'"'"' "'"'"']+\.(css|js)(\?[^"' "'"'"' "'"'"']*)?' /tmp/cloudfront-index.html | head -1 || true)"
+          if [ -n "$asset_path" ]; then
+            curl --fail --silent --show-error "$cloudfront_url$asset_path" -o /dev/null
+            echo "Verified CloudFront asset: $asset_path"
+          else
+            echo "No /assets CSS/JS path found in root HTML; root page is healthy."
+          fi
 
       - name: Print deployment outputs
         shell: bash

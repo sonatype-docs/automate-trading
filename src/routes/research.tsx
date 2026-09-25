@@ -360,7 +360,7 @@ function ResearchPage() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto p-4 space-y-4">
+      <main className="flex-1 overflow-auto bg-transparent p-4 space-y-5 sm:p-6 lg:p-8">
         <Card className={`sticky top-0 z-30 backdrop-blur shadow-sm ${isLoading || resyncing ? "border-primary/50 bg-primary/10" : "border-border/70 bg-card/95"}`}>
           <CardContent className="p-3 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2 text-xs font-medium">

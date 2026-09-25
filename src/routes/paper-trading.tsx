@@ -103,7 +103,7 @@ function PaperTradingPage() {
   const anyRunning = runnersList.some((r) => r.running);
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 sm:p-6 lg:p-8">
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>

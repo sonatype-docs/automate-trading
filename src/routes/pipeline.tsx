@@ -1083,7 +1083,7 @@ function PipelinePage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-6">
+      <main className="mx-auto w-full max-w-[1800px] px-4 py-5 md:px-8 md:py-8 space-y-7">
         {showResumeBanner && resumableRow && (
           <Alert>
             <RefreshCw className="h-4 w-4" />

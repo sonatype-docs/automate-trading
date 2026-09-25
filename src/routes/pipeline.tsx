@@ -54,7 +54,7 @@ export const Route = createFileRoute("/pipeline")({
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>Pipeline page crashed</AlertTitle>
         <AlertDescription className="space-y-3">
-          <p className="text-xs font-mono break-all">{error?.message ?? "Unknown error"}</p>
+          <p className="text-xs font-mono break-all">{error instanceof Error ? error.message : String(error ?? "Unknown error")}</p>
           <Button size="sm" onClick={reset}><RefreshCw className="w-3 h-3 mr-1" />Recover</Button>
         </AlertDescription>
       </Alert>

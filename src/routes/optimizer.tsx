@@ -47,7 +47,11 @@ export const Route = createFileRoute("/optimizer")({
     ],
   }),
   component: OptimizerPage,
-  errorComponent: ({ error }) => <div className="p-6 text-destructive">Error: {error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div className="p-6 text-destructive">
+      Error: {error instanceof Error ? error.message : String(error)}
+    </div>
+  ),
   notFoundComponent: () => <div className="p-6">Not found</div>,
 });
 

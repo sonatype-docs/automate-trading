@@ -56,5 +56,8 @@
 - [x] Sign-in switched to Cognito on AWS builds; /login page added
 - [x] Exchange, webhook, AI and scheduler keys stored in AWS Secrets Manager
 - [x] Live on AWS with 1 running copy; 12 main pages load with AWS data
-- [ ] Add iam:GetRolePolicy to SharkAutoTraderDeploy so future GitHub deploys succeed (needs user)
-- [ ] Create paused schedules; final data re-sync; cutover approval
+- [x] GitHub deploys succeed end to end (run 36094857454 green)
+- [x] Home page 404 fixed (CloudFront root object removed); new address https://d2znyio9onivev.cloudfront.net
+- [x] Schedules built into the app on AWS, all switched off by default
+- [ ] Owner account sign-up on AWS (user sets password once)
+- [ ] Final data re-sync, then paper schedules on; live only after user says go live

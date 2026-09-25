@@ -2,6 +2,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted.
 
 Parameters:
+  SchedulePaper: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleStrategy: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleLive: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleWatchdog: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
   ApplicationImageUri:
     Type: String
   MigrationImageUri:
@@ -273,6 +277,10 @@ Resources:
             - { Name: DATABASE_NAME, Value: sharktrader }
             - { Name: COGNITO_USER_POOL_ID, Value: !Ref CognitoUserPoolId }
             - { Name: COGNITO_CLIENT_ID, Value: !Ref CognitoUserPoolClientId }
+            - { Name: SCHEDULE_PAPER, Value: !Ref SchedulePaper }
+            - { Name: SCHEDULE_STRATEGY, Value: !Ref ScheduleStrategy }
+            - { Name: SCHEDULE_LIVE, Value: !Ref ScheduleLive }
+            - { Name: SCHEDULE_WATCHDOG, Value: !Ref ScheduleWatchdog }
           Secrets:
             - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_KEY::" }
             - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_SECRET::" }
@@ -322,7 +330,6 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        DefaultRootObject: index.html
         Origins:
           - Id: app-origin
             DomainName: !GetAtt LoadBalancer.DNSName

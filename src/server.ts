@@ -44,8 +44,14 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+let schedulerBooted = false;
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    if (!schedulerBooted) {
+      schedulerBooted = true;
+      import("./lib/aws-scheduler.server").then((m) => m.startAwsScheduler()).catch(() => {});
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

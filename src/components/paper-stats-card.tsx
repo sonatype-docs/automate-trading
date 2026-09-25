@@ -56,15 +56,15 @@ export function PaperStatsCard({ trades, positions, riskPerTradeUsd = 20 }: Prop
     { label: "Today · Trades", value: String(t.count), hint: `${t.wins}W · ${t.losses}L` },
     { label: "Today · Wins", value: String(t.wins), tone: t.wins > 0 ? "text-emerald-500" : undefined },
     { label: "Today · Losses", value: String(t.losses), tone: t.losses > 0 ? "text-destructive" : undefined },
-    { label: "Today · Win rate", value: winRate == null ? "—" : `${winRate.toFixed(0)}%` },
-    { label: "Today · Net P&L", value: t.count ? fmtMoney(t.net) : "—", hint: "after fees", tone: tone(t.net) },
-    { label: "Today · Fees", value: t.count ? `$${t.fees.toFixed(2)}` : "—", hint: `gross ${fmtMoney(t.gross)}` },
-    { label: "R:R · Wins", value: avgRWin == null ? "—" : `+${avgRWin.toFixed(2)}R`, hint: `${rWins.length} win${rWins.length === 1 ? "" : "s"}`, tone: avgRWin != null ? "text-emerald-500" : undefined },
-    { label: "R:R · Losses", value: avgRLoss == null ? "—" : `${avgRLoss.toFixed(2)}R`, hint: `${rLosses.length} loss${rLosses.length === 1 ? "" : "es"}`, tone: avgRLoss != null ? "text-destructive" : undefined },
+    { label: "Today · Win rate", value: `${(winRate ?? 0).toFixed(0)}%` },
+    { label: "Today · Net P&L", value: fmtMoney(t.net), hint: "after fees", tone: tone(t.net) },
+    { label: "Today · Fees", value: `$${t.fees.toFixed(2)}`, hint: `gross ${fmtMoney(t.gross)}` },
+    { label: "R:R · Wins", value: avgRWin == null ? "0.00R" : `+${avgRWin.toFixed(2)}R`, hint: `${rWins.length} win${rWins.length === 1 ? "" : "s"}`, tone: avgRWin != null ? "text-emerald-500" : undefined },
+    { label: "R:R · Losses", value: avgRLoss == null ? "0.00R" : `${avgRLoss.toFixed(2)}R`, hint: `${rLosses.length} loss${rLosses.length === 1 ? "" : "es"}`, tone: avgRLoss != null ? "text-destructive" : undefined },
     { label: "Unrealized", value: fmtMoney(unreal), hint: `${positions.length} open`, tone: tone(unreal) },
-    { label: "Month · Net P&L", value: m.count ? fmtMoney(m.net) : "—", hint: `${m.wins}W/${m.losses}L · after fees`, tone: tone(m.net) },
-    { label: "Month · Fees", value: m.count ? `$${m.fees.toFixed(2)}` : "—", hint: `${m.count} trades` },
-    { label: "Month · Gross", value: m.count ? fmtMoney(m.gross) : "—", tone: tone(m.gross) },
+    { label: "Month · Net P&L", value: fmtMoney(m.net), hint: `${m.wins}W/${m.losses}L · after fees`, tone: tone(m.net) },
+    { label: "Month · Fees", value: `$${m.fees.toFixed(2)}`, hint: `${m.count} trades` },
+    { label: "Month · Gross", value: fmtMoney(m.gross), tone: tone(m.gross) },
   ];
 
   return (

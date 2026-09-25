@@ -9,14 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   listPaperRunners, listPaperPositions, listPaperTrades,
-  setRunnerRunning, setAllRunnersRunning, runPaperTickNow, resetPaperRunner,
+  setRunnerRunning, setAllRunnersRunning, runPaperTickNow,
+  deletePaperRunner,
   backfillPaperTradesFromBacktest,
   type RunnerDTO, type PositionDTO, type TradeDTO,
 } from "@/lib/paper-trading.functions";
 import { PlayCircle, StopCircle, RefreshCw, Trash2, Activity, History } from "lucide-react";
 
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
@@ -40,7 +41,7 @@ function PaperTradingPage() {
   const setRun = useServerFn(setRunnerRunning);
   const setAll = useServerFn(setAllRunnersRunning);
   const tickNow = useServerFn(runPaperTickNow);
-  const reset = useServerFn(resetPaperRunner);
+  const removeRunner = useServerFn(deletePaperRunner);
   const backfill = useServerFn(backfillPaperTradesFromBacktest);
 
 
@@ -73,9 +74,10 @@ function PaperTradingPage() {
     onSuccess: invalidate,
   });
   const tick = useMutation({ mutationFn: () => tickNow(), onSuccess: invalidate });
-  const resetOne = useMutation({
-    mutationFn: (id: string) => reset({ data: { id } }),
+  const deleteOne = useMutation({
+    mutationFn: (id: string) => removeRunner({ data: { id } }),
     onSuccess: invalidate,
+    onError: (e) => alert(e instanceof Error ? e.message : String(e)),
   });
   const backfillMut = useMutation({
     mutationFn: () => backfill({ data: { topN: 10, days: 180 } }),
@@ -152,7 +154,8 @@ function PaperTradingPage() {
             <RunnersTable
               runners={runnersList}
               onToggle={(r) => toggle.mutate({ id: r.id, running: !r.running })}
-              onReset={(r) => resetOne.mutate(r.id)}
+              onDelete={(r) => deleteOne.mutate(r.id)}
+              deletingId={deleteOne.isPending ? deleteOne.variables : null}
             />
             <p className="text-xs text-muted-foreground mt-3">
               Cron polls every minute and re-runs each active strategy on fresh candles. Positions & trades update automatically.
@@ -192,10 +195,11 @@ function PaperTradingPage() {
   );
 }
 
-function RunnersTable({ runners, onToggle, onReset }: {
+function RunnersTable({ runners, onToggle, onDelete, deletingId }: {
   runners: RunnerDTO[];
   onToggle: (r: RunnerDTO) => void;
-  onReset: (r: RunnerDTO) => void;
+  onDelete: (r: RunnerDTO) => void;
+  deletingId: string | null;
 }) {
   return (
     <Table>
@@ -241,8 +245,8 @@ function RunnersTable({ runners, onToggle, onReset }: {
                 <Button size="sm" variant={r.running ? "destructive" : "default"} onClick={() => onToggle(r)}>
                   {r.running ? <><StopCircle className="h-3.5 w-3.5 mr-1" />Stop</> : <><PlayCircle className="h-3.5 w-3.5 mr-1" />Start</>}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => { if (confirm("Delete all trades for this runner?")) onReset(r); }}>
-                  <Trash2 className="h-3.5 w-3.5" />
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={deletingId === r.id} title="Delete paper runner and its paper history" onClick={() => { if (confirm(`Delete ${r.label} and its paper trades?`)) onDelete(r); }}>
+                  <Trash2 className={`h-3.5 w-3.5 ${deletingId === r.id ? "animate-pulse" : ""}`} />
                 </Button>
               </div>
             </TableCell>
@@ -302,27 +306,34 @@ function EquityChart({ runners, trades }: { runners: RunnerDTO[]; trades: TradeD
   if (!data.rows.length) return <p className="text-sm text-muted-foreground">Not enough trades yet.</p>;
   const colors = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444"];
   return (
-    <div className="h-72 w-full">
-      <ResponsiveContainer>
+    <div className="w-full space-y-3">
+      <div className="h-[360px] w-full min-w-0">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <LineChart data={data.rows}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
           <XAxis dataKey="t" tickFormatter={(v) => new Date(v).toLocaleDateString()} minTickGap={40} />
-          <YAxis tickFormatter={(v) => `$${v}`} />
+          <YAxis width={68} tickFormatter={(v) => `$${Number(v).toFixed(0)}`} />
           <Tooltip labelFormatter={(v) => new Date(Number(v)).toLocaleString()} formatter={(v: number) => fmtUsd(v)} />
-          <Legend />
           <Line type="monotone" dataKey="combined" stroke="#fff" strokeWidth={2} dot={false} name="Combined" />
           {data.keys.map((k, i) => (
             <Line key={k.id} type="monotone" dataKey={k.id} stroke={colors[i % colors.length]} strokeWidth={1.5} dot={false} name={k.label} />
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">Combined</span>
+        {data.keys.map((k, i) => <span key={k.id} className="truncate max-w-[240px]" style={{ color: colors[i % colors.length] }}>{k.label}</span>)}
+      </div>
     </div>
   );
 }
 
 function buildEquityData(runners: RunnerDTO[], trades: TradeDTO[]) {
-  const keys = runners.map((r) => ({ id: r.id, label: r.label }));
-  const sorted = [...trades].sort((a, b) => +new Date(a.exit_ts) - +new Date(b.exit_ts));
+  const validTrades = trades.filter((t) => Number.isFinite(Number(t.net_pnl)) && Number.isFinite(new Date(t.exit_ts).getTime()));
+  const tradedIds = new Set(validTrades.map((t) => t.runner_id));
+  const keys = runners.filter((r) => tradedIds.has(r.id)).map((r) => ({ id: r.id, label: r.label }));
+  const sorted = [...validTrades].sort((a, b) => +new Date(a.exit_ts) - +new Date(b.exit_ts));
   const cum: Record<string, number> = {};
   keys.forEach((k) => (cum[k.id] = 0));
   let combined = 0;

@@ -133,7 +133,7 @@ jobs:
             --output json)"
 
           cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
-          migration_td="$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")"
+          migration_td="${MIGRATION_TD:-$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")}"
           subnet_a="$(jq -r '.[] | select(.OutputKey=="PublicSubnetA").OutputValue' <<< "$output_json")"
           subnet_b="$(jq -r '.[] | select(.OutputKey=="PublicSubnetB").OutputValue' <<< "$output_json")"
           app_sg="$(jq -r '.[] | select(.OutputKey=="ApplicationSecurityGroup").OutputValue' <<< "$output_json")"

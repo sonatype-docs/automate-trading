@@ -2,6 +2,7 @@ import { getPool } from "@/lib/db-admin.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
+import { BacktestJobSchema } from "@/lib/compute.functions";
 
 type ComputeJob = {
   id: string;
@@ -71,6 +72,20 @@ async function processJob(job: ComputeJob) {
       case "smoke_test":
         result = executeSmokeTest(job.payload);
         break;
+      case "backtest": {
+        const payload = BacktestJobSchema.parse(job.payload);
+        const { runBacktestRange } = await import("@/lib/strategy/backtest-range.server");
+        result = await runBacktestRange({
+          symbol: payload.symbol,
+          sessionStartIst: payload.sessionStartIst,
+          slRiskUsd: payload.slRiskUsd,
+          rr: payload.rr,
+          days: payload.days,
+          dataSource: payload.dataSource,
+          skipWeekdays: payload.skipWeekdays as (0 | 1 | 2 | 3 | 4 | 5 | 6)[] | undefined,
+        });
+        break;
+      }
       default:
         throw new Error(`Unsupported compute job type: ${job.job_type}`);
     }

@@ -19,6 +19,16 @@ export const ComputeSmokeTestSchema = z.object({
   values: z.array(z.number().finite()).min(1).max(100),
 });
 
+export const BacktestJobSchema = z.object({
+  symbol: z.string().min(3).max(24).regex(/^[A-Z0-9_-]+$/),
+  sessionStartIst: z.string().regex(/^\d{2}:\d{2}$/),
+  slRiskUsd: z.number().positive().max(1_000_000),
+  rr: z.number().positive().max(100),
+  days: z.number().int().min(1).max(730),
+  dataSource: z.enum(["shark", "yahoo"]).optional(),
+  skipWeekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+});
+
 export async function enqueueStrategyOptimizer(userId: string, payload: z.infer<typeof StrategyOptimizerJobSchema>) {
   const pool = await getPool();
   const { rows } = await pool.query<{ id: string }>(
@@ -56,6 +66,21 @@ export const submitComputeSmokeTest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { userId } = context as { userId: string };
     return enqueueSmokeTest(userId, data);
+  });
+
+export const submitBacktestJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => BacktestJobSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    const pool = await getPool();
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
+       VALUES ($1, 'backtest', 'queued', $2::jsonb)
+       RETURNING id`,
+      [userId, JSON.stringify(data)],
+    );
+    return { job_id: rows[0].id, status: "queued" as const };
   });
 
 export const getComputeJob = createServerFn({ method: "GET" })

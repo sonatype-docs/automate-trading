@@ -23,6 +23,7 @@ import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/mark
 import { recordTradesFromExecution, listSnapshots, getSnapshotPreview, deleteSnapshot } from "@/lib/trade-intelligence.functions";
 import {
   startPipelineRun, updatePipelineRun, finishPipelineRun, getResumableRun, getLastFailedRun,
+  exportPipelineDatasetFn,
 } from "@/lib/pipeline.functions";
 
 import { runComboBatch } from "@/lib/pipeline-batch.functions";
@@ -225,6 +226,7 @@ function PipelinePage() {
   const [datasetMode, setDatasetMode] = useState<"new" | "append">("new");
   const [newDatasetName, setNewDatasetName] = useState<string>(() => defaultDatasetName());
   const [appendTo, setAppendTo] = useState<string>("");
+  const [datasetExportStatus, setDatasetExportStatus] = useState<string>("");
   // Active snapshot name used by the currently running loop (kept in a ref
   // so rerecord/resume can read it even before state updates propagate).
   const activeSnapshotRef = useRef<string>("");
@@ -234,6 +236,7 @@ function PipelinePage() {
   const startFn = useServerFn(startPipelineRun);
   const updateFn = useServerFn(updatePipelineRun);
   const finishFn = useServerFn(finishPipelineRun);
+  const exportDatasetFn = useServerFn(exportPipelineDatasetFn);
   const resumableFn = useServerFn(getResumableRun);
   const lastFailedFn = useServerFn(getLastFailedRun);
 
@@ -655,6 +658,13 @@ function PipelinePage() {
         },
       },
     });
+    setDatasetExportStatus("Exporting dataset to protected AWS S3…");
+    try {
+      const exported = await exportDatasetFn({ data: { snapshotName: activeSnapshotRef.current } });
+      setDatasetExportStatus(`AWS S3 export complete · ${exported.rowCount.toLocaleString()} rows · ${exported.partCount} parts`);
+    } catch (error) {
+      setDatasetExportStatus(`AWS S3 export failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     setControl("idle");
   }
 
@@ -1186,6 +1196,11 @@ function PipelinePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
+            {datasetExportStatus && (
+              <div className="md:col-span-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                {datasetExportStatus}
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Target</Label>
               <Select value={datasetMode} onValueChange={(v) => setDatasetMode(v as "new" | "append")} disabled={isRunning}>

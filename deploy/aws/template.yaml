@@ -233,7 +233,9 @@ Resources:
               - s3:PutObject
             Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}/private/accounts/*"
           - Effect: Allow
-            Action: s3:GetObject
+            Action:
+              - s3:GetObject
+              - s3:PutObject
             Resource: !Sub "${QuantArtifactsBucket.Arn}/*"
           - Effect: Allow
             Action: s3:ListBucket

@@ -6,6 +6,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
+import { requireAuth } from "./auth-middleware";
+import { exportPipelineDataset } from "./pipeline-datasets.server";
 
 const MatrixSchema = z.object({
   source: z.enum(["yahoo", "shark"]),
@@ -189,6 +191,15 @@ export const getLastFailedRun = createServerFn({ method: "POST" }).handler(async
   }
   return null;
 });
+
+/** Export the selected RDS snapshot to protected S3 from the AWS server. */
+export const exportPipelineDatasetFn = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => z.object({ snapshotName: z.string().min(1).max(120) }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    return exportPipelineDataset(userId, data.snapshotName);
+  });
 
 
 

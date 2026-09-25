@@ -104,3 +104,21 @@ ALTER TABLE public.compute_jobs
   ADD COLUMN IF NOT EXISTS result_size_bytes bigint;
 
 GRANT SELECT, INSERT, UPDATE ON public.compute_jobs TO authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.pipeline_dataset_exports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  snapshot_name text NOT NULL,
+  manifest_s3_key text,
+  row_count bigint NOT NULL DEFAULT 0,
+  part_count integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'queued'
+    CHECK (status IN ('queued','running','complete','failed')),
+  error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, snapshot_name)
+);
+CREATE INDEX IF NOT EXISTS pipeline_dataset_exports_user_idx
+  ON public.pipeline_dataset_exports (user_id, created_at DESC);
+GRANT SELECT, INSERT, UPDATE ON public.pipeline_dataset_exports TO authenticated, service_role;

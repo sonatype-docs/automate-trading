@@ -66,7 +66,7 @@ export function StrategyPage({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={status === "full" ? "default" : "outline"} className="uppercase text-[9px] tracking-widest">
-              {status === "full" ? "Live" : "Coming soon"}
+              {status === "full" ? "Live" : "Research template"}
             </Badge>
             <Link to="/handbook">
               <Button variant="ghost" size="sm">
@@ -134,16 +134,25 @@ export function StrategyPage({
   );
 }
 
-/** Default stub content shown for strategies not yet fully written. */
+/** A usable, conservative research template for strategies without a dedicated page. */
 export function defaultStubSections(title: string): StrategySection[] {
-  const placeholder = (what: string) => (
-    <p className="text-sm text-muted-foreground italic">
-      {what} for <strong>{title}</strong> will be written when this strategy is promoted from stub to full.
-    </p>
-  );
+  const content: Record<string, ReactNode> = {
+    Theory: <p>{title} is treated as a hypothesis about repeatable XAU/USD behaviour. Validate it on historical candles before enabling paper or live execution.</p>,
+    "Market Logic": <p>Define the setup from observable OHLCV data, then record the session, direction, trigger, invalidation level, and target before evaluating the result. Avoid using future candles or revised data.</p>,
+    "Professional Rules": <ul><li>One signal per symbol and direction until the prior position is closed.</li><li>Reject entries when spread, slippage, or available history violates configured limits.</li><li>Keep live trading disabled until out-of-sample results and paper execution agree.</li></ul>,
+    "AI Implementation Prompt": <p>Implement {title} as a deterministic signal function. It must accept timestamped candles and explicit parameters, return a signal plus reason and stop/target levels, and never access credentials, network state, or future bars.</p>,
+    "Backtester Requirements": <ul><li>Use fees, spread, slippage, session boundaries, and a unique trade id.</li><li>Split results into in-sample, out-of-sample, and walk-forward windows.</li><li>Persist the exact parameters and dataset fingerprint with every run.</li></ul>,
+    "Optimizer Variables": <p>Start with only interpretable variables: lookback, entry threshold, stop distance, target multiple, session window, and cooldown. Apply bounded ranges and penalize unstable or over-traded configurations.</p>,
+    Analytics: <p>Track net P&amp;L, expectancy, profit factor, win rate, max drawdown, average R, fees, exposure, and monthly consistency. Compare paper and live fills separately from backtest results.</p>,
+    "Statistical Filters": <p>Require a meaningful trade count, bootstrap confidence intervals, and robustness across nearby parameter values. Reject a configuration when a small number of outliers explains most of its return.</p>,
+    "Professional Enhancements": <p>Add regime, news, liquidity, and correlation filters only after the base rule is stable. Every enhancement must be independently measurable and reversible.</p>,
+    "Common Mistakes": <ul><li>Look-ahead bias from using candle close data before the fill.</li><li>Optimizing on the same period used to declare success.</li><li>Ignoring execution costs, duplicate signals, or missing candles.</li></ul>,
+    "Future Research": <p>Promote this template to a dedicated strategy page after a reproducible backtest, paper-trading evidence, and a documented failure mode review.</p>,
+  };
+
   return HANDBOOK_SECTION_TITLES.map((t, i) => ({
     id: `s${i + 1}-${t.toLowerCase().replace(/\s+/g, "-")}`,
     title: t,
-    body: placeholder(t),
+    body: content[t] ?? <p>Document the measurable rules and validation evidence for <strong>{title}</strong>.</p>,
   }));
 }

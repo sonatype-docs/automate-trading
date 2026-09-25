@@ -20,7 +20,7 @@ SET global_live_enabled = false,
     updated_at = now()
 WHERE id = true;
 
-INSERT INTO public.trading_controls (id, global_live_enabled, reason)
+INSERT INTO public.trading_controls (id, global_live_enabled, mode, kill_switch, reason)
 VALUES (true, false, 'DISABLED', true, 'Disabled by default')
 ON CONFLICT (id) DO NOTHING;
 

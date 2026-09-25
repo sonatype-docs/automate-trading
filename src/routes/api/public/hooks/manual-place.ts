@@ -3,6 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { verifyCognitoRequest } from "@/lib/auth-middleware";
+import { assertLiveTradingEntryEnabled } from "@/lib/trading-control.server";
 
 const OrderSchema = z.object({
   symbol: z.string().trim().min(1).max(32).regex(/^[A-Za-z0-9_-]+$/),
@@ -68,6 +69,9 @@ export const Route = createFileRoute("/api/public/hooks/manual-place")({
         }
 
         try {
+          // Manual orders are blocked while this migration's authoritative
+          // trading mode is DISABLED, including reduce-only requests.
+          await assertLiveTradingEntryEnabled();
           const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
           const result = await createSharkClient().placeOrder({
             symbol: payload.symbol,

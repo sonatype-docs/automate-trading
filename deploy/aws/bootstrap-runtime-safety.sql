@@ -4,12 +4,24 @@
 CREATE TABLE IF NOT EXISTS public.trading_controls (
   id boolean PRIMARY KEY DEFAULT true CHECK (id = true),
   global_live_enabled boolean NOT NULL DEFAULT false,
+  mode text NOT NULL DEFAULT 'DISABLED' CHECK (mode IN ('DISABLED','PAPER','LIVE')),
+  kill_switch boolean NOT NULL DEFAULT true,
   reason text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.trading_controls ADD COLUMN IF NOT EXISTS mode text;
+ALTER TABLE public.trading_controls ADD COLUMN IF NOT EXISTS kill_switch boolean;
+UPDATE public.trading_controls
+SET global_live_enabled = false,
+    mode = 'DISABLED',
+    kill_switch = true,
+    reason = 'Disabled by migration safety control',
+    updated_at = now()
+WHERE id = true;
+
 INSERT INTO public.trading_controls (id, global_live_enabled, reason)
-VALUES (true, false, 'Disabled by default')
+VALUES (true, false, 'DISABLED', true, 'Disabled by default')
 ON CONFLICT (id) DO NOTHING;
 
 GRANT SELECT ON public.trading_controls TO authenticated, service_role;

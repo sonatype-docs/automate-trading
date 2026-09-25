@@ -15,7 +15,7 @@ describe("trading control", () => {
 
   it("returns true only when the control row explicitly enables live trading", async () => {
     getPool.mockResolvedValue({
-      query: vi.fn().mockResolvedValue({ rows: [{ global_live_enabled: true }] }),
+      query: vi.fn().mockResolvedValue({ rows: [{ global_live_enabled: true, mode: "LIVE", kill_switch: false }] }),
     });
     await expect(getGlobalLiveTradingEnabled()).resolves.toBe(true);
     await expect(assertLiveTradingEntryEnabled()).resolves.toBeUndefined();

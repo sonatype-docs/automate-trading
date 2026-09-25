@@ -1,6 +1,7 @@
 // Client-callable server functions for the LIVE trading dashboard.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
@@ -50,7 +51,7 @@ export interface LiveTradeDTO {
   error: string | null;
 }
 
-export const listLiveRunners = createServerFn({ method: "GET" }).handler(async (): Promise<LiveRunnerDTO[]> => {
+export const listLiveRunners = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async (): Promise<LiveRunnerDTO[]> => {
   const s = await admin();
   const { data, error } = await s.from("live_runners").select("*").order("label");
   if (error) throw new Error(error.message);
@@ -58,6 +59,7 @@ export const listLiveRunners = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const listLiveTrades = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ limit: z.number().int().min(1).max(2000).default(500) }).parse(raw))
   .handler(async ({ data }): Promise<LiveTradeDTO[]> => {
     const s = await admin();
@@ -69,6 +71,7 @@ export const listLiveTrades = createServerFn({ method: "GET" })
   });
 
 export const setLiveRunnerRunning = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ id: z.string().uuid(), running: z.boolean() }).parse(raw))
   .handler(async ({ data }) => {
     const s = await admin();
@@ -81,6 +84,7 @@ export const setLiveRunnerRunning = createServerFn({ method: "POST" })
   });
 
 export const updateLiveRunner = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) =>
     z.object({
       id: z.string().uuid(),
@@ -98,7 +102,7 @@ export const updateLiveRunner = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const testLiveConnection = createServerFn({ method: "POST" }).handler(async () => {
+export const testLiveConnection = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
   const client = createSharkClient();
   try {
@@ -109,7 +113,7 @@ export const testLiveConnection = createServerFn({ method: "POST" }).handler(asy
   }
 });
 
-export const runLiveTickNow = createServerFn({ method: "POST" }).handler(async () => {
+export const runLiveTickNow = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { runLiveTradingTick } = await import("@/lib/live-trading/tick.server");
   return await runLiveTradingTick();
 });
@@ -124,6 +128,7 @@ export const runLiveTickNow = createServerFn({ method: "POST" }).handler(async (
  * - Also propagates the paper runner label with a "(live)" suffix on create.
  */
 export const importTopPaperRunnersToLive = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) =>
     z.object({
       topN: z.number().int().min(1).max(50).default(10),
@@ -361,6 +366,7 @@ export const diagnoseLiveRunners = createServerFn({ method: "POST" }).handler(
 );
 
 export const cancelLiveOrder = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ trade_id: z.string().uuid() }).parse(raw))
   .handler(async ({ data }) => {
     const s = await admin();
@@ -783,6 +789,7 @@ export interface ReplaceReportDTO {
 }
 
 export const replaceLiveRunnersWithTopSelection = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ startImmediately: z.boolean().default(false) }).parse(raw))
   .handler(async ({ data }): Promise<ReplaceReportDTO> => {
     const s = await admin();

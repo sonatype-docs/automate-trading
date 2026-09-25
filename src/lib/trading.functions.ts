@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   return supabaseAdmin;
 }
 
-export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
+export const getDashboard = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
 
   const [settingsRes, ordersRes, tradesRes, positionsRes, logsRes, eventsRes] =
@@ -59,6 +60,7 @@ const SettingsSchema = z.object({
 });
 
 export const updateSettings = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => SettingsSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -72,7 +74,7 @@ export const updateSettings = createServerFn({ method: "POST" })
     return row;
   });
 
-export const getWebhookInfo = createServerFn({ method: "GET" }).handler(async () => {
+export const getWebhookInfo = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const hasSecret = !!process.env.TRADINGVIEW_WEBHOOK_SECRET;
   const hasExchangeKey =
     !!process.env.SHARKEXCHANGE_API_KEY && !!process.env.SHARKEXCHANGE_API_SECRET;
@@ -80,6 +82,7 @@ export const getWebhookInfo = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const sendTestSignal = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) =>
     z
       .object({
@@ -112,7 +115,7 @@ export const sendTestSignal = createServerFn({ method: "POST" })
     return result;
   });
 
-export const testExchangeConnection = createServerFn({ method: "POST" }).handler(async () => {
+export const testExchangeConnection = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const hasKey = !!process.env.SHARKEXCHANGE_API_KEY;
   const hasSecret = !!process.env.SHARKEXCHANGE_API_SECRET;
   if (!hasKey || !hasSecret) {
@@ -143,7 +146,7 @@ export const testExchangeConnection = createServerFn({ method: "POST" }).handler
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
-export const getExchangeAccount = createServerFn({ method: "GET" }).handler(async () => {
+export const getExchangeAccount = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const hasKey = !!process.env.SHARKEXCHANGE_API_KEY;
   const hasSecret = !!process.env.SHARKEXCHANGE_API_SECRET;
   if (!hasKey || !hasSecret) {

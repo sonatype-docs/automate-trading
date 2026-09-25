@@ -152,7 +152,27 @@ jobs:
           test -n "$task_arn" && test "$task_arn" != None
           echo "Started migration task: $task_arn"
 
-          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+          # The AWS CLI waiter has a fixed retry window (~10 minutes), but protected
+          # migrations can legitimately take longer. Poll explicitly for up to 45 minutes.
+          max_polls=180
+          poll=0
+          while true; do
+            status="$(aws ecs describe-tasks \
+              --cluster "$cluster" \
+              --tasks "$task_arn" \
+              --query 'tasks[0].lastStatus' \
+              --output text)"
+            echo "Migration task status: $status (poll $((poll + 1))/$max_polls)"
+            if [ "$status" = "STOPPED" ]; then
+              break
+            fi
+            poll=$((poll + 1))
+            if [ "$poll" -ge "$max_polls" ]; then
+              echo "Migration task did not stop within 45 minutes." >&2
+              exit 1
+            fi
+            sleep 15
+          done
 
           aws ecs describe-tasks \
             --cluster "$cluster" \

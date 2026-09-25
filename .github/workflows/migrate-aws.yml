@@ -1,0 +1,119 @@
+name: Run AWS migration (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_ref:
+        description: Git branch or commit SHA containing the migration image source
+        required: false
+        default: main
+      migration_id:
+        description: Immutable migration marker written to PostgreSQL
+        required: true
+        default: lovable-export-2026-09-24
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-southeast-2
+  STACK: shark-auto-trader-runtime
+  REPO: shark-auto-trader-app
+  FILES_BUCKET: shark-auto-trader-files-438456517782-ap-southeast-2
+  BACKUPS_BUCKET: shark-auto-trader-backups-438456517782-ap-southeast-2
+  DATABASE_SECRET: shark-auto-trader/database
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.migration_ref }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify protected storage and database
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          test "$account_id" = "438456517782"
+
+          for bucket in "$FILES_BUCKET" "$BACKUPS_BUCKET"; do
+            aws s3api head-bucket --bucket "$bucket"
+            versioning="$(aws s3api get-bucket-versioning --bucket "$bucket" --query Status --output text)"
+            test "$versioning" = "Enabled"
+          done
+
+          aws secretsmanager describe-secret --secret-id "$DATABASE_SECRET" >/dev/null
+          read -r db_host vpc_id db_sg < <(
+            aws rds describe-db-instances               --db-instance-identifier shark-auto-trader               --query "DBInstances[0].[Endpoint.Address,DBSubnetGroup.VpcId,VpcSecurityGroups[0].VpcSecurityGroupId]"               --output text
+          )
+          test -n "$db_host" && test "$db_host" != None
+          test -n "$vpc_id" && test "$vpc_id" != None
+          test -n "$db_sg" && test "$db_sg" != None
+
+          echo "Protected buckets, database, and secret verified."
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build or reuse migration image
+        shell: bash
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -Eeuo pipefail
+          git_sha="$(git rev-parse HEAD)"
+          short_sha="${git_sha::12}"
+          image="$REGISTRY/$REPO:migration-$short_sha"
+
+          if aws ecr describe-images --repository-name "$REPO"               --image-ids imageTag="migration-$short_sha" >/dev/null 2>&1; then
+            echo "Reusing existing immutable migration image: $image"
+          else
+            docker build -f Dockerfile.migration -t "$image" .
+            docker push "$image"
+          fi
+
+          echo "MIGRATION_IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Run protected migration task
+        shell: bash
+        env:
+          MIGRATION_ID: ${{ inputs.migration_id }}
+        run: |
+          set -Eeuo pipefail
+
+          output_json="$(aws cloudformation describe-stacks             --stack-name "$STACK"             --query 'Stacks[0].Outputs'             --output json)"
+
+          cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
+          migration_td="$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")"
+          subnet_a="$(jq -r '.[] | select(.OutputKey=="PublicSubnetA").OutputValue' <<< "$output_json")"
+          subnet_b="$(jq -r '.[] | select(.OutputKey=="PublicSubnetB").OutputValue' <<< "$output_json")"
+          app_sg="$(jq -r '.[] | select(.OutputKey=="ApplicationSecurityGroup").OutputValue' <<< "$output_json")"
+
+          task_arn="$(aws ecs run-task             --cluster "$cluster"             --launch-type FARGATE             --task-definition "$migration_td"             --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}"             --overrides "$(jq -n               --arg image "$MIGRATION_IMAGE"               --arg migration_id "$MIGRATION_ID"               '{containerOverrides:[{name:"migration",image:$image,environment:[{name:"MIGRATION_ID",value:$migration_id}]}]}')"             --query 'tasks[0].taskArn'             --output text)"
+
+          test -n "$task_arn" && test "$task_arn" != None
+          echo "Started migration task: $task_arn"
+
+          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+
+          aws ecs describe-tasks             --cluster "$cluster"             --tasks "$task_arn"             --query 'tasks[0].{LastStatus:lastStatus,StoppedReason:stoppedReason,Containers:containers}'             --output json
+
+          exit_code="$(aws ecs describe-tasks             --cluster "$cluster"             --tasks "$task_arn"             --query 'tasks[0].containers[?name==`migration`].exitCode | [0]'             --output text)"
+
+          if [ "$exit_code" != "0" ]; then
+            echo "Migration failed with exit code $exit_code." >&2
+            exit 1
+          fi
+
+          echo "Migration completed successfully. No S3 objects were deleted or overwritten."

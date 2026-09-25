@@ -1,8 +1,8 @@
-// Server-only data client. On AWS (DATA_BACKEND=aws) it talks to RDS PostgreSQL
-// through a supabase-js compatible builder; otherwise it uses the Lovable Cloud admin client.
+// Server-only AWS data client. Production always talks to RDS PostgreSQL through
+// a Supabase-compatible query builder; no hosted Supabase/Lovable client is
+// imported or initialized in the application container.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { supabaseAdmin as cloudAdmin } from "@/integrations/supabase/client.server";
 import { createPgClient } from "./pg-query.server";
 
 type Client = SupabaseClient<Database>;
@@ -11,7 +11,7 @@ let pgClient: Client | undefined;
 let poolPromise: Promise<import("pg").Pool> | undefined;
 
 export function isAwsBackend(): boolean {
-  return process.env.DATA_BACKEND === "aws";
+  return true;
 }
 
 function tsText(v: string | null): string | null {
@@ -82,7 +82,6 @@ function awsClient(): Client {
 
 export const supabaseAdmin: Client = new Proxy({} as Client, {
   get(_, prop, receiver) {
-    const target = isAwsBackend() ? awsClient() : cloudAdmin;
-    return Reflect.get(target as object, prop, receiver);
+    return Reflect.get(awsClient() as object, prop, receiver);
   },
 });

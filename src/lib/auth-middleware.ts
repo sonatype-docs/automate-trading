@@ -1,6 +1,5 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Cognito-verified auth on AWS; Supabase auth remains only for local preview.
 // context: { supabase, userId } — on AWS `supabase` is the server data client,
@@ -45,4 +44,4 @@ const awsAuth = createMiddleware({ type: "function" }).server(async ({ next }) =
   return next({ context: { supabase: supabaseAdmin, userId, claims } });
 });
 
-export const requireAuth = import.meta.env.VITE_DATA_BACKEND === "aws" ? awsAuth : requireSupabaseAuth;
+export const requireAuth = awsAuth;

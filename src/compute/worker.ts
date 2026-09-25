@@ -1,5 +1,6 @@
 import { getPool } from "@/lib/db-admin.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
+import { executeSmokeTest } from "./smoke";
 
 type ComputeJob = {
   id: string;
@@ -63,6 +64,9 @@ async function processJob(job: ComputeJob) {
     switch (job.job_type) {
       case "strategy_optimizer":
         result = await runOptimizer(job.payload);
+        break;
+      case "smoke_test":
+        result = executeSmokeTest(job.payload);
         break;
       default:
         throw new Error(`Unsupported compute job type: ${job.job_type}`);

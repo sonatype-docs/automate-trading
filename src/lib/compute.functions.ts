@@ -14,24 +14,12 @@ export const StrategyOptimizerJobSchema = z.object({
   top_n: z.number().int().min(5).max(50).optional(),
 });
 
-async function assertOwner(userId: string) {
-  const pool = await getPool();
-  const { rows } = await pool.query<{ user_id: string }>(
-    "SELECT user_id FROM public.owner WHERE id = true LIMIT 1",
-  );
-  if (rows[0]?.user_id && rows[0].user_id !== userId) {
-    throw new Response("Forbidden", { status: 403 });
-  }
-  if (!rows[0]?.user_id) {
-    await pool.query(
-      "INSERT INTO public.owner (id, user_id) VALUES (true, $1) ON CONFLICT (id) DO UPDATE SET user_id = EXCLUDED.user_id",
-      [userId],
-    );
-  }
-}
+export const ComputeSmokeTestSchema = z.object({
+  operation: z.literal("sum"),
+  values: z.array(z.number().finite()).min(1).max(100),
+});
 
 export async function enqueueStrategyOptimizer(userId: string, payload: z.infer<typeof StrategyOptimizerJobSchema>) {
-  await assertOwner(userId);
   const pool = await getPool();
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
@@ -49,6 +37,25 @@ export const submitStrategyOptimizer = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { userId } = context as { userId: string };
     return enqueueStrategyOptimizer(userId, data);
+  });
+
+export async function enqueueSmokeTest(userId: string, payload: z.infer<typeof ComputeSmokeTestSchema>) {
+  const pool = await getPool();
+  const { rows } = await pool.query<{ id: string }>(
+    `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
+     VALUES ($1, 'smoke_test', 'queued', $2::jsonb)
+     RETURNING id`,
+    [userId, JSON.stringify(payload)],
+  );
+  return { job_id: rows[0].id, status: "queued" as const };
+}
+
+export const submitComputeSmokeTest = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => ComputeSmokeTestSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    return enqueueSmokeTest(userId, data);
   });
 
 export const getComputeJob = createServerFn({ method: "GET" })

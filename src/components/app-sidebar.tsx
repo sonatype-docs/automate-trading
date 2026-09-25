@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import {
   LayoutDashboard,
   BookOpen,
@@ -23,6 +24,7 @@ import {
   PlayCircle,
   Activity,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -74,139 +76,121 @@ const meta = [
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];
 
-
 export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (u: string) => (u === "/" ? pathname === "/" : pathname.startsWith(u));
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60">
-      <SidebarHeader className="border-b border-sidebar-border/60">
-        <div className="flex items-center gap-2.5 px-2 py-2.5">
-          <div className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-sunset-vivid text-white glow-sunset">
-            <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-transparent to-white/20" aria-hidden />
-            <Waves className="relative h-4 w-4" aria-hidden />
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+      <SidebarHeader className="border-b border-sidebar-border px-2 py-3">
+        <div className="flex items-center gap-2.5 px-1">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary text-primary-foreground shadow-sm">
+            <Waves className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <div className="truncate font-display text-sm font-semibold tracking-tight text-gradient-sunset">Shark Auto-Trader</div>
-            <div className="truncate text-[11px] text-muted-foreground/80">Live control panel</div>
+            <div className="truncate font-display text-sm font-semibold tracking-tight text-sidebar-foreground">
+              Shark Auto-Trader
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              Trading workspace
+            </div>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {primary.map((i) => (
-                <SidebarMenuItem key={i.url}>
-                  <SidebarMenuButton asChild isActive={isActive(i.url)} tooltip={i.title}>
-                    <Link to={i.url}>
-                      <i.icon className="h-4 w-4" />
-                      <span>{i.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Trading</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {trading.map((i) => (
-                <SidebarMenuItem key={i.url}>
-                  <SidebarMenuButton asChild isActive={isActive(i.url)} tooltip={i.title}>
-                    <Link to={i.url}>
-                      <i.icon className="h-4 w-4" />
-                      <span>{i.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Backtest</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {backtest.map((i) => (
-                <SidebarMenuItem key={i.url}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={i.url === "/backtest" ? pathname === "/backtest" : isActive(i.url)}
-                    tooltip={i.title}
-                  >
-                    <Link to={i.url}>
-                      <i.icon className="h-4 w-4" />
-                      <span>{i.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
+      <SidebarContent className="gap-1 px-2 py-2">
+        <NavigationGroup label="Overview" items={primary} isActive={isActive} />
+        <NavigationGroup label="Trading" items={trading} isActive={isActive} />
+        <NavigationGroup
+          label="Backtest"
+          items={backtest}
+          isActive={(url) => (url === "/backtest" ? pathname === "/backtest" : isActive(url))}
+        />
+        <SidebarGroup className="border-t border-sidebar-border pt-3">
           <SidebarGroupLabel>Handbook</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === "/handbook" || pathname.startsWith("/handbook")}
-                  tooltip="XAU/USD Handbook"
+              <NavItem
+                title="XAU/USD Handbook"
+                active={pathname === "/handbook" || pathname.startsWith("/handbook")}
+              >
+                <Link to="/handbook">
+                  <BookMarked className="h-4 w-4" />
+                  <span>XAU/USD Handbook</span>
+                </Link>
+              </NavItem>
+              <NavItem title="London ORB" active={pathname.startsWith("/handbook/v1/london-orb")}>
+                <Link
+                  to="/handbook/$volume/$strategy"
+                  params={{ volume: "v1", strategy: "london-orb" }}
                 >
-                  <Link to="/handbook">
-                    <BookMarked className="h-4 w-4" />
-                    <span>XAU/USD Handbook</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith("/handbook/v1/london-orb")}
-                  tooltip="London ORB"
-                >
-                  <Link to="/handbook/$volume/$strategy" params={{ volume: "v1", strategy: "london-orb" }}>
-                    <Target className="h-4 w-4" />
-                    <span>London ORB</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                  <Target className="h-4 w-4" />
+                  <span>London ORB</span>
+                </Link>
+              </NavItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-
-        <SidebarGroup>
-          <SidebarGroupLabel>System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {meta.map((i) => (
-                <SidebarMenuItem key={i.url}>
-                  <SidebarMenuButton asChild isActive={isActive(i.url)} tooltip={i.title}>
-                    <Link to={i.url}>
-                      <i.icon className="h-4 w-4" />
-                      <span>{i.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavigationGroup label="System" items={meta} isActive={isActive} separated />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/60">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <CollapseToggle />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+type NavEntry = { title: string; url: string; icon: LucideIcon };
+
+function NavigationGroup({
+  label,
+  items,
+  isActive,
+  separated = false,
+}: {
+  label: string;
+  items: NavEntry[];
+  isActive: (url: string) => boolean;
+  separated?: boolean;
+}) {
+  return (
+    <SidebarGroup className={separated ? "border-t border-sidebar-border pt-3" : ""}>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <NavItem key={item.url} title={item.title} active={isActive(item.url)}>
+              <Link to={item.url as never}>
+                <item.icon className="h-4 w-4" />
+                <span>{item.title}</span>
+              </Link>
+            </NavItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
+function NavItem({
+  title,
+  active,
+  children,
+}: {
+  title: string;
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        tooltip={title}
+        className="h-8 rounded-md text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-sm"
+      >
+        {children}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -221,9 +205,11 @@ function CollapseToggle() {
       title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
     >
-      {collapsed
-        ? <ChevronsRight className="h-4 w-4 shrink-0" />
-        : <ChevronsLeft className="h-4 w-4 shrink-0" />}
+      {collapsed ? (
+        <ChevronsRight className="h-4 w-4 shrink-0" />
+      ) : (
+        <ChevronsLeft className="h-4 w-4 shrink-0" />
+      )}
       <span className="group-data-[collapsible=icon]:hidden">
         {collapsed ? "Expand" : "Collapse"}
       </span>

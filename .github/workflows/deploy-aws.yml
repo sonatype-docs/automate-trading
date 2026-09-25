@@ -90,6 +90,14 @@ jobs:
               --image-scanning-configuration scanOnPush=true >/dev/null
           fi
 
+      - name: Enforce bounded ECR retention
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
+          aws ecr put-lifecycle-policy             --repository-name "$REPO"             --lifecycle-policy-text "$lifecycle_policy" >/dev/null
+          echo "ECR lifecycle policy applied."
+
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -158,28 +166,28 @@ jobs:
           aws cloudformation validate-template \
             --template-body file://deploy/aws/template.yaml >/dev/null
 
-      - name: Build and push immutable application and migration images
+      - name: Build and push immutable application image
         shell: bash
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           set -Eeuo pipefail
           image="$REGISTRY/$REPO:${GITHUB_SHA::12}"
-          migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
-          if ! aws ecr describe-images --repository-name "$REPO" \
-              --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
-            docker build -f Dockerfile.aws \
-              --build-arg VITE_DATA_BACKEND=aws \
-              --build-arg VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID" \
-              --build-arg VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" \
-              -t "$image" .
+          if ! aws ecr describe-images --repository-name "$REPO"               --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f Dockerfile.aws               --build-arg VITE_DATA_BACKEND=aws               --build-arg VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID"               --build-arg VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID"               -t "$image" .
             docker push "$image"
           fi
-          if ! aws ecr describe-images --repository-name "$REPO" \
-              --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
-            docker build -f Dockerfile.migration -t "$migration_image" .
-            docker push "$migration_image"
+
+          migration_image="$(aws cloudformation describe-stacks --stack-name "$STACK"             --query 'Stacks[0].Parameters[?ParameterKey==`MigrationImageUri`].ParameterValue | [0]'             --output text 2>/dev/null || true)"
+          if [ -z "$migration_image" ] || [ "$migration_image" = "None" ]; then
+            migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
+            if ! aws ecr describe-images --repository-name "$REPO"                 --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
+              echo "No existing migration image found; building bootstrap migration image."
+              docker build -f Dockerfile.migration -t "$migration_image" .
+              docker push "$migration_image"
+            fi
           fi
+
           {
             echo "IMAGE=$image"
             echo "MIGRATION_IMAGE=$migration_image"
@@ -215,36 +223,14 @@ jobs:
               TaskRoleArn="$TASK_ROLE_ARN" \
              CognitoUserPoolId="$USER_POOL_ID" \
               CognitoUserPoolClientId="$COGNITO_CLIENT_ID" \
-              DesiredTaskCount="$DESIRED_TASKS"
+              DesiredTaskCount="$DESIRED_TASKS" \
+              EnableContainerInsights="false" \
+              SchedulePaper="false" \
+              ScheduleStrategy="false" \
+              ScheduleLive="false" \
+              ScheduleWatchdog="false"
 
-      - name: Run protected S3 to PostgreSQL migration task
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          output_json="$(aws cloudformation describe-stacks --stack-name "$STACK" \
-            --query 'Stacks[0].Outputs' --output json)"
-          cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
-          migration_td="$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")"
-          subnet_a="$(jq -r '.[] | select(.OutputKey=="PublicSubnetA").OutputValue' <<< "$output_json")"
-          subnet_b="$(jq -r '.[] | select(.OutputKey=="PublicSubnetB").OutputValue' <<< "$output_json")"
-          app_sg="$(jq -r '.[] | select(.OutputKey=="ApplicationSecurityGroup").OutputValue' <<< "$output_json")"
-          task_arn="$(aws ecs run-task \
-            --cluster "$cluster" \
-            --launch-type FARGATE \
-            --task-definition "$migration_td" \
-            --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' --output text)"
-          test -n "$task_arn" && test "$task_arn" != None
-          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
-          exit_code="$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
-            --query 'tasks[0].containers[?name==`migration`].exitCode | [0]' --output text)"
-          if [ "$exit_code" != 0 ]; then
-            aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
-              --query 'tasks[0].{LastStatus:lastStatus,StoppedReason:stoppedReason,Containers:containers}' --output json
-            exit 1
-          fi
-
-      - name: Wait for ECS and verify public health
+      - name: Wait for ECS and verify application readiness
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -254,12 +240,13 @@ jobs:
           cloudfront_url="$(jq -r '.[] | select(.OutputKey=="CloudFrontUrl").OutputValue' <<< "$output_json")"
           aws ecs wait services-stable --cluster "$cluster" --services shark-auto-trader-app
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error "$cloudfront_url/api/public/health"; then
+            if curl --fail --silent --show-error "$cloudfront_url/api/public/ready"; then
               exit 0
             fi
+            echo "Readiness attempt $attempt failed; retrying..." >&2
             sleep 10
           done
-          echo "CloudFront health endpoint did not become ready." >&2
+          echo "CloudFront application readiness did not become ready." >&2
           exit 1
 
       - name: Print deployment outputs

@@ -14,6 +14,18 @@ ON CONFLICT (id) DO NOTHING;
 
 GRANT SELECT ON public.trading_controls TO authenticated, service_role;
 
+-- Deterministic Cognito ownership linkage. The Cognito sub is retained as the
+-- stable external identity while the internal UUID is used by application rows.
+CREATE TABLE IF NOT EXISTS public.users (
+  id uuid PRIMARY KEY,
+  cognito_sub text NOT NULL UNIQUE,
+  email text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub);
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated, service_role;
+
 
 -- Async isolated compute queue state.
 -- Jobs are user-scoped and contain only research inputs/results, never trade secrets.

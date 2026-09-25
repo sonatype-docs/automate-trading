@@ -24,7 +24,9 @@ const awsAuth = createMiddleware({ type: "function" }).server(async ({ next }) =
   const { getPool, supabaseAdmin } = await import("./db-admin.server");
   const pool = await getPool();
   await pool.query(
-    "insert into auth.users (id, email) values ($1, $2) on conflict (id) do update set email = excluded.email",
+    `insert into public.users (id, cognito_sub, email)
+     values ($1, $1, $2)
+     on conflict (cognito_sub) do update set email = excluded.email`,
     [payload.sub, typeof payload.email === "string" ? payload.email : null],
   );
   return next({ context: { supabase: supabaseAdmin, userId: payload.sub, claims: payload } });

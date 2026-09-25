@@ -11,6 +11,8 @@ on:
       - "vite.config.*"
       - "tsconfig.json"
       - "Dockerfile.aws"
+      - "Dockerfile.migration"
+      - "deploy/aws/**"
       - "deploy/aws/template.yaml"
       - ".github/workflows/deploy-aws.yml"
   workflow_dispatch:
@@ -199,18 +201,12 @@ jobs:
             docker push "$image"
           fi
 
-          migration_image="$(aws cloudformation describe-stacks \
-            --stack-name "$STACK" \
-            --query 'Stacks[0].Parameters[?ParameterKey==`MigrationImageUri`].ParameterValue | [0]' \
-            --output text 2>/dev/null || true)"
-          if [ -z "$migration_image" ] || [ "$migration_image" = "None" ]; then
-            migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
-            if ! aws ecr describe-images --repository-name "$REPO" \
-                --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
-              echo "No existing migration image found; building bootstrap migration image."
-              docker build -f Dockerfile.migration -t "$migration_image" .
-              docker push "$migration_image"
-            fi
+          migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
+          if ! aws ecr describe-images --repository-name "$REPO" \
+              --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            echo "Building migration image for this commit so bootstrap changes are deployed."
+            docker build -f Dockerfile.migration -t "$migration_image" .
+            docker push "$migration_image"
           fi
 
           {

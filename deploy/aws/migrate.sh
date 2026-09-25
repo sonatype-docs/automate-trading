@@ -10,13 +10,8 @@ target_db="${PGDATABASE:-sharktrader}"
 migration_id="${MIGRATION_ID:-lovable-export-2026-09-24}"
 export PGSSLMODE="${PGSSLMODE:-require}"
 
-echo "Checking migration marker for ${migration_id}"
 if psql -v ON_ERROR_STOP=1 -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '${target_db}'" | grep -qx 1; then
-  if psql -v ON_ERROR_STOP=1 -d "${target_db}" -Atqc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'aws_migration_control'" | grep -qx 1 &&
-     psql -v ON_ERROR_STOP=1 -d "${target_db}" -Atqc "SELECT 1 FROM public.aws_migration_control WHERE migration_id = '${migration_id}'" | grep -qx 1; then
-    echo "Migration ${migration_id} is already complete; leaving S3 and database data unchanged."
-    exit 0
-  fi
+  echo "Target database ${target_db} exists"
 else
   echo "CREATE DATABASE ${target_db}"
   psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE \"${target_db}\""
@@ -26,6 +21,13 @@ export PGDATABASE="${target_db}"
 
 echo "Applying idempotent runtime safety bootstrap"
 psql -v ON_ERROR_STOP=1 -f /bootstrap-runtime-safety.sql
+
+echo "Checking migration marker for ${migration_id}"
+if psql -v ON_ERROR_STOP=1 -d "${target_db}" -Atqc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'aws_migration_control'" | grep -qx 1 &&
+   psql -v ON_ERROR_STOP=1 -d "${target_db}" -Atqc "SELECT 1 FROM public.aws_migration_control WHERE migration_id = '${migration_id}'" | grep -qx 1; then
+  echo "Migration ${migration_id} is already complete; leaving S3 and database data unchanged."
+  exit 0
+fi
 
 work=/work
 rm -rf "${work}"

@@ -223,6 +223,8 @@ jobs:
         env:
           DESIRED_TASKS: ${{ inputs.desired_tasks || '1' }}
         run: |
+          trap 'echo "CloudFormation deployment failed; recent stack events:"; aws cloudformation describe-stack-events --stack-name "$STACK" --max-items 30 --query 'StackEvents[].{Time:Timestamp,Logical:LogicalResourceId,Status:ResourceStatus,Reason:ResourceStatusReason}' --output table || true' ERR
+
           set -Eeuo pipefail
           aws cloudformation deploy \
             --stack-name "$STACK" \
@@ -246,7 +248,6 @@ jobs:
               DatabaseSecurityGroupId="$DATABASE_SECURITY_GROUP_ID" \
               TaskExecutionRoleArn="$TASK_EXECUTION_ROLE_ARN" \
               TaskRoleArn="$TASK_ROLE_ARN" \
-              TaskRoleName="$TASK_ROLE_NAME" \
               ComputeWorkerCount="1" \
              CognitoUserPoolId="$USER_POOL_ID" \
               CognitoUserPoolClientId="$COGNITO_CLIENT_ID" \

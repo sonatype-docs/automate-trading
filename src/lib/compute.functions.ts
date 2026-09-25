@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware";
 import { getPool } from "./db-admin.server";
-import { sendSqsMessage } from "./sqs.server";
 
 export const StrategyOptimizerJobSchema = z.object({
   strategy: z.enum(["silver_bullet", "asian_sweep", "orb_sessions"]),
@@ -41,17 +40,6 @@ export async function enqueueStrategyOptimizer(userId: string, payload: z.infer<
     [userId, JSON.stringify(payload)],
   );
   const jobId = rows[0].id;
-  try {
-    const queueUrl = process.env.COMPUTE_QUEUE_URL;
-    if (!queueUrl) throw new Error("Compute queue is not configured");
-    await sendSqsMessage(queueUrl, { jobId, jobType: "strategy_optimizer" });
-  } catch (error) {
-    await pool.query(
-      "UPDATE public.compute_jobs SET status='failed', error=$2, completed_at=now() WHERE id=$1",
-      [jobId, error instanceof Error ? error.message : String(error)],
-    );
-    throw error;
-  }
   return { job_id: jobId, status: "queued" as const };
 }
 

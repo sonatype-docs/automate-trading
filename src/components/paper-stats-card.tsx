@@ -68,16 +68,22 @@ export function PaperStatsCard({ trades, positions, riskPerTradeUsd = 20 }: Prop
   ];
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Paper trading · stats</CardTitle>
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/60 bg-muted/15 pb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Paper trading · stats</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">Today, month-to-date, and open-position health.</p>
+          </div>
+          <div className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Manual sync</div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="rounded-md border bg-muted/20 px-2.5 py-2 flex flex-col gap-0.5"
+              className="rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 flex flex-col gap-0.5 shadow-sm"
               title={s.hint}
             >
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</div>

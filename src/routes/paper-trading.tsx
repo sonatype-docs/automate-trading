@@ -104,6 +104,13 @@ function PaperTradingPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Simulation workspace</div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Paper Trading</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Practice execution, runner health, and performance without touching live orders.</p>
+        </div>
+      </div>
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>

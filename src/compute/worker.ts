@@ -9,6 +9,7 @@ type ComputeJob = {
 };
 
 let lastSchemaWarningAt = 0;
+let stopping = false;
 
 async function claimNextJob() {
   const pool = await getPool();
@@ -18,6 +19,7 @@ async function claimNextJob() {
     await pool.query(
       `UPDATE public.compute_jobs
        SET status='queued', error=NULL
+           ,started_at=NULL
        WHERE status='running'
          AND started_at < now() - interval '2 hours'
          AND attempts < 3`,
@@ -83,7 +85,10 @@ async function processJob(job: ComputeJob) {
     const message = error instanceof Error ? error.message : String(error);
     await pool.query(
       `UPDATE public.compute_jobs
-       SET status='failed', error=$2, completed_at=now()
+       SET status=CASE WHEN attempts < 3 THEN 'queued' ELSE 'failed' END,
+           error=$2,
+           started_at=CASE WHEN attempts < 3 THEN NULL ELSE started_at END,
+           completed_at=CASE WHEN attempts < 3 THEN NULL ELSE now() END
        WHERE id=$1`,
       [job.id, message.slice(0, 4000)],
     );
@@ -95,7 +100,16 @@ async function main() {
   console.log("[compute-worker] starting DB-polled research worker");
   const pollMs = 2000;
 
-  while (true) {
+  process.once("SIGTERM", () => {
+    stopping = true;
+    console.log("[compute-worker] shutdown requested; finishing current job");
+  });
+  process.once("SIGINT", () => {
+    stopping = true;
+    console.log("[compute-worker] interrupt requested; finishing current job");
+  });
+
+  while (!stopping) {
     const job = await claimNextJob();
     if (job) {
       await processJob(job);
@@ -103,6 +117,7 @@ async function main() {
     }
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
+  console.log("[compute-worker] stopped");
 }
 
 await main();

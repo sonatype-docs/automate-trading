@@ -1,6 +1,9 @@
 name: Run AWS migration (manual)
 
 on:
+  push:
+    paths:
+      - "deploy/aws/.migration-trigger"
   workflow_dispatch:
     inputs:
       migration_ref:
@@ -88,6 +91,14 @@ jobs:
           fi
 
           echo "MIGRATION_IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Point migration task definition at the immutable image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          aws cloudformation update-stack             --stack-name "$STACK"             --use-previous-template             --capabilities CAPABILITY_NAMED_IAM             --parameters "ParameterKey=MigrationImageUri,ParameterValue=$MIGRATION_IMAGE"
+          aws cloudformation wait stack-update-complete --stack-name "$STACK"
+          echo "Migration task definition now references $MIGRATION_IMAGE."
 
       - name: Run protected migration task
         shell: bash

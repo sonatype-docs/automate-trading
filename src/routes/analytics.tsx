@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { getPnlCalendar } from "@/lib/analytics.functions";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
+import { PageFrame, PageHero } from "@/components/page-frame";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
@@ -77,14 +78,9 @@ export function AnalyticsPage() {
   const today = todayIstKey();
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 md:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Performance workspace</div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Analytics</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Daily realized PnL with strategy and mode filters.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <PageFrame>
+      <PageHero eyebrow="Performance workspace" title="Analytics" description="Daily realized PnL, open exposure, and strategy performance in one workspace." actions={
+        <>
           <Select value={symbol} onValueChange={setSymbol}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Strategy" /></SelectTrigger>
             <SelectContent>
@@ -99,8 +95,8 @@ export function AnalyticsPage() {
             <ToggleGroupItem value="live">Live</ToggleGroupItem>
             <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
           </ToggleGroup>
-        </div>
-      </div>
+        </>
+      } />
 
       {/* KPI row */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
@@ -199,7 +195,7 @@ export function AnalyticsPage() {
       </Card>
 
       <StrategyPerformanceCard />
-    </div>
+    </PageFrame>
   );
 }
 

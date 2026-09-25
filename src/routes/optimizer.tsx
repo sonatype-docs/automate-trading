@@ -38,6 +38,7 @@ import { topToCsv, toJson, toMarkdown } from "@/lib/optimizer/report";
 import { candidateToRule, ruleToPredicate } from "@/lib/optimizer/filters";
 import { TimeEdgePanel } from "@/components/time-edge/time-edge-panel";
 import { getComputeArtifactUrl, getComputeJob, submitOptimizerSearchJob } from "@/lib/compute.functions";
+import { PageFrame, PageHero } from "@/components/page-frame";
 
 export const Route = createFileRoute("/optimizer")({
   head: () => ({
@@ -101,22 +102,16 @@ function OptimizerPage() {
   const baseMetrics = useMemo(() => computeMetrics(rows), [rows]);
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-7 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display text-xl sm:text-2xl font-semibold tracking-tight">Universal Research Optimizer</h1>
-          <p className="text-sm text-muted-foreground">
-            Discover when / where / why the strategy performs best. Operates on the Trade Intelligence Database.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <PageFrame>
+      <PageHero eyebrow="Quant research workspace" title="Universal Research Optimizer" description="Discover when, where, and why the strategy performs best using the Trade Intelligence Database." actions={
+        <>
           <Label className="text-xs text-muted-foreground">Strategy</Label>
           <Input placeholder="all" className="h-8 w-32 sm:w-40" value={strategyId} onChange={(e) => setStrategyId(e.target.value)} />
           <Label className="text-xs text-muted-foreground">Limit</Label>
           <Input type="number" className="h-8 w-20 sm:w-24" value={limit} onChange={(e) => setLimit(Number(e.target.value) || 500)} />
           <Button size="sm" onClick={() => refetch()}>Reload</Button>
-        </div>
-      </header>
+        </>
+      } />
 
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
@@ -161,7 +156,7 @@ function OptimizerPage() {
           <TabsContent value="recs"><RecsPanel rows={rows} /></TabsContent>
         </Tabs>
       )}
-    </div>
+    </PageFrame>
   );
 }
 

@@ -58,7 +58,7 @@ function VolumeIndex() {
                     variant={s.status === "full" ? "default" : "outline"}
                     className="text-[9px] uppercase tracking-widest"
                   >
-                    {s.status === "full" ? "Live" : "Coming soon"}
+                    {s.status === "full" ? "Live" : "Research template"}
                   </Badge>
                 </div>
               </CardHeader>

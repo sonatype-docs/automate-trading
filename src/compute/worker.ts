@@ -1,6 +1,7 @@
 import { getPool } from "@/lib/db-admin.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
+import { MAX_ATTEMPTS } from "./worker-policy";
 
 type ComputeJob = {
   id: string;
@@ -22,7 +23,7 @@ async function claimNextJob() {
            ,started_at=NULL
        WHERE status='running'
          AND started_at < now() - interval '2 hours'
-         AND attempts < 3`,
+         AND attempts < ${MAX_ATTEMPTS}`,
     );
 
     const { rows } = await pool.query<ComputeJob>(
@@ -85,10 +86,10 @@ async function processJob(job: ComputeJob) {
     const message = error instanceof Error ? error.message : String(error);
     await pool.query(
       `UPDATE public.compute_jobs
-       SET status=CASE WHEN attempts < 3 THEN 'queued' ELSE 'failed' END,
+       SET status=CASE WHEN attempts < ${MAX_ATTEMPTS} THEN 'queued' ELSE 'failed' END,
            error=$2,
-           started_at=CASE WHEN attempts < 3 THEN NULL ELSE started_at END,
-           completed_at=CASE WHEN attempts < 3 THEN NULL ELSE now() END
+           started_at=CASE WHEN attempts < ${MAX_ATTEMPTS} THEN NULL ELSE started_at END,
+           completed_at=CASE WHEN attempts < ${MAX_ATTEMPTS} THEN NULL ELSE now() END
        WHERE id=$1`,
       [job.id, message.slice(0, 4000)],
     );

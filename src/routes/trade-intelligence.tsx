@@ -346,11 +346,11 @@ function TradeIntelligencePage() {
           </CardContent></Card>
         <Card><CardHeader><CardTitle className="text-xs uppercase text-muted-foreground">Net PnL</CardTitle></CardHeader>
           <CardContent className={`text-2xl font-semibold ${(stats.data?.netPnl ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-            {stats.data ? stats.data.netPnl.toFixed(2) : "—"}
+            {stats.data ? Number(stats.data.netPnl ?? 0).toFixed(2) : "—"}
           </CardContent></Card>
         <Card><CardHeader><CardTitle className="text-xs uppercase text-muted-foreground">Strategies / Symbols</CardTitle></CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {stats.data ? `${stats.data.strategies.length} / ${stats.data.symbols.length}` : "—"}
+            {stats.data ? `${Array.isArray(stats.data.strategies) ? stats.data.strategies.length : 0} / ${Array.isArray(stats.data.symbols) ? stats.data.symbols.length : 0}` : "—"}
           </CardContent></Card>
       </div>
 
@@ -558,7 +558,7 @@ function TradeIntelligencePage() {
           </div>
           <Separator />
           <div className="text-xs text-muted-foreground">
-            Showing {trades.data?.rows.length ?? 0} of {trades.data?.total ?? 0}
+            Showing {Array.isArray(trades.data?.rows) ? trades.data.rows.length : 0} of {trades.data?.total ?? 0}
           </div>
           <div className="rounded-md border overflow-x-auto">
             <Table>
@@ -586,12 +586,12 @@ function TradeIntelligencePage() {
                     <TableCell className="text-xs">{t.symbol}</TableCell>
                     <TableCell><Badge variant={t.direction === "long" ? "default" : "secondary"}>{t.direction}</Badge></TableCell>
                     <TableCell className="text-xs">{t.session}</TableCell>
-                    <TableCell className="text-right text-xs">{t.fillPrice?.toFixed(2)}</TableCell>
-                    <TableCell className="text-right text-xs">{t.exitPrice.toFixed(2)}</TableCell>
-                    <TableCell className={`text-right text-xs ${t.netPnl >= 0 ? "text-green-600" : "text-red-600"}`}>{t.netPnl.toFixed(2)}</TableCell>
-                    <TableCell className="text-right text-xs">{t.actualRr?.toFixed(2) ?? "—"}</TableCell>
+                    <TableCell className="text-right text-xs">{t.fillPrice == null ? "—" : Number(t.fillPrice).toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{t.exitPrice == null ? "—" : Number(t.exitPrice).toFixed(2)}</TableCell>
+                    <TableCell className={`text-right text-xs ${(Number(t.netPnl ?? 0)) >= 0 ? "text-green-600" : "text-red-600"}`}>{Number(t.netPnl ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{t.actualRr == null ? "—" : Number(t.actualRr).toFixed(2)}</TableCell>
                     <TableCell className="text-xs">{t.exitReason}</TableCell>
-                    <TableCell className="text-xs">{t.tags.join(", ")}</TableCell>
+                    <TableCell className="text-xs">{Array.isArray(t.tags) ? t.tags.join(", ") : ""}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={async () => { await del({ data: { tradeId: t.tradeId } }); qc.invalidateQueries({ queryKey: ["trade-intel"] }); }}>
                         <Trash2 className="h-4 w-4" />

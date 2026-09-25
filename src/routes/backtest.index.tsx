@@ -241,7 +241,7 @@ function BacktestLab() {
           metrics: metricsFromSummary(r.summary),
         });
       }).catch(() => { /* snapshot save is best-effort */ });
-      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${r.summary.fill_rate_pct.toFixed(0)}%`);
+      toast.success(`Backtest done — ${r.summary.tp}W / ${r.summary.sl}L · fill ${Number(r.summary.fill_rate_pct ?? 0).toFixed(0)}%`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -311,7 +311,15 @@ function BacktestLab() {
 
       <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
 
-        {!form ? (
+        {settingsQ.isError ? (
+          <Card className="border-destructive/40">
+            <CardHeader><CardTitle className="text-sm text-destructive">Fib Zone Lab could not load strategy data</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">{settingsQ.error instanceof Error ? settingsQ.error.message : String(settingsQ.error)}</p>
+              <Button variant="outline" size="sm" onClick={() => settingsQ.refetch()}>Retry</Button>
+            </CardContent>
+          </Card>
+        ) : !form ? (
           <p className="font-mono text-xs text-muted-foreground">Loading strategy defaults…</p>
         ) : (
           <>

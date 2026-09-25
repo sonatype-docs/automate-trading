@@ -958,7 +958,7 @@ function PipelinePage() {
 
       if (failedSpecs.length === 0) {
         const fetched = await lastFailedFn();
-        if (!fetched || fetched.failedCombos.length === 0) {
+        if (!fetched || !Array.isArray(fetched.failedCombos) || fetched.failedCombos.length === 0) {
           throw new Error("No failed combos found in the last 10 pipeline runs.");
         }
         failedSpecs = fetched.failedCombos.map((c) => ({
@@ -1433,9 +1433,9 @@ function PipelinePage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />Stopping…
                 </Button>
               )}
-              {!isRunning && (progress.failed > 0 || (lastFailed.data?.failedCombos.length ?? 0) > 0) && (() => {
+              {!isRunning && (progress.failed > 0 || (lastFailed.data?.failedCombos?.length ?? 0) > 0) && (() => {
                 const localCount = progress.failed;
-                const dbCount = lastFailed.data?.failedCombos.length ?? 0;
+                const dbCount = lastFailed.data?.failedCombos?.length ?? 0;
                 const count = localCount > 0 ? localCount : dbCount;
                 const snapLabel = activeSnapshotRef.current
                   || lastFailed.data?.snapshotName

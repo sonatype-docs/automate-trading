@@ -81,11 +81,10 @@ export function AppSidebar() {
   const isActive = (u: string) => (u === "/" ? pathname === "/" : pathname.startsWith(u));
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-sidebar/95 shadow-[18px_0_50px_-35px_color-mix(in_oklch,var(--color-primary)_55%,transparent)]">
-      <SidebarHeader className="border-b border-sidebar-border/80 px-3 py-4">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+      <SidebarHeader className="border-b border-sidebar-border px-2 py-3">
         <div className="flex items-center gap-2.5 px-1">
-          <div className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-primary/35 bg-gradient-to-br from-primary via-brand-violet to-brand-charcoal text-primary-foreground shadow-lg shadow-primary/20">
-            <span className="absolute inset-0 bg-white/10" />
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary text-primary-foreground shadow-sm">
             <Waves className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
@@ -93,12 +92,12 @@ export function AppSidebar() {
               Shark Auto-Trader
             </div>
             <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-              PERSONAL TRADING OS
+              Trading workspace
             </div>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent className="gap-1 px-2.5 py-3">
+      <SidebarContent className="gap-1 px-2 py-2">
         <NavigationGroup label="Overview" items={primary} isActive={isActive} />
         <NavigationGroup label="Trading" items={trading} isActive={isActive} />
         <NavigationGroup
@@ -133,7 +132,7 @@ export function AppSidebar() {
         </SidebarGroup>
         <NavigationGroup label="System" items={meta} isActive={isActive} separated />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/80 bg-sidebar/70 p-2.5">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <CollapseToggle />
       </SidebarFooter>
     </Sidebar>
@@ -187,7 +186,7 @@ function NavItem({
         asChild
         isActive={active}
         tooltip={title}
-      className="h-9 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground data-[active=true]:bg-gradient-to-r data-[active=true]:from-sidebar-accent data-[active=true]:to-sidebar-accent/35 data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-sm data-[active=true]:ring-1 data-[active=true]:ring-primary/15"
+        className="h-8 rounded-md text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-sm"
       >
         {children}
       </SidebarMenuButton>

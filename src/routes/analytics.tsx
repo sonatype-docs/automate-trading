@@ -16,7 +16,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { getPnlCalendar } from "@/lib/analytics.functions";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
-import { PageFrame, PageHero } from "@/components/page-frame";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({
@@ -70,7 +69,7 @@ export function AnalyticsPage() {
 
   const byDate = useMemo(() => {
     const m = new Map<string, Cell>();
-    (Array.isArray(data?.days) ? data.days : []).forEach((d) => m.set(d.date, d));
+    (data?.days ?? []).forEach((d) => m.set(d.date, d));
     return m;
   }, [data]);
 
@@ -78,9 +77,13 @@ export function AnalyticsPage() {
   const today = todayIstKey();
 
   return (
-    <PageFrame>
-      <PageHero eyebrow="Performance workspace" title="Analytics" description="Daily realized PnL, open exposure, and strategy performance in one workspace." actions={
-        <>
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-sm text-muted-foreground">Daily realized PnL with strategy & mode filters.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={symbol} onValueChange={setSymbol}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Strategy" /></SelectTrigger>
             <SelectContent>
@@ -95,15 +98,15 @@ export function AnalyticsPage() {
             <ToggleGroupItem value="live">Live</ToggleGroupItem>
             <ToggleGroupItem value="paper">Paper</ToggleGroupItem>
           </ToggleGroup>
-        </>
-      } />
+        </div>
+      </div>
 
       {/* KPI row */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Kpi label="Realized (Month)" value={fmtUsd(data?.summary?.monthTotal ?? 0)} tone={toneOf(data?.summary?.monthTotal ?? 0)} icon={TrendingUp} />
-        <Kpi label="Unrealized (Now)" value={fmtUsd(data?.unrealized ?? 0)} tone={toneOf(data?.unrealized ?? 0)} icon={Activity} sub={`${data?.openPositions?.length ?? 0} open`} />
-        <Kpi label="Trades" value={String(data?.summary?.trades ?? 0)} tone="neutral" icon={TrendingUp} sub={`${data?.summary?.wins ?? 0}W · ${data?.summary?.losses ?? 0}L`} />
-        <Kpi label="Win rate" value={winRate(data?.summary?.wins ?? 0, data?.summary?.losses ?? 0)} tone="neutral" icon={TrendingDown} />
+        <Kpi label="Realized (Month)" value={fmtUsd(data?.summary.monthTotal ?? 0)} tone={toneOf(data?.summary.monthTotal ?? 0)} icon={TrendingUp} />
+        <Kpi label="Unrealized (Now)" value={fmtUsd(data?.unrealized ?? 0)} tone={toneOf(data?.unrealized ?? 0)} icon={Activity} sub={`${data?.openPositions.length ?? 0} open`} />
+        <Kpi label="Trades" value={String(data?.summary.trades ?? 0)} tone="neutral" icon={TrendingUp} sub={`${data?.summary.wins ?? 0}W · ${data?.summary.losses ?? 0}L`} />
+        <Kpi label="Win rate" value={winRate(data?.summary.wins ?? 0, data?.summary.losses ?? 0)} tone="neutral" icon={TrendingDown} />
       </div>
 
       <Card>
@@ -135,8 +138,8 @@ export function AnalyticsPage() {
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1.5">
-                {weeks.map((day, index) => {
-                  if (!day) return <div key={`empty-${index}`} className="h-20 rounded-md bg-muted/30" />;
+                {weeks.map((day) => {
+                  if (!day) return <div key={Math.random()} className="h-20 rounded-md bg-muted/30" />;
                   const cell = byDate.get(day.date);
                   const pnl = cell?.realized ?? 0;
                   const bg = pnlBg(pnl);
@@ -178,7 +181,7 @@ export function AnalyticsPage() {
                         ) : (
                           <div className="text-muted-foreground">No trades</div>
                         )}
-                        {isToday && (data?.openPositions?.length ?? 0) > 0 && (
+                        {isToday && (data?.openPositions.length ?? 0) > 0 && (
                           <div className="mt-1 border-t border-border pt-1">
                             Unrealized: <span className="font-mono">{fmtUsd(data?.unrealized ?? 0)}</span>
                           </div>
@@ -195,7 +198,7 @@ export function AnalyticsPage() {
       </Card>
 
       <StrategyPerformanceCard />
-    </PageFrame>
+    </div>
   );
 }
 

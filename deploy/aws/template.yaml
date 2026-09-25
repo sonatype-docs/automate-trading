@@ -350,7 +350,7 @@ Resources:
             QueryString: true
             Cookies: { Forward: all }
             Headers: [Authorization, Host]
-        CacheBehaviors:
+          CacheBehaviors:
           - PathPattern: assets/*
             TargetOriginId: assets-origin
             ViewerProtocolPolicy: redirect-to-https

@@ -4,7 +4,12 @@ import { presignS3Url } from "@/lib/s3-presign.server";
 import { runOptimizer } from "@/lib/strategy/optimizer.server";
 import { executeSmokeTest } from "./smoke";
 import { MAX_ATTEMPTS } from "./worker-policy";
-import { BacktestJobSchema, PipelineBatchJobSchema, StrategyOptimizerJobSchema } from "./job-schemas";
+import {
+  BacktestJobSchema,
+  PipelineBatchJobSchema,
+  ResearchAnalyticsJobSchema,
+  StrategyOptimizerJobSchema,
+} from "./job-schemas";
 
 type ComputeJob = {
   id: string;
@@ -134,6 +139,12 @@ async function processJob(job: ComputeJob) {
         const payload = PipelineBatchJobSchema.parse(job.payload);
         const { runComboBatchCore } = await import("@/lib/pipeline-batch.core");
         result = await runComboBatchCore(payload as never);
+        break;
+      }
+      case "research_analytics": {
+        const payload = ResearchAnalyticsJobSchema.parse(job.payload);
+        const { runResearchAnalyticsCore } = await import("@/lib/research-analytics.core");
+        result = runResearchAnalyticsCore(payload);
         break;
       }
       default:

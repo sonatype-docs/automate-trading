@@ -43,3 +43,9 @@ export const PipelineBatchJobSchema = z.object({
   riskUsdOverride: z.number().positive().optional(),
   snapshotName: z.string().min(1).max(120).optional(),
 });
+
+export const ResearchAnalyticsJobSchema = z.object({
+  features: z.array(z.record(z.string(), z.unknown())).min(1).max(20_000),
+  runs: z.number().int().min(100).max(10_000).default(2_000),
+  folds: z.number().int().min(2).max(10).default(5),
+});

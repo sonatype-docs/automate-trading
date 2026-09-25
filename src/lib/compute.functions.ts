@@ -4,6 +4,7 @@ import {
   BacktestJobSchema,
   ComputeSmokeTestSchema,
   PipelineBatchJobSchema,
+  ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
 } from "@/compute/job-schemas";
 import { requireAuth } from "./auth-middleware";
@@ -14,6 +15,7 @@ export {
   BacktestJobSchema,
   ComputeSmokeTestSchema,
   PipelineBatchJobSchema,
+  ResearchAnalyticsJobSchema,
   StrategyOptimizerJobSchema,
 } from "@/compute/job-schemas";
 
@@ -86,6 +88,20 @@ export const submitPipelineBatchJob = createServerFn({ method: "POST" })
     const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
        VALUES ($1, 'pipeline_batch', 'queued', $2::jsonb) RETURNING id`,
+      [userId, JSON.stringify(data)],
+    );
+    return { job_id: rows[0].id, status: "queued" as const };
+  });
+
+export const submitResearchAnalyticsJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((raw) => ResearchAnalyticsJobSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
+    const pool = await getPool();
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO public.compute_jobs (user_id, job_type, status, payload)
+       VALUES ($1, 'research_analytics', 'queued', $2::jsonb) RETURNING id`,
       [userId, JSON.stringify(data)],
     );
     return { job_id: rows[0].id, status: "queued" as const };

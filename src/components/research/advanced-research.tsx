@@ -1,7 +1,8 @@
 // Phase 4/6/7 advanced-analysis UI. Kept as a self-contained subsection so
 // the top-level research panel stays readable.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Bar,
   BarChart,
@@ -22,16 +23,69 @@ import { Button } from "@/components/ui/button";
 import type { TradeFeatures } from "@/lib/research/features";
 import {
   DEFAULT_SIM,
-  featureImportance,
-  monteCarlo,
-  robustnessScore,
   simulateVariant,
-  tradeQualityScore,
-  walkForward,
   type SimConfig,
 } from "@/lib/research/advanced";
 import { computeStats } from "@/lib/research/aggregate";
+import { getComputeArtifactUrl, getComputeJob, submitResearchAnalyticsJob } from "@/lib/compute.functions";
+import type { runResearchAnalyticsCore } from "@/lib/research-analytics.core";
 import { GradingTab } from "./grading-tab";
+
+type ResearchAnalytics = ReturnType<typeof runResearchAnalyticsCore>;
+
+function useResearchAnalytics(features: TradeFeatures[], runs: number, folds: number) {
+  const submit = useServerFn(submitResearchAnalyticsJob);
+  const getJob = useServerFn(getComputeJob);
+  const getArtifact = useServerFn(getComputeArtifactUrl);
+  const [analysis, setAnalysis] = useState<ResearchAnalytics | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!features.length) return;
+    let cancelled = false;
+    setPending(true);
+    setError(null);
+    setAnalysis(null);
+    void (async () => {
+      try {
+        const queued = await submit({
+          data: {
+            features: features as unknown as Record<string, unknown>[],
+            runs,
+            folds,
+          },
+        });
+        for (let i = 0; i < 1_200; i += 1) {
+          if (cancelled) return;
+          const job = await getJob({ data: { job_id: queued.job_id } });
+          if (job.status === "failed") throw new Error(job.error || "Research analytics job failed");
+          if (job.status === "succeeded") {
+            let result = job.result as unknown;
+            const artifact = (result as { artifact?: { s3_key?: string } } | null)?.artifact;
+            if (artifact?.s3_key) {
+              const signed = await getArtifact({ data: { job_id: queued.job_id } });
+              const response = await fetch(signed.url);
+              if (!response.ok) throw new Error(`Research artifact download failed: ${response.status}`);
+              result = await response.json();
+            }
+            if (!cancelled) setAnalysis(result as ResearchAnalytics);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        throw new Error("Research analytics job timed out");
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setPending(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [features, runs, folds, submit, getJob, getArtifact]);
+
+  return { analysis, pending, error };
+}
 
 
 function fmtUsd(n: number, d = 0) {
@@ -147,9 +201,13 @@ function SimulatorTab({ features, slRiskUsd }: { features: TradeFeatures[]; slRi
 function RobustnessTab({ features }: { features: TradeFeatures[] }) {
   const [runs, setRuns] = useState(2000);
   const [folds, setFolds] = useState(5);
-  const mc = useMemo(() => monteCarlo(features, runs), [features, runs]);
-  const wf = useMemo(() => walkForward(features, folds), [features, folds]);
-  const rob = useMemo(() => robustnessScore(features), [features]);
+  const { analysis, pending, error } = useResearchAnalytics(features, runs, folds);
+  const mc = analysis?.monteCarlo ?? {
+    runs: 0, netMean: 0, netStd: 0, netP05: 0, netP50: 0, netP95: 0,
+    ddMean: 0, ddP95: 0, probLoss: 0,
+  };
+  const wf = analysis?.walkForward ?? [];
+  const rob = analysis?.robustness ?? { score: 0, components: {}, warning: null };
   const wfData = wf.map((f) => ({
     fold: `F${f.index}`,
     train: f.trainStats.net_pnl_usd,
@@ -157,6 +215,8 @@ function RobustnessTab({ features }: { features: TradeFeatures[] }) {
   }));
   return (
     <div className="space-y-3">
+      {pending && <div className="rounded border border-primary/30 bg-primary/5 px-3 py-2 text-xs">Running research analytics on AWS compute…</div>}
+      {error && <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <div className="rounded border border-primary/40 p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Robustness score</div>
@@ -251,8 +311,9 @@ function RobustnessTab({ features }: { features: TradeFeatures[] }) {
 
 // ---------- Feature importance + Trade quality (Phase 7) ----------
 function AITab({ features }: { features: TradeFeatures[] }) {
-  const imp = useMemo(() => featureImportance(features), [features]);
-  const q = useMemo(() => tradeQualityScore(features), [features]);
+  const { analysis, pending, error } = useResearchAnalytics(features, 2000, 5);
+  const imp = analysis?.featureImportance ?? [];
+  const q = analysis?.tradeQuality ?? { scored: [], bands: [] };
   const [minScore, setMinScore] = useState(0);
   const filteredScored = q.scored.filter((s) => s.score >= minScore && (s.outcome === "tp" || s.outcome === "sl"));
   const filteredStats = {
@@ -262,6 +323,8 @@ function AITab({ features }: { features: TradeFeatures[] }) {
   };
   return (
     <div className="space-y-3">
+      {pending && <div className="rounded border border-primary/30 bg-primary/5 px-3 py-2 text-xs">Running feature analytics on AWS compute…</div>}
+      {error && <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <div className="rounded border border-border p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Feature importance (relative)</div>

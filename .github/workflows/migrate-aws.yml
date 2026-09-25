@@ -116,7 +116,7 @@ jobs:
       - name: Run protected migration task
         shell: bash
         env:
-          MIGRATION_ID: ${{ inputs.migration_id }}
+          MIGRATION_ID: ${{ inputs.migration_id || 'compute-bootstrap-2026-09-25' }}
         run: |
           set -Eeuo pipefail
 

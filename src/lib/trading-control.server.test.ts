@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getPool = vi.fn();
+const { getPool } = vi.hoisted(() => ({
+  getPool: vi.fn(),
+}));
+
 vi.mock("@/lib/db-admin.server", () => ({ getPool }));
 
 import { assertLiveTradingEntryEnabled, getGlobalLiveTradingEnabled } from "./trading-control.server";

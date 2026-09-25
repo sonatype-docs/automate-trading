@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getComputeJob, submitStrategyOptimizer } from "@/lib/compute.functions";
+import { getComputeArtifactUrl, getComputeJob, submitStrategyOptimizer } from "@/lib/compute.functions";
 import type { OptimizerRunSummary } from "@/lib/strategy/optimizer.server";
 
 type OptResult = OptimizerRunSummary;
@@ -20,6 +20,7 @@ export function OptimizerPanel(props: {
 }) {
   const submit = useServerFn(submitStrategyOptimizer);
   const getJob = useServerFn(getComputeJob);
+  const getArtifact = useServerFn(getComputeArtifactUrl);
   const [windows, setWindows] = useState<number[]>([...ALL_WINDOWS]);
   const [population, setPopulation] = useState(40);
   const [generations, setGenerations] = useState(25);
@@ -71,7 +72,16 @@ export function OptimizerPanel(props: {
           return;
         }
         if (job.status === "succeeded" && job.result) {
-          const result = job.result as unknown as OptResult;
+          const stored = job.result as unknown as { artifact?: { s3_key?: string } } | OptResult;
+          let result: OptResult;
+          if ("artifact" in stored && stored.artifact?.s3_key) {
+            const signed = await getArtifact({ data: { job_id: jobId } });
+            const response = await fetch(signed.url);
+            if (!response.ok) throw new Error(`Could not download optimizer artifact (${response.status})`);
+            result = (await response.json()) as OptResult;
+          } else {
+            result = stored as OptResult;
+          }
           setData(result);
           toast.success(
             result.top.length > 0
@@ -92,7 +102,7 @@ export function OptimizerPanel(props: {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [jobId, getJob]);
+  }, [jobId, getJob, getArtifact]);
 
   const toggleWindow = (d: number) =>
     setWindows((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort((a, b) => a - b)));

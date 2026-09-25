@@ -49,3 +49,5 @@ export const ResearchAnalyticsJobSchema = z.object({
   runs: z.number().int().min(100).max(10_000).default(2_000),
   folds: z.number().int().min(2).max(10).default(5),
 });
+
+export { LiquidityMatrixJobSchema } from "@/lib/liquidity-matrix.core";

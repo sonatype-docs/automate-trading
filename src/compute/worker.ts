@@ -147,6 +147,12 @@ async function processJob(job: ComputeJob) {
         result = runResearchAnalyticsCore(payload);
         break;
       }
+      case "liquidity_matrix": {
+        const { LiquidityMatrixJobSchema, runLiquidityLabMatrixCore } = await import("@/lib/liquidity-matrix.core");
+        const payload = LiquidityMatrixJobSchema.parse(job.payload);
+        result = await runLiquidityLabMatrixCore(payload);
+        break;
+      }
       default:
         throw new Error(`Unsupported compute job type: ${job.job_type}`);
     }

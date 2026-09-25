@@ -22,7 +22,7 @@ import {
 } from "@/lib/liquidity-lab/config";
 import {
   runLiquidityLab, listLabPresets, saveLabPreset,
-  deleteLabPreset, duplicateLabPreset, runLiquidityLabMatrix,
+  deleteLabPreset, duplicateLabPreset,
   LAB_FILTER_KEYS, type LabFilterKey,
   type MatrixRow,
 } from "@/lib/liquidity-lab.functions";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/liquidity-lab/matrix-insights";
 import { TIMEFRAMES, TIMEZONES } from "@/lib/market-data/types";
 import { Beaker, Download, Upload, Save, Copy, Trash2, Play, Grid3x3, Rocket, X } from "lucide-react";
+import { getComputeArtifactUrl, getComputeJob, submitLiquidityMatrixJob } from "@/lib/compute.functions";
 
 
 type PresetKey = "pdh-pdl" | undefined;
@@ -107,7 +108,9 @@ function LabPage() {
   });
 
   // ── Matrix sweep state ──
-  const runMatrix = useServerFn(runLiquidityLabMatrix);
+  const submitMatrix = useServerFn(submitLiquidityMatrixJob);
+  const getMatrixJob = useServerFn(getComputeJob);
+  const getMatrixArtifact = useServerFn(getComputeArtifactUrl);
   const [mxSymbols, setMxSymbols] = useState<string[]>(["XAUUSDT", "BTCUSDT", "ETHUSDT"]);
   const [mxTfs, setMxTfs] = useState<string[]>(["5m", "15m", "1h"]);
   const [mxZoneMode, setMxZoneMode] = useState<"each" | "combined">("each");
@@ -169,7 +172,7 @@ function LabPage() {
       };
       for (const task of tasks) {
         try {
-          const r = await runMatrix({ data: {
+          const queued = await submitMatrix({ data: {
             baseConfig: effectiveBase,
             symbols: [task.symbol],
             timeframes: [task.timeframe] as never,
@@ -179,6 +182,25 @@ function LabPage() {
             sources: [task.source],
             daysBack: mxDaysBack,
           }});
+          let r: { rows: MatrixRow[] } | null = null;
+          for (let attempt = 0; attempt < 1_200; attempt += 1) {
+            const job = await getMatrixJob({ data: { job_id: queued.job_id } });
+            if (job.status === "failed") throw new Error(job.error || "Liquidity matrix job failed");
+            if (job.status === "succeeded") {
+              let result = job.result as unknown;
+              const artifact = (result as { artifact?: { s3_key?: string } } | null)?.artifact;
+              if (artifact?.s3_key) {
+                const signed = await getMatrixArtifact({ data: { job_id: queued.job_id } });
+                const response = await fetch(signed.url);
+                if (!response.ok) throw new Error(`Liquidity matrix artifact download failed: ${response.status}`);
+                result = await response.json();
+              }
+              r = result as { rows: MatrixRow[] };
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+          if (!r) throw new Error("Liquidity matrix job timed out");
           allRows.push(...r.rows);
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);

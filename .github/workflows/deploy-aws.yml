@@ -95,7 +95,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
-          aws ecr put-lifecycle-policy             --repository-name "$REPO"             --lifecycle-policy-text "$lifecycle_policy" >/dev/null
+          aws ecr put-lifecycle-policy \
+            --repository-name "$REPO" \
+            --lifecycle-policy-text "$lifecycle_policy" >/dev/null
           echo "ECR lifecycle policy applied."
 
       - id: ecr
@@ -173,15 +175,24 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="$REGISTRY/$REPO:${GITHUB_SHA::12}"
-          if ! aws ecr describe-images --repository-name "$REPO"               --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
-            docker build -f Dockerfile.aws               --build-arg VITE_DATA_BACKEND=aws               --build-arg VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID"               --build-arg VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID"               -t "$image" .
+          if ! aws ecr describe-images --repository-name "$REPO" \
+              --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f Dockerfile.aws \
+              --build-arg VITE_DATA_BACKEND=aws \
+              --build-arg VITE_COGNITO_USER_POOL_ID="$USER_POOL_ID" \
+              --build-arg VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" \
+              -t "$image" .
             docker push "$image"
           fi
 
-          migration_image="$(aws cloudformation describe-stacks --stack-name "$STACK"             --query 'Stacks[0].Parameters[?ParameterKey==`MigrationImageUri`].ParameterValue | [0]'             --output text 2>/dev/null || true)"
+          migration_image="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK" \
+            --query 'Stacks[0].Parameters[?ParameterKey==`MigrationImageUri`].ParameterValue | [0]' \
+            --output text 2>/dev/null || true)"
           if [ -z "$migration_image" ] || [ "$migration_image" = "None" ]; then
             migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
-            if ! aws ecr describe-images --repository-name "$REPO"                 --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            if ! aws ecr describe-images --repository-name "$REPO" \
+                --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
               echo "No existing migration image found; building bootstrap migration image."
               docker build -f Dockerfile.migration -t "$migration_image" .
               docker push "$migration_image"

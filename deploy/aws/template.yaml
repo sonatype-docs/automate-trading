@@ -359,7 +359,6 @@ Resources:
             - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_KEY::" }
             - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_SECRET::" }
             - { Name: TRADINGVIEW_WEBHOOK_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:TRADINGVIEW_WEBHOOK_SECRET::" }
-            - { Name: LOVABLE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:LOVABLE_API_KEY::" }
             - { Name: SCHEDULER_SECRET, ValueFrom: !Sub "${SchedulerSecretArn}:SCHEDULER_SECRET::" }
             - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecretArn}:username::" }
             - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecretArn}:password::" }

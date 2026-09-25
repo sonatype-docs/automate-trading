@@ -2,10 +2,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Safe Shark Auto Trader production foundation. Protected production resources are referenced, never recreated or deleted.
 
 Parameters:
-  SchedulePaper: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
-  ScheduleStrategy: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
-  ScheduleLive: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
-  ScheduleWatchdog: { Type: String, Default: "true", AllowedValues: ["true", "false"] }
+  SchedulePaper: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleStrategy: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleLive: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
+  ScheduleWatchdog: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
   ApplicationImageUri:
     Type: String
   MigrationImageUri:
@@ -65,10 +65,17 @@ Parameters:
     Default: 1
     MinValue: 1
     MaxValue: 4
+  EnableContainerInsights:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
   DatabaseInstanceClass:
     Type: String
     Default: db.t3.micro
     AllowedValues: [db.t3.micro]
+
+Conditions:
+  EnableContainerInsightsCondition: !Equals [!Ref EnableContainerInsights, "true"]
 
 Resources:
   InternetGateway:
@@ -219,8 +226,10 @@ Resources:
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterSettings:
-        - { Name: containerInsights, Value: enabled }
+      ClusterSettings: !If
+        - EnableContainerInsightsCondition
+        - [{ Name: containerInsights, Value: enabled }]
+        - !Ref AWS::NoValue
   MigrationTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -350,6 +359,7 @@ Resources:
             QueryString: true
             Cookies: { Forward: all }
             Headers: [Authorization, Host]
+          Compress: true
         PriceClass: PriceClass_100
         HttpVersion: http2
         Restrictions:

@@ -11,6 +11,7 @@
  */
 
 import { createHmac } from "node:crypto";
+import { assertLiveTradingEntryEnabled } from "@/lib/trading-control.server";
 
 export interface PlaceOrderParams {
   symbol: string;
@@ -298,6 +299,11 @@ export function createSharkClient(): ExchangeClient {
       }
       // marginAsset intentionally omitted — Shark's UI doesn't send it and sending it triggers 3029.
 
+      // Global live-trading control blocks NEW exposure. Reduce-only exits are
+      // intentionally allowed so an emergency shutdown can still flatten risk.
+      if (!p.reduceOnly) {
+        await assertLiveTradingEntryEnabled();
+      }
       const res = await signedJson(apiKey, apiSecret, "POST", "/v1/order/place-order", body);
       if (!res.ok) {
         // Detailed error log — includes HTTP status, full request body, and full response body.

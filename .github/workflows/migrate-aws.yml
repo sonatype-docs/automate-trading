@@ -3,7 +3,7 @@ name: Run AWS migration (manual)
 on:
   push:
     paths:
-      - "deploy/aws/.migration-trigger"
+      - "deploy/aws/.migration-trigger-disabled"
   workflow_dispatch:
     inputs:
       migration_ref:

@@ -111,8 +111,12 @@ for table in "${bases[@]}"; do
     echo "Unsafe table name from export: ${table}" >&2
     exit 1
   fi
+  existing_rows="$(psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -Atqc "SELECT count(*) FROM public.\"${table}\"")"
+  if [[ "${existing_rows}" != "0" ]]; then
+    echo "Skipping ${table}: ${existing_rows} production rows already exist; refusing destructive replacement."
+    continue
+  fi
   echo "Loading ${table}"
-  psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "TRUNCATE TABLE public.\"${table}\" CASCADE"
   # Map by the exported header names, not physical target-column order. The
   # additive drift migrations can change that order between source and target.
   cols="$(for f in ${work}/migration/${table}.csv.gz.?? ${work}/migration/${table}.part*.csv.gz.??; do [[ -f "${f}" ]] || continue; cat "${f}"; done | gunzip | head -n 1 | tr -d '\r' | sed 's/[^,]*/"&"/g' || true)"

@@ -29,11 +29,11 @@ const MatrixSchema = z.object({
 // ---------- start a run ----------
 
 export const startPipelineRun = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ matrix: MatrixSchema, total: z.number().int().nonnegative() }).parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
-    const { data: ownerRow } = await supabaseAdmin.from("owner").select("user_id").eq("id", true).maybeSingle();
-    const userId = ownerRow?.user_id ?? "00000000-0000-0000-0000-000000000000";
     const { data: row, error } = await supabaseAdmin
       .from("pipeline_runs")
       .insert({
@@ -76,20 +76,22 @@ const ProgressPatch = z.object({
 });
 
 export const updatePipelineRun = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => ProgressPatch.parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const patch: Record<string, unknown> = { progress: data.progress };
     if (data.logEntry) {
       const { data: existing } = await supabaseAdmin
-        .from("pipeline_runs").select("log").eq("id", data.runId).maybeSingle();
+        .from("pipeline_runs").select("log").eq("id", data.runId).eq("user_id", userId).maybeSingle();
       const log = Array.isArray(existing?.log) ? existing!.log as unknown[] : [];
       log.push(data.logEntry);
       // Cap log at 2000 entries — enough for large matrices without bloating the row.
       patch.log = log.slice(-2000);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId);
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId).eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -97,13 +99,15 @@ export const updatePipelineRun = createServerFn({ method: "POST" })
 // ---------- finish a run ----------
 
 export const finishPipelineRun = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({
     runId: z.string(),
     status: z.enum(["done", "failed", "stopped", "paused"]),
     error: z.string().nullable().optional(),
     progress: z.record(z.string(), z.unknown()).optional(),
   }).parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const patch: Record<string, unknown> = {
       status: data.status,
@@ -112,7 +116,7 @@ export const finishPipelineRun = createServerFn({ method: "POST" })
     if (data.error !== undefined) patch.error = data.error;
     if (data.progress) patch.progress = data.progress;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId);
+    const { error } = await supabaseAdmin.from("pipeline_runs").update(patch as any).eq("id", data.runId).eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -120,12 +124,15 @@ export const finishPipelineRun = createServerFn({ method: "POST" })
 // ---------- list runs ----------
 
 export const listPipelineRuns = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ limit: z.number().int().positive().max(50).default(20) }).parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { userId } = context as { userId: string };
     const { supabaseAdmin } = await import("@/lib/db-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("pipeline_runs")
       .select("id,status,matrix,progress,error,started_at,finished_at")
+      .eq("user_id", userId)
       .order("started_at", { ascending: false })
       .limit(data.limit);
     if (error) throw new Error(error.message);
@@ -134,11 +141,13 @@ export const listPipelineRuns = createServerFn({ method: "POST" })
 
 // ---------- resumable run (latest paused/stopped/running-orphan) ----------
 
-export const getResumableRun = createServerFn({ method: "POST" }).handler(async () => {
+export const getResumableRun = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
+  const { userId } = context as { userId: string };
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: rows, error } = await supabaseAdmin
     .from("pipeline_runs")
     .select("id,status,matrix,progress,log,error,started_at,finished_at")
+    .eq("user_id", userId)
     .in("status", ["paused", "stopped", "running"])
     .order("started_at", { ascending: false })
     .limit(1);
@@ -148,11 +157,13 @@ export const getResumableRun = createServerFn({ method: "POST" }).handler(async 
 
 // ---------- latest run with failed combos (for retry-after-refresh) ----------
 
-export const getLastFailedRun = createServerFn({ method: "POST" }).handler(async () => {
+export const getLastFailedRun = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
+  const { userId } = context as { userId: string };
   const { supabaseAdmin } = await import("@/lib/db-admin.server");
   const { data: rows, error } = await supabaseAdmin
     .from("pipeline_runs")
     .select("id,status,matrix,progress,log,started_at,finished_at")
+    .eq("user_id", userId)
     .order("started_at", { ascending: false })
     .limit(10);
   if (error) throw new Error(error.message);

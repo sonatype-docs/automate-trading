@@ -54,7 +54,10 @@ jobs:
 
           aws secretsmanager describe-secret --secret-id "$DATABASE_SECRET" >/dev/null
           read -r db_host vpc_id db_sg < <(
-            aws rds describe-db-instances               --db-instance-identifier shark-auto-trader               --query "DBInstances[0].[Endpoint.Address,DBSubnetGroup.VpcId,VpcSecurityGroups[0].VpcSecurityGroupId]"               --output text
+            aws rds describe-db-instances \
+              --db-instance-identifier shark-auto-trader \
+              --query "DBInstances[0].[Endpoint.Address,DBSubnetGroup.VpcId,VpcSecurityGroups[0].VpcSecurityGroupId]" \
+              --output text
           )
           test -n "$db_host" && test "$db_host" != None
           test -n "$vpc_id" && test "$vpc_id" != None
@@ -76,7 +79,8 @@ jobs:
           short_sha="${git_sha::12}"
           image="$REGISTRY/$REPO:migration-$short_sha"
 
-          if aws ecr describe-images --repository-name "$REPO"               --image-ids imageTag="migration-$short_sha" >/dev/null 2>&1; then
+          if aws ecr describe-images --repository-name "$REPO" \
+              --image-ids imageTag="migration-$short_sha" >/dev/null 2>&1; then
             echo "Reusing existing immutable migration image: $image"
           else
             docker build -f Dockerfile.migration -t "$image" .
@@ -92,7 +96,10 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          output_json="$(aws cloudformation describe-stacks             --stack-name "$STACK"             --query 'Stacks[0].Outputs'             --output json)"
+          output_json="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK" \
+            --query 'Stacks[0].Outputs' \
+            --output json)"
 
           cluster="$(jq -r '.[] | select(.OutputKey=="ClusterName").OutputValue' <<< "$output_json")"
           migration_td="$(jq -r '.[] | select(.OutputKey=="MigrationTaskDefinitionArn").OutputValue' <<< "$output_json")"
@@ -100,16 +107,34 @@ jobs:
           subnet_b="$(jq -r '.[] | select(.OutputKey=="PublicSubnetB").OutputValue' <<< "$output_json")"
           app_sg="$(jq -r '.[] | select(.OutputKey=="ApplicationSecurityGroup").OutputValue' <<< "$output_json")"
 
-          task_arn="$(aws ecs run-task             --cluster "$cluster"             --launch-type FARGATE             --task-definition "$migration_td"             --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}"             --overrides "$(jq -n               --arg image "$MIGRATION_IMAGE"               --arg migration_id "$MIGRATION_ID"               '{containerOverrides:[{name:"migration",image:$image,environment:[{name:"MIGRATION_ID",value:$migration_id}]}]}')"             --query 'tasks[0].taskArn'             --output text)"
+          task_arn="$(aws ecs run-task \
+            --cluster "$cluster" \
+            --launch-type FARGATE \
+            --task-definition "$migration_td" \
+            --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}" \
+            --overrides "$(jq -n \
+              --arg image "$MIGRATION_IMAGE" \
+              --arg migration_id "$MIGRATION_ID" \
+              '{containerOverrides:[{name:"migration",image:$image,environment:[{name:"MIGRATION_ID",value:$migration_id}]}]}')" \
+            --query 'tasks[0].taskArn' \
+            --output text)"
 
           test -n "$task_arn" && test "$task_arn" != None
           echo "Started migration task: $task_arn"
 
           aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
 
-          aws ecs describe-tasks             --cluster "$cluster"             --tasks "$task_arn"             --query 'tasks[0].{LastStatus:lastStatus,StoppedReason:stoppedReason,Containers:containers}'             --output json
+          aws ecs describe-tasks \
+            --cluster "$cluster" \
+            --tasks "$task_arn" \
+            --query 'tasks[0].{LastStatus:lastStatus,StoppedReason:stoppedReason,Containers:containers}' \
+            --output json
 
-          exit_code="$(aws ecs describe-tasks             --cluster "$cluster"             --tasks "$task_arn"             --query 'tasks[0].containers[?name==`migration`].exitCode | [0]'             --output text)"
+          exit_code="$(aws ecs describe-tasks \
+            --cluster "$cluster" \
+            --tasks "$task_arn" \
+            --query 'tasks[0].containers[?name==`migration`].exitCode | [0]' \
+            --output text)"
 
           if [ "$exit_code" != "0" ]; then
             echo "Migration failed with exit code $exit_code." >&2

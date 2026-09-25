@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { FiltersZod } from "@/lib/strategy/filters";
 import { submitStrategyOptimizer } from "@/lib/compute.functions";
+import { requireAuth } from "./auth-middleware";
 
 
 
@@ -10,7 +11,7 @@ async function admin() {
   return supabaseAdmin;
 }
 
-export const getStrategyState = createServerFn({ method: "GET" }).handler(async () => {
+export const getStrategyState = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const [settingsRes, sessionsRes, setupsRes, logsRes] = await Promise.all([
     supabase.from("strategy_settings").select("*").eq("id", true).maybeSingle(),
@@ -89,6 +90,7 @@ const GradingModelSchema = z.object({
 });
 
 export const saveGradingModel = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => GradingModelSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -100,7 +102,7 @@ export const saveGradingModel = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const clearGradingModel = createServerFn({ method: "POST" }).handler(async () => {
+export const clearGradingModel = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { error } = await supabase
     .from("strategy_settings")
@@ -169,6 +171,7 @@ export async function retrainGradingCore(opts: { days?: number; minSamplesPerBuc
 }
 
 export const retrainGradingModelNow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => RetrainSchema.parse(input))
   .handler(async ({ data }) =>
     retrainGradingCore({ days: data?.days, minSamplesPerBucket: data?.min_samples_per_bucket }),
@@ -177,6 +180,7 @@ export const retrainGradingModelNow = createServerFn({ method: "POST" })
 
 
 export const updateStrategySettings = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => StrategySettingsSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -190,7 +194,7 @@ export const updateStrategySettings = createServerFn({ method: "POST" })
     return row;
   });
 
-export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(async () => {
+export const runStrategyTickNow = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { runStrategyTick } = await import("@/lib/strategy/engine.server");
   return runStrategyTick();
 });
@@ -201,7 +205,7 @@ export const runStrategyTickNow = createServerFn({ method: "POST" }).handler(asy
  * setups that were cancelled with reason "rearm_with_ai". Reuses runStrategyTick
  * since watchdog logic runs inline in the tick.
  */
-export const runOrderWatchdog = createServerFn({ method: "POST" }).handler(async () => {
+export const runOrderWatchdog = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   // Flip today's cancelled-with-recoverable-reason setups back to rearm-eligible
   // so the tick's arm branch immediately tries again (also covers old rows
@@ -225,7 +229,7 @@ export const runOrderWatchdog = createServerFn({ method: "POST" }).handler(async
 });
 
 
-export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async () => {
+export const repriceArmedNow = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { repriceArmedSetupsNow } = await import("@/lib/strategy/engine.server");
   return repriceArmedSetupsNow();
 });
@@ -237,7 +241,7 @@ export const repriceArmedNow = createServerFn({ method: "POST" }).handler(async 
  * Used when a setup was armed before AI grading was enabled or when the
  * user changed grading settings mid-session and wants them applied now.
  */
-export const cancelAndReArmWithAi = createServerFn({ method: "POST" }).handler(async () => {
+export const cancelAndReArmWithAi = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const { runStrategyTick } = await import("@/lib/strategy/engine.server");
   // Reuse the existing cancel-today logic to cancel the exchange order and
   // mark the setup row as "cancelled" (which makes it eligible for re-arm).
@@ -319,7 +323,7 @@ export const ORB_WINNING_PRESET = {
 };
 
 
-export const applyOrbWinningPreset = createServerFn({ method: "POST" }).handler(async () => {
+export const applyOrbWinningPreset = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("strategy_settings")
@@ -340,7 +344,7 @@ function todayIstSessionDate(sessionStart: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).handler(async () => {
+export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data: settings } = await supabase
     .from("strategy_settings")
@@ -387,6 +391,7 @@ export const cancelTodayArmedSetup = createServerFn({ method: "POST" }).handler(
 });
 
 export const flattenSymbol = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) =>
     z.object({ symbol: z.string().min(3).max(24) }).parse(input),
   )
@@ -415,7 +420,7 @@ export const flattenSymbol = createServerFn({ method: "POST" })
 
 
 
-export const getPendingSharkOrders = createServerFn({ method: "GET" }).handler(async () => {
+export const getPendingSharkOrders = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   try {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");
     const client = createSharkClient();
@@ -433,7 +438,7 @@ export const getPendingSharkOrders = createServerFn({ method: "GET" }).handler(a
   }
 });
 
-export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(async () => {
+export const getStrategyTimeline = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data: sessionRow } = await supabase
     .from("strategy_sessions")
@@ -477,6 +482,7 @@ export const getStrategyTimeline = createServerFn({ method: "GET" }).handler(asy
  * Returns the newest 50 events, most recent first.
  */
 export const getSetupTimeline = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .validator((input: unknown) =>
     z.object({ setupId: z.string().uuid() }).parse(input),
   )
@@ -503,7 +509,7 @@ function entryFromSettings(settings: Record<string, unknown>) {
   };
 }
 
-export const backtestToday = createServerFn({ method: "POST" }).handler(async () => {
+export const backtestToday = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
   const supabase = await admin();
   const { data: settings } = await supabase
     .from("strategy_settings")
@@ -556,6 +562,7 @@ const RangeSchema = z.object({
 });
 
 export const backtestRange = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => RangeSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -611,6 +618,7 @@ const SessionsCompareSchema = RangeSchema.omit({ session_start_ist: true }).exte
 });
 
 export const backtestSessionsCompare = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => SessionsCompareSchema.parse(input))
   .handler(async ({ data }) => {
     const supabase = await admin();
@@ -728,6 +736,7 @@ const LiquiditySweepSchema = z.object({
 });
 
 export const backtestLiquiditySweep = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => LiquiditySweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSweepBacktest } = await import("@/lib/strategy/sweep-liquidity.server");
@@ -767,6 +776,7 @@ const SilverBulletSchema = z.object({
 });
 
 export const backtestSilverBullet = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => SilverBulletSchema.parse(input))
   .handler(async ({ data }) => {
     const { runSilverBulletBacktest } = await import("@/lib/strategy/silver-bullet.server");
@@ -807,6 +817,7 @@ const EntryZoneSweepSchema = z.object({
 });
 
 export const runEntryZoneSweep = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .validator((input: unknown) => EntryZoneSweepSchema.parse(input))
   .handler(async ({ data }) => {
     const { runEntryZoneSweep: run } = await import("@/lib/strategy/sweep.server");

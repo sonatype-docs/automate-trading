@@ -248,7 +248,7 @@ export interface RunnerDiagnosticsDTO {
   error: string | null;
 }
 
-export const diagnoseLiveRunners = createServerFn({ method: "POST" }).handler(
+export const diagnoseLiveRunners = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(
   async (): Promise<RunnerDiagnosticsDTO[]> => {
     const s = await admin();
     const { data: runners, error } = await s
@@ -584,6 +584,7 @@ function buildRuleChecks(
 
 
 export const getLastPrice = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ symbol: z.string() }).parse(raw))
   .handler(async ({ data }): Promise<{ price: number; ts: number }> => {
     const symbol = (data.symbol ?? "").trim().toUpperCase();
@@ -605,6 +606,7 @@ export interface RunnerStatusDTO {
 }
 
 export const getRunnersStatusSummary = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .handler(async (): Promise<RunnerStatusDTO[]> => {
     const s = await admin();
     const { data: runners, error } = await s.from("live_runners").select("*").order("label");
@@ -883,7 +885,7 @@ export interface ExchangeOrdersDTO {
   error: string | null;
 }
 
-export const listLiveExchangeOrders = createServerFn({ method: "GET" }).handler(
+export const listLiveExchangeOrders = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(
   async (): Promise<ExchangeOrdersDTO> => {
     const empty: ExchangeOrdersDTO = {
       pending: [], executed: [], closed: [],
@@ -1001,6 +1003,7 @@ export const listLiveExchangeOrders = createServerFn({ method: "GET" }).handler(
 );
 
 export const cancelExchangeOrder = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => z.object({ clientOrderId: z.string().min(1) }).parse(raw))
   .handler(async ({ data }) => {
     const { createSharkClient } = await import("@/lib/exchange/shark-client.server");

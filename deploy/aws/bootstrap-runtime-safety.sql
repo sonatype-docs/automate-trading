@@ -26,6 +26,25 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub);
 GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated, service_role;
 
+-- Audited manual order intents. The unique idempotency key prevents retries
+-- from creating duplicate broker orders. Live trading remains fail-closed.
+CREATE TABLE IF NOT EXISTS public.manual_order_intents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  idempotency_key text NOT NULL UNIQUE,
+  user_id uuid NOT NULL REFERENCES public.users(id),
+  payload jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'received'
+    CHECK (status IN ('received','rejected','submitted','failed')),
+  broker_order_id text,
+  error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS manual_order_intents_user_created_idx
+  ON public.manual_order_intents (user_id, created_at DESC);
+GRANT SELECT, INSERT, UPDATE ON public.manual_order_intents TO authenticated, service_role;
+
 
 -- Async isolated compute queue state.
 -- Jobs are user-scoped and contain only research inputs/results, never trade secrets.

@@ -2,11 +2,14 @@ import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Cognito-verified auth on AWS; Lovable Cloud auth otherwise.
+// Cognito-verified auth on AWS; Supabase auth remains only for local preview.
 // context: { supabase, userId } — on AWS `supabase` is the server data client,
 // so every query MUST filter by userId explicitly.
-const awsAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const header = getRequest()?.headers.get("authorization") ?? "";
+export async function verifyCognitoRequest(request: Request): Promise<{
+  userId: string;
+  claims: { sub: string; email?: unknown };
+}> {
+  const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) throw new Response("Unauthorized", { status: 401 });
   const { CognitoJwtVerifier } = await import("aws-jwt-verify");
@@ -21,15 +24,25 @@ const awsAuth = createMiddleware({ type: "function" }).server(async ({ next }) =
   } catch {
     throw new Response("Unauthorized", { status: 401 });
   }
-  const { getPool, supabaseAdmin } = await import("./db-admin.server");
+  const { getPool } = await import("./db-admin.server");
   const pool = await getPool();
-  await pool.query(
+  const { rows } = await pool.query<{ id: string }>(
     `insert into public.users (id, cognito_sub, email)
-     values ($1, $1, $2)
-     on conflict (cognito_sub) do update set email = excluded.email`,
+     values (gen_random_uuid(), $1, $2)
+     on conflict (cognito_sub) do update set email = excluded.email
+     returning id`,
     [payload.sub, typeof payload.email === "string" ? payload.email : null],
   );
-  return next({ context: { supabase: supabaseAdmin, userId: payload.sub, claims: payload } });
+  if (!rows[0]?.id) throw new Response("Unable to map authenticated user", { status: 500 });
+  return { userId: rows[0].id, claims: payload };
+}
+
+const awsAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  const request = getRequest();
+  if (!request) throw new Response("Unauthorized", { status: 401 });
+  const { userId, claims } = await verifyCognitoRequest(request);
+  const { supabaseAdmin } = await import("./db-admin.server");
+  return next({ context: { supabase: supabaseAdmin, userId, claims } });
 });
 
 export const requireAuth = import.meta.env.VITE_DATA_BACKEND === "aws" ? awsAuth : requireSupabaseAuth;

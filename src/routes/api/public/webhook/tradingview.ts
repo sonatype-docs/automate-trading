@@ -56,7 +56,7 @@ export const Route = createFileRoute("/api/public/webhook/tradingview")({
         );
         const { processSignal } = await import("@/lib/trading/engine.server");
 
-        const { secret: _s, ...signal } = parsed.data;
+        const signal = parsed.data;
         const alertId = eventId;
 
         // Dedup by alert_id

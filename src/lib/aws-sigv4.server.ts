@@ -16,7 +16,7 @@ function hmac(key: Buffer | string, value: string) {
   return createHmac("sha256", key).update(value).digest();
 }
 
-async function getAwsCredentials(): Promise<AwsCredentials> {
+export async function getAwsCredentials(): Promise<AwsCredentials> {
   if (cachedCredentials && cachedCredentials.expiresAt > Date.now() + 60_000) {
     return cachedCredentials.value;
   }

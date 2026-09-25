@@ -45,6 +45,24 @@ CREATE INDEX IF NOT EXISTS manual_order_intents_user_created_idx
   ON public.manual_order_intents (user_id, created_at DESC);
 GRANT SELECT, INSERT, UPDATE ON public.manual_order_intents TO authenticated, service_role;
 
+-- Owner-scoped metadata for private S3 files. Existing trade objects are not
+-- migrated or rewritten; new application files use a separate key prefix.
+CREATE TABLE IF NOT EXISTS public.private_files (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id),
+  s3_key text NOT NULL UNIQUE,
+  filename text NOT NULL,
+  content_type text NOT NULL,
+  size_bytes bigint NOT NULL CHECK (size_bytes > 0),
+  checksum text,
+  status text NOT NULL DEFAULT 'issued' CHECK (status IN ('issued','complete')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS private_files_user_created_idx
+  ON public.private_files (user_id, created_at DESC);
+GRANT SELECT, INSERT, UPDATE ON public.private_files TO authenticated, service_role;
+
 
 -- Async isolated compute queue state.
 -- Jobs are user-scoped and contain only research inputs/results, never trade secrets.

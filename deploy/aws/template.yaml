@@ -218,6 +218,27 @@ Resources:
                 Action: s3:ListBucket
                 Resource: !GetAtt QuantArtifactsBucket.Arn
 
+  ApplicationFilesAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: shark-auto-trader-private-files
+      Roles:
+        - !Select [1, !Split ["/", !Ref TaskRoleArn]]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}/private/accounts/*"
+          - Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${FilesBucketName}"
+            Condition:
+              StringLike:
+                s3:prefix: ["private/accounts/*"]
+
   AssetsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain

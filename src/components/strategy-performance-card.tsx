@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Component, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RefreshCw } from "lucide-react";
@@ -31,7 +31,7 @@ export interface StrategyPerformanceCardProps {
   showStrategyFilter?: boolean;
 }
 
-export function StrategyPerformanceCard({
+function StrategyPerformanceCardContent({
   title = "Strategy performance",
   defaultMode = "all",
   lockMode = false,
@@ -206,5 +206,38 @@ export function StrategyPerformanceCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+class StrategyPerformanceErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("Strategy performance card failed", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card>
+          <CardContent className="grid min-h-40 place-items-center text-sm text-muted-foreground">
+            Strategy performance is temporarily unavailable. Refresh this panel to try again.
+          </CardContent>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function StrategyPerformanceCard(props: StrategyPerformanceCardProps) {
+  return (
+    <StrategyPerformanceErrorBoundary>
+      <StrategyPerformanceCardContent {...props} />
+    </StrategyPerformanceErrorBoundary>
   );
 }

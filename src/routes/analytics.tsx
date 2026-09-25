@@ -70,7 +70,7 @@ export function AnalyticsPage() {
 
   const byDate = useMemo(() => {
     const m = new Map<string, Cell>();
-    (data?.days ?? []).forEach((d) => m.set(d.date, d));
+    (Array.isArray(data?.days) ? data.days : []).forEach((d) => m.set(d.date, d));
     return m;
   }, [data]);
 
@@ -100,10 +100,10 @@ export function AnalyticsPage() {
 
       {/* KPI row */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Kpi label="Realized (Month)" value={fmtUsd(data?.summary.monthTotal ?? 0)} tone={toneOf(data?.summary.monthTotal ?? 0)} icon={TrendingUp} />
-        <Kpi label="Unrealized (Now)" value={fmtUsd(data?.unrealized ?? 0)} tone={toneOf(data?.unrealized ?? 0)} icon={Activity} sub={`${data?.openPositions.length ?? 0} open`} />
-        <Kpi label="Trades" value={String(data?.summary.trades ?? 0)} tone="neutral" icon={TrendingUp} sub={`${data?.summary.wins ?? 0}W · ${data?.summary.losses ?? 0}L`} />
-        <Kpi label="Win rate" value={winRate(data?.summary.wins ?? 0, data?.summary.losses ?? 0)} tone="neutral" icon={TrendingDown} />
+        <Kpi label="Realized (Month)" value={fmtUsd(data?.summary?.monthTotal ?? 0)} tone={toneOf(data?.summary?.monthTotal ?? 0)} icon={TrendingUp} />
+        <Kpi label="Unrealized (Now)" value={fmtUsd(data?.unrealized ?? 0)} tone={toneOf(data?.unrealized ?? 0)} icon={Activity} sub={`${data?.openPositions?.length ?? 0} open`} />
+        <Kpi label="Trades" value={String(data?.summary?.trades ?? 0)} tone="neutral" icon={TrendingUp} sub={`${data?.summary?.wins ?? 0}W · ${data?.summary?.losses ?? 0}L`} />
+        <Kpi label="Win rate" value={winRate(data?.summary?.wins ?? 0, data?.summary?.losses ?? 0)} tone="neutral" icon={TrendingDown} />
       </div>
 
       <Card>
@@ -178,7 +178,7 @@ export function AnalyticsPage() {
                         ) : (
                           <div className="text-muted-foreground">No trades</div>
                         )}
-                        {isToday && (data?.openPositions.length ?? 0) > 0 && (
+                        {isToday && (data?.openPositions?.length ?? 0) > 0 && (
                           <div className="mt-1 border-t border-border pt-1">
                             Unrealized: <span className="font-mono">{fmtUsd(data?.unrealized ?? 0)}</span>
                           </div>

@@ -254,10 +254,6 @@ function ResearchPage() {
     const entries = (snapshotList.data?.snapshots ?? []).map((s) => [s.name, s.count] as const);
     return new Map<string, number>(entries);
   }, [snapshotList.data?.snapshots]);
-  const latestProgressUpdate = useMemo(() => {
-    const updates = activeDatasets.map((ds) => datasetProgress[ds]?.updatedAt ?? 0);
-    return Math.max(0, ...updates);
-  }, [activeDatasets, datasetProgress]);
   const rawCombined: TradeRecord[] = useMemo(
     () => {
       const merged = activeDatasets.flatMap((ds) => datasetData[ds] ?? []);
@@ -316,7 +312,7 @@ function ResearchPage() {
     <div className="flex h-full min-h-[calc(100vh-3.5rem)]">
       {/* Left research navigation */}
       <aside
-        className={`${navCollapsed ? "w-14" : "w-14 md:w-56"} shrink-0 border-r border-border/60 bg-muted/20 py-4 px-2 flex flex-col transition-[width] duration-200 sticky top-0 self-start h-[calc(100vh-3.5rem)]`}
+        className={`${navCollapsed ? "w-14" : "w-14 md:w-60"} shrink-0 border-r border-border/70 bg-card/35 py-4 px-2.5 flex flex-col transition-[width] duration-200 sticky top-0 self-start h-[calc(100vh-4.5rem)]`}
       >
 
         {!navCollapsed && (
@@ -337,8 +333,8 @@ function ResearchPage() {
                 title={name}
                 className={`w-full flex items-center gap-3 ${navCollapsed ? "justify-center px-0" : "justify-center md:justify-start px-0 md:px-3"} py-2.5 rounded-md text-sm transition-colors ${
                   active
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "bg-gradient-to-r from-primary to-brand-violet text-primary-foreground font-semibold shadow-md shadow-primary/15"
+                    : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -376,9 +372,6 @@ function ResearchPage() {
               <span className="ml-auto tabular-nums text-muted-foreground">
                 {totalLoaded.toLocaleString()} rows loaded
               </span>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-[10px] text-muted-foreground font-mono">
-              useDatasetsProgress.isLoading={String(isLoading)} · resyncing={String(resyncing)} · resyncKey={resyncKey} · active={activeDatasets.join(", ") || "none"} · lastUpdate={latestProgressUpdate ? new Date(latestProgressUpdate).toLocaleTimeString() : "—"}
             </div>
             <div className="space-y-2">
               {activeDatasets.map((ds) => {

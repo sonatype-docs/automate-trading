@@ -101,7 +101,7 @@ function OptimizerPage() {
   const baseMetrics = useMemo(() => computeMetrics(rows), [rows]);
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-[1800px] space-y-7 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-display text-xl sm:text-2xl font-semibold tracking-tight">Universal Research Optimizer</h1>

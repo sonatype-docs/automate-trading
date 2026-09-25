@@ -65,6 +65,17 @@ async function claimNextJob() {
          AND started_at < now() - interval '2 hours'
          AND attempts < ${MAX_ATTEMPTS}`,
     );
+    // An exhausted abandoned claim must become terminal. Otherwise a job can
+    // remain `running` forever after the last allowed worker attempt dies.
+    await pool.query(
+      `UPDATE public.compute_jobs
+       SET status='failed',
+           error=COALESCE(error, 'worker claim abandoned after maximum attempts'),
+           completed_at=COALESCE(completed_at, now())
+       WHERE status='running'
+         AND started_at < now() - interval '2 hours'
+         AND attempts >= ${MAX_ATTEMPTS}`,
+    );
 
     const { rows } = await pool.query<ComputeJob>(
       `WITH next_job AS (

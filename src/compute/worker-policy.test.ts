@@ -17,4 +17,9 @@ describe("compute worker recovery policy", () => {
     expect(isAbandoned(new Date(now.getTime() - ABANDONED_AFTER_MS + 1), now)).toBe(false);
     expect(isAbandoned(null, now)).toBe(false);
   });
+
+  it("makes exhausted abandoned claims terminal instead of retrying forever", () => {
+    expect(failureStatus(MAX_ATTEMPTS)).toBe("failed");
+    expect(failureStatus(MAX_ATTEMPTS + 1)).toBe("failed");
+  });
 });

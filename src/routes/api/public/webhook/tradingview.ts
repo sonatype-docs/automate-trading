@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { verifyWebhookSignature } from "@/lib/webhook-signature.server";
 
 const SignalSchema = z.object({
-  secret: z.string().min(1),
   alert_id: z.string().optional(),
   symbol: z.string().min(1).max(32),
   action: z.enum(["buy", "sell", "close"]),
@@ -20,9 +20,25 @@ export const Route = createFileRoute("/api/public/webhook/tradingview")({
           return new Response("Webhook secret not configured", { status: 500 });
         }
 
+        const rawBody = await request.text();
+        const signatureCheck = verifyWebhookSignature({
+          secret: expected,
+          timestamp: request.headers.get("x-webhook-timestamp"),
+          signature: request.headers.get("x-webhook-signature"),
+          rawBody,
+        });
+        if (!signatureCheck.ok) {
+          return Response.json({ ok: false, error: signatureCheck.reason }, { status: 401 });
+        }
+
+        const eventId = request.headers.get("x-webhook-event-id")?.trim();
+        if (!eventId || eventId.length > 200) {
+          return Response.json({ ok: false, error: "missing_event_id" }, { status: 400 });
+        }
+
         let body: unknown;
         try {
-          body = await request.json();
+          body = JSON.parse(rawBody);
         } catch {
           return new Response("Invalid JSON", { status: 400 });
         }
@@ -35,18 +51,13 @@ export const Route = createFileRoute("/api/public/webhook/tradingview")({
           );
         }
 
-        if (parsed.data.secret !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
-
         const { supabaseAdmin } = await import(
           "@/lib/db-admin.server"
         );
         const { processSignal } = await import("@/lib/trading/engine.server");
 
         const { secret: _s, ...signal } = parsed.data;
-        const alertId =
-          signal.alert_id ?? `auto-${Date.now()}-${signal.symbol}-${signal.action}`;
+        const alertId = eventId;
 
         // Dedup by alert_id
         const { data: eventRow, error: insertErr } = await supabaseAdmin

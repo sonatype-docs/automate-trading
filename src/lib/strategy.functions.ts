@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { FiltersZod } from "@/lib/strategy/filters";
+import { submitStrategyOptimizer } from "@/lib/compute.functions";
 
 
 
@@ -936,57 +937,9 @@ export const sweepHoursBacktest = createServerFn({ method: "POST" })
   });
 
 // ------------------------------------------------------------------
-// Optimizer — genetic search over ICT Silver Bullet / Asian Sweep params.
+// Optimizer — isolated AWS compute worker.
 // ------------------------------------------------------------------
-const OptimizerSchema = z.object({
-  strategy: z.enum(["silver_bullet", "asian_sweep", "orb_sessions"]),
-  symbol: z.string().min(3).max(24),
-  windows: z.array(z.number().int().min(15).max(730)).min(1).max(5),
-  sl_risk_usd: z.number().positive(),
-  skip_weekdays: z.array(z.number().int().min(0).max(6)).optional(),
-  population: z.number().int().min(20).max(120).optional(),
-  generations: z.number().int().min(5).max(60).optional(),
-  top_n: z.number().int().min(5).max(50).optional(),
-});
-
-export const runStrategyOptimizer = createServerFn({ method: "POST" })
-  .validator((input: unknown) => OptimizerSchema.parse(input))
-  .handler(async ({ data }): Promise<import("@/lib/strategy/optimizer.server").OptimizerRunSummary> => {
-    const { runOptimizer } = await import("@/lib/strategy/optimizer.server");
-    try {
-      const r = await runOptimizer({
-        strategy: data.strategy,
-        symbol: data.symbol,
-        windows: Array.from(new Set(data.windows)).sort((a, b) => a - b),
-        slRiskUsd: data.sl_risk_usd,
-        skipWeekdays: data.skip_weekdays ?? [],
-        population: data.population,
-        generations: data.generations,
-        topN: data.top_n,
-      });
-      // JSON round-trip strips Infinity/NaN so seroval can serialize.
-      return { ...(JSON.parse(JSON.stringify(r)) as typeof r), error: "" };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[runStrategyOptimizer]", msg, e);
-      return {
-        strategy: data.strategy,
-        symbol: data.symbol,
-        windows: data.windows,
-        population: data.population ?? 0,
-        generations: data.generations ?? 0,
-        evaluated: 0,
-        cache_hits: 0,
-        bars_fetched: 0,
-        elapsed_ms: 0,
-        top: [],
-        error: msg,
-      };
-    }
-  });
-
-
-
+export const runStrategyOptimizer = submitStrategyOptimizer;
 
 // ------------------------------------------------------------------
 // Live-trade controls: edit SL / TP / close of the currently triggered setup.

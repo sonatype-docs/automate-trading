@@ -60,6 +60,14 @@ Parameters:
   TaskRoleArn:
     Type: String
     Default: arn:aws:iam::438456517782:role/shark-auto-trader-runtime-task
+  TaskRoleName:
+    Type: String
+    Default: shark-auto-trader-runtime-task
+  ComputeWorkerCount:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 4
   DesiredTaskCount:
     Type: Number
     Default: 1
@@ -153,6 +161,102 @@ Resources:
       FromPort: 5432
       ToPort: 5432
       SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+
+  ComputeWorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Isolated outbound-only security group for quantitative compute workers
+      VpcId: !Ref ExistingVpcId
+      SecurityGroupEgress:
+        - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
+  ComputeDatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DatabaseSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref ComputeWorkerSecurityGroup
+
+  ComputeJobsDlq:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 43200
+
+  ComputeJobsQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VisibilityTimeout: 43200
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ComputeJobsDlq.Arn
+        maxReceiveCount: 3
+
+  QuantArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration: { Status: Enabled }
+
+  ComputeWorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: shark-auto-trader-compute-worker
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: compute-worker-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt ComputeJobsQueue.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecretArn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${QuantArtifactsBucket.Arn}/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt QuantArtifactsBucket.Arn
+
+  ComputeQueueSubmitPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: shark-auto-trader-compute-submit
+      Roles: [!Ref TaskRoleName]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sqs:SendMessage
+            Resource: !GetAtt ComputeJobsQueue.Arn
 
   AssetsBucket:
     Type: AWS::S3::Bucket
@@ -281,6 +385,8 @@ Resources:
             - { Name: PORT, Value: "3000" }
             - { Name: AWS_FILES_BUCKET, Value: !Ref FilesBucketName }
             - { Name: AWS_BACKUPS_BUCKET, Value: !Ref BackupsBucketName }
+            - { Name: COMPUTE_QUEUE_URL, Value: !Ref ComputeJobsQueue }
+            - { Name: QUANT_ARTIFACTS_BUCKET, Value: !Ref QuantArtifactsBucket }
             - { Name: DATABASE_HOST, Value: !Ref DatabaseHost }
             - { Name: DATABASE_PORT, Value: "5432" }
             - { Name: DATABASE_NAME, Value: sharktrader }
@@ -310,6 +416,66 @@ Resources:
             Timeout: 5
             Retries: 3
             StartPeriod: 60
+  ComputeWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RetentionInDays: 30
+
+  ComputeWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "1024"
+      Memory: "4096"
+      EphemeralStorage: { SizeInGiB: 50 }
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !GetAtt ComputeWorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: compute-worker
+          Image: !Ref ApplicationImageUri
+          Essential: true
+          Command: ["node", "/app/.output/compute-worker.mjs"]
+          StopTimeout: 120
+          Environment:
+            - { Name: NODE_ENV, Value: production }
+            - { Name: DATA_BACKEND, Value: aws }
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: COMPUTE_QUEUE_URL, Value: !Ref ComputeJobsQueue }
+            - { Name: QUANT_ARTIFACTS_BUCKET, Value: !Ref QuantArtifactsBucket }
+            - { Name: DATABASE_HOST, Value: !Ref DatabaseHost }
+            - { Name: DATABASE_PORT, Value: "5432" }
+            - { Name: DATABASE_NAME, Value: sharktrader }
+          Secrets:
+            - { Name: DATABASE_USER, ValueFrom: !Sub "${DatabaseSecretArn}:username::" }
+            - { Name: DATABASE_PASSWORD, ValueFrom: !Sub "${DatabaseSecretArn}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ComputeWorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: compute
+
+  ComputeWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: shark-auto-trader-compute-worker
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref ComputeWorkerTaskDefinition
+      DesiredCount: !Ref ComputeWorkerCount
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref ComputeWorkerSecurityGroup]
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+
   EcsService:
     Type: AWS::ECS::Service
     DependsOn: Listener
@@ -401,3 +567,7 @@ Outputs:
   PublicSubnetA: { Value: !Ref PublicSubnetA }
   PublicSubnetB: { Value: !Ref PublicSubnetB }
   ApplicationSecurityGroup: { Value: !Ref ApplicationSecurityGroup }
+  ComputeJobsQueueUrl: { Value: !Ref ComputeJobsQueue }
+  ComputeJobsQueueArn: { Value: !GetAtt ComputeJobsQueue.Arn }
+  QuantArtifactsBucketName: { Value: !Ref QuantArtifactsBucket }
+  ComputeWorkerServiceName: { Value: shark-auto-trader-compute-worker }

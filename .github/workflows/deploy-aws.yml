@@ -246,6 +246,8 @@ jobs:
               DatabaseSecurityGroupId="$DATABASE_SECURITY_GROUP_ID" \
               TaskExecutionRoleArn="$TASK_EXECUTION_ROLE_ARN" \
               TaskRoleArn="$TASK_ROLE_ARN" \
+              TaskRoleName="$TASK_ROLE_NAME" \
+              ComputeWorkerCount="1" \
              CognitoUserPoolId="$USER_POOL_ID" \
               CognitoUserPoolClientId="$COGNITO_CLIENT_ID" \
               DesiredTaskCount="$DESIRED_TASKS" \

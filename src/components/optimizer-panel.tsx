@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { runStrategyOptimizer } from "@/lib/strategy.functions";
+import { getComputeJob, submitStrategyOptimizer } from "@/lib/compute.functions";
+import type { OptimizerRunSummary } from "@/lib/strategy/optimizer.server";
 
-type OptResult = Awaited<ReturnType<typeof runStrategyOptimizer>>;
+type OptResult = OptimizerRunSummary;
 
 const ALL_WINDOWS = [30, 60, 90, 180, 365];
 
@@ -17,15 +18,18 @@ export function OptimizerPanel(props: {
   defaults: { symbol: string; slRiskUsd: number; skipWeekdays: number[] };
   onApplyPreset?: (genome: Record<string, string | number | boolean>) => void;
 }) {
-  const run = useServerFn(runStrategyOptimizer);
+  const submit = useServerFn(submitStrategyOptimizer);
+  const getJob = useServerFn(getComputeJob);
   const [windows, setWindows] = useState<number[]>([...ALL_WINDOWS]);
   const [population, setPopulation] = useState(40);
   const [generations, setGenerations] = useState(25);
   const [data, setData] = useState<OptResult | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<"queued" | "running" | null>(null);
 
   const mut = useMutation({
     mutationFn: () =>
-      run({
+      submit({
         data: {
           strategy: props.strategy,
           symbol: props.defaults.symbol,
@@ -38,19 +42,57 @@ export function OptimizerPanel(props: {
         },
       }),
     onSuccess: (r) => {
-      setData(r);
-      if (r.error) {
-        toast.error(`Optimizer failed: ${r.error}`);
-      } else {
-        toast.success(
-          r.top.length > 0
-            ? `Optimizer found ${r.top.length} profitable presets · best net $${r.top[0].total_net_pnl.toFixed(0)}`
-            : "Optimizer completed — no preset passed the OOS gates.",
-        );
-      }
+      setData(null);
+      setJobId(r.job_id);
+      setJobStatus("queued");
+      toast.success("Optimizer queued on the isolated compute worker.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  useEffect(() => {
+    if (!jobId) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      try {
+        const job = await getJob({ data: { job_id: jobId } });
+        if (stopped) return;
+        if (job.status === "queued" || job.status === "running") {
+          setJobStatus(job.status);
+          timer = setTimeout(poll, 2000);
+          return;
+        }
+        setJobStatus(null);
+        setJobId(null);
+        if (job.status === "failed") {
+          toast.error(`Optimizer failed: ${job.error ?? "unknown error"}`);
+          return;
+        }
+        if (job.status === "succeeded" && job.result) {
+          const result = job.result as unknown as OptResult;
+          setData(result);
+          toast.success(
+            result.top.length > 0
+              ? `Optimizer found ${result.top.length} presets · best net $${result.top[0].total_net_pnl.toFixed(0)}`
+              : "Optimizer completed — no preset passed the OOS gates.",
+          );
+        }
+      } catch (e) {
+        if (!stopped) {
+          timer = setTimeout(poll, 3000);
+          console.error("[optimizer-poll]", e);
+        }
+      }
+    };
+
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [jobId, getJob]);
 
   const toggleWindow = (d: number) =>
     setWindows((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort((a, b) => a - b)));
@@ -117,17 +159,19 @@ export function OptimizerPanel(props: {
         <div className="flex items-center gap-3">
           <Button
             size="sm"
-            disabled={mut.isPending || windows.length === 0}
+            disabled={mut.isPending || !!jobId || windows.length === 0}
             onClick={() => mut.mutate()}
           >
             {mut.isPending
-              ? `Running ~${population * generations} evals…`
-              : "Run optimizer"}
+              ? "Queueing…"
+              : jobStatus
+                ? `Optimizer ${jobStatus}…`
+                : "Run optimizer"}
           </Button>
           <p className="text-[10px] text-muted-foreground">
             Symbol <span className="font-mono">{props.defaults.symbol}</span> · risk $
-            {props.defaults.slRiskUsd}/trade. Runs synchronously; larger population × generations
-            = deeper search but slower.
+            {props.defaults.slRiskUsd}/trade. Runs on a dedicated compute worker; larger population × generations
+            = deeper search without blocking the web/API task.
           </p>
         </div>
 

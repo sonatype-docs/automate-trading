@@ -83,7 +83,7 @@ function SettingsPage() {
   });
 
   return (
-    <div className="min-h-screen">
+    <div className="mx-auto min-h-screen w-full max-w-[1800px]">
       <header className="border-b border-border">
         <div className="max-w-4xl mx-auto px-4 md:px-6 h-14 flex items-center">
           <Link to="/">

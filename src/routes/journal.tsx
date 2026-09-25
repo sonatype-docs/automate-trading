@@ -297,7 +297,7 @@ function JournalPage() {
   const pending = (pendingQ.data?.rows ?? []) as PendingRow[];
 
   return (
-    <div className="min-h-screen">
+    <div className="mx-auto min-h-screen w-full max-w-[1800px]">
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
         <div className="max-w-7xl mx-auto px-3 md:px-6 flex flex-col gap-2 py-2 md:h-14 md:flex-row md:items-center md:justify-between md:py-0">
           <div className="flex items-center gap-2 min-w-0">

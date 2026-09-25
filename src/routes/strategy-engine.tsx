@@ -116,7 +116,7 @@ function StrategyEnginePage() {
   const presetCfg = STRATEGY_PRESETS[preset];
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="min-h-dvh bg-transparent text-foreground">
       <header className="sticky top-16 z-20 border-b border-border/70 bg-background/70 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">

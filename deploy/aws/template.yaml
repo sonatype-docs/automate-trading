@@ -728,6 +728,7 @@ Resources:
 
   AppRunningTasksAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: EnableContainerInsightsCondition
     Properties:
       Namespace: AWS/ECS
       MetricName: RunningTaskCount

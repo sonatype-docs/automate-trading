@@ -100,8 +100,11 @@ function QuantEnginePage() {
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
   const [walk, setWalk] = useState<WalkRow[] | null>(null);
   const [pairSymbol, setPairSymbol] = useState("BTCUSDT");
+  const [pairWindow, setPairWindow] = useState(60);
+  const [pairEntryZ, setPairEntryZ] = useState(2.0);
+  const [pairExitZ, setPairExitZ] = useState(0.5);
   const [pairResult, setPairResult] = useState<PairResult | null>(null);
-  const [orderFlowJson, setOrderFlowJson] = useState("");
+  const [orderFlowJson, setOrderFlowJson] = useState(`{"snapshots":[{"timestamp_ms":1,"bids":[{"price":100,"quantity":10}],"asks":[{"price":101,"quantity":30}]}],"trades":[{"timestamp_ms":2,"price":101,"quantity":5,"aggressor":"BUY"}],"deltas":[],"imbalance_threshold":0.2}`);
   const [orderFlowResult, setOrderFlowResult] = useState<any>(null);
 
   const selectedStrategy = useMemo(

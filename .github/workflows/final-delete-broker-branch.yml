@@ -1,0 +1,39 @@
+name: Final broker branch cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/final-delete-broker-branch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the final audited branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for branch in feat/broker-adapter-boundary chore/final-delete-broker-branch; do
+            if gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1; then
+              echo "Deleting $branch"
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null
+            else
+              echo "Already absent: $branch"
+            fi
+          done
+
+      - name: Remove this cleanup workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          file=".github/workflows/final-delete-broker-branch.yml"
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${file}" -q .sha)"
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/contents/${file}"             -f message="chore: remove final broker branch cleanup workflow"             -f sha="${sha}"             -f branch=main >/dev/null

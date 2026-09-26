@@ -256,6 +256,7 @@ jobs:
             --no-fail-on-empty-changeset \
             --parameter-overrides \
               ApplicationImageUri="$IMAGE" \
+              QuantEngineImageUri="$QUANT_IMAGE" \
               MigrationImageUri="$MIGRATION_IMAGE" \
               CloudFrontPrefixListId="$PREFIX_LIST" \
               FilesBucketName="$FILES_BUCKET" \

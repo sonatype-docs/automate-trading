@@ -8,6 +8,20 @@ import { TIMEFRAME_MS, type RawCandle, type Timeframe } from "./types";
 
 const NATIVE_SHARK = new Set<Timeframe>(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
 const NATIVE_YAHOO = new Set<Timeframe>(["1m", "2m", "5m", "15m", "30m", "1h", "1d", "1w", "1M"]);
+
+function maxSafeHistoryMs(source: KlineSourceId, interval: Timeframe): number {
+  if (source === "yahoo") return Number.POSITIVE_INFINITY;
+  const daysByInterval: Partial<Record<Timeframe, number>> = {
+    "1m": 2,
+    "5m": 40,
+    "15m": 120,
+    "30m": 180,
+    "1h": 180,
+    "4h": 180,
+    "1d": 365,
+  };
+  return (daysByInterval[interval] ?? 40) * 86_400_000;
+}
 function isTransientDataError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /429|500|502|503|504|timeout|timed out|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT/i.test(message);
@@ -53,10 +67,23 @@ export async function loadRawCandles(opts: {
   timeframe: Timeframe;
   fromMs: number;
   toMs: number;
-}): Promise<{ candles: RawCandle[]; base: Timeframe; quality: QualityReport }> {
+}): Promise<{
+  candles: RawCandle[];
+  base: Timeframe;
+  quality: QualityReport;
+  requestedFromMs: number;
+  effectiveFromMs: number;
+  rangeAdjusted: boolean;
+  rangeWarning?: string;
+}> {
   const base = pickBase(opts.source, opts.timeframe);
+  const safeWindowMs = maxSafeHistoryMs(opts.source, base);
+  const effectiveFromMs = Number.isFinite(safeWindowMs)
+    ? Math.max(opts.fromMs, opts.toMs - safeWindowMs)
+    : opts.fromMs;
+  const rangeAdjusted = effectiveFromMs > opts.fromMs;
   const src = await getKlineSource(opts.source);
-  const raw = await fetchRangeWithRetry(src, opts.symbol, base, opts.fromMs, opts.toMs);
+  const raw = await fetchRangeWithRetry(src, opts.symbol, base, effectiveFromMs, opts.toMs);
   const baseCandles: RawCandle[] = raw.map((k) => ({
     ts: k.openTime,
     open: k.open, high: k.high, low: k.low, close: k.close,
@@ -71,5 +98,15 @@ export async function loadRawCandles(opts: {
       .join(", ");
     throw new Error("Market data quality gate failed for " + opts.symbol + " " + opts.timeframe + ": " + (fatal || "insufficient data"));
   }
-  return { candles, base, quality };
+  return {
+    candles,
+    base,
+    quality,
+    requestedFromMs: opts.fromMs,
+    effectiveFromMs,
+    rangeAdjusted,
+    rangeWarning: rangeAdjusted
+      ? `${opts.source} ${base} history was capped to ${Math.round(safeWindowMs / 86_400_000)} days to keep the production data request within the API/CloudFront latency budget.`
+      : undefined,
+  };
 }

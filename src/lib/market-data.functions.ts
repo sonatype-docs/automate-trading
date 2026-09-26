@@ -42,6 +42,12 @@ export interface LoadEnrichedResult {
   quality: QualityReport;
   count: number;
   candles: EnrichedCandle[];
+  range?: {
+    requestedFromMs: number;
+    effectiveFromMs: number;
+    adjusted: boolean;
+    warning?: string;
+  };
   summary: {
     firstTs: number | null;
     lastTs: number | null;
@@ -59,13 +65,14 @@ export const loadEnrichedCandles = createServerFn({ method: "POST" })
   .inputValidator((raw) => InputSchema.parse(raw))
   .handler(async ({ data }): Promise<LoadEnrichedResult> => {
     const { loadRawCandles } = await import("@/lib/market-data/loader.server");
-    const { candles, base, quality } = await loadRawCandles({
+    const loaded = await loadRawCandles({
       source: data.source,
       symbol: data.symbol,
       timeframe: data.timeframe,
       fromMs: data.fromMs,
       toMs: data.toMs,
     });
+    const { candles, base, quality, rangeAdjusted, effectiveFromMs, rangeWarning } = loaded;
     const cfg = {
       ...DEFAULT_CONFIG,
       symbol: data.symbol,
@@ -102,6 +109,12 @@ export const loadEnrichedCandles = createServerFn({ method: "POST" })
       quality,
       count: enriched.length,
       candles: trimmed,
+      range: {
+        requestedFromMs: data.fromMs,
+        effectiveFromMs,
+        adjusted: rangeAdjusted,
+        warning: rangeWarning,
+      },
       summary: {
         firstTs: enriched[0]?.ts ?? null,
         lastTs: enriched[enriched.length - 1]?.ts ?? null,

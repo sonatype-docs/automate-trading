@@ -11,7 +11,7 @@ import { runStrategy } from "@/lib/strategy-engine/engine";
 import { runExecution } from "@/lib/execution-engine/engine";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
-import { createSharkClient } from "@/lib/exchange/shark-client.server";
+import { createBrokerAdapter } from "@/lib/execution-engine/broker-adapter.server";
 import { getGlobalLiveTradingEnabled } from "@/lib/trading-control.server";
 import { evaluateLivePortfolioEntry } from "./risk-gate.server";
 import type { KlineSourceId } from "@/lib/exchange/kline-source.server";
@@ -145,7 +145,7 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   if (!baseE) throw new Error(`Unknown exec preset ${r.exec_preset}`);
   const ecfg = withRiskUsd(baseE, Number(r.risk_usd));
 
-  const client = createSharkClient();
+  const client = createBrokerAdapter();
   const liveEntriesEnabled = await getGlobalLiveTradingEnabled();
 
   // 0.5) Promote QUEUED signals only while NEW live entries are enabled.

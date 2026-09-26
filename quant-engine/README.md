@@ -1,4 +1,4 @@
-# QUANT-TRADER Quant Engine
+# Shark Auto-Trader — Embedded Quant Engine
 
 The quant engine is the server-side research and execution-safety component of the existing QUANT-TRADER product. It lives inside the same repository as the Android cockpit.
 
@@ -31,10 +31,4 @@ The quant engine is the server-side research and execution-safety component of t
 
 ## Product boundary
 
-Android remains the cockpit. Long-running research and analysis execute server-side so UI code does not manufacture research metrics.
-
-Production flow:
-
-Android → Cognito → API → DynamoDB/SQS → ECS worker → S3 result → Android.
-
-The engine is deliberately an in-repository module rather than a separate repository.
+The React/TanStack web application remains the cockpit. The Python engine runs as an ECS sidecar in the same task, with a local-only API bridge and a durable SQS/DynamoDB worker path.

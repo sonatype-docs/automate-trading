@@ -1,5 +1,5 @@
 // Server-only AWS data client. Production always talks to RDS PostgreSQL through
-// a Supabase-compatible query builder; no hosted Supabase/Lovable client is
+// a Supabase-compatible query builder; no hosted database client is
 // imported or initialized in the application container.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";

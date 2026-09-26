@@ -652,37 +652,25 @@ export const summariseTrades = createServerFn({ method: "POST" })
   });
 
 export const listSnapshots = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async () => {
-  const { supabaseAdmin } = await import("@/lib/db-admin.server");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = supabaseAdmin as any;
-  // Prefer the maintained stats cache (fast, no full scan). Fall back to the
-  // RPC if the cache table is missing.
-  const { data: statsRows, error: statsErr } = await supabase
-    .from("trade_snapshot_stats")
-    .select("name, trade_count, last_updated")
-    .order("last_updated", { ascending: false });
-  if (!statsErr && statsRows) {
-    return {
-      snapshots: (statsRows as { name: string; trade_count: number | string; last_updated: string | null }[])
-        .map((r) => ({
-          name: r.name,
-          count: Number(r.trade_count) || 0,
-          lastUpdated: r.last_updated ?? null,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    };
-  }
-  const { data, error } = await supabase.rpc("list_trade_snapshots");
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as { name: string; count: number | string; last_updated: string | null }[];
+  // The archive itself is the source of truth. Do not trust a stats cache here:
+  // imports/backfills can populate rows before the cache trigger is rebuilt.
+  const { getPool } = await import("@/lib/db-admin.server");
+  const pool = await getPool();
+  const { rows } = await pool.query<{ name: string; count: string; last_updated: string | null }>(
+    `SELECT snapshot_name AS name,
+            COUNT(*)::bigint AS count,
+            MAX(updated_at)::text AS last_updated
+       FROM public.trade_intelligence_archive
+      WHERE snapshot_name IS NOT NULL AND snapshot_name <> ''
+      GROUP BY snapshot_name
+      ORDER BY MAX(updated_at) DESC NULLS LAST, snapshot_name ASC`,
+  );
   return {
-    snapshots: rows
-      .map((r) => ({
-        name: r.name,
-        count: Number(r.count) || 0,
-        lastUpdated: r.last_updated ?? null,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    snapshots: rows.map((r) => ({
+      name: r.name,
+      count: Number(r.count) || 0,
+      lastUpdated: r.last_updated ?? null,
+    })),
   };
 });
 

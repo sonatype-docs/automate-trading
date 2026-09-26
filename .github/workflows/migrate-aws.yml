@@ -13,7 +13,7 @@ on:
       migration_id:
         description: Immutable migration marker written to PostgreSQL
         required: true
-        default: lovable-export-2026-09-24
+        default: aws-runtime-2026-09-24
 
 permissions:
   contents: read

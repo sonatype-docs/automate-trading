@@ -51,7 +51,7 @@ const folders: Array<{
     id: "overview",
     label: "Overview",
     icon: LayoutDashboard,
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Journal", url: "/journal", icon: BookOpen },
@@ -63,7 +63,7 @@ const folders: Array<{
     id: "trading",
     label: "Trading",
     icon: Activity,
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
       { title: "ORB Bot", url: "/bot", icon: Bot },
       { title: "Pending Orders", url: "/pending-orders", icon: FileText },
@@ -75,7 +75,7 @@ const folders: Array<{
     id: "backtesting",
     label: "Backtesting",
     icon: LineChart,
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
       { title: "Fib Zone Lab", url: "/backtest", icon: FlaskConical },
       { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
@@ -89,7 +89,7 @@ const folders: Array<{
     id: "research",
     label: "Research & Quant",
     icon: Sparkles,
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
       { title: "Quant Engine", url: "/quant-engine", icon: Cpu },
       { title: "Research", url: "/research", icon: BarChart3 },
@@ -170,8 +170,8 @@ export function AppSidebar() {
           return (
             <div
               key={folder.id}
-              className={`rounded-lg border border-transparent transition-colors ${
-                isActive ? "bg-sidebar-accent/45" : "hover:bg-sidebar-accent/25"
+              className={`overflow-hidden rounded-xl border transition-colors ${
+                isActive ? "border-primary/20 bg-sidebar-accent/35 shadow-sm" : "border-sidebar-border/70 bg-sidebar/40 hover:border-sidebar-border hover:bg-sidebar-accent/20"
               }`}
             >
               <button
@@ -179,12 +179,17 @@ export function AppSidebar() {
                 onClick={() =>
                   setOpenFolders((current) => ({ ...current, [folder.id]: !isOpen }))
                 }
-                className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
+                className="group flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left"
                 aria-expanded={isOpen}
               >
                 <FolderIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                 <span className="min-w-0 flex-1 truncate text-xs font-semibold tracking-wide text-sidebar-foreground group-data-[collapsible=icon]:hidden">
                   {folder.label}
+                  {isActive && (
+                    <span className="mt-0.5 block truncate text-[9px] font-normal tracking-normal text-muted-foreground">
+                      {folder.items.find((item) => pathIsActive(pathname, item.url))?.title ?? "Workspace"}
+                    </span>
+                  )}
                 </span>
                 <span className="mr-0.5 rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground group-data-[collapsible=icon]:hidden">
                   {folder.items.length}
@@ -198,7 +203,7 @@ export function AppSidebar() {
               </button>
 
               {isOpen && (
-                <SidebarMenu className="px-1 pb-1 group-data-[collapsible=icon]:px-0">
+                <SidebarMenu className="border-t border-sidebar-border/60 px-1.5 py-1.5 group-data-[collapsible=icon]:px-0">
                   {folder.items.map((item) => (
                     <NavItem
                       key={item.url}
@@ -217,7 +222,7 @@ export function AppSidebar() {
           );
         })}
 
-        <div className="mt-2 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-2 group-data-[collapsible=icon]:hidden">
+        <div className="mt-1 rounded-xl border border-primary/15 bg-primary/5 px-2.5 py-2 group-data-[collapsible=icon]:hidden">
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             <Shield className="h-3.5 w-3.5 text-primary" />
             Safety

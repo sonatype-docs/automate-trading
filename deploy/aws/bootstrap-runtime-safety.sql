@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_owner boolean NOT NULL DEFAULT false;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS cognito_sub text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx
   ON public.users (cognito_sub);

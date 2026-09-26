@@ -14,6 +14,7 @@ import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
 import { createBrokerAdapter } from "@/lib/execution-engine/broker-adapter.server";
 import { getGlobalLiveTradingEnabled } from "@/lib/trading-control.server";
 import { evaluateLivePortfolioEntry } from "./risk-gate.server";
+import { createSharkClient } from "@/lib/exchange/shark-client.server";
 import type { KlineSourceId } from "@/lib/exchange/kline-source.server";
 
 interface RunnerRow {

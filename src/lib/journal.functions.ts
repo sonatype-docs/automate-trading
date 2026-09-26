@@ -20,26 +20,30 @@ export type JournalDbTrade = {
 
 export const getJournalDbData = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async (): Promise<{ trades: JournalDbTrade[]; counts: { paper: number; live: number; total: number } }> => {
-    const { getPool } = await import("@/lib/db-admin.server");
-    const pool = await getPool();
-    const { rows } = await pool.query<{
-      id: string;
-      source: "paper" | "live";
-      time: string;
-      symbol: string;
-      side: "BUY" | "SELL";
-      qty: number;
-      price: number;
-      fee: number;
-      gross_pnl: number;
-      net_pnl: number;
-      status: string;
-      strategy_preset: string;
-      timeframe: string;
-      exit_reason: string | null;
-    }>(
-      `SELECT *
+  .handler(
+    async (): Promise<{
+      trades: JournalDbTrade[];
+      counts: { paper: number; live: number; total: number };
+    }> => {
+      const { getPool } = await import("@/lib/db-admin.server");
+      const pool = await getPool();
+      const { rows } = await pool.query<{
+        id: string;
+        source: "paper" | "live";
+        time: string;
+        symbol: string;
+        side: "BUY" | "SELL";
+        qty: number;
+        price: number;
+        fee: number;
+        gross_pnl: number;
+        net_pnl: number;
+        status: string;
+        strategy_preset: string;
+        timeframe: string;
+        exit_reason: string | null;
+      }>(
+        `SELECT *
          FROM (
            SELECT id::text,
                   'paper'::text AS source,
@@ -76,14 +80,30 @@ export const getJournalDbData = createServerFn({ method: "GET" })
          ) t
         ORDER BY time ASC, id ASC
         LIMIT 100000`,
-    );
-    const trades = rows.map((r) => ({ ...r, source: r.source, qty: Number(r.qty), price: Number(r.price), fee: Number(r.fee), grossPnl: Number(r.gross_pnl), netPnl: Number(r.net_pnl) }));
-    return {
-      trades,
-      counts: {
-        paper: trades.filter((r) => r.source === "paper").length,
-        live: trades.filter((r) => r.source === "live").length,
-        total: trades.length,
-      },
-    };
-  });
+      );
+      const trades: JournalDbTrade[] = rows.map((r) => ({
+        id: r.id,
+        source: r.source,
+        time: r.time,
+        symbol: r.symbol,
+        side: r.side,
+        qty: Number(r.qty),
+        price: Number(r.price),
+        fee: Number(r.fee),
+        grossPnl: Number(r.gross_pnl),
+        netPnl: Number(r.net_pnl),
+        status: r.status,
+        strategyPreset: r.strategy_preset,
+        timeframe: r.timeframe,
+        exitReason: r.exit_reason,
+      }));
+      return {
+        trades,
+        counts: {
+          paper: trades.filter((r) => r.source === "paper").length,
+          live: trades.filter((r) => r.source === "live").length,
+          total: trades.length,
+        },
+      };
+    },
+  );

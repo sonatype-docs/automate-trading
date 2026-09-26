@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "./auth-middleware";
 import { getPool } from "./db-admin.server";
 import { ExecutionEngineInputSchema, runExecutionEngineCore, type RunExecutionResult } from "./execution-engine/core.server";
+export type { RunExecutionResult };
 
 export { ExecutionEngineInputSchema } from "./execution-engine/core.server";
 export type { ExecutionEngineInput } from "./execution-engine/core.server";

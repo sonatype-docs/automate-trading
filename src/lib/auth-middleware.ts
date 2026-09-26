@@ -1,6 +1,41 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
+// Self-heal the AWS users table: older deployments created public.users
+// without is_owner, which broke every authenticated server function.
+let usersSchemaReady: Promise<void> | null = null;
+function ensureUsersSchema(pool: { query: (sql: string) => Promise<unknown> }): Promise<void> {
+  if (!usersSchemaReady) {
+    usersSchemaReady = (async () => {
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.users (
+        id uuid PRIMARY KEY,
+        cognito_sub text NOT NULL UNIQUE,
+        email text,
+        is_owner boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`);
+      await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS cognito_sub text`);
+      await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email text`);
+      await pool.query(
+        `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_owner boolean NOT NULL DEFAULT false`,
+      );
+      await pool.query(
+        `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()`,
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub)`,
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_single_owner_idx ON public.users ((is_owner)) WHERE is_owner = true`,
+      );
+    })().catch((err) => {
+      usersSchemaReady = null;
+      console.error("[auth] users schema self-heal failed", err);
+    });
+  }
+  return usersSchemaReady;
+}
+
 // Cognito-verified auth on AWS.
 // context: { supabase, userId } — on AWS "supabase" is the server data client,
 // so every query MUST filter by userId explicitly.
@@ -28,6 +63,7 @@ export async function verifyCognitoRequest(request: Request): Promise<{
 
   const { getPool } = await import("./db-admin.server");
   const pool = await getPool();
+  await ensureUsersSchema(pool);
 
   const existing = await pool.query<{ id: string; is_owner: boolean }>(
     `select id, is_owner

@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchLabRouteImport } from './routes/research-lab'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as QuantEngineRouteImport } from './routes/quant-engine'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as PendingOrdersRouteImport } from './routes/pending-orders'
 import { Route as PaperTradingRouteImport } from './routes/paper-trading'
@@ -24,6 +25,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LiveTradingRouteImport } from './routes/live-trading'
 import { Route as JournalRouteImport } from './routes/journal'
 import { Route as HandbookRouteImport } from './routes/handbook'
+import { Route as FilesRouteImport } from './routes/files'
 import { Route as ExecutionEngineRouteImport } from './routes/execution-engine'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as BotRouteImport } from './routes/bot'
@@ -41,8 +43,13 @@ import { Route as BacktestCompareRouteImport } from './routes/backtest.compare'
 import { Route as BacktestAsianSweepRouteImport } from './routes/backtest.asian-sweep'
 import { Route as HandbookVolumeIndexRouteImport } from './routes/handbook.$volume.index'
 import { Route as HandbookVolumeStrategyRouteImport } from './routes/handbook.$volume.$strategy'
+import { Route as ApiPublicReadyRouteImport } from './routes/api/public/ready'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicExportSnapshotRouteImport } from './routes/api/public/export-snapshot'
+import { Route as ApiFilesPresignRouteImport } from './routes/api/files/presign'
+import { Route as ApiFilesListRouteImport } from './routes/api/files/list'
+import { Route as ApiFilesDownloadRouteImport } from './routes/api/files/download'
+import { Route as ApiFilesCompleteRouteImport } from './routes/api/files/complete'
 import { Route as ApiPublicWebhookTradingviewRouteImport } from './routes/api/public/webhook/tradingview'
 import { Route as ApiPublicHooksStrategyTickRouteImport } from './routes/api/public/hooks/strategy-tick'
 import { Route as ApiPublicHooksPaperTickRouteImport } from './routes/api/public/hooks/paper-tick'
@@ -78,6 +85,11 @@ const ResearchRoute = ResearchRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuantEngineRoute = QuantEngineRouteImport.update({
+  id: '/quant-engine',
+  path: '/quant-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PipelineRoute = PipelineRouteImport.update({
@@ -123,6 +135,11 @@ const JournalRoute = JournalRouteImport.update({
 const HandbookRoute = HandbookRouteImport.update({
   id: '/handbook',
   path: '/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FilesRoute = FilesRouteImport.update({
+  id: '/files',
+  path: '/files',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExecutionEngineRoute = ExecutionEngineRouteImport.update({
@@ -210,6 +227,11 @@ const HandbookVolumeStrategyRoute = HandbookVolumeStrategyRouteImport.update({
   path: '/$strategy',
   getParentRoute: () => HandbookVolumeRoute,
 } as any)
+const ApiPublicReadyRoute = ApiPublicReadyRouteImport.update({
+  id: '/api/public/ready',
+  path: '/api/public/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
   id: '/api/public/health',
   path: '/api/public/health',
@@ -218,6 +240,26 @@ const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
 const ApiPublicExportSnapshotRoute = ApiPublicExportSnapshotRouteImport.update({
   id: '/api/public/export-snapshot',
   path: '/api/public/export-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilesPresignRoute = ApiFilesPresignRouteImport.update({
+  id: '/api/files/presign',
+  path: '/api/files/presign',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilesListRoute = ApiFilesListRouteImport.update({
+  id: '/api/files/list',
+  path: '/api/files/list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilesDownloadRoute = ApiFilesDownloadRouteImport.update({
+  id: '/api/files/download',
+  path: '/api/files/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilesCompleteRoute = ApiFilesCompleteRouteImport.update({
+  id: '/api/files/complete',
+  path: '/api/files/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebhookTradingviewRoute =
@@ -262,6 +304,7 @@ export interface FileRoutesByFullPath {
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/execution-engine': typeof ExecutionEngineRoute
+  '/files': typeof FilesRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/live-trading': typeof LiveTradingRoute
@@ -271,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
+  '/quant-engine': typeof QuantEngineRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
   '/research-lab': typeof ResearchLabRoute
@@ -286,8 +330,13 @@ export interface FileRoutesByFullPath {
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
+  '/api/files/complete': typeof ApiFilesCompleteRoute
+  '/api/files/download': typeof ApiFilesDownloadRoute
+  '/api/files/list': typeof ApiFilesListRoute
+  '/api/files/presign': typeof ApiFilesPresignRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/ready': typeof ApiPublicReadyRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -304,6 +353,7 @@ export interface FileRoutesByTo {
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/execution-engine': typeof ExecutionEngineRoute
+  '/files': typeof FilesRoute
   '/journal': typeof JournalRoute
   '/live-trading': typeof LiveTradingRoute
   '/login': typeof LoginRoute
@@ -312,6 +362,7 @@ export interface FileRoutesByTo {
   '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
+  '/quant-engine': typeof QuantEngineRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
   '/research-lab': typeof ResearchLabRoute
@@ -326,8 +377,13 @@ export interface FileRoutesByTo {
   '/backtest/silver-bullet': typeof BacktestSilverBulletRoute
   '/backtest': typeof BacktestIndexRoute
   '/handbook': typeof HandbookIndexRoute
+  '/api/files/complete': typeof ApiFilesCompleteRoute
+  '/api/files/download': typeof ApiFilesDownloadRoute
+  '/api/files/list': typeof ApiFilesListRoute
+  '/api/files/presign': typeof ApiFilesPresignRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/ready': typeof ApiPublicReadyRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -345,6 +401,7 @@ export interface FileRoutesById {
   '/bot': typeof BotRoute
   '/docs': typeof DocsRoute
   '/execution-engine': typeof ExecutionEngineRoute
+  '/files': typeof FilesRoute
   '/handbook': typeof HandbookRouteWithChildren
   '/journal': typeof JournalRoute
   '/live-trading': typeof LiveTradingRoute
@@ -354,6 +411,7 @@ export interface FileRoutesById {
   '/paper-trading': typeof PaperTradingRoute
   '/pending-orders': typeof PendingOrdersRoute
   '/pipeline': typeof PipelineRoute
+  '/quant-engine': typeof QuantEngineRoute
   '/reports': typeof ReportsRoute
   '/research': typeof ResearchRoute
   '/research-lab': typeof ResearchLabRoute
@@ -369,8 +427,13 @@ export interface FileRoutesById {
   '/handbook/$volume': typeof HandbookVolumeRouteWithChildren
   '/backtest/': typeof BacktestIndexRoute
   '/handbook/': typeof HandbookIndexRoute
+  '/api/files/complete': typeof ApiFilesCompleteRoute
+  '/api/files/download': typeof ApiFilesDownloadRoute
+  '/api/files/list': typeof ApiFilesListRoute
+  '/api/files/presign': typeof ApiFilesPresignRoute
   '/api/public/export-snapshot': typeof ApiPublicExportSnapshotRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/ready': typeof ApiPublicReadyRoute
   '/handbook/$volume/$strategy': typeof HandbookVolumeStrategyRoute
   '/handbook/$volume/': typeof HandbookVolumeIndexRoute
   '/api/public/hooks/live-tick': typeof ApiPublicHooksLiveTickRoute
@@ -389,6 +452,7 @@ export interface FileRouteTypes {
     | '/bot'
     | '/docs'
     | '/execution-engine'
+    | '/files'
     | '/handbook'
     | '/journal'
     | '/live-trading'
@@ -398,6 +462,7 @@ export interface FileRouteTypes {
     | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
+    | '/quant-engine'
     | '/reports'
     | '/research'
     | '/research-lab'
@@ -413,8 +478,13 @@ export interface FileRouteTypes {
     | '/handbook/$volume'
     | '/backtest/'
     | '/handbook/'
+    | '/api/files/complete'
+    | '/api/files/download'
+    | '/api/files/list'
+    | '/api/files/presign'
     | '/api/public/export-snapshot'
     | '/api/public/health'
+    | '/api/public/ready'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -431,6 +501,7 @@ export interface FileRouteTypes {
     | '/bot'
     | '/docs'
     | '/execution-engine'
+    | '/files'
     | '/journal'
     | '/live-trading'
     | '/login'
@@ -439,6 +510,7 @@ export interface FileRouteTypes {
     | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
+    | '/quant-engine'
     | '/reports'
     | '/research'
     | '/research-lab'
@@ -453,8 +525,13 @@ export interface FileRouteTypes {
     | '/backtest/silver-bullet'
     | '/backtest'
     | '/handbook'
+    | '/api/files/complete'
+    | '/api/files/download'
+    | '/api/files/list'
+    | '/api/files/presign'
     | '/api/public/export-snapshot'
     | '/api/public/health'
+    | '/api/public/ready'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume'
     | '/api/public/hooks/live-tick'
@@ -471,6 +548,7 @@ export interface FileRouteTypes {
     | '/bot'
     | '/docs'
     | '/execution-engine'
+    | '/files'
     | '/handbook'
     | '/journal'
     | '/live-trading'
@@ -480,6 +558,7 @@ export interface FileRouteTypes {
     | '/paper-trading'
     | '/pending-orders'
     | '/pipeline'
+    | '/quant-engine'
     | '/reports'
     | '/research'
     | '/research-lab'
@@ -495,8 +574,13 @@ export interface FileRouteTypes {
     | '/handbook/$volume'
     | '/backtest/'
     | '/handbook/'
+    | '/api/files/complete'
+    | '/api/files/download'
+    | '/api/files/list'
+    | '/api/files/presign'
     | '/api/public/export-snapshot'
     | '/api/public/health'
+    | '/api/public/ready'
     | '/handbook/$volume/$strategy'
     | '/handbook/$volume/'
     | '/api/public/hooks/live-tick'
@@ -514,6 +598,7 @@ export interface RootRouteChildren {
   BotRoute: typeof BotRoute
   DocsRoute: typeof DocsRoute
   ExecutionEngineRoute: typeof ExecutionEngineRoute
+  FilesRoute: typeof FilesRoute
   HandbookRoute: typeof HandbookRouteWithChildren
   JournalRoute: typeof JournalRoute
   LiveTradingRoute: typeof LiveTradingRoute
@@ -523,6 +608,7 @@ export interface RootRouteChildren {
   PaperTradingRoute: typeof PaperTradingRoute
   PendingOrdersRoute: typeof PendingOrdersRoute
   PipelineRoute: typeof PipelineRoute
+  QuantEngineRoute: typeof QuantEngineRoute
   ReportsRoute: typeof ReportsRoute
   ResearchRoute: typeof ResearchRoute
   ResearchLabRoute: typeof ResearchLabRoute
@@ -536,8 +622,13 @@ export interface RootRouteChildren {
   BacktestPdhPdlSweepRoute: typeof BacktestPdhPdlSweepRoute
   BacktestSilverBulletRoute: typeof BacktestSilverBulletRoute
   BacktestIndexRoute: typeof BacktestIndexRoute
+  ApiFilesCompleteRoute: typeof ApiFilesCompleteRoute
+  ApiFilesDownloadRoute: typeof ApiFilesDownloadRoute
+  ApiFilesListRoute: typeof ApiFilesListRoute
+  ApiFilesPresignRoute: typeof ApiFilesPresignRoute
   ApiPublicExportSnapshotRoute: typeof ApiPublicExportSnapshotRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
+  ApiPublicReadyRoute: typeof ApiPublicReadyRoute
   ApiPublicHooksLiveTickRoute: typeof ApiPublicHooksLiveTickRoute
   ApiPublicHooksLiveWatchdogRoute: typeof ApiPublicHooksLiveWatchdogRoute
   ApiPublicHooksManualPlaceRoute: typeof ApiPublicHooksManualPlaceRoute
@@ -588,6 +679,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quant-engine': {
+      id: '/quant-engine'
+      path: '/quant-engine'
+      fullPath: '/quant-engine'
+      preLoaderRoute: typeof QuantEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pipeline': {
@@ -651,6 +749,13 @@ declare module '@tanstack/react-router' {
       path: '/handbook'
       fullPath: '/handbook'
       preLoaderRoute: typeof HandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/files': {
+      id: '/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof FilesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/execution-engine': {
@@ -772,6 +877,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HandbookVolumeStrategyRouteImport
       parentRoute: typeof HandbookVolumeRoute
     }
+    '/api/public/ready': {
+      id: '/api/public/ready'
+      path: '/api/public/ready'
+      fullPath: '/api/public/ready'
+      preLoaderRoute: typeof ApiPublicReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/health': {
       id: '/api/public/health'
       path: '/api/public/health'
@@ -784,6 +896,34 @@ declare module '@tanstack/react-router' {
       path: '/api/public/export-snapshot'
       fullPath: '/api/public/export-snapshot'
       preLoaderRoute: typeof ApiPublicExportSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/files/presign': {
+      id: '/api/files/presign'
+      path: '/api/files/presign'
+      fullPath: '/api/files/presign'
+      preLoaderRoute: typeof ApiFilesPresignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/files/list': {
+      id: '/api/files/list'
+      path: '/api/files/list'
+      fullPath: '/api/files/list'
+      preLoaderRoute: typeof ApiFilesListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/files/download': {
+      id: '/api/files/download'
+      path: '/api/files/download'
+      fullPath: '/api/files/download'
+      preLoaderRoute: typeof ApiFilesDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/files/complete': {
+      id: '/api/files/complete'
+      path: '/api/files/complete'
+      fullPath: '/api/files/complete'
+      preLoaderRoute: typeof ApiFilesCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/webhook/tradingview': {
@@ -866,6 +1006,7 @@ const rootRouteChildren: RootRouteChildren = {
   BotRoute: BotRoute,
   DocsRoute: DocsRoute,
   ExecutionEngineRoute: ExecutionEngineRoute,
+  FilesRoute: FilesRoute,
   HandbookRoute: HandbookRouteWithChildren,
   JournalRoute: JournalRoute,
   LiveTradingRoute: LiveTradingRoute,
@@ -875,6 +1016,7 @@ const rootRouteChildren: RootRouteChildren = {
   PaperTradingRoute: PaperTradingRoute,
   PendingOrdersRoute: PendingOrdersRoute,
   PipelineRoute: PipelineRoute,
+  QuantEngineRoute: QuantEngineRoute,
   ReportsRoute: ReportsRoute,
   ResearchRoute: ResearchRoute,
   ResearchLabRoute: ResearchLabRoute,
@@ -888,8 +1030,13 @@ const rootRouteChildren: RootRouteChildren = {
   BacktestPdhPdlSweepRoute: BacktestPdhPdlSweepRoute,
   BacktestSilverBulletRoute: BacktestSilverBulletRoute,
   BacktestIndexRoute: BacktestIndexRoute,
+  ApiFilesCompleteRoute: ApiFilesCompleteRoute,
+  ApiFilesDownloadRoute: ApiFilesDownloadRoute,
+  ApiFilesListRoute: ApiFilesListRoute,
+  ApiFilesPresignRoute: ApiFilesPresignRoute,
   ApiPublicExportSnapshotRoute: ApiPublicExportSnapshotRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
+  ApiPublicReadyRoute: ApiPublicReadyRoute,
   ApiPublicHooksLiveTickRoute: ApiPublicHooksLiveTickRoute,
   ApiPublicHooksLiveWatchdogRoute: ApiPublicHooksLiveWatchdogRoute,
   ApiPublicHooksManualPlaceRoute: ApiPublicHooksManualPlaceRoute,

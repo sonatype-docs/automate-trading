@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Command as CommandIcon, HelpCircle, Search, Bell, Activity, ChevronRight, Plus } from "lucide-react";
+import { Command as CommandIcon, HelpCircle, Search, Bell, Activity, ChevronRight } from "lucide-react";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
@@ -193,15 +193,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {pathname === "/" ? "Monitor research, trading, performance and risk from one workspace." : "Use the workspace below to research, configure, analyze and monitor this part of QUANT-BOT."}
                   </p>
                 </div>
-                {pathname === "/backtest" || pathname === "/strategy-engine" || pathname === "/research-lab" ? (
-                  <button
-                    type="button"
-                    onClick={() => {}}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden /> New Run
-                  </button>
-                ) : null}
+
               </div>
             </div>
             {children}

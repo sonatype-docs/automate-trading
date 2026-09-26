@@ -120,6 +120,7 @@ type PendingRow = {
 function JournalPage() {
   const getAcct = useServerFn(getExchangeAccount);
   const getPending = useServerFn(getPendingSharkOrders);
+  const getDbJournal = useServerFn(getJournalDbData);
 
   const acctQ = useQuery({
     queryKey: ["exchange-account"],
@@ -130,6 +131,12 @@ function JournalPage() {
     queryKey: ["shark", "open-orders"],
     queryFn: () => getPending(),
     refetchInterval: 10_000,
+  });
+  const dbJournalQ = useQuery({
+    queryKey: ["journal", "db-trades"],
+    queryFn: () => getDbJournal(),
+    refetchInterval: 15_000,
+    retry: 2,
   });
 
   const [symbolFilter, setSymbolFilter] = useState<string>("ALL");
@@ -150,6 +157,7 @@ function JournalPage() {
   } = useMemo(() => {
     const fw = asObject(snap?.futuresWallet);
     const exTrades = asArray(snap?.tradeHistory);
+    const dbTrades = dbJournalQ.data?.trades ?? [];
     const exTxns = asArray(snap?.transactionHistory);
     const positions = asArray(snap?.openPositions);
 
@@ -159,8 +167,19 @@ function JournalPage() {
     const hasWallet = Boolean(fw);
     const walletAsset = String(fw?.asset ?? fw?.marginAsset ?? "INR");
 
-    const tradeFills = exTrades
-      .map((t) => ({
+    const tradeFills = (dbTrades.length ? dbTrades : exTrades)
+      .map((t) => dbTrades.length
+        ? ({
+            id: String(t.id),
+            time: parseTime(t.time),
+            symbol: String(t.symbol ?? "—"),
+            side: String(t.side ?? "").toUpperCase(),
+            qty: Number(t.qty ?? 0),
+            price: Number(t.price ?? 0),
+            fee: Number(t.fee ?? 0),
+            pnl: Number(t.grossPnl ?? 0),
+          })
+        : ({
         id: String(t.id ?? t.tradeId ?? ""),
         time: parseTime(t.time ?? t.createdAt ?? t.updatedAt),
         symbol: String(t.symbol ?? "—"),
@@ -271,7 +290,7 @@ function JournalPage() {
       equity, walletAsset, grossPnl, feesTotal, realizedPnl, netDeposits,
       wins, losses, winRate, todaysPnl, equityCurve: curve, openPositions,
     };
-  }, [snap, symbolFilter, sideFilter, fromDate, toDate, closingOnly]);
+  }, [snap, dbJournalQ.data, symbolFilter, sideFilter, fromDate, toDate, closingOnly]);
 
   function exportCsv() {
     const rows = [
@@ -560,8 +579,12 @@ function JournalPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {!acctQ.data ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">Loading trade history…</p>
+            {dbJournalQ.isLoading ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">Loading DB trade history…</p>
+            ) : dbJournalQ.error ? (
+              <p className="text-xs text-destructive py-6 text-center break-all">DB journal error: {dbJournalQ.error instanceof Error ? dbJournalQ.error.message : String(dbJournalQ.error)}</p>
+            ) : !acctQ.data ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">Loading account context…</p>
             ) : acctQ.data && !acctQ.data.ok ? (
               <p className="text-xs text-destructive py-6 text-center">{acctQ.data.message}</p>
             ) : journal.length === 0 ? (

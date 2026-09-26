@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSweep, runQuantWalkForward } from "@/lib/quant-engine.functions";
+import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSweep, runQuantWalkForward, runQuantPairBacktest, runQuantOrderFlowReplay } from "@/lib/quant-engine.functions";
 import { loadEnrichedCandles } from "@/lib/market-data.functions";
 import { TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 
@@ -45,6 +45,7 @@ type QuantBacktestResult = {
 };
 type SweepRow = { parameters: Record<string, number>; result: QuantBacktestResult };
 type WalkRow = { train_start: number; train_end: number; test_start: number; test_end: number; result: QuantBacktestResult };
+type PairResult = { run_id: string; x_symbol: string; y_symbol: string; engine_version: string; metrics: { total_return_pct: number; annualized_return_pct: number; sharpe: number; max_drawdown_pct: number; profit_factor: number | null; win_rate_pct: number; trade_count: number }; trades: Array<{ entry_time: string; exit_time: string; direction: string; hedge_ratio: number; entry_z: number; exit_z: number; net_pnl: number }> };
 
 const SPECIALIST_STRATEGIES = new Set(["STRAT-03-STAT-COINT", "STRAT-06-ORDER-FLOW-DELTA"]);
 
@@ -82,6 +83,8 @@ function QuantEnginePage() {
   const backtestFn = useServerFn(runQuantBacktest);
   const sweepFn = useServerFn(runQuantSweep);
   const walkFn = useServerFn(runQuantWalkForward);
+  const pairFn = useServerFn(runQuantPairBacktest);
+  const orderFlowFn = useServerFn(runQuantOrderFlowReplay);
 
   const [symbol, setSymbol] = useState("XAUUSDT");
   const [source, setSource] = useState<"yahoo" | "shark">("yahoo");
@@ -96,6 +99,10 @@ function QuantEnginePage() {
   const [backtest, setBacktest] = useState<QuantBacktestResult | null>(null);
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
   const [walk, setWalk] = useState<WalkRow[] | null>(null);
+  const [pairSymbol, setPairSymbol] = useState("BTCUSDT");
+  const [pairResult, setPairResult] = useState<PairResult | null>(null);
+  const [orderFlowJson, setOrderFlowJson] = useState("");
+  const [orderFlowResult, setOrderFlowResult] = useState<any>(null);
 
   const selectedStrategy = useMemo(
     () => (strategies.data ?? []).find((s) => s.strategy_id === strategyId) ?? null,

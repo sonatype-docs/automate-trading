@@ -34,6 +34,7 @@ import {
 } from "@/lib/research/metrics";
 import { histogram } from "@/lib/research/distributions";
 import { correlationMatrix } from "@/lib/research/correlation";
+import { QuantResearchPanel } from "@/components/quant-research/quant-research-panel";
 // Local filter/export helpers (kept in-route to avoid colliding with the
 // existing research/filters + research/export modules used by grading/AI).
 type Op = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "in";
@@ -357,6 +358,7 @@ function ResearchPage() {
       </aside>
 
       <main className="flex-1 overflow-auto bg-transparent p-4 space-y-5 sm:p-6 lg:p-8">
+        <QuantResearchPanel mode="backtest" title="Canonical Quant Backtest" description="Run the embedded strategy engine directly from the primary research workspace using normalized market data, fees, slippage and explicit risk sizing." />
         <Card className={`sticky top-0 z-30 backdrop-blur shadow-sm ${isLoading || resyncing ? "border-primary/50 bg-primary/10" : "border-border/70 bg-card/95"}`}>
           <CardContent className="p-3 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2 text-xs font-medium">

@@ -92,7 +92,7 @@ export const askResearch = createServerFn({ method: "POST" })
 
 /**
  * Extractive research answers are deliberately local and deterministic. This
- * keeps production independent of Lovable Cloud and guarantees that answers
+ * keeps production independent of hosted editor infrastructure and guarantees that answers
  * cannot invent statistics outside the computed report.
  */
 export function selectGroundedInsights(report: ReturnType<typeof generateResearch>, question: string) {

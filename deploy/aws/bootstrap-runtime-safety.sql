@@ -26,16 +26,23 @@ ON CONFLICT (id) DO NOTHING;
 
 GRANT SELECT ON public.trading_controls TO authenticated, service_role;
 
--- Deterministic Cognito ownership linkage. The Cognito sub is retained as the
--- stable external identity while the internal UUID is used by application rows.
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid PRIMARY KEY,
   cognito_sub text NOT NULL UNIQUE,
   email text,
+  is_owner boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_owner boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx
+  ON public.users (cognito_sub);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_single_owner_idx
+  ON public.users ((is_owner))
+  WHERE is_owner = true;
+
 GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated, service_role;
 
 -- Audited manual order intents. The unique idempotency key prevents retries
@@ -74,7 +81,6 @@ CREATE TABLE IF NOT EXISTS public.private_files (
 CREATE INDEX IF NOT EXISTS private_files_user_created_idx
   ON public.private_files (user_id, created_at DESC);
 GRANT SELECT, INSERT, UPDATE ON public.private_files TO authenticated, service_role;
-
 
 -- Async isolated compute queue state.
 -- Jobs are user-scoped and contain only research inputs/results, never trade secrets.
@@ -121,4 +127,3 @@ CREATE TABLE IF NOT EXISTS public.pipeline_dataset_exports (
 );
 CREATE INDEX IF NOT EXISTS pipeline_dataset_exports_user_idx
   ON public.pipeline_dataset_exports (user_id, created_at DESC);
-GRANT SELECT, INSERT, UPDATE ON public.pipeline_dataset_exports TO authenticated, service_role;

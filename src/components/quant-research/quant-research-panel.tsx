@@ -14,6 +14,7 @@ import {
   runQuantBacktest,
   runQuantSweep,
   runQuantWalkForward,
+  submitQuantResearchJob,
 } from "@/lib/quant-engine.functions";
 import { loadEnrichedCandles } from "@/lib/market-data.functions";
 import type { Timeframe } from "@/lib/market-data/types";
@@ -65,6 +66,9 @@ export function QuantResearchPanel({
   const backtest = useServerFn(runQuantBacktest);
   const sweep = useServerFn(runQuantSweep);
   const walk = useServerFn(runQuantWalkForward);
+  const submitJob = useServerFn(submitQuantResearchJob);
+  const statusFn = useServerFn(getQuantResearchJob);
+  const resultFn = useServerFn(getQuantResearchJobResult);
 
   const [symbol, setSymbol] = useState("XAUUSDT");
   const [source, setSource] = useState<"yahoo" | "shark">("yahoo");
@@ -79,6 +83,7 @@ export function QuantResearchPanel({
   const [sweepRows, setSweepRows] = useState<SweepRow[] | null>(null);
   const [walkRows, setWalkRows] = useState<WalkRow[] | null>(null);
   const [loaded, setLoaded] = useState<{ count: number; first: number | null; last: number | null } | null>(null);
+  const [asyncJobId, setAsyncJobId] = useState<string | null>(null);
 
   const selected = useMemo(() => (strategies.data ?? []).find((s) => s.strategy_id === strategyId), [strategies.data, strategyId]);
   const specialist = SPECIALIST.has(strategyId);
@@ -146,6 +151,51 @@ export function QuantResearchPanel({
     },
   });
 
+  const asyncJob = useQuery({
+    queryKey: ["quant-research-job", asyncJobId],
+    queryFn: () => statusFn({ data: { job_id: asyncJobId! } }) as Promise<{ status: string; error?: string | null }>,
+    enabled: mode === "backtest" && !!asyncJobId,
+    refetchInterval: (q) => ["SUCCEEDED", "FAILED"].includes(q.state.data?.status ?? "") ? false : 2000,
+  });
+  const asyncResult = useQuery({
+    queryKey: ["quant-research-job-result", asyncJobId],
+    queryFn: () => resultFn({ data: { job_id: asyncJobId! } }) as Promise<QuantResult>,
+    enabled: mode === "backtest" && !!asyncJobId && asyncJob.data?.status === "SUCCEEDED",
+    staleTime: Infinity,
+  });
+  const asyncRun = useMutation({
+    mutationFn: async () => {
+      const toMs = Date.now();
+      const data = await load({
+        data: {
+          source, symbol, timeframe,
+          displayTimezone: "IST",
+          strategyTimezone: "London",
+          fromMs: toMs - days * 86_400_000,
+          toMs,
+          maxRows: 5000,
+        },
+      });
+      setLoaded({ count: data.count, first: data.summary.firstTs, last: data.summary.lastTs });
+      return submitJob({
+        data: {
+          symbol,
+          strategy_id: strategyId,
+          bars: data.candles.map((b) => ({
+            timestamp: new Date(b.ts).toISOString(),
+            open: b.open, high: b.high, low: b.low, close: b.close,
+            volume: Math.max(0, b.volume),
+          })),
+          initial_capital: capital,
+          risk_per_trade: risk,
+          fee_bps: feeBps,
+          slippage_bps: slippageBps,
+        },
+      }) as Promise<{ job_id: string }>;
+    },
+    onSuccess: (job) => setAsyncJobId(job.job_id),
+  });
+
   const canRun = health.isSuccess && !!strategyId && !specialist && !execute.isPending;
   return (
     <Card className="border-primary/20">
@@ -180,7 +230,7 @@ export function QuantResearchPanel({
               <SelectContent>{(strategies.data ?? []).map((s) => <SelectItem key={s.strategy_id} value={s.strategy_id}>{s.strategy_id} — {s.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Button onClick={() => execute.mutate()} disabled={!canRun}>
+          <Button onClick={() => execute.mutate()} disabled={!canRun}>\n            
             {execute.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Activity className="h-4 w-4 mr-2" />}
             Run {mode === "backtest" ? "quant backtest" : mode === "sweep" ? "quant sweep" : "walk-forward"}
           </Button>
@@ -188,7 +238,30 @@ export function QuantResearchPanel({
 
         {selected && <div className="text-xs text-muted-foreground">{selected.description}{specialist && " — specialist strategies require specialist market data and are intentionally gated here."}</div>}
         {loaded && <div className="text-xs rounded border border-border bg-muted/20 p-2 flex items-center gap-2"><Database className="h-3.5 w-3.5" /> Loaded {loaded.count.toLocaleString()} bars · {loaded.first ? new Date(loaded.first).toLocaleDateString() : "—"} → {loaded.last ? new Date(loaded.last).toLocaleDateString() : "—"}</div>}
-        {execute.error && <div className="text-xs rounded border border-destructive/40 bg-destructive/10 text-destructive p-2">{execute.error instanceof Error ? execute.error.message : String(execute.error)}</div>}
+        {execute.error && <div className="text-xs rounded border border-destructive/40 bg-destructive/10 text-destructive p-2">{execute.error instanceof Error ? execute.error.message : String(execute.error)}</div>}\n        {mode === "backtest" && (
+          <div className="rounded border border-border bg-muted/20 p-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-medium">Async research job</div>
+                <div className="text-[11px] text-muted-foreground">Queue the same canonical backtest through SQS/DynamoDB/S3 so long runs survive request timeouts.</div>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => asyncRun.mutate()} disabled={!canRun || asyncRun.isPending || (asyncJobId != null && !["SUCCEEDED", "FAILED"].includes(asyncJob.data?.status ?? ""))}>
+                {asyncRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Activity className="h-4 w-4 mr-2" />}
+                Queue backtest
+              </Button>
+            </div>
+            {asyncJobId && <div className="text-[10px] font-mono text-muted-foreground">job {asyncJobId} · {asyncJob.data?.status ?? "QUEUED"}</div>}
+            {asyncJob.data?.error && <div className="text-xs text-destructive">{asyncJob.data.error}</div>}
+            {asyncResult.data && <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <Metric label="Async return" value={fmt(asyncResult.data.metrics.total_return_pct) + "%"} />
+              <Metric label="Sharpe" value={fmt(asyncResult.data.metrics.sharpe)} />
+              <Metric label="Max DD" value={fmt(asyncResult.data.metrics.max_drawdown_pct) + "%"} />
+              <Metric label="PF" value={fmt(asyncResult.data.metrics.profit_factor)} />
+              <Metric label="Trades" value={String(asyncResult.data.metrics.trade_count)} />
+            </div>}
+          </div>
+        )}
+
 
         {result && <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Metric label="Return" value={fmt(result.metrics.total_return_pct) + "%"} />

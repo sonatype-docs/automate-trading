@@ -10,14 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip as ReTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { LineChart, Line, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { RefreshCw, Download, ArrowLeft, BookOpen } from "lucide-react";
 import { RouteLoadError } from "@/components/route-load-error";
 
@@ -26,7 +19,11 @@ export const Route = createFileRoute("/journal")({
   head: () => ({
     meta: [
       { title: "Trading Journal — Shark Auto-Trader" },
-      { name: "description", content: "All historical fills, open positions, and upcoming pending orders on SharkExchange." },
+      {
+        name: "description",
+        content:
+          "All historical fills, open positions, and upcoming pending orders on SharkExchange.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -83,7 +80,9 @@ const fmtINR = (n: number, digits = 2) =>
 const fmtUSD = (n: number, digits = 2) =>
   `$${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const fmtNum = (n: number | null | undefined, dp = 2) =>
-  n == null || !Number.isFinite(n) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
+  n == null || !Number.isFinite(n)
+    ? "—"
+    : Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
 
 function finiteNumber(v: unknown, fallback = 0): number {
   const n = Number(v);
@@ -150,13 +149,24 @@ function JournalPage() {
   const [chartRange, setChartRange] = useState<"7D" | "30D" | "90D" | "ALL">("30D");
   const [chartAxis, setChartAxis] = useState<"time" | "trade">("time");
 
-
   const snap = (acctQ.data?.snapshot ?? null) as Snap | null;
 
   const {
-    journal, allJournal, symbols, equity, walletAsset,
-    grossPnl, feesTotal, realizedPnl, netDeposits,
-    wins, losses, winRate, todaysPnl, equityCurve, openPositions,
+    journal,
+    allJournal,
+    symbols,
+    equity,
+    walletAsset,
+    grossPnl,
+    feesTotal,
+    realizedPnl,
+    netDeposits,
+    wins,
+    losses,
+    winRate,
+    todaysPnl,
+    equityCurve,
+    openPositions,
   } = useMemo(() => {
     const fw = asObject(snap?.futuresWallet);
     const exTrades = asArray(snap?.tradeHistory);
@@ -171,25 +181,25 @@ function JournalPage() {
     const walletAsset = String(fw?.asset ?? fw?.marginAsset ?? "INR");
 
     const dbFills = dbTrades.map((t) => ({
-            id: String(t.id),
-            time: parseTime(t.time),
-            symbol: String(t.symbol ?? "—"),
-            side: String(t.side ?? "").toUpperCase(),
-            qty: Number(t.qty ?? 0),
-            price: Number(t.price ?? 0),
-            fee: Number(t.fee ?? 0),
-            pnl: Number(t.grossPnl ?? 0),
-          }));
+      id: String(t.id),
+      time: parseTime(t.time),
+      symbol: String(t.symbol ?? "—"),
+      side: String(t.side ?? "").toUpperCase(),
+      qty: Number(t.qty ?? 0),
+      price: Number(t.price ?? 0),
+      fee: Number(t.fee ?? 0),
+      pnl: Number(t.grossPnl ?? 0),
+    }));
     const exFills = exTrades.map((t) => ({
-        id: String(t.id ?? t.tradeId ?? ""),
-        time: parseTime(t.time ?? t.createdAt ?? t.updatedAt),
-        symbol: String(t.symbol ?? "—"),
-        side: String(t.side ?? "").toUpperCase(),
-        qty: Number(t.quantity ?? t.qty ?? 0),
-        price: Number(t.price ?? 0),
-        fee: tradeFeeInr(t),
-        pnl: tradePnlInr(t),
-      }));
+      id: String(t.id ?? t.tradeId ?? ""),
+      time: parseTime(t.time ?? t.createdAt ?? t.updatedAt),
+      symbol: String(t.symbol ?? "—"),
+      side: String(t.side ?? "").toUpperCase(),
+      qty: Number(t.quantity ?? t.qty ?? 0),
+      price: Number(t.price ?? 0),
+      fee: tradeFeeInr(t),
+      pnl: tradePnlInr(t),
+    }));
     const tradeFills = (dbFills.length ? dbFills : exFills)
       .filter((t) => t.time > 0)
       .sort((a, b) => a.time - b.time);
@@ -205,10 +215,36 @@ function JournalPage() {
     const feesTotal = Math.max(tradeFeesSum, commissionTxSum);
 
     // Deposits & realized P&L from transactionHistory. See index.tsx for rationale.
-    const DEPOSIT_TYPES = new Set(["DEPOSIT", "TRANSFER_IN", "FUND_TRANSFER_IN", "INTERNAL_TRANSFER_IN", "CREDIT", "WALLET_DEPOSIT", "USER_DEPOSIT"]);
-    const WITHDRAW_TYPES = new Set(["WITHDRAWAL", "WITHDRAW", "TRANSFER_OUT", "FUND_TRANSFER_OUT", "INTERNAL_TRANSFER_OUT", "DEBIT", "WALLET_WITHDRAWAL", "USER_WITHDRAWAL"]);
-    const REALIZED_TYPES = new Set(["REALIZED_PNL", "REALIZED_PROFIT", "PNL", "PROFIT_AND_LOSS", "TRADE"]);
-    let dIn = 0, dOut = 0, realizedGross = 0, feeChargesSigned = 0;
+    const DEPOSIT_TYPES = new Set([
+      "DEPOSIT",
+      "TRANSFER_IN",
+      "FUND_TRANSFER_IN",
+      "INTERNAL_TRANSFER_IN",
+      "CREDIT",
+      "WALLET_DEPOSIT",
+      "USER_DEPOSIT",
+    ]);
+    const WITHDRAW_TYPES = new Set([
+      "WITHDRAWAL",
+      "WITHDRAW",
+      "TRANSFER_OUT",
+      "FUND_TRANSFER_OUT",
+      "INTERNAL_TRANSFER_OUT",
+      "DEBIT",
+      "WALLET_WITHDRAWAL",
+      "USER_WITHDRAWAL",
+    ]);
+    const REALIZED_TYPES = new Set([
+      "REALIZED_PNL",
+      "REALIZED_PROFIT",
+      "PNL",
+      "PROFIT_AND_LOSS",
+      "TRADE",
+    ]);
+    let dIn = 0,
+      dOut = 0,
+      realizedGross = 0,
+      feeChargesSigned = 0;
     for (const x of exTxns) {
       const type = String(x.type ?? "").toUpperCase();
       const amt = Number(x.amount ?? 0);
@@ -221,12 +257,11 @@ function JournalPage() {
     const explicitNetDeposits = dIn - dOut;
     const tradeHistoryRealized = pnlTrades.reduce((s, t) => s + t.net, 0);
     const realizedFromTx = realizedGross + feeChargesSigned;
-    const realizedAllTime = Math.abs(realizedFromTx) > Math.abs(tradeHistoryRealized)
-      ? realizedFromTx
-      : tradeHistoryRealized;
-    const netDeposits = explicitNetDeposits > 0
-      ? explicitNetDeposits
-      : MANUAL_NET_DEPOSITS_INR;
+    const realizedAllTime =
+      Math.abs(realizedFromTx) > Math.abs(tradeHistoryRealized)
+        ? realizedFromTx
+        : tradeHistoryRealized;
+    const netDeposits = explicitNetDeposits > 0 ? explicitNetDeposits : MANUAL_NET_DEPOSITS_INR;
     const realizedPnl = hasWallet ? walletTotal - netDeposits : realizedAllTime;
     const equity = hasWallet ? walletTotal : netDeposits + realizedPnl;
 
@@ -237,14 +272,25 @@ function JournalPage() {
     const decided = wins + losses;
     const winRate = decided ? (wins / decided) * 100 : 0;
 
-    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-    const todaysPnl = pnlTrades.filter((t) => t.time >= dayStart.getTime()).reduce((s, t) => s + t.net, 0);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const todaysPnl = pnlTrades
+      .filter((t) => t.time >= dayStart.getTime())
+      .reduce((s, t) => s + t.net, 0);
 
     let eqRun = netDeposits;
     const curve: Array<{ t: number; eq: number; i: number }> = [];
     const all: Array<{
-      time: number; symbol: string; side: string; qty: number;
-      price: number; fee: number; pnl: number; net: number; equity: number; id: string;
+      time: number;
+      symbol: string;
+      side: string;
+      qty: number;
+      price: number;
+      fee: number;
+      pnl: number;
+      net: number;
+      equity: number;
+      id: string;
     }> = [];
     if (pnlTrades.length > 0) curve.push({ t: pnlTrades[0].time - 60_000, eq: netDeposits, i: 0 });
     else {
@@ -261,7 +307,6 @@ function JournalPage() {
     if (hasWallet && pnlTrades.length > 0 && Math.abs(equity - eqRun) > 0.01) {
       curve.push({ t: Date.now(), eq: equity, i: idx });
     }
-
 
     const symbolSet = new Set<string>(all.map((a) => a.symbol));
 
@@ -288,22 +333,54 @@ function JournalPage() {
     }));
 
     return {
-      journal, allJournal: all, symbols: Array.from(symbolSet).sort(),
-      equity, walletAsset, grossPnl, feesTotal, realizedPnl, netDeposits,
-      wins, losses, winRate, todaysPnl, equityCurve: curve, openPositions,
+      journal,
+      allJournal: all,
+      symbols: Array.from(symbolSet).sort(),
+      equity,
+      walletAsset,
+      grossPnl,
+      feesTotal,
+      realizedPnl,
+      netDeposits,
+      wins,
+      losses,
+      winRate,
+      todaysPnl,
+      equityCurve: curve,
+      openPositions,
     };
   }, [snap, dbJournalQ.data, symbolFilter, sideFilter, fromDate, toDate, closingOnly]);
 
   function exportCsv() {
     const rows = [
-      ["Time (IST)", "Symbol", "Side", "Qty", "Price", "Fee (USD)", "P&L (USD)", "Net (USD)", "Equity (INR)", "Trade ID"],
+      [
+        "Time (IST)",
+        "Symbol",
+        "Side",
+        "Qty",
+        "Price",
+        "Fee (USD)",
+        "P&L (USD)",
+        "Net (USD)",
+        "Equity (INR)",
+        "Trade ID",
+      ],
       ...journal.map((j) => [
         new Date(j.time).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" }),
-        j.symbol, j.side, String(j.qty), String(j.price),
-        j.fee.toFixed(4), j.pnl.toFixed(2), j.net.toFixed(2), j.equity.toFixed(2), j.id,
+        j.symbol,
+        j.side,
+        String(j.qty),
+        String(j.price),
+        j.fee.toFixed(4),
+        j.pnl.toFixed(2),
+        j.net.toFixed(2),
+        j.equity.toFixed(2),
+        j.id,
       ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -323,14 +400,37 @@ function JournalPage() {
         <div className="max-w-7xl mx-auto px-3 md:px-6 flex flex-col gap-2 py-2 md:h-14 md:flex-row md:items-center md:justify-between md:py-0">
           <div className="flex items-center gap-2 min-w-0">
             <BookOpen className="w-5 h-5 text-primary shrink-0" />
-            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">TRADING JOURNAL</span>
+            <span className="font-mono text-xs sm:text-sm tracking-widest truncate">
+              TRADING JOURNAL
+            </span>
           </div>
           <div className="-mx-3 md:mx-0 overflow-x-auto">
             <div className="flex items-center gap-2 px-3 md:px-0">
-              <Link to="/"><Button variant="ghost" size="sm" className="shrink-0"><ArrowLeft className="w-4 h-4 md:mr-2" /><span className="hidden md:inline">Dashboard</span></Button></Link>
-              <Link to="/pending-orders"><Button variant="ghost" size="sm" className="shrink-0">Pending</Button></Link>
-              <Button size="sm" variant="outline" className="shrink-0" onClick={() => { acctQ.refetch(); pendingQ.refetch(); }} disabled={acctQ.isFetching}>
-                <RefreshCw className={`w-4 h-4 md:mr-1 ${acctQ.isFetching ? "animate-spin" : ""}`} /><span className="hidden md:inline">Refresh</span>
+              <Link to="/">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <ArrowLeft className="w-4 h-4 md:mr-2" />
+                  <span className="hidden md:inline">Dashboard</span>
+                </Button>
+              </Link>
+              <Link to="/pending-orders">
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  Pending
+                </Button>
+              </Link>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  acctQ.refetch();
+                  pendingQ.refetch();
+                }}
+                disabled={acctQ.isFetching}
+              >
+                <RefreshCw
+                  className={`w-4 h-4 md:mr-1 ${acctQ.isFetching ? "animate-spin" : ""}`}
+                />
+                <span className="hidden md:inline">Refresh</span>
               </Button>
             </div>
           </div>
@@ -338,16 +438,35 @@ function JournalPage() {
       </header>
 
       <main className="max-w-7xl mx-auto p-3 md:p-6 space-y-4">
-
         {/* Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
           <SummaryCell label="EQUITY" value={fmtINR(equity)} />
-          <SummaryCell label="NET P&L" value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`} tone={realizedPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="TODAY" value={`${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`} tone={todaysPnl >= 0 ? "pos" : "neg"} />
-          <SummaryCell label="GROSS P&L" value={`${grossPnl >= 0 ? "+" : ""}${fmtUSD(grossPnl)}`} tone={grossPnl >= 0 ? "pos" : "neg"} />
+          <SummaryCell
+            label="NET P&L"
+            value={`${realizedPnl >= 0 ? "+" : ""}${fmtINR(realizedPnl)}`}
+            tone={realizedPnl >= 0 ? "pos" : "neg"}
+          />
+          <SummaryCell
+            label="TODAY"
+            value={`${todaysPnl >= 0 ? "+" : ""}${fmtUSD(todaysPnl)}`}
+            tone={todaysPnl >= 0 ? "pos" : "neg"}
+          />
+          <SummaryCell
+            label="GROSS P&L"
+            value={`${grossPnl >= 0 ? "+" : ""}${fmtUSD(grossPnl)}`}
+            tone={grossPnl >= 0 ? "pos" : "neg"}
+          />
           <SummaryCell label="FEES" value={fmtUSD(feesTotal, 4)} tone="neg" />
-          <SummaryCell label="WIN RATE" value={`${winRate.toFixed(1)}%`} sub={`${wins}W / ${losses}L`} />
-          <SummaryCell label="FILLS" value={String(allJournal.length)} sub={`${journal.length} shown`} />
+          <SummaryCell
+            label="WIN RATE"
+            value={`${winRate.toFixed(1)}%`}
+            sub={`${wins}W / ${losses}L`}
+          />
+          <SummaryCell
+            label="FILLS"
+            value={String(allJournal.length)}
+            sub={`${journal.length} shown`}
+          />
           <SummaryCell label="DEPOSITS" value={fmtINR(netDeposits)} sub={walletAsset} />
         </div>
 
@@ -388,9 +507,13 @@ function JournalPage() {
             {(() => {
               const now = Date.now();
               const rangeMs =
-                chartRange === "7D" ? 7 * 86_400_000 :
-                chartRange === "30D" ? 30 * 86_400_000 :
-                chartRange === "90D" ? 90 * 86_400_000 : Infinity;
+                chartRange === "7D"
+                  ? 7 * 86_400_000
+                  : chartRange === "30D"
+                    ? 30 * 86_400_000
+                    : chartRange === "90D"
+                      ? 90 * 86_400_000
+                      : Infinity;
               const cutoff = chartRange === "ALL" ? -Infinity : now - rangeMs;
               const filtered = equityCurve.filter((p) => p.t >= cutoff);
               const data = filtered.length > 1 ? filtered : equityCurve;
@@ -404,14 +527,16 @@ function JournalPage() {
                       scale={useTradeAxis ? "linear" : "time"}
                       domain={["dataMin", "dataMax"]}
                       tickFormatter={(v) =>
-                        useTradeAxis
-                          ? `#${v}`
-                          : new Date(Number(v)).toLocaleDateString("en-IN")
+                        useTradeAxis ? `#${v}` : new Date(Number(v)).toLocaleDateString("en-IN")
                       }
                       minTickGap={40}
                       fontSize={10}
                     />
-                    <YAxis fontSize={10} domain={["auto", "auto"]} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                    <YAxis
+                      fontSize={10}
+                      domain={["auto", "auto"]}
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    />
                     <ReTooltip
                       labelFormatter={(v) =>
                         useTradeAxis
@@ -420,26 +545,35 @@ function JournalPage() {
                       }
                       formatter={(v: number) => [fmtINR(v), "Equity"]}
                     />
-                    <Line type="monotone" dataKey="eq" stroke="oklch(78% 0.16 75)" strokeWidth={2} dot={false} />
+                    <Line
+                      type="monotone"
+                      dataKey="eq"
+                      stroke="oklch(78% 0.16 75)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               );
             })()}
           </CardContent>
-
         </Card>
 
         {/* Upcoming pending orders */}
         <Card>
           <CardHeader className="pb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-sm font-mono tracking-wide">UPCOMING · PENDING ORDERS ({pending.length})</CardTitle>
+            <CardTitle className="text-sm font-mono tracking-wide">
+              UPCOMING · PENDING ORDERS ({pending.length})
+            </CardTitle>
             <span className="text-xs text-muted-foreground">Auto-refresh 10s</span>
           </CardHeader>
           <CardContent>
             {pendingQ.isLoading ? (
               <p className="text-xs text-muted-foreground py-4 text-center">Loading…</p>
             ) : pendingQ.data && !pendingQ.data.ok ? (
-              <p className="text-xs text-destructive py-4 text-center break-all">Exchange error: {pendingQ.data.error}</p>
+              <p className="text-xs text-destructive py-4 text-center break-all">
+                Exchange error: {pendingQ.data.error}
+              </p>
             ) : pending.length === 0 ? (
               <p className="text-xs text-muted-foreground py-4 text-center">No pending orders.</p>
             ) : (
@@ -462,19 +596,33 @@ function JournalPage() {
                   <tbody>
                     {pending.map((r) => {
                       const s = r.side.toUpperCase();
-                      const tone = s === "BUY" ? "text-emerald-500" : s === "SELL" ? "text-red-500" : "";
+                      const tone =
+                        s === "BUY" ? "text-emerald-500" : s === "SELL" ? "text-red-500" : "";
                       return (
                         <tr key={r.clientOrderId} className="border-b border-border/40">
-                          <td className="py-1.5 pr-3 max-w-[220px] truncate" title={r.clientOrderId}>{r.clientOrderId}</td>
+                          <td
+                            className="py-1.5 pr-3 max-w-[220px] truncate"
+                            title={r.clientOrderId}
+                          >
+                            {r.clientOrderId}
+                          </td>
                           <td className="py-1.5 pr-3">{r.symbol}</td>
                           <td className={`py-1.5 pr-3 font-semibold ${tone}`}>{s}</td>
                           <td className="py-1.5 pr-3">{r.type.toUpperCase()}</td>
-                          <td className="py-1.5 pr-3"><Badge variant="outline" className="text-[10px]">{r.status}</Badge></td>
+                          <td className="py-1.5 pr-3">
+                            <Badge variant="outline" className="text-[10px]">
+                              {r.status}
+                            </Badge>
+                          </td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(r.price, 2)}</td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(r.quantity, 4)}</td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(r.filledAmount, 4)}</td>
-                          <td className="py-1.5 pr-3 text-right text-red-400">{fmtNum(r.stopLossPrice, 2)}</td>
-                          <td className="py-1.5 pr-3 text-right text-emerald-400">{fmtNum(r.takeProfitPrice, 2)}</td>
+                          <td className="py-1.5 pr-3 text-right text-red-400">
+                            {fmtNum(r.stopLossPrice, 2)}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-emerald-400">
+                            {fmtNum(r.takeProfitPrice, 2)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -488,7 +636,9 @@ function JournalPage() {
         {/* Open positions */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono tracking-wide">OPEN POSITIONS ({openPositions.length})</CardTitle>
+            <CardTitle className="text-sm font-mono tracking-wide">
+              OPEN POSITIONS ({openPositions.length})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {openPositions.length === 0 ? (
@@ -510,17 +660,32 @@ function JournalPage() {
                   </thead>
                   <tbody>
                     {openPositions.map((p, i) => {
-                      const tone = p.unrealized > 0 ? "text-emerald-500" : p.unrealized < 0 ? "text-red-500" : "";
+                      const tone =
+                        p.unrealized > 0
+                          ? "text-emerald-500"
+                          : p.unrealized < 0
+                            ? "text-red-500"
+                            : "";
                       return (
                         <tr key={`${p.symbol}-${i}`} className="border-b border-border/40">
                           <td className="py-1.5 pr-3">{p.symbol}</td>
-                          <td className={`py-1.5 pr-3 font-semibold ${p.side === "BUY" || p.side === "LONG" ? "text-emerald-500" : "text-red-500"}`}>{p.side || "—"}</td>
+                          <td
+                            className={`py-1.5 pr-3 font-semibold ${p.side === "BUY" || p.side === "LONG" ? "text-emerald-500" : "text-red-500"}`}
+                          >
+                            {p.side || "—"}
+                          </td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(p.qty, 4)}</td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(p.entry, 2)}</td>
                           <td className="py-1.5 pr-3 text-right">{fmtNum(p.mark, 2)}</td>
-                          <td className="py-1.5 pr-3 text-right">{p.leverage ? `${p.leverage}x` : "—"}</td>
-                          <td className="py-1.5 pr-3 text-right">{p.margin ? fmtINR(p.margin) : "—"}</td>
-                          <td className={`py-1.5 pr-3 text-right ${tone}`}>{`${p.unrealized >= 0 ? "+" : ""}${fmtINR(p.unrealized)}`}</td>
+                          <td className="py-1.5 pr-3 text-right">
+                            {p.leverage ? `${p.leverage}x` : "—"}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right">
+                            {p.margin ? fmtINR(p.margin) : "—"}
+                          </td>
+                          <td
+                            className={`py-1.5 pr-3 text-right ${tone}`}
+                          >{`${p.unrealized >= 0 ? "+" : ""}${fmtINR(p.unrealized)}`}</td>
                         </tr>
                       );
                     })}
@@ -538,7 +703,12 @@ function JournalPage() {
               <CardTitle className="text-sm font-mono tracking-wide">
                 HISTORICAL FILLS ({journal.length} / {allJournal.length})
               </CardTitle>
-              <Button size="sm" variant="outline" onClick={exportCsv} disabled={journal.length === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportCsv}
+                disabled={journal.length === 0}
+              >
                 <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
             </div>
@@ -551,7 +721,11 @@ function JournalPage() {
                   onChange={(e) => setSymbolFilter(e.target.value)}
                 >
                   <option value="ALL">All</option>
-                  {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {symbols.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -568,25 +742,48 @@ function JournalPage() {
               </div>
               <div>
                 <Label className="text-[10px] text-muted-foreground">From</Label>
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-8 text-xs" />
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-8 text-xs"
+                />
               </div>
               <div>
                 <Label className="text-[10px] text-muted-foreground">To</Label>
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-8 text-xs" />
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-8 text-xs"
+                />
               </div>
               <label className="flex items-center gap-2 text-xs h-8">
-                <input type="checkbox" checked={closingOnly} onChange={(e) => setClosingOnly(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={closingOnly}
+                  onChange={(e) => setClosingOnly(e.target.checked)}
+                />
                 Closing fills only
               </label>
             </div>
           </CardHeader>
           <CardContent>
             {dbJournalQ.isLoading ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">Loading DB trade history…</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">
+                Loading DB trade history…
+              </p>
             ) : dbJournalQ.error ? (
-              <p className="text-xs text-destructive py-6 text-center break-all">DB journal error: {dbJournalQ.error instanceof Error ? dbJournalQ.error.message : String(dbJournalQ.error)}</p>
+              <p className="text-xs text-destructive py-6 text-center break-all">
+                DB journal error:{" "}
+                {dbJournalQ.error instanceof Error
+                  ? dbJournalQ.error.message
+                  : String(dbJournalQ.error)}
+              </p>
             ) : !acctQ.data ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">Loading account context…</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">
+                Loading account context…
+              </p>
             ) : acctQ.data && !acctQ.data.ok ? (
               <p className="text-xs text-destructive py-6 text-center">{acctQ.data.message}</p>
             ) : journal.length === 0 ? (
@@ -613,17 +810,28 @@ function JournalPage() {
                     {[...journal].reverse().map((j, i) => (
                       <tr key={j.id || `${j.time}-${i}`} className="border-t border-border">
                         <td className="py-1.5 text-muted-foreground whitespace-nowrap pr-3">
-                          {new Date(j.time).toLocaleString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" })}
+                          {new Date(j.time).toLocaleString("en-IN", {
+                            hour12: false,
+                            timeZone: "Asia/Kolkata",
+                          })}
                         </td>
                         <td className="pr-3">{j.symbol}</td>
-                        <td className={`pr-3 font-semibold ${j.side === "BUY" ? "text-emerald-500" : "text-red-500"}`}>{j.side || "—"}</td>
+                        <td
+                          className={`pr-3 font-semibold ${j.side === "BUY" ? "text-emerald-500" : "text-red-500"}`}
+                        >
+                          {j.side || "—"}
+                        </td>
                         <td className="text-right pr-3">{fmtNum(j.qty, 6)}</td>
                         <td className="text-right pr-3">{fmtNum(j.price, 4)}</td>
                         <td className="text-right pr-3 text-red-400">{fmtUSD(j.fee, 4)}</td>
-                        <td className={`text-right pr-3 ${j.pnl > 0 ? "text-emerald-500" : j.pnl < 0 ? "text-red-500" : ""}`}>
+                        <td
+                          className={`text-right pr-3 ${j.pnl > 0 ? "text-emerald-500" : j.pnl < 0 ? "text-red-500" : ""}`}
+                        >
                           {j.pnl === 0 ? "—" : `${j.pnl > 0 ? "+" : ""}${fmtUSD(j.pnl)}`}
                         </td>
-                        <td className={`text-right pr-3 ${j.net > 0 ? "text-emerald-500" : j.net < 0 ? "text-red-500" : ""}`}>
+                        <td
+                          className={`text-right pr-3 ${j.net > 0 ? "text-emerald-500" : j.net < 0 ? "text-red-500" : ""}`}
+                        >
                           {`${j.net >= 0 ? "+" : ""}${fmtUSD(j.net)}`}
                         </td>
                         <td className="text-right">{fmtINR(j.equity)}</td>
@@ -640,7 +848,17 @@ function JournalPage() {
   );
 }
 
-function SummaryCell({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "pos" | "neg" }) {
+function SummaryCell({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "pos" | "neg";
+}) {
   const toneCls = tone === "pos" ? "text-emerald-500" : tone === "neg" ? "text-red-500" : "";
   return (
     <div className="rounded border border-border p-2">

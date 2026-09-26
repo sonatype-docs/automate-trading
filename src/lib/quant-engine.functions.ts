@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware";
 
-const engineBaseUrl = () => (process.env.QUANT_ENGINE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "");
+const engineBaseUrl = () =>
+  (process.env.QUANT_ENGINE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "");
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function engineFetch(path: string, init?: RequestInit): Promise<any> {
@@ -10,15 +11,24 @@ async function engineFetch(path: string, init?: RequestInit): Promise<any> {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(process.env.QUANT_ENGINE_API_KEY ? { "x-api-key": process.env.QUANT_ENGINE_API_KEY } : {}),
+      ...(process.env.QUANT_ENGINE_API_KEY
+        ? { "x-api-key": process.env.QUANT_ENGINE_API_KEY }
+        : {}),
       ...(init?.headers ?? {}),
     },
   });
   const text = await response.text();
   let body: unknown = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
   if (!response.ok) {
-    const detail = typeof body === "object" && body && "detail" in body ? String((body as { detail?: unknown }).detail) : text;
+    const detail =
+      typeof body === "object" && body && "detail" in body
+        ? String((body as { detail?: unknown }).detail)
+        : text;
     throw new Error("Quant engine " + response.status + ": " + detail);
   }
   return body;
@@ -54,10 +64,12 @@ const BacktestInput = z.object({
 export const runQuantBacktest = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => BacktestInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/backtests", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/backtests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );
 
 const dataSchema = z.object({
   request: BacktestInput,
@@ -74,24 +86,30 @@ const SweepInput = z.object({
 export const runQuantSweep = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => SweepInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/sweeps", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/sweeps", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );
 
 export const runQuantWalkForward = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => dataSchema.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/walk-forward?" + new URLSearchParams({
-    train_bars: String(data.train_bars),
-    test_bars: String(data.test_bars),
-    ...(data.step_bars ? { step_bars: String(data.step_bars) } : {}),
-  }), {
-    method: "POST",
-    body: JSON.stringify(data.request),
-  }));
-
-
+  .handler(async ({ data }) =>
+    engineFetch(
+      "/v1/research/walk-forward?" +
+        new URLSearchParams({
+          train_bars: String(data.train_bars),
+          test_bars: String(data.test_bars),
+          ...(data.step_bars ? { step_bars: String(data.step_bars) } : {}),
+        }),
+      {
+        method: "POST",
+        body: JSON.stringify(data.request),
+      },
+    ),
+  );
 
 const AnalysisInput = z.object({
   symbol: z.string().min(1).max(32),
@@ -104,10 +122,12 @@ const AnalysisInput = z.object({
 export const submitQuantAnalysis = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => AnalysisInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/analysis/jobs", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
+  .handler(async ({ data }) =>
+    engineFetch("/v1/analysis/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );
 
 const QuantJobInput = z.object({ job_id: z.string().min(1).max(128) });
 
@@ -119,17 +139,19 @@ export const getQuantResearchJob = createServerFn({ method: "POST" })
 export const getQuantResearchJobResult = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => QuantJobInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/jobs/" + encodeURIComponent(data.job_id) + "/result"));
-
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/jobs/" + encodeURIComponent(data.job_id) + "/result"),
+  );
 
 export const submitQuantResearchJob = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => BacktestInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/jobs", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
-
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );
 
 const PairInput = z.object({
   x_symbol: z.string().min(1).max(32),
@@ -148,12 +170,17 @@ const PairInput = z.object({
 export const runQuantPairBacktest = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => PairInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/pairs/backtests", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/pairs/backtests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );
 
-const OrderFlowLevel = z.object({ price: z.number().positive(), quantity: z.number().nonnegative() });
+const OrderFlowLevel = z.object({
+  price: z.number().positive(),
+  quantity: z.number().nonnegative(),
+});
 const OrderFlowTrade = z.object({
   timestamp_ms: z.number().int(),
   price: z.number().positive(),
@@ -175,13 +202,15 @@ const OrderFlowReplayInput = z.object({
   snapshots: z.array(OrderFlowSnapshot).default([]),
   trades: z.array(OrderFlowTrade).default([]),
   deltas: z.array(OrderFlowDelta).default([]),
-  imbalance_threshold: z.number().gt(-1).lt(1).default(0.20),
+  imbalance_threshold: z.number().gt(-1).lt(1).default(0.2),
 });
 
 export const runQuantOrderFlowReplay = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => OrderFlowReplayInput.parse(input))
-  .handler(async ({ data }) => engineFetch("/v1/research/orderflow/replay", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }));
+  .handler(async ({ data }) =>
+    engineFetch("/v1/research/orderflow/replay", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  );

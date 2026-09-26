@@ -1,11 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getDashboard,
-  updateSettings,
-  sendTestSignal,
-} from "@/lib/trading.functions";
+import { getDashboard, updateSettings, sendTestSignal } from "@/lib/trading.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -25,14 +21,7 @@ import {
   Shield,
   BookOpen,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip as ReTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { LineChart, Line, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
@@ -44,13 +33,7 @@ export const Route = createFileRoute("/")({
   }),
 });
 
-function StatusBar({
-  paperMode,
-  killSwitch,
-}: {
-  paperMode: boolean;
-  killSwitch: boolean;
-}) {
+function StatusBar({ paperMode, killSwitch }: { paperMode: boolean; killSwitch: boolean }) {
   const state = killSwitch ? "KILLED" : paperMode ? "PAPER" : "LIVE";
   const cls =
     state === "KILLED"
@@ -81,8 +64,7 @@ function DashboardPage() {
   });
 
   const settingsMut = useMutation({
-    mutationFn: (patch: Record<string, unknown>) =>
-      updateSettingsFn({ data: patch as never }),
+    mutationFn: (patch: Record<string, unknown>) => updateSettingsFn({ data: patch as never }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Settings updated");
@@ -141,10 +123,7 @@ function DashboardPage() {
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-primary" />
             <span className="font-mono text-sm tracking-widest">SHARK.AUTO</span>
-            <StatusBar
-              paperMode={!!settings?.paper_mode}
-              killSwitch={!!settings?.kill_switch}
-            />
+            <StatusBar paperMode={!!settings?.paper_mode} killSwitch={!!settings?.kill_switch} />
           </div>
           <div className="flex items-center gap-2">
             <Link to="/docs">
@@ -157,7 +136,6 @@ function DashboardPage() {
                 <SettingsIcon className="w-4 h-4 mr-2" /> Settings
               </Button>
             </Link>
-
           </div>
         </div>
       </header>
@@ -235,7 +213,13 @@ function DashboardPage() {
                   labelFormatter={(v) => new Date(v).toLocaleString()}
                   formatter={(v: number) => [`$${v.toFixed(2)}`, "Equity"]}
                 />
-                <Line type="monotone" dataKey="eq" stroke="var(--primary)" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="eq"
+                  stroke="var(--primary)"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -263,7 +247,9 @@ function DashboardPage() {
                     {positions.map((p) => (
                       <tr key={p.symbol} className="border-t border-border">
                         <td className="py-2">{p.symbol}</td>
-                        <td className={`text-right ${Number(p.qty) > 0 ? "text-long" : "text-short"}`}>
+                        <td
+                          className={`text-right ${Number(p.qty) > 0 ? "text-long" : "text-short"}`}
+                        >
                           {Number(p.qty).toFixed(6)}
                         </td>
                         <td className="text-right">${Number(p.avg_entry_price).toFixed(2)}</td>
@@ -284,14 +270,22 @@ function DashboardPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Symbol</Label>
-                  <Input value={testForm.symbol} onChange={(e) => setTestForm({ ...testForm, symbol: e.target.value })} />
+                  <Input
+                    value={testForm.symbol}
+                    onChange={(e) => setTestForm({ ...testForm, symbol: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Action</Label>
                   <select
                     className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
                     value={testForm.action}
-                    onChange={(e) => setTestForm({ ...testForm, action: e.target.value as "buy" | "sell" | "close" })}
+                    onChange={(e) =>
+                      setTestForm({
+                        ...testForm,
+                        action: e.target.value as "buy" | "sell" | "close",
+                      })
+                    }
                   >
                     <option value="buy">buy</option>
                     <option value="sell">sell</option>
@@ -300,14 +294,26 @@ function DashboardPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Price</Label>
-                  <Input type="number" value={testForm.price} onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) })} />
+                  <Input
+                    type="number"
+                    value={testForm.price}
+                    onChange={(e) => setTestForm({ ...testForm, price: Number(e.target.value) })}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Size (USD)</Label>
-                  <Input type="number" value={testForm.size_usd} onChange={(e) => setTestForm({ ...testForm, size_usd: Number(e.target.value) })} />
+                  <Input
+                    type="number"
+                    value={testForm.size_usd}
+                    onChange={(e) => setTestForm({ ...testForm, size_usd: Number(e.target.value) })}
+                  />
                 </div>
               </div>
-              <Button onClick={() => testMut.mutate()} disabled={testMut.isPending} className="w-full">
+              <Button
+                onClick={() => testMut.mutate()}
+                disabled={testMut.isPending}
+                className="w-full"
+              >
                 {testMut.isPending ? "Sending…" : "Fire signal"}
               </Button>
             </CardContent>
@@ -343,14 +349,28 @@ function DashboardPage() {
                       <td>{o.symbol}</td>
                       <td>
                         <span className={o.side === "buy" ? "text-long" : "text-short"}>
-                          {o.side === "buy" ? <ArrowUpRight className="inline w-3 h-3" /> : <ArrowDownRight className="inline w-3 h-3" />}{" "}
+                          {o.side === "buy" ? (
+                            <ArrowUpRight className="inline w-3 h-3" />
+                          ) : (
+                            <ArrowDownRight className="inline w-3 h-3" />
+                          )}{" "}
                           {o.side}
                         </span>
                       </td>
                       <td className="text-right">{Number(o.qty).toFixed(6)}</td>
-                      <td className="text-right">${Number(o.filled_price ?? o.price ?? 0).toFixed(2)}</td>
+                      <td className="text-right">
+                        ${Number(o.filled_price ?? o.price ?? 0).toFixed(2)}
+                      </td>
                       <td className="pl-3">
-                        <Badge variant={o.status === "filled" ? "default" : o.status === "rejected" ? "destructive" : "secondary"}>
+                        <Badge
+                          variant={
+                            o.status === "filled"
+                              ? "default"
+                              : o.status === "rejected"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
                           {o.status}
                         </Badge>
                         {o.paper && <span className="ml-2 text-xs text-warning">paper</span>}
@@ -407,7 +427,9 @@ function DashboardPage() {
                   <AlertTriangle className="w-4 h-4 mx-auto" />
                   <p>No alerts received yet.</p>
                   <p>
-                    <Link to="/docs" className="underline">Wire up TradingView →</Link>
+                    <Link to="/docs" className="underline">
+                      Wire up TradingView →
+                    </Link>
                   </p>
                 </div>
               ) : (
@@ -415,10 +437,17 @@ function DashboardPage() {
                   {events.map((e) => (
                     <li key={e.id} className="border-t border-border pt-2">
                       <div className="flex justify-between">
-                        <span>{(e.raw_payload as { symbol?: string })?.symbol ?? "—"} · {(e.raw_payload as { action?: string })?.action ?? "—"}</span>
+                        <span>
+                          {(e.raw_payload as { symbol?: string })?.symbol ?? "—"} ·{" "}
+                          {(e.raw_payload as { action?: string })?.action ?? "—"}
+                        </span>
                         <Badge
                           variant={
-                            e.status === "executed" ? "default" : e.status === "rejected" ? "destructive" : "secondary"
+                            e.status === "executed"
+                              ? "default"
+                              : e.status === "rejected"
+                                ? "destructive"
+                                : "secondary"
                           }
                         >
                           {e.status}
@@ -440,15 +469,7 @@ function DashboardPage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "long" | "short";
-}) {
+function Metric({ label, value, tone }: { label: string; value: string; tone?: "long" | "short" }) {
   return (
     <Card>
       <CardContent className="pt-6">

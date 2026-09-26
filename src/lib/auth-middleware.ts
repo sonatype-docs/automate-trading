@@ -16,10 +16,18 @@ function ensureUsersSchema(pool: { query: (sql: string) => Promise<unknown> }): 
       )`);
       await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS cognito_sub text`);
       await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email text`);
-      await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_owner boolean NOT NULL DEFAULT false`);
-      await pool.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()`);
-      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub)`);
-      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_single_owner_idx ON public.users ((is_owner)) WHERE is_owner = true`);
+      await pool.query(
+        `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_owner boolean NOT NULL DEFAULT false`,
+      );
+      await pool.query(
+        `ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()`,
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_cognito_sub_idx ON public.users (cognito_sub)`,
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_single_owner_idx ON public.users ((is_owner)) WHERE is_owner = true`,
+      );
     })().catch((err) => {
       usersSchemaReady = null;
       console.error("[auth] users schema self-heal failed", err);

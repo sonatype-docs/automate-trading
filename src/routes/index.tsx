@@ -11,15 +11,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
-  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Settings as SettingsIcon,
   Zap,
-  ShieldOff,
   Shield,
-  BookOpen,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 

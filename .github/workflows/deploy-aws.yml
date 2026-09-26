@@ -1,4 +1,4 @@
-name: Deploy to AWS (Sydney)
+name: Deploy to AWS (Sydney) # reconciled-main release trigger
 
 on:
   push:

@@ -2,6 +2,7 @@
 // Thin wrappers around the loader + enricher — no strategy logic.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware";
 import { enrichCandles } from "@/lib/market-data/enrich";
 import type { QualityReport } from "@/lib/market-data/quality";
 import { DEFAULT_CONFIG, TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone, type EnrichedCandle } from "@/lib/market-data/types";
@@ -54,6 +55,7 @@ export interface LoadEnrichedResult {
 }
 
 export const loadEnrichedCandles = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((raw) => InputSchema.parse(raw))
   .handler(async ({ data }): Promise<LoadEnrichedResult> => {
     const { loadRawCandles } = await import("@/lib/market-data/loader.server");

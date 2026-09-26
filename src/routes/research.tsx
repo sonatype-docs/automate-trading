@@ -246,7 +246,10 @@ function ResearchPage() {
   const snapshotList = useQuery({
     queryKey: ["trade-intel", "snapshots"],
     queryFn: () => snapshotsFn(),
-    staleTime: Infinity,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 2,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,

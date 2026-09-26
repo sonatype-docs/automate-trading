@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSweep, runQuantWalkForward } from "@/lib/quant-engine.functions";
+import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSweep, runQuantWalkForward, runQuantPairBacktest, runQuantOrderFlowReplay } from "@/lib/quant-engine.functions";
 import { loadEnrichedCandles } from "@/lib/market-data.functions";
 import { TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 
@@ -45,6 +45,7 @@ type QuantBacktestResult = {
 };
 type SweepRow = { parameters: Record<string, number>; result: QuantBacktestResult };
 type WalkRow = { train_start: number; train_end: number; test_start: number; test_end: number; result: QuantBacktestResult };
+type PairResult = { run_id: string; x_symbol: string; y_symbol: string; engine_version: string; metrics: { total_return_pct: number; annualized_return_pct: number; sharpe: number; max_drawdown_pct: number; profit_factor: number | null; win_rate_pct: number; trade_count: number }; trades: Array<{ entry_time: string; exit_time: string; direction: string; hedge_ratio: number; entry_z: number; exit_z: number; net_pnl: number }> };
 
 const SPECIALIST_STRATEGIES = new Set(["STRAT-03-STAT-COINT", "STRAT-06-ORDER-FLOW-DELTA"]);
 
@@ -82,6 +83,8 @@ function QuantEnginePage() {
   const backtestFn = useServerFn(runQuantBacktest);
   const sweepFn = useServerFn(runQuantSweep);
   const walkFn = useServerFn(runQuantWalkForward);
+  const pairFn = useServerFn(runQuantPairBacktest);
+  const orderFlowFn = useServerFn(runQuantOrderFlowReplay);
 
   const [symbol, setSymbol] = useState("XAUUSDT");
   const [source, setSource] = useState<"yahoo" | "shark">("yahoo");
@@ -96,6 +99,10 @@ function QuantEnginePage() {
   const [backtest, setBacktest] = useState<QuantBacktestResult | null>(null);
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
   const [walk, setWalk] = useState<WalkRow[] | null>(null);
+  const [pairSymbol, setPairSymbol] = useState("BTCUSDT");
+  const [pairResult, setPairResult] = useState<PairResult | null>(null);
+  const [orderFlowJson, setOrderFlowJson] = useState("");
+  const [orderFlowResult, setOrderFlowResult] = useState<any>(null);
 
   const selectedStrategy = useMemo(
     () => (strategies.data ?? []).find((s) => s.strategy_id === strategyId) ?? null,
@@ -216,7 +223,24 @@ function QuantEnginePage() {
     },
   });
 
-  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? loadData.error;
+  const pairRun = useMutation({
+    mutationFn: async () => {
+      const now = Date.now();
+      const [x, y] = await Promise.all([
+        loadFn({ data: { source, symbol, timeframe, displayTimezone: "IST", strategyTimezone: "London", fromMs: now - days * 86400000, toMs: now, maxRows: 5000 } }),
+        loadFn({ data: { source, symbol: pairSymbol, timeframe, displayTimezone: "IST", strategyTimezone: "London", fromMs: now - days * 86400000, toMs: now, maxRows: 5000 } }),
+      ]);
+      return pairFn({ data: {
+        x_symbol: symbol, y_symbol: pairSymbol,
+        x_bars: x.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
+        y_bars: y.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
+        initial_capital: capital, risk_per_trade: risk, fee_bps: feeBps, slippage_bps: slippageBps,
+      } }) as Promise<PairResult>;
+    },
+    onSuccess: (result) => setPairResult(result),
+  });
+
+  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? loadData.error;
   const dateRange = loadedMeta
     ? " · " + (loadedMeta.firstTs ? new Date(loadedMeta.firstTs).toLocaleDateString() : "—") +
       " → " + (loadedMeta.lastTs ? new Date(loadedMeta.lastTs).toLocaleDateString() : "—")
@@ -269,7 +293,7 @@ function QuantEnginePage() {
       </Card>
 
       <Tabs defaultValue="backtest">
-        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger></TabsList>
         <TabsContent value="backtest" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Backtest</CardTitle><CardDescription>Deterministic execution with fees, slippage and risk sizing.</CardDescription></CardHeader><CardContent><Button onClick={() => backtestRun.mutate()} disabled={backtestRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{backtestRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run canonical backtest</Button></CardContent></Card>
           {backtest && <BacktestResultView result={backtest} />}
@@ -278,6 +302,19 @@ function QuantEnginePage() {
           <Card><CardHeader><CardTitle className="text-sm">Risk + Slippage Sweep</CardTitle><CardDescription>Scans a compact, reproducible parameter grid against the same dataset.</CardDescription></CardHeader><CardContent><Button onClick={() => sweepRun.mutate()} disabled={sweepRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{sweepRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run parameter sweep</Button></CardContent></Card>
           {sweep && <SweepView rows={sweep} />}
         </TabsContent>
+        <TabsContent value="pair" className="mt-4 space-y-4">
+          <Card><CardHeader><CardTitle className="text-sm">Pair Spread / Stat-Arb</CardTitle><CardDescription>Aligned two-symbol spread backtest using rolling hedge ratio and z-score entry/exit. This models the spread; it does not claim a formal cointegration test.</CardDescription></CardHeader><CardContent className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div><Label>Leg X</Label><Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></div>
+              <div><Label>Leg Y</Label><Input value={pairSymbol} onChange={(e) => setPairSymbol(e.target.value.toUpperCase())} /></div>
+              <div><Label>Entry Z</Label><Input value="2.0" readOnly /></div>
+              <div><Label>Window</Label><Input value="60" readOnly /></div>
+            </div>
+            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
+          </CardContent></Card>
+          {pairResult && <PairResultView result={pairResult} />}
+        </TabsContent>
+
         <TabsContent value="walk" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Walk-Forward Validation</CardTitle><CardDescription>900-bar train / 450-bar test windows stepped by 450 bars to expose stability across time.</CardDescription></CardHeader><CardContent><Button onClick={() => walkRun.mutate()} disabled={walkRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{walkRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run walk-forward</Button></CardContent></Card>
           {walk && <WalkView rows={walk} />}
@@ -304,6 +341,16 @@ function BacktestResultView({ result }: { result: QuantBacktestResult }) {
     <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead className="bg-muted/40"><tr><th className="p-2 text-left">Side</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Entry px</th><th className="p-2 text-right">Exit px</th><th className="p-2 text-right">Net PnL</th></tr></thead><tbody>{result.trades.slice(-12).reverse().map((t, i) => (
       <tr key={t.entry_time + "-" + i} className="border-t border-border/60"><td className="p-2 font-mono">{t.side}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.entry_price, 3)}</td><td className="p-2 text-right font-mono">{fmt(t.exit_price, 3)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>
     ))}</tbody></table></div>
+  </CardContent></Card>;
+}
+
+function PairResultView({ result }: { result: PairResult }) {
+  const m = result.metrics;
+  return <Card><CardHeader><CardTitle className="text-sm">Pair Backtest Result</CardTitle><CardDescription>{result.x_symbol} / {result.y_symbol} · run {result.run_id} · engine {result.engine_version}</CardDescription></CardHeader><CardContent className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <Metric label="Return" value={fmt(m.total_return_pct) + "%"} /><Metric label="Annualized" value={fmt(m.annualized_return_pct) + "%"} /><Metric label="Sharpe" value={fmt(m.sharpe)} /><Metric label="Max DD" value={fmt(m.max_drawdown_pct) + "%"} /><Metric label="PF" value={fmt(m.profit_factor)} /><Metric label="Trades" value={String(m.trade_count)} />
+    </div>
+    <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Direction</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Beta</th><th className="p-2 text-right">Entry Z</th><th className="p-2 text-right">PnL</th></tr></thead><tbody>{result.trades.slice().reverse().map((t, i) => <tr key={i} className="border-t border-border/60"><td className="p-2">{t.direction}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.hedge_ratio, 4)}</td><td className="p-2 text-right font-mono">{fmt(t.entry_z)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>)}</tbody></table></div>
   </CardContent></Card>;
 }
 

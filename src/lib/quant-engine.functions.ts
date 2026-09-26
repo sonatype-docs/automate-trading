@@ -124,3 +124,59 @@ export const submitQuantResearchJob = createServerFn({ method: "POST" })
     method: "POST",
     body: JSON.stringify(data),
   }));
+
+
+const PairInput = z.object({
+  x_symbol: z.string().min(1).max(32),
+  y_symbol: z.string().min(1).max(32),
+  x_bars: z.array(Bar).min(30),
+  y_bars: z.array(Bar).min(30),
+  initial_capital: z.number().positive().optional(),
+  risk_per_trade: z.number().positive().lt(1).optional(),
+  fee_bps: z.number().nonnegative().optional(),
+  slippage_bps: z.number().nonnegative().optional(),
+  window: z.number().int().min(20).max(1000).optional(),
+  entry_z: z.number().positive().max(10).optional(),
+  exit_z: z.number().min(0).max(10).optional(),
+});
+
+export const runQuantPairBacktest = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => PairInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/research/pairs/backtests", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }));
+
+const OrderFlowLevel = z.object({ price: z.number().positive(), quantity: z.number().nonnegative() });
+const OrderFlowTrade = z.object({
+  timestamp_ms: z.number().int(),
+  price: z.number().positive(),
+  quantity: z.number().positive(),
+  aggressor: z.enum(["BUY", "SELL", "UNKNOWN"]).default("UNKNOWN"),
+});
+const OrderFlowSnapshot = z.object({
+  timestamp_ms: z.number().int(),
+  bids: z.array(OrderFlowLevel).default([]),
+  asks: z.array(OrderFlowLevel).default([]),
+});
+const OrderFlowDelta = z.object({
+  timestamp_ms: z.number().int(),
+  side: z.string(),
+  price: z.number().positive(),
+  quantity: z.number().nonnegative(),
+});
+const OrderFlowReplayInput = z.object({
+  snapshots: z.array(OrderFlowSnapshot).default([]),
+  trades: z.array(OrderFlowTrade).default([]),
+  deltas: z.array(OrderFlowDelta).default([]),
+  imbalance_threshold: z.number().gt(-1).lt(1).default(0.20),
+});
+
+export const runQuantOrderFlowReplay = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => OrderFlowReplayInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/research/orderflow/replay", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }));

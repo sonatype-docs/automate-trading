@@ -38,7 +38,7 @@ export const Route = createFileRoute("/research-lab")({
 
 function LabPage() {
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <header className="flex items-center gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/40 text-primary-foreground">
           <FlaskConical className="h-5 w-5" />

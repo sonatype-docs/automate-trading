@@ -250,9 +250,7 @@ function ResearchPage() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     retry: 2,
-    refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    refetchOnMount: false,
   });
   const datasetCounts = useMemo(() => {
     const entries = (snapshotList.data?.snapshots ?? []).map((s) => [s.name, s.count] as const);

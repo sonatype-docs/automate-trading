@@ -4,10 +4,15 @@ import { requireAuth } from "./auth-middleware";
 
 const engineBaseUrl = () => (process.env.QUANT_ENGINE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "");
 
-async function engineFetch(path: string, init?: RequestInit) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function engineFetch(path: string, init?: RequestInit): Promise<any> {
   const response = await fetch(engineBaseUrl() + path, {
     ...init,
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(process.env.QUANT_ENGINE_API_KEY ? { "x-api-key": process.env.QUANT_ENGINE_API_KEY } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
   const text = await response.text();
   let body: unknown = null;

@@ -1,0 +1,39 @@
+name: Remove final merged branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/remove-final-branch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete final stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for branch in chore/final-branch-cleanup chore/delete-last-merged-branch; do
+            if gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1; then
+              echo "Deleting $branch"
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null
+            else
+              echo "Already absent: $branch"
+            fi
+          done
+
+      - name: Remove this one-time workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          file=".github/workflows/remove-final-branch.yml"
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${file}" -q .sha)"
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/contents/${file}"             -f message="chore: remove final branch cleanup workflow"             -f sha="${sha}"             -f branch=main >/dev/null

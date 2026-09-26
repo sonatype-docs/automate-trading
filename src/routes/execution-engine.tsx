@@ -15,6 +15,7 @@ import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
+import { RouteLoadError } from "@/components/route-load-error";
 
 const ALL_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
 const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
@@ -37,6 +38,7 @@ type BatchRow = {
 };
 
 export const Route = createFileRoute("/execution-engine")({
+  errorComponent: RouteLoadError,
   head: () => ({
     meta: [
       { title: "Universal Execution Engine — Realistic Fill Simulation" },

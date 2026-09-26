@@ -3,7 +3,7 @@ import hashlib
 import json
 from .models import BacktestRequest
 
-ENGINE_VERSION = "0.2.0"
+ENGINE_VERSION = "0.5.0"
 
 def request_fingerprint(request: BacktestRequest) -> str:
     payload = request.model_dump(mode="json")

@@ -8,6 +8,8 @@ Parameters:
   ScheduleWatchdog: { Type: String, Default: "false", AllowedValues: ["true", "false"] }
   ApplicationImageUri:
     Type: String
+  QuantEngineImageUri:
+    Type: String
   MigrationImageUri:
     Type: String
   CloudFrontPrefixListId:
@@ -78,6 +80,9 @@ Parameters:
     Type: String
     Default: db.t3.micro
     AllowedValues: [db.t3.micro]
+  BedrockModelId:
+    Type: String
+    Default: global.anthropic.claude-sonnet-4-6
 
 Conditions:
   EnableContainerInsightsCondition: !Equals [!Ref EnableContainerInsights, "true"]
@@ -282,6 +287,43 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
 
+  QuantResearchDLQ:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      QueueName: shark-auto-trader-quant-dlq
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+  QuantResearchQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      QueueName: shark-auto-trader-quant
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuantResearchDLQ.Arn
+        maxReceiveCount: 3
+  QuantResearchJobTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: shark-auto-trader-quant-jobs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -349,16 +391,88 @@ Resources:
               awslogs-group: !Ref MigrationLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: migration
+  QuantEngineRuntimePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: shark-auto-trader-quant-runtime
+      Roles:
+        - !Select [1, !Split ["/", !Ref TaskRoleArn]]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+            Resource: !GetAtt QuantResearchJobTable.Arn
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:ChangeMessageVisibility
+            Resource:
+              - !GetAtt QuantResearchQueue.Arn
+              - !GetAtt QuantResearchDLQ.Arn
+          - Effect: Allow
+            Action:
+              - bedrock:Converse
+              - bedrock:InvokeModel
+            Resource: "*"
+
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       RequiresCompatibilities: [FARGATE]
       NetworkMode: awsvpc
-      Cpu: "512"
-      Memory: "1024"
+      Cpu: "1024"
+      Memory: "2048"
       ExecutionRoleArn: !Ref TaskExecutionRoleArn
       TaskRoleArn: !Ref TaskRoleArn
       ContainerDefinitions:
+        - Name: quant-engine
+          Image: !Ref QuantEngineImageUri
+          Essential: true
+          PortMappings:
+            - { ContainerPort: 8080, Protocol: tcp }
+          Environment:
+            - { Name: QUANT_ENGINE_TRUST_LOCAL, Value: "true" }
+            - { Name: RESEARCH_QUEUE_URL, Value: !Ref QuantResearchQueue }
+            - { Name: RESEARCH_JOB_TABLE, Value: !Ref QuantResearchJobTable }
+            - { Name: RESEARCH_RESULTS_BUCKET, Value: !Ref QuantArtifactsBucket }
+            - { Name: QUANT_DATA_BUCKET, Value: !Ref QuantArtifactsBucket }
+            - { Name: BEDROCK_MODEL_ID, Value: !Ref BedrockModelId }
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApplicationLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: quant-api
+          HealthCheck:
+            Command: [CMD-SHELL, "wget -q -O /dev/null http://localhost:8080/health || exit 1"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 45
+        - Name: quant-worker
+          Image: !Ref QuantEngineImageUri
+          Essential: true
+          Command: ["python", "-m", "app.worker_main"]
+          Environment:
+            - { Name: RESEARCH_QUEUE_URL, Value: !Ref QuantResearchQueue }
+            - { Name: RESEARCH_JOB_TABLE, Value: !Ref QuantResearchJobTable }
+            - { Name: RESEARCH_RESULTS_BUCKET, Value: !Ref QuantArtifactsBucket }
+            - { Name: QUANT_DATA_BUCKET, Value: !Ref QuantArtifactsBucket }
+            - { Name: BEDROCK_MODEL_ID, Value: !Ref BedrockModelId }
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApplicationLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: quant-worker
         - Name: application
           Image: !Ref ApplicationImageUri
           Essential: true
@@ -381,6 +495,7 @@ Resources:
             - { Name: SCHEDULE_STRATEGY, Value: !Ref ScheduleStrategy }
             - { Name: SCHEDULE_LIVE, Value: !Ref ScheduleLive }
             - { Name: SCHEDULE_WATCHDOG, Value: !Ref ScheduleWatchdog }
+            - { Name: QUANT_ENGINE_URL, Value: http://127.0.0.1:8080 }
           Secrets:
             - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_KEY::" }
             - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_SECRET::" }

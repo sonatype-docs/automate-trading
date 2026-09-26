@@ -34,6 +34,7 @@ env:
   AWS_REGION: ap-southeast-2
   STACK: shark-auto-trader-runtime
   REPO: shark-auto-trader-app
+  QUANT_REPO: shark-auto-trader-quant-engine
   FILES_BUCKET: shark-auto-trader-files-438456517782-ap-southeast-2
   BACKUPS_BUCKET: shark-auto-trader-backups-438456517782-ap-southeast-2
   USER_POOL_ID: ap-southeast-2_3CQ298jr5
@@ -96,26 +97,25 @@ jobs:
             echo "TASK_ROLE_ARN=$task_role_arn"
           } >> "$GITHUB_ENV"
 
-      - name: Ensure image repository
+      - name: Ensure image repositories
         shell: bash
         run: |
           set -Eeuo pipefail
-          if ! aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1; then
-            aws ecr create-repository \
-              --repository-name "$REPO" \
-              --image-tag-mutability IMMUTABLE \
-              --image-scanning-configuration scanOnPush=true >/dev/null
-          fi
+          for repo in "$REPO" "$QUANT_REPO"; do
+            if ! aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1; then
+              aws ecr create-repository --repository-name "$repo" --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true >/dev/null
+            fi
+          done
 
       - name: Enforce bounded ECR retention
         shell: bash
         run: |
           set -Eeuo pipefail
           lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","tagPatternList":["*"],"countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
-          aws ecr put-lifecycle-policy \
-            --repository-name "$REPO" \
-            --lifecycle-policy-text "$lifecycle_policy" >/dev/null
-          echo "ECR lifecycle policy applied."
+          for repo in "$REPO" "$QUANT_REPO"; do
+            aws ecr put-lifecycle-policy --repository-name "$repo" --lifecycle-policy-text "$lifecycle_policy" >/dev/null
+          done
+          echo "ECR lifecycle policies applied."
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -167,6 +167,18 @@ jobs:
           fi
 
       - uses: oven-sh/setup-bun@v2
+      - name: Test embedded quant engine
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run quant engine tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python -m pip install -r quant-engine/requirements.txt
+          cd quant-engine
+          PYTHONPATH=. pytest -q
+
       - name: Install and test application
         shell: bash
         env:
@@ -202,6 +214,12 @@ jobs:
             docker push "$image"
           fi
 
+          quant_image="$REGISTRY/$QUANT_REPO:${GITHUB_SHA::12}"
+          if ! aws ecr describe-images --repository-name "$QUANT_REPO" --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f quant-engine/Dockerfile -t "$quant_image" quant-engine
+            docker push "$quant_image"
+          fi
+
           migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
           if ! aws ecr describe-images --repository-name "$REPO" \
               --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
@@ -212,6 +230,7 @@ jobs:
 
           {
             echo "IMAGE=$image"
+            echo "QUANT_IMAGE=$quant_image"
             echo "MIGRATION_IMAGE=$migration_image"
           } >> "$GITHUB_ENV"
 

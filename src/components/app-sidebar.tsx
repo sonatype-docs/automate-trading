@@ -137,7 +137,7 @@ export function AppSidebar() {
           className="flex items-center gap-3 rounded-lg p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Activity className="h-4.5 w-4.5" aria-hidden />
+            <Activity className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">

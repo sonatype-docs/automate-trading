@@ -8,6 +8,8 @@ type Listener = (signedIn: boolean) => void;
 const listeners = new Set<Listener>();
 const emit = (value: boolean) => listeners.forEach((listener) => listener(value));
 
+let pendingNewPasswordUser: any = null;
+
 async function cognito() {
   if (!POOL_ID || !CLIENT_ID) throw new Error("Cognito is not configured for this AWS build");
   if (typeof (globalThis as any).global === "undefined") (globalThis as any).global = globalThis;
@@ -33,33 +35,47 @@ export function onAuthChange(callback: Listener): () => void {
   return () => listeners.delete(callback);
 }
 
-export async function signIn(email: string, password: string): Promise<void> {
+export async function signIn(email: string, password: string): Promise<{ needsNewPassword: boolean }> {
   const { m, pool } = await cognito();
   const user = new m.CognitoUser({ Username: email, Pool: pool });
-  await new Promise<void>((resolve, reject) => user.authenticateUser(
+
+  return new Promise((resolve, reject) => user.authenticateUser(
     new m.AuthenticationDetails({ Username: email, Password: password }),
-    { onSuccess: () => resolve(), onFailure: (error) => reject(error) },
+    {
+      onSuccess: () => {
+        pendingNewPasswordUser = null;
+        emit(true);
+        resolve({ needsNewPassword: false });
+      },
+      newPasswordRequired: () => {
+        pendingNewPasswordUser = user;
+        resolve({ needsNewPassword: true });
+      },
+      onFailure: (error) => reject(error),
+    },
   ));
-  emit(true);
 }
 
-export async function signUp(email: string, password: string): Promise<{ needsCode: boolean }> {
-  const { m, pool } = await cognito();
-  await new Promise<void>((resolve, reject) => pool.signUp(
-    email, password, [new m.CognitoUserAttribute({ Name: "email", Value: email })], [],
-    (error) => error ? reject(error) : resolve(),
+export async function completeNewPassword(newPassword: string): Promise<void> {
+  const user = pendingNewPasswordUser;
+  if (!user) throw new Error("Your sign-in session expired. Please sign in again.");
+  await new Promise<void>((resolve, reject) => user.completeNewPasswordChallenge(
+    newPassword,
+    {},
+    {
+      onSuccess: () => {
+        pendingNewPasswordUser = null;
+        emit(true);
+        resolve();
+      },
+      onFailure: (error: Error) => reject(error),
+    },
   ));
-  return { needsCode: true };
-}
-
-export async function confirmSignUp(email: string, code: string): Promise<void> {
-  const { m, pool } = await cognito();
-  const user = new m.CognitoUser({ Username: email, Pool: pool });
-  await new Promise<void>((resolve, reject) => user.confirmRegistration(code, true, (error) => error ? reject(error) : resolve()));
 }
 
 export async function signOut(): Promise<void> {
   const { pool } = await cognito();
   pool.getCurrentUser()?.signOut();
+  pendingNewPasswordUser = null;
   emit(false);
 }

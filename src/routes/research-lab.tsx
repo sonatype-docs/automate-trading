@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FlaskConical, Plus, Search as SearchIcon, GitCompare, Loader2 } from "lucide-react";
-import { QuantResearchPanel } from "@/components/quant-research/quant-research-panel";
 import { RouteLoadError } from "@/components/route-load-error";
 import {
   listProjects, upsertProject,
@@ -49,8 +48,6 @@ function LabPage() {
           <p className="text-sm text-muted-foreground">Permanent record of every experiment, hypothesis, and decision.</p>
         </div>
       </header>
-
-      <QuantResearchPanel mode="walk" title="Quant Walk-Forward Validation" description="Run the canonical embedded engine against the same market-data service and carry the validation result into your research record." />
 
       <Tabs defaultValue="projects">
         <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">

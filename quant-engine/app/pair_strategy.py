@@ -36,10 +36,12 @@ def cointegration_signal(
     y_bars: list[Bar],
     window: int = 30,
     entry_z: float = 2.0,
-    exit_z: float = 0.0,
+    exit_z: float = 0.5,
 ) -> PairSignal:
     if len(x_bars) != len(y_bars):
         raise ValueError("pair bars must be aligned and equal length")
+    if window < 3 or entry_z <= 0 or exit_z < 0 or exit_z >= entry_z:
+        raise ValueError("window must be >= 3 and require 0 <= exit_z < entry_z")
     x = [b.close for b in x_bars]
     y = [b.close for b in y_bars]
     beta, z = spread_zscore(x, y, window)

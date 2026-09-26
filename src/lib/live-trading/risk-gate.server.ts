@@ -27,7 +27,7 @@ export async function getPortfolioRiskSnapshot(now = new Date()): Promise<Portfo
     now.getUTCDate(),
   )).toISOString();
 
-  const [{ data: trades, error: tradeError }, { data: runners, error: runnerError }] = await Promise.all([
+  const [{ data: trades, error: tradeError }, { data: runners, error: runnerError }, { count: dailyEntryCount, error: dailyEntryError }] = await Promise.all([
     supabaseAdmin
       .from("live_trades")
       .select("runner_id,status,qty,entry_price,stop_price,exit_ts,net_pnl")
@@ -37,9 +37,15 @@ export async function getPortfolioRiskSnapshot(now = new Date()): Promise<Portfo
     supabaseAdmin
       .from("live_runners")
       .select("id,risk_usd"),
+    supabaseAdmin
+      .from("live_trades")
+      .select("id", { count: "exact", head: true })
+      .gte("entry_ts", startOfDay)
+      .in("status", ["open", "pending", "closed"]),
   ]);
   if (tradeError) throw new Error("Portfolio risk trade query failed: " + tradeError.message);
   if (runnerError) throw new Error("Portfolio risk runner query failed: " + runnerError.message);
+  if (dailyEntryError) throw new Error("Portfolio risk daily-entry query failed: " + dailyEntryError.message);
 
   const riskByRunner = new Map<string, number>(
     (runners ?? []).map((r) => [String(r.id), Math.max(0, Number(r.risk_usd) || 0)]),
@@ -69,7 +75,7 @@ export async function getPortfolioRiskSnapshot(now = new Date()): Promise<Portfo
 
   return {
     openPositions: active.length,
-    dailyTrades: closedToday.length,
+    dailyTrades: dailyEntryCount ?? 0,
     dailyPnlUsd,
     openRiskUsd,
     consecutiveLosses,

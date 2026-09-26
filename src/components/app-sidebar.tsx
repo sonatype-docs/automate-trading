@@ -1,10 +1,8 @@
+import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 import {
   LayoutDashboard,
   BookOpen,
-  Beaker,
-  ListOrdered,
   BarChart3,
   FileText,
   Settings as SettingsIcon,
@@ -23,15 +21,16 @@ import {
   ChevronsRight,
   PlayCircle,
   Activity,
+  ChevronDown,
+  Folder,
+  LineChart,
+  Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -39,47 +38,110 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const primary = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Journal", url: "/journal", icon: BookOpen },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Reports", url: "/reports", icon: FileText },
+type NavEntry = { title: string; url: string; icon: LucideIcon };
+
+const folders: Array<{
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavEntry[];
+  defaultOpen?: boolean;
+}> = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+    defaultOpen: true,
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Journal", url: "/journal", icon: BookOpen },
+      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+      { title: "Reports", url: "/reports", icon: FileText },
+    ],
+  },
+  {
+    id: "trading",
+    label: "Trading",
+    icon: Activity,
+    defaultOpen: true,
+    items: [
+      { title: "ORB Bot", url: "/bot", icon: Bot },
+      { title: "Pending Orders", url: "/pending-orders", icon: FileText },
+      { title: "Paper Trading", url: "/paper-trading", icon: Activity },
+      { title: "Live Trading", url: "/live-trading", icon: Zap },
+    ],
+  },
+  {
+    id: "backtesting",
+    label: "Backtesting",
+    icon: LineChart,
+    defaultOpen: true,
+    items: [
+      { title: "Fib Zone Lab", url: "/backtest", icon: FlaskConical },
+      { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
+      { title: "Asian Sweep", url: "/backtest/asian-sweep", icon: Sunrise },
+      { title: "Multi-Session ORB", url: "/backtest/orb", icon: Target },
+      { title: "PDH/PDL Sweep", url: "/backtest/pdh-pdl-sweep", icon: Waves },
+      { title: "Compare Strategies", url: "/backtest/compare", icon: GitCompare },
+    ],
+  },
+  {
+    id: "research",
+    label: "Research & Quant",
+    icon: Sparkles,
+    defaultOpen: true,
+    items: [
+      { title: "Quant Engine", url: "/quant-engine", icon: Cpu },
+      { title: "Research", url: "/research", icon: BarChart3 },
+      { title: "Research Lab", url: "/research-lab", icon: FlaskConical },
+      { title: "AI Research", url: "/ai-research", icon: Sparkles },
+      { title: "Optimizer", url: "/optimizer", icon: Sparkles },
+      { title: "Pipeline", url: "/pipeline", icon: PlayCircle },
+      { title: "Trade Intelligence", url: "/trade-intelligence", icon: Database },
+    ],
+  },
+  {
+    id: "engines",
+    label: "Data & Engines",
+    icon: Database,
+    defaultOpen: false,
+    items: [
+      { title: "Market Data", url: "/market-data", icon: Database },
+      { title: "Strategy Engine", url: "/strategy-engine", icon: Cpu },
+      { title: "Execution Engine", url: "/execution-engine", icon: Zap },
+    ],
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    icon: BookMarked,
+    defaultOpen: false,
+    items: [
+      { title: "XAU/USD Handbook", url: "/handbook", icon: BookMarked },
+      { title: "London ORB Guide", url: "/handbook/v1/london-orb", icon: Target },
+      { title: "Docs", url: "/docs", icon: FileText },
+      { title: "Settings", url: "/settings", icon: SettingsIcon },
+    ],
+  },
 ];
 
-const trading = [
-  { title: "ORB Bot", url: "/bot", icon: Bot },
-  { title: "Pending Orders", url: "/pending-orders", icon: ListOrdered },
-  { title: "Paper Trading", url: "/paper-trading", icon: Activity },
-  { title: "Live Trading Bot", url: "/live-trading", icon: Zap },
-];
-
-const backtest = [
-  { title: "Fib Zone Lab", url: "/backtest", icon: Beaker },
-  { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
-  { title: "Asian Sweep", url: "/backtest/asian-sweep", icon: Sunrise },
-  { title: "Multi-Session ORB", url: "/backtest/orb", icon: Target },
-  { title: "PDH/PDL Sweep", url: "/backtest/pdh-pdl-sweep", icon: Waves },
-  { title: "Compare all", url: "/backtest/compare", icon: GitCompare },
-];
-
-const meta = [
-  { title: "Pipeline", url: "/pipeline", icon: PlayCircle },
-  { title: "Market Data Engine", url: "/market-data", icon: Database },
-  { title: "Strategy Engine", url: "/strategy-engine", icon: Cpu },
-  { title: "Execution Engine", url: "/execution-engine", icon: Zap },
-  { title: "Trade Intelligence", url: "/trade-intelligence", icon: Database },
-  { title: "Research", url: "/research", icon: BarChart3 },
-  { title: "Optimizer", url: "/optimizer", icon: Sparkles },
-  { title: "AI Research", url: "/ai-research", icon: Sparkles },
-  { title: "Quant Engine", url: "/quant-engine", icon: Cpu },
-  { title: "Research Lab", url: "/research-lab", icon: FlaskConical },
-  { title: "Docs", url: "/docs", icon: FileText },
-  { title: "Settings", url: "/settings", icon: SettingsIcon },
-];
+function pathIsActive(pathname: string, url: string) {
+  if (url === "/") return pathname === "/";
+  return pathname === url || pathname.startsWith(url + "/");
+}
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  const isActive = (u: string) => (u === "/" ? pathname === "/" : pathname.startsWith(u));
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(folders.map((folder) => [folder.id, folder.defaultOpen ?? false])),
+  );
+
+  const activeFolder = folders.find((folder) =>
+    folder.items.some((item) => pathIsActive(pathname, item.url)),
+  )?.id;
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
@@ -98,77 +160,78 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent className="gap-1 px-2 py-2">
-        <NavigationGroup label="Overview" items={primary} isActive={isActive} />
-        <NavigationGroup label="Trading" items={trading} isActive={isActive} />
-        <NavigationGroup
-          label="Backtest"
-          items={backtest}
-          isActive={(url) => (url === "/backtest" ? pathname === "/backtest" : isActive(url))}
-        />
-        <SidebarGroup className="border-t border-sidebar-border pt-3">
-          <SidebarGroupLabel>Handbook</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <NavItem
-                title="XAU/USD Handbook"
-                active={pathname === "/handbook" || pathname.startsWith("/handbook")}
+        {folders.map((folder) => {
+          const FolderIcon = folder.icon;
+          const isOpen = openFolders[folder.id] ?? false;
+          const isActive = activeFolder === folder.id;
+
+          return (
+            <div
+              key={folder.id}
+              className={`rounded-lg border border-transparent transition-colors ${
+                isActive ? "bg-sidebar-accent/45" : "hover:bg-sidebar-accent/25"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenFolders((current) => ({ ...current, [folder.id]: !isOpen }))
+                }
+                className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
+                aria-expanded={isOpen}
               >
-                <Link to="/handbook">
-                  <BookMarked className="h-4 w-4" />
-                  <span>XAU/USD Handbook</span>
-                </Link>
-              </NavItem>
-              <NavItem title="London ORB" active={pathname.startsWith("/handbook/v1/london-orb")}>
-                <Link
-                  to="/handbook/$volume/$strategy"
-                  params={{ volume: "v1", strategy: "london-orb" }}
-                >
-                  <Target className="h-4 w-4" />
-                  <span>London ORB</span>
-                </Link>
-              </NavItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <NavigationGroup label="System" items={meta} isActive={isActive} separated />
+                <FolderIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold tracking-wide text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+                  {folder.label}
+                </span>
+                <span className="mr-0.5 rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground group-data-[collapsible=icon]:hidden">
+                  {folder.items.length}
+                </span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-data-[collapsible=icon]:hidden ${
+                    isOpen ? "rotate-0" : "-rotate-90"
+                  }`}
+                  aria-hidden
+                />
+              </button>
+
+              {isOpen && (
+                <SidebarMenu className="px-1 pb-1 group-data-[collapsible=icon]:px-0">
+                  {folder.items.map((item) => (
+                    <NavItem
+                      key={item.url}
+                      title={item.title}
+                      active={pathIsActive(pathname, item.url)}
+                    >
+                      <Link to={item.url as never}>
+                        <item.icon className="h-3.5 w-3.5" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </NavItem>
+                  ))}
+                </SidebarMenu>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="mt-2 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-2 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <Shield className="h-3.5 w-3.5 text-primary" />
+            Safety
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            Trading controls remain server-enforced.
+          </p>
+        </div>
       </SidebarContent>
+
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <CollapseToggle />
       </SidebarFooter>
     </Sidebar>
-  );
-}
-
-type NavEntry = { title: string; url: string; icon: LucideIcon };
-
-function NavigationGroup({
-  label,
-  items,
-  isActive,
-  separated = false,
-}: {
-  label: string;
-  items: NavEntry[];
-  isActive: (url: string) => boolean;
-  separated?: boolean;
-}) {
-  return (
-    <SidebarGroup className={separated ? "border-t border-sidebar-border pt-3" : ""}>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <NavItem key={item.url} title={item.title} active={isActive(item.url)}>
-              <Link to={item.url as never}>
-                <item.icon className="h-4 w-4" />
-                <span>{item.title}</span>
-              </Link>
-            </NavItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
   );
 }
 
@@ -187,7 +250,7 @@ function NavItem({
         asChild
         isActive={active}
         tooltip={title}
-        className="h-8 rounded-md text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-sm"
+        className="h-8 rounded-md pl-3 text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-sm"
       >
         {children}
       </SidebarMenuButton>
@@ -198,13 +261,14 @@ function NavItem({
 function CollapseToggle() {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
+
   return (
     <button
       type="button"
       onClick={toggleSidebar}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
     >
       {collapsed ? (
         <ChevronsRight className="h-4 w-4 shrink-0" />

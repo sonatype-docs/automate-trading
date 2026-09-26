@@ -35,7 +35,7 @@ def health():
 @app.get("/v1/research/strategies")
 def strategies(authorization: str | None = Header(default=None), x_api_key: str | None = Header(default=None)):
     _require_auth(authorization, x_api_key)
-    return [{"strategy_id": item.strategy_id, "name": item.name, "description": item.description} for item in list_strategies()]
+    return [{"strategy_id": item.strategy_id, "name": item.name, "description": item.description, "data_mode": item.data_mode, "executable_via_single_symbol_bars": item.executable_via_single_symbol_bars} for item in list_strategies()]
 
 @app.post("/v1/research/backtests", response_model=BacktestResult, status_code=201)
 def create_backtest(request: BacktestRequest, authorization: str | None = Header(default=None), x_api_key: str | None = Header(default=None)):

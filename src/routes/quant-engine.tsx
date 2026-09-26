@@ -14,7 +14,7 @@ import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSw
 import { loadEnrichedCandles } from "@/lib/market-data.functions";
 import { TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 
-type Strategy = { strategy_id: string; name: string; description: string };
+type Strategy = { strategy_id: string; name: string; description: string; data_mode?: string; executable_via_single_symbol_bars?: boolean };
 type QuantBacktestResult = {
   run_id: string;
   symbol: string;

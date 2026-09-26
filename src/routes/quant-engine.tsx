@@ -49,6 +49,19 @@ type PairResult = { run_id: string; x_symbol: string; y_symbol: string; engine_v
 
 const SPECIALIST_STRATEGIES = new Set(["STRAT-03-STAT-COINT", "STRAT-06-ORDER-FLOW-DELTA"]);
 
+function safeHistoryDays(source: "yahoo" | "shark", timeframe: Timeframe): number {
+  if (source === "yahoo") {
+    if (timeframe === "1m") return 7;
+    if (["2m", "5m", "15m", "30m"].includes(timeframe)) return 60;
+    if (["1h", "2h", "4h"].includes(timeframe)) return 729;
+    return 3650;
+  }
+  if (timeframe === "1m") return 2;
+  if (timeframe === "5m") return 40;
+  if (timeframe === "15m") return 120;
+  return 180;
+}
+
 function fmt(value: number | null | undefined, digits = 2): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -106,6 +119,8 @@ function QuantEnginePage() {
   const [pairResult, setPairResult] = useState<PairResult | null>(null);
   const [orderFlowJson, setOrderFlowJson] = useState(`{"snapshots":[{"timestamp_ms":1,"bids":[{"price":100,"quantity":10}],"asks":[{"price":101,"quantity":30}]}],"trades":[{"timestamp_ms":2,"price":101,"quantity":5,"aggressor":"BUY"}],"deltas":[],"imbalance_threshold":0.2}`);
   const [orderFlowResult, setOrderFlowResult] = useState<any>(null);
+
+  const maxHistoryDays = safeHistoryDays(source, timeframe);
 
   const selectedStrategy = useMemo(
     () => (strategies.data ?? []).find((s) => s.strategy_id === strategyId) ?? null,
@@ -284,7 +299,7 @@ function QuantEnginePage() {
             <div><Label>Source</Label><Select value={source} onValueChange={(v) => setSource(v as "yahoo" | "shark")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yahoo">Yahoo</SelectItem><SelectItem value="shark">Shark</SelectItem></SelectContent></Select></div>
             <div><Label>Symbol</Label><Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></div>
             <div><Label>Timeframe</Label><Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TIMEFRAMES.map((tf) => <SelectItem key={tf} value={tf}>{tf}</SelectItem>)}</SelectContent></Select></div>
-            <div><Label>History (days)</Label><Input type="number" min={5} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 30)} /></div>
+            <div><Label>History (days)</Label><Input type="number" min={1} max={Math.min(365, maxHistoryDays)} value={Math.min(days, maxHistoryDays)} onChange={(e) => setDays(Math.min(Math.min(365, maxHistoryDays), Math.max(1, Number(e.target.value) || 30)))} /></div>
             <div><Label>Initial capital</Label><Input type="number" min={1000} value={capital} onChange={(e) => setCapital(Number(e.target.value) || 25000)} /></div>
             <div><Label>Risk / trade</Label><Input type="number" min={0.001} max={0.25} step={0.001} value={risk} onChange={(e) => setRisk(Number(e.target.value) || 0.01)} /></div>
           </div>
@@ -300,7 +315,12 @@ function QuantEnginePage() {
             <Button variant="outline" onClick={() => loadData.mutate()} disabled={loadData.isPending || !strategyId}><Database className="h-4 w-4 mr-2" />{loadData.isPending ? "Loading…" : "Load market data"}</Button>
             {selectedStrategy && <div className="text-xs text-muted-foreground self-center max-w-2xl">{selectedStrategy.description}</div>}
           </div>
-          {loadedMeta && <div className="rounded border border-border bg-muted/20 p-3 text-xs">Loaded {loadedMeta.count.toLocaleString()} bars available to the quant run{dateRange}.</div>}
+          <div className="rounded border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+            {source === "shark"
+              ? `SharkExchange history is capped at ${maxHistoryDays} days for ${timeframe} so the request stays within the production API/CloudFront latency budget.`
+              : `Yahoo Finance supports up to ${maxHistoryDays >= 3650 ? "long-range" : maxHistoryDays + " days"} for ${timeframe}; older intraday requests are automatically reduced to the provider-supported window.`}
+          </div>
+          {loadedMeta && <div className="rounded border border-border bg-muted/20 p-3 text-xs">Loaded {loadedMeta.count.toLocaleString()} bars available to the quant run{dateRange}{/* server may safely clamp oversized provider windows */}{loadedMeta.count > 0 ? "" : " · no bars returned"}.</div>}
           {runError && <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorText(runError)}</div>}
         </CardContent>
       </Card>

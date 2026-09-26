@@ -27,6 +27,11 @@ describe("portfolio risk gate", () => {
       .toBe("portfolio_max_daily_loss");
   });
 
+  it("blocks when daily entries reach the daily trade cap", () => {
+    expect(evaluatePortfolioRisk({ ...clean, dailyTrades: 20 }, limits, 20).reason)
+      .toBe("portfolio_max_daily_trades");
+  });
+
   it("blocks when reserved risk would exceed the portfolio cap", () => {
     expect(evaluatePortfolioRisk({ ...clean, openRiskUsd: 90 }, limits, 20).reason)
       .toBe("portfolio_max_open_risk");

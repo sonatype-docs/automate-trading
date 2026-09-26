@@ -71,3 +71,6 @@ export const OptimizerSearchJobSchema = z.object({
   }),
   budget: z.number().int().min(10).max(100_000),
 });
+
+
+export { ExecutionEngineInputSchema as ExecutionEngineJobSchema } from "@/lib/execution-engine/core.server";

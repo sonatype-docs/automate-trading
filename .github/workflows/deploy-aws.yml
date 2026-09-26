@@ -107,26 +107,15 @@ jobs:
             fi
           done
 
-      - name: Ensure image repository
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if ! aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1; then
-            aws ecr create-repository \
-              --repository-name "$REPO" \
-              --image-tag-mutability IMMUTABLE \
-              --image-scanning-configuration scanOnPush=true >/dev/null
-          fi
-
       - name: Enforce bounded ECR retention
         shell: bash
         run: |
           set -Eeuo pipefail
           lifecycle_policy='{"rules":[{"rulePriority":1,"description":"Keep newest 30 tagged images","selection":{"tagStatus":"tagged","tagPatternList":["*"],"countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}},{"rulePriority":2,"description":"Remove untagged images after 1 day","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":1},"action":{"type":"expire"}}]}'
-          aws ecr put-lifecycle-policy \
-            --repository-name "$REPO" \
-            --lifecycle-policy-text "$lifecycle_policy" >/dev/null
-          echo "ECR lifecycle policy applied."
+          for repo in "$REPO" "$QUANT_REPO"; do
+            aws ecr put-lifecycle-policy --repository-name "$repo" --lifecycle-policy-text "$lifecycle_policy" >/dev/null
+          done
+          echo "ECR lifecycle policies applied."
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2

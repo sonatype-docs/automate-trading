@@ -73,3 +73,7 @@ Do not:
 - deploy with live schedules enabled
 
 The repository workflow is designed to fail rather than destroy existing production resources when a failed CloudFormation stack still owns non-deleted resources.
+
+## Release source of truth
+
+Production deployments are sourced from `main`. Historical feature/fix branches are retained only as audit history; before release, branch contents were compared against `main` and only code not already represented in `main` would be promoted. The current release includes the embedded quant engine, research integrations, portfolio risk gate, Bedrock analysis workflow, async research jobs, market-data quality controls, Shark live stream, and AWS production alarms.

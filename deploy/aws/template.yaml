@@ -433,7 +433,7 @@ Resources:
       ContainerDefinitions:
         - Name: quant-engine
           Image: !Ref QuantEngineImageUri
-          Essential: false
+          Essential: true
           PortMappings:
             - { ContainerPort: 8080, Protocol: tcp }
           Environment:
@@ -458,7 +458,7 @@ Resources:
             StartPeriod: 45
         - Name: quant-worker
           Image: !Ref QuantEngineImageUri
-          Essential: false
+          Essential: true
           Command: ["python", "-m", "app.worker_main"]
           Environment:
             - { Name: RESEARCH_QUEUE_URL, Value: !Ref QuantResearchQueue }

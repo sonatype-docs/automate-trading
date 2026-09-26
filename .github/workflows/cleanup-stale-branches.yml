@@ -1,0 +1,65 @@
+name: Clean up stale project branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cleanup-stale-branches.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete audited stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          branches=(
+            chore/reconciled-main-release
+            codex/find-and-fix-important-codebase-bug
+            codex/update-styles.css-for-new-visual-language
+            feat/async-quant-research-ui
+            feat/aws-production-alarms
+            feat/live-portfolio-risk-gate
+            feat/market-data-quality-gate
+            feat/quant-research-hub
+            feat/shark-market-stream
+            feat/strategy-engine-quant-registry
+            feat/wire-bedrock-research-ui
+            feat/wire-quant-research-surfaces
+            feature/embed-quant-engine
+            fix/deploy-on-quant-engine-changes
+            fix/quant-deploy-parameter
+            fix/quant-ecr-pull-policy
+            fix/quant-engine-healthcheck
+            fix/quant-runtime-image-source
+            fix/quant-worker-pipeline-import
+            fix/retain-quant-stateful-resources
+            quant-foundation-top10
+            top10-safety-hardening
+          )
+
+          for branch in "${branches[@]}"; do
+            if gh api -H "Accept: application/vnd.github+json" "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1; then
+              echo "Deleting audited stale branch: $branch"
+              gh api --method DELETE -H "Accept: application/vnd.github+json"                 "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null
+            else
+              echo "Already absent: $branch"
+            fi
+          done
+
+      - name: Remove cleanup workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          file=".github/workflows/cleanup-stale-branches.yml"
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${file}" -q .sha)"
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/contents/${file}"             -f message="chore: remove one-time branch cleanup workflow"             -f sha="${sha}"             -f branch=main >/dev/null
+          echo "Removed one-time cleanup workflow."

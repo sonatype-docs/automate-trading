@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Command as CommandIcon, HelpCircle, Search, Bell, Activity } from "lucide-react";
+import { Command as CommandIcon, HelpCircle, Search, Bell, Activity, ChevronRight, Plus } from "lucide-react";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { ThemeToggle } from "./theme-toggle";
@@ -174,14 +174,34 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="min-h-[calc(100dvh-4rem)] min-w-0 animate-fade-in pb-20 md:pb-0"
         >
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/70 pb-5">
-              <div className="min-w-0">
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  Quant workspace
+            <div className="mb-6 space-y-3">
+              <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-muted-foreground">
+                <button type="button" onClick={() => navigateTo("/")} className="hover:text-foreground">Command Center</button>
+                {pathname !== "/" && (
+                  <>
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                    <span className="truncate">{pageTitle(pathname)}</span>
+                  </>
+                )}
+              </nav>
+              <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
+                <div className="min-w-0">
+                  <h1 className="text-[28px] font-semibold leading-9 tracking-tight text-foreground">
+                    {pageTitle(pathname)}
+                  </h1>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {pathname === "/" ? "Monitor research, trading, performance and risk from one workspace." : "Use the workspace below to research, configure, analyze and monitor this part of QUANT-BOT."}
+                  </p>
                 </div>
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">
-                  {pageTitle(pathname)}
-                </h1>
+                {pathname === "/backtest" || pathname === "/strategy-engine" || pathname === "/research-lab" ? (
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden /> New Run
+                  </button>
+                ) : null}
               </div>
             </div>
             {children}

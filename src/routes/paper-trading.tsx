@@ -49,15 +49,15 @@ function PaperTradingPage() {
   // Manual sync only — no auto-refresh. Use the Sync button to refetch.
   const runners = useQuery({
     queryKey: ["paper-runners"], queryFn: () => runnersFn(),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: 0, retry: 2,
   });
   const positions = useQuery({
     queryKey: ["paper-positions"], queryFn: () => positionsFn(),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: 0, retry: 2,
   });
   const trades = useQuery({
     queryKey: ["paper-trades"], queryFn: () => tradesFn({ data: { limit: 500 } }),
-    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: Infinity,
+    refetchOnWindowFocus: false, refetchOnReconnect: false, staleTime: 0, retry: 2,
   });
 
   const invalidate = () => {

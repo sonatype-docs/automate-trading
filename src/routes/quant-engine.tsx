@@ -223,7 +223,24 @@ function QuantEnginePage() {
     },
   });
 
-  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? loadData.error;
+  const pairRun = useMutation({
+    mutationFn: async () => {
+      const now = Date.now();
+      const [x, y] = await Promise.all([
+        loadFn({ data: { source, symbol, timeframe, displayTimezone: "IST", strategyTimezone: "London", fromMs: now - days * 86400000, toMs: now, maxRows: 5000 } }),
+        loadFn({ data: { source, symbol: pairSymbol, timeframe, displayTimezone: "IST", strategyTimezone: "London", fromMs: now - days * 86400000, toMs: now, maxRows: 5000 } }),
+      ]);
+      return pairFn({ data: {
+        x_symbol: symbol, y_symbol: pairSymbol,
+        x_bars: x.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
+        y_bars: y.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
+        initial_capital: capital, risk_per_trade: risk, fee_bps: feeBps, slippage_bps: slippageBps,
+      } }) as Promise<PairResult>;
+    },
+    onSuccess: (result) => setPairResult(result),
+  });
+
+  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? loadData.error;
   const dateRange = loadedMeta
     ? " · " + (loadedMeta.firstTs ? new Date(loadedMeta.firstTs).toLocaleDateString() : "—") +
       " → " + (loadedMeta.lastTs ? new Date(loadedMeta.lastTs).toLocaleDateString() : "—")

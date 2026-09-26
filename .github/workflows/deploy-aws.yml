@@ -215,9 +215,21 @@ jobs:
           fi
 
           quant_image="$REGISTRY/$QUANT_REPO:${GITHUB_SHA::12}"
-          if ! aws ecr describe-images --repository-name "$QUANT_REPO" --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+          if aws ecr describe-images --repository-name "$QUANT_REPO" --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker pull "$quant_image"
+          else
             docker build -f quant-engine/Dockerfile -t "$quant_image" quant-engine
             docker push "$quant_image"
+          fi
+
+          # ECS production tasks pull from the existing app repository, which is already
+          # authorized by the protected execution-role boundary. Keep the dedicated quant
+          # repository as the artifact source, and publish the same immutable image under
+          # a unique runtime tag in the approved app repository.
+          runtime_quant_image="$REGISTRY/$REPO:quant-${GITHUB_SHA::12}"
+          if ! aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="quant-${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker tag "$quant_image" "$runtime_quant_image"
+            docker push "$runtime_quant_image"
           fi
 
           migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
@@ -230,7 +242,7 @@ jobs:
 
           {
             echo "IMAGE=$image"
-            echo "QUANT_IMAGE=$quant_image"
+            echo "QUANT_IMAGE=$runtime_quant_image"
             echo "MIGRATION_IMAGE=$migration_image"
           } >> "$GITHUB_ENV"
 

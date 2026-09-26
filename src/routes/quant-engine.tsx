@@ -293,7 +293,7 @@ function QuantEnginePage() {
       </Card>
 
       <Tabs defaultValue="backtest">
-        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger></TabsList>
         <TabsContent value="backtest" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Backtest</CardTitle><CardDescription>Deterministic execution with fees, slippage and risk sizing.</CardDescription></CardHeader><CardContent><Button onClick={() => backtestRun.mutate()} disabled={backtestRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{backtestRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run canonical backtest</Button></CardContent></Card>
           {backtest && <BacktestResultView result={backtest} />}
@@ -302,6 +302,19 @@ function QuantEnginePage() {
           <Card><CardHeader><CardTitle className="text-sm">Risk + Slippage Sweep</CardTitle><CardDescription>Scans a compact, reproducible parameter grid against the same dataset.</CardDescription></CardHeader><CardContent><Button onClick={() => sweepRun.mutate()} disabled={sweepRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{sweepRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run parameter sweep</Button></CardContent></Card>
           {sweep && <SweepView rows={sweep} />}
         </TabsContent>
+        <TabsContent value="pair" className="mt-4 space-y-4">
+          <Card><CardHeader><CardTitle className="text-sm">Pair Spread / Stat-Arb</CardTitle><CardDescription>Aligned two-symbol spread backtest using rolling hedge ratio and z-score entry/exit. This models the spread; it does not claim a formal cointegration test.</CardDescription></CardHeader><CardContent className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div><Label>Leg X</Label><Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></div>
+              <div><Label>Leg Y</Label><Input value={pairSymbol} onChange={(e) => setPairSymbol(e.target.value.toUpperCase())} /></div>
+              <div><Label>Entry Z</Label><Input value="2.0" readOnly /></div>
+              <div><Label>Window</Label><Input value="60" readOnly /></div>
+            </div>
+            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
+          </CardContent></Card>
+          {pairResult && <PairResultView result={pairResult} />}
+        </TabsContent>
+
         <TabsContent value="walk" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Walk-Forward Validation</CardTitle><CardDescription>900-bar train / 450-bar test windows stepped by 450 bars to expose stability across time.</CardDescription></CardHeader><CardContent><Button onClick={() => walkRun.mutate()} disabled={walkRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{walkRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run walk-forward</Button></CardContent></Card>
           {walk && <WalkView rows={walk} />}
@@ -328,6 +341,16 @@ function BacktestResultView({ result }: { result: QuantBacktestResult }) {
     <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead className="bg-muted/40"><tr><th className="p-2 text-left">Side</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Entry px</th><th className="p-2 text-right">Exit px</th><th className="p-2 text-right">Net PnL</th></tr></thead><tbody>{result.trades.slice(-12).reverse().map((t, i) => (
       <tr key={t.entry_time + "-" + i} className="border-t border-border/60"><td className="p-2 font-mono">{t.side}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.entry_price, 3)}</td><td className="p-2 text-right font-mono">{fmt(t.exit_price, 3)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>
     ))}</tbody></table></div>
+  </CardContent></Card>;
+}
+
+function PairResultView({ result }: { result: PairResult }) {
+  const m = result.metrics;
+  return <Card><CardHeader><CardTitle className="text-sm">Pair Backtest Result</CardTitle><CardDescription>{result.x_symbol} / {result.y_symbol} · run {result.run_id} · engine {result.engine_version}</CardDescription></CardHeader><CardContent className="space-y-4">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <Metric label="Return" value={fmt(m.total_return_pct) + "%"} /><Metric label="Annualized" value={fmt(m.annualized_return_pct) + "%"} /><Metric label="Sharpe" value={fmt(m.sharpe)} /><Metric label="Max DD" value={fmt(m.max_drawdown_pct) + "%"} /><Metric label="PF" value={fmt(m.profit_factor)} /><Metric label="Trades" value={String(m.trade_count)} />
+    </div>
+    <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Direction</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Beta</th><th className="p-2 text-right">Entry Z</th><th className="p-2 text-right">PnL</th></tr></thead><tbody>{result.trades.slice().reverse().map((t, i) => <tr key={i} className="border-t border-border/60"><td className="p-2">{t.direction}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.hedge_ratio, 4)}</td><td className="p-2 text-right font-mono">{fmt(t.entry_z)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>)}</tbody></table></div>
   </CardContent></Card>;
 }
 

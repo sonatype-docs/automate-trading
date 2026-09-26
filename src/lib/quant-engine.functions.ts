@@ -54,6 +54,13 @@ export const runQuantBacktest = createServerFn({ method: "POST" })
     body: JSON.stringify(data),
   }));
 
+const dataSchema = z.object({
+  request: BacktestInput,
+  train_bars: z.number().int().positive(),
+  test_bars: z.number().int().positive(),
+  step_bars: z.number().int().positive().optional(),
+});
+
 const SweepInput = z.object({
   request: BacktestInput,
   parameter_grid: z.record(z.array(z.number())),

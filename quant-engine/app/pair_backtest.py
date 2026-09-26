@@ -18,7 +18,7 @@ def run_pair_backtest(
     slippage_bps: float = 1.0,
     window: int = 60,
     entry_z: float = 2.0,
-    exit_z: float = 0.0,
+    exit_z: float = 0.5,
 ) -> dict:
     if len(x_bars) != len(y_bars) or len(x_bars) < max(30, window + 2):
         raise ValueError("pair series must be aligned and contain enough bars")
@@ -95,6 +95,15 @@ def run_pair_backtest(
         "x_symbol": x_symbol,
         "y_symbol": y_symbol,
         "engine_version": ENGINE_VERSION,
+        "parameters": {
+            "initial_capital": initial_capital,
+            "risk_per_trade": risk_per_trade,
+            "fee_bps": fee_bps,
+            "slippage_bps": slippage_bps,
+            "window": window,
+            "entry_z": entry_z,
+            "exit_z": exit_z,
+        },
         "metrics": {
             "total_return_pct": total_return * 100,
             "annualized_return_pct": annualized * 100,

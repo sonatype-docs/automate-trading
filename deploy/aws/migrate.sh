@@ -7,7 +7,7 @@ set -Eeuo pipefail
 : "${FILES_BUCKET:?FILES_BUCKET is required}"
 
 target_db="${PGDATABASE:-sharktrader}"
-migration_id="${MIGRATION_ID:-lovable-export-2026-09-24}"
+migration_id="${MIGRATION_ID:-aws-runtime-2026-09-24}"
 export PGSSLMODE="${PGSSLMODE:-require}"
 
 if psql -v ON_ERROR_STOP=1 -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '${target_db}'" | grep -qx 1; then

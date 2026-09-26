@@ -20,6 +20,8 @@ export interface QualityReport {
   issues: QualityIssue[];
   countsByKind: Record<QualityIssue["kind"], number>;
   gapCandles: number; // implied missing bars
+  fatalIssues: number; // issues that make a dataset unsafe for deterministic research
+  usable: boolean;
 }
 
 export function runQualityChecks(candles: RawCandle[], tf: Timeframe): QualityReport {
@@ -59,5 +61,17 @@ export function runQualityChecks(candles: RawCandle[], tf: Timeframe): QualityRe
     corrupted: 0, weekend_gap: 0, missing_volume: 0,
   };
   for (const i of issues) counts[i.kind]++;
-  return { total: candles.length, issues, countsByKind: counts, gapCandles };
+  const fatalIssues =
+    counts.bad_ohlc +
+    counts.negative_price +
+    counts.corrupted +
+    counts.duplicate;
+  return {
+    total: candles.length,
+    issues,
+    countsByKind: counts,
+    gapCandles,
+    fatalIssues,
+    usable: candles.length >= 2 && fatalIssues === 0,
+  };
 }

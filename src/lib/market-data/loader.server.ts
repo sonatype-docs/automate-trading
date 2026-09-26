@@ -8,6 +8,30 @@ import { TIMEFRAME_MS, type RawCandle, type Timeframe } from "./types";
 
 const NATIVE_SHARK = new Set<Timeframe>(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
 const NATIVE_YAHOO = new Set<Timeframe>(["1m", "2m", "5m", "15m", "30m", "1h", "1d", "1w", "1M"]);
+function isTransientDataError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /429|500|502|503|504|timeout|timed out|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT/i.test(message);
+}
+
+async function fetchRangeWithRetry(
+  source: Awaited<ReturnType<typeof getKlineSource>>,
+  symbol: string,
+  interval: Timeframe,
+  fromMs: number,
+  toMs: number,
+): Promise<Awaited<ReturnType<typeof source.getKlinesRange>>> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await source.getKlinesRange(symbol, interval, fromMs, toMs);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDataError(error) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
 
 function pickBase(source: KlineSourceId, target: Timeframe): Timeframe {
   const native = source === "yahoo" ? NATIVE_YAHOO : NATIVE_SHARK;
@@ -32,7 +56,7 @@ export async function loadRawCandles(opts: {
 }): Promise<{ candles: RawCandle[]; base: Timeframe; quality: QualityReport }> {
   const base = pickBase(opts.source, opts.timeframe);
   const src = await getKlineSource(opts.source);
-  const raw = await src.getKlinesRange(opts.symbol, base, opts.fromMs, opts.toMs);
+  const raw = await fetchRangeWithRetry(src, opts.symbol, base, opts.fromMs, opts.toMs);
   const baseCandles: RawCandle[] = raw.map((k) => ({
     ts: k.openTime,
     open: k.open, high: k.high, low: k.low, close: k.close,
@@ -40,5 +64,12 @@ export async function loadRawCandles(opts: {
   }));
   const candles = base === opts.timeframe ? baseCandles : resample(baseCandles, opts.timeframe);
   const quality = runQualityChecks(candles, opts.timeframe);
+  if (!quality.usable) {
+    const fatal = Object.entries(quality.countsByKind)
+      .filter(([kind, count]) => count > 0 && ["bad_ohlc", "negative_price", "corrupted", "duplicate"].includes(kind))
+      .map(([kind, count]) => kind + "=" + count)
+      .join(", ");
+    throw new Error("Market data quality gate failed for " + opts.symbol + " " + opts.timeframe + ": " + (fatal || "insufficient data"));
+  }
   return { candles, base, quality };
 }

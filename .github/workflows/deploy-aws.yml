@@ -34,6 +34,7 @@ env:
   AWS_REGION: ap-southeast-2
   STACK: shark-auto-trader-runtime
   REPO: shark-auto-trader-app
+  QUANT_REPO: shark-auto-trader-quant-engine
   FILES_BUCKET: shark-auto-trader-files-438456517782-ap-southeast-2
   BACKUPS_BUCKET: shark-auto-trader-backups-438456517782-ap-southeast-2
   USER_POOL_ID: ap-southeast-2_3CQ298jr5
@@ -95,6 +96,16 @@ jobs:
             echo "TASK_EXECUTION_ROLE_ARN=$execution_role_arn"
             echo "TASK_ROLE_ARN=$task_role_arn"
           } >> "$GITHUB_ENV"
+
+      - name: Ensure image repositories
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for repo in "$REPO" "$QUANT_REPO"; do
+            if ! aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1; then
+              aws ecr create-repository --repository-name "$repo" --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true >/dev/null
+            fi
+          done
 
       - name: Ensure image repository
         shell: bash
@@ -202,6 +213,12 @@ jobs:
             docker push "$image"
           fi
 
+          quant_image="$REGISTRY/$QUANT_REPO:${GITHUB_SHA::12}"
+          if ! aws ecr describe-images --repository-name "$QUANT_REPO" --image-ids imageTag="${GITHUB_SHA::12}" >/dev/null 2>&1; then
+            docker build -f quant-engine/Dockerfile -t "$quant_image" quant-engine
+            docker push "$quant_image"
+          fi
+
           migration_image="$REGISTRY/$REPO:migration-${GITHUB_SHA::12}"
           if ! aws ecr describe-images --repository-name "$REPO" \
               --image-ids imageTag="migration-${GITHUB_SHA::12}" >/dev/null 2>&1; then
@@ -212,6 +229,7 @@ jobs:
 
           {
             echo "IMAGE=$image"
+            echo "QUANT_IMAGE=$quant_image"
             echo "MIGRATION_IMAGE=$migration_image"
           } >> "$GITHUB_ENV"
 

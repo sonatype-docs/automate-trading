@@ -164,7 +164,7 @@ export function AppSidebar() {
       <SidebarContent className="gap-1 px-2 py-2">
         {folders.map((folder) => {
           const FolderIcon = folder.icon;
-          const isOpen = openFolders[folder.id] ?? false;
+          const isOpen = collapsed ? false : (openFolders[folder.id] ?? false) || isActive;
           const isActive = activeFolder === folder.id;
 
           return (

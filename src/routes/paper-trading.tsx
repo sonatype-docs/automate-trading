@@ -21,12 +21,14 @@ import {
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StrategyPerformanceCard } from "@/components/strategy-performance-card";
+import { RouteLoadError } from "@/components/route-load-error";
 import { PnlCalendarCard } from "@/components/pnl-calendar-card";
 import { PaperStatsCard } from "@/components/paper-stats-card";
 import { useNewTradeToasts } from "@/hooks/use-new-trade-toasts";
 import { PageFrame, PageHero } from "@/components/page-frame";
 
 export const Route = createFileRoute("/paper-trading")({
+  errorComponent: RouteLoadError,
   head: () => ({ meta: [{ title: "Paper Trading" }, { name: "description", content: "Live paper trading dashboard for automated strategies." }] }),
   component: PaperTradingPage,
 });

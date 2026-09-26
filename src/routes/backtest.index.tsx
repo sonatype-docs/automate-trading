@@ -41,7 +41,7 @@ export const Route = createFileRoute("/backtest/")({
   component: BacktestLab,
   head: () => ({
     meta: [
-      { title: "Backtest Lab — Shark Auto-Trader" },
+      { title: "Backtesting — QUANT-BOT" },
       {
         name: "description",
         content:
@@ -270,8 +270,8 @@ function BacktestLab() {
   };
 
   return (
-    <div className="min-h-dvh bg-transparent text-foreground">
-      <header className="sticky top-14 z-20 border-b border-border/70 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/50">
+    <div className="text-foreground">
+      <header className="border-b border-border/70 bg-card/70">
         <div className="max-w-7xl mx-auto px-3 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-[0_6px_18px_-8px_var(--color-primary)]">
@@ -309,7 +309,7 @@ function BacktestLab() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
+      <main className="space-y-6">
 
         {settingsQ.isError ? (
           <Card className="border-destructive/40">

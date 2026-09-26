@@ -11,15 +11,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
-  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Settings as SettingsIcon,
   Zap,
-  ShieldOff,
   Shield,
-  BookOpen,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 
@@ -27,8 +23,8 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
   head: () => ({
     meta: [
-      { title: "Dashboard — Shark Auto-Trader" },
-      { name: "description", content: "Live trading control panel." },
+      { title: "Command Center — QUANT-BOT" },
+      { name: "description", content: "Quantitative trading command center." },
     ],
   }),
 });
@@ -117,34 +113,10 @@ function DashboardPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="w-5 h-5 text-primary" />
-            <span className="font-mono text-sm tracking-widest">SHARK.AUTO</span>
-            <StatusBar paperMode={!!settings?.paper_mode} killSwitch={!!settings?.kill_switch} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/docs">
-              <Button variant="ghost" size="sm">
-                <BookOpen className="w-4 h-4 mr-2" /> Webhook setup
-              </Button>
-            </Link>
-            <Link to="/settings">
-              <Button variant="ghost" size="sm">
-                <SettingsIcon className="w-4 h-4 mr-2" /> Settings
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
         {/* Toggles */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
+            <CardContent className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-mono tracking-wide">
                   <Shield className="w-4 h-4 text-destructive" /> KILL SWITCH
@@ -182,15 +154,15 @@ function DashboardPage() {
         </div>
 
         {/* Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Metric label="EQUITY" value={`$${metrics.equity.toFixed(2)}`} />
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+          <Metric label="Portfolio Value" value={`$${metrics.equity.toFixed(2)}`} />
           <Metric
-            label="TODAY P&L"
+            label="Today's P&L"
             value={`${metrics.todaysPnl >= 0 ? "+" : ""}$${metrics.todaysPnl.toFixed(2)}`}
             tone={metrics.todaysPnl >= 0 ? "long" : "short"}
           />
-          <Metric label="OPEN POS" value={metrics.openPositions.toString()} />
-          <Metric label="WIN RATE" value={`${metrics.winRate.toFixed(1)}%`} />
+          <Metric label="Open Positions" value={metrics.openPositions.toString()} />
+          <Metric label="Win Rate" value={`${metrics.winRate.toFixed(1)}%`} />
         </div>
 
         {/* Equity curve */}
@@ -198,7 +170,7 @@ function DashboardPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-mono tracking-wide">EQUITY CURVE</CardTitle>
           </CardHeader>
-          <CardContent className="h-56">
+          <CardContent className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={equityCurve}>
                 <XAxis
@@ -464,7 +436,6 @@ function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </main>
     </div>
   );
 }

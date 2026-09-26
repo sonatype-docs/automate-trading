@@ -83,8 +83,8 @@ function SettingsPage() {
   });
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[1800px]">
-      <header className="border-b border-border">
+    <div className="w-full space-y-6">
+      <header className="hidden">
         <div className="max-w-4xl mx-auto px-4 md:px-6 h-14 flex items-center">
           <Link to="/">
             <Button variant="ghost" size="sm">
@@ -95,7 +95,7 @@ function SettingsPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      <main className="max-w-5xl space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Risk parameters</CardTitle>

@@ -77,7 +77,7 @@ export function AnalyticsPage() {
   const today = todayIstKey();
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>

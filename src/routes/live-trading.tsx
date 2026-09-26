@@ -168,7 +168,7 @@ function LiveTradingPage() {
   const [showRunners, setShowRunners] = useState(false);
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="w-full space-y-6">
       <OpenOrdersMiniWidget trades={openTrades} />
       <TickStatusCard runners={runnersList} />
       <Tabs defaultValue="dashboard" className="space-y-6">

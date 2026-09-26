@@ -7,12 +7,13 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider, themeNoFlashScript } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
+import { onAuthChange } from "@/lib/auth-client";
 
 function NotFoundComponent() {
   return (
@@ -127,12 +128,50 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AppShell>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AppShell>
+        <AuthGate>
+          <AppShell>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </AppShell>
+        </AuthGate>
         <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const router = useRouter();
+  const [authReady, setAuthReady] = useState(pathname === "/login");
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    if (pathname === "/login") {
+      setAuthReady(true);
+      return;
+    }
+
+    setAuthReady(false);
+    return onAuthChange((next) => {
+      setSignedIn(next);
+      setAuthReady(true);
+      if (!next) {
+        router.navigate({ to: "/login", replace: true });
+      }
+    });
+  }, [pathname, router]);
+
+  if (pathname === "/login") return <>{children}</>;
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="text-sm text-muted-foreground">Checking sign-in…</div>
+      </div>
+    );
+  }
+
+  if (!signedIn) return null;
+  return <>{children}</>;
 }

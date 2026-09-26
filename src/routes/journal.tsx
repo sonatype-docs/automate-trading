@@ -170,9 +170,7 @@ function JournalPage() {
     const hasWallet = Boolean(fw);
     const walletAsset = String(fw?.asset ?? fw?.marginAsset ?? "INR");
 
-    const tradeFills = (dbTrades.length ? dbTrades : exTrades)
-      .map((t) => dbTrades.length
-        ? ({
+    const dbFills = dbTrades.map((t) => ({
             id: String(t.id),
             time: parseTime(t.time),
             symbol: String(t.symbol ?? "—"),
@@ -181,8 +179,8 @@ function JournalPage() {
             price: Number(t.price ?? 0),
             fee: Number(t.fee ?? 0),
             pnl: Number(t.grossPnl ?? 0),
-          })
-        : ({
+          }));
+    const exFills = exTrades.map((t) => ({
         id: String(t.id ?? t.tradeId ?? ""),
         time: parseTime(t.time ?? t.createdAt ?? t.updatedAt),
         symbol: String(t.symbol ?? "—"),
@@ -191,7 +189,8 @@ function JournalPage() {
         price: Number(t.price ?? 0),
         fee: tradeFeeInr(t),
         pnl: tradePnlInr(t),
-      }))
+      }));
+    const tradeFills = (dbFills.length ? dbFills : exFills)
       .filter((t) => t.time > 0)
       .sort((a, b) => a.time - b.time);
 

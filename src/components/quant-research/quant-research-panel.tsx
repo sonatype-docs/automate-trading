@@ -232,7 +232,8 @@ export function QuantResearchPanel({
               <SelectContent>{(strategies.data ?? []).map((s) => <SelectItem key={s.strategy_id} value={s.strategy_id}>{s.strategy_id} — {s.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Button onClick={() => execute.mutate()} disabled={!canRun}>\n            
+          <Button onClick={() => execute.mutate()} disabled={!canRun}>
+            
             {execute.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Activity className="h-4 w-4 mr-2" />}
             Run {mode === "backtest" ? "quant backtest" : mode === "sweep" ? "quant sweep" : "walk-forward"}
           </Button>
@@ -240,7 +241,8 @@ export function QuantResearchPanel({
 
         {selected && <div className="text-xs text-muted-foreground">{selected.description}{specialist && " — specialist strategies require specialist market data and are intentionally gated here."}</div>}
         {loaded && <div className="text-xs rounded border border-border bg-muted/20 p-2 flex items-center gap-2"><Database className="h-3.5 w-3.5" /> Loaded {loaded.count.toLocaleString()} bars · {loaded.first ? new Date(loaded.first).toLocaleDateString() : "—"} → {loaded.last ? new Date(loaded.last).toLocaleDateString() : "—"}</div>}
-        {execute.error && <div className="text-xs rounded border border-destructive/40 bg-destructive/10 text-destructive p-2">{execute.error instanceof Error ? execute.error.message : String(execute.error)}</div>}\n        {mode === "backtest" && (
+        {execute.error && <div className="text-xs rounded border border-destructive/40 bg-destructive/10 text-destructive p-2">{execute.error instanceof Error ? execute.error.message : String(execute.error)}</div>}
+        {mode === "backtest" && (
           <div className="rounded border border-border bg-muted/20 p-3 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>

@@ -33,7 +33,7 @@ function ReportsPage() {
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-6 p-4 md:p-6 lg:p-8">
+    <div className="w-full space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold tracking-tight">Reports</h1><p className="text-sm text-muted-foreground">Live performance summaries from paper and live trade records.</p></div><div className="flex items-center gap-2">
         <Select value={period} onValueChange={(v) => setPeriod(v as Period)}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="week">This week</SelectItem><SelectItem value="month">This month</SelectItem><SelectItem value="ytd">Year to date</SelectItem><SelectItem value="all">All time</SelectItem></SelectContent></Select>
         <Select value={mode} onValueChange={(v) => setMode(v as Mode)}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="paper">Paper</SelectItem><SelectItem value="live">Live</SelectItem></SelectContent></Select>

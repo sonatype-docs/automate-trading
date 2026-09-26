@@ -39,6 +39,7 @@ import { candidateToRule, ruleToPredicate } from "@/lib/optimizer/filters";
 import { TimeEdgePanel } from "@/components/time-edge/time-edge-panel";
 import { getComputeArtifactUrl, getComputeJob, submitOptimizerSearchJob } from "@/lib/compute.functions";
 import { PageFrame, PageHero } from "@/components/page-frame";
+import { QuantResearchPanel } from "@/components/quant-research/quant-research-panel";
 
 export const Route = createFileRoute("/optimizer")({
   head: () => ({
@@ -113,6 +114,7 @@ function OptimizerPage() {
         </>
       } />
 
+      <QuantResearchPanel mode="sweep" title="Canonical Quant Sweep" description="Run the embedded Python strategy engine with reproducible risk and slippage parameters before comparing against the legacy optimizer views below." />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <StatCard label="Loaded" value={String(rows.length)} sub={`of ${total}`} />

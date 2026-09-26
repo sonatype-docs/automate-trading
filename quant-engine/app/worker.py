@@ -6,7 +6,7 @@ from .models import BacktestRequest
 from .s3_results import S3ResultStore
 from .jobs import JobStatus
 from .data_store import resolve_bars
-from .analysis_pipeline import AnalysisPipeline, AnalysisRequest
+from .analysis_pipeline import AnalystPipeline, AnalysisRequest
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def execute_job(message: dict, result_store: S3ResultStore, job_store=None) -> s
             result_key = result_store.put(result)
             result_run_id = result.run_id
         elif job_type == "analysis_pipeline":
-            result = __import__("asyncio").run(AnalysisPipeline().run(AnalysisRequest.model_validate(message["payload"])))
+            result = __import__("asyncio").run(AnalystPipeline().run(AnalysisRequest.model_validate(message["payload"])))
             result_run_id = result.pipeline_id
             result_key = result_store.put_json(result_run_id, result.model_dump(mode="json"))
         else:

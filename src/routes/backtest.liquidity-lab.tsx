@@ -14,6 +14,7 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
 import { StrategyPageShell, ResultCard } from "@/components/backtest-strategy-shell";
+import { RouteLoadError } from "@/components/route-load-error";
 import {
   BREAKOUT_RULES, CONFIRMATION_METHODS, ENTRY_MODELS, SESSIONS,
   STOP_MODELS, SWING_ALGOS, TP_KINDS, ZONE_KINDS,
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/backtest/liquidity-lab")({
     preset: (s.preset as PresetKey) ?? undefined,
   }),
   component: LabPage,
+  errorComponent: RouteLoadError,
   head: () => ({
     meta: [
       { title: "Liquidity Sweep Research Lab — Institutional Backtester" },
@@ -141,6 +143,7 @@ function LabPage() {
     * mxConfSets.length * mxFilterSets.length;
 
   const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
+  const [mxStatus, setMxStatus] = useState<string | null>(null);
   const matrixMut = useMutation({
     mutationFn: async () => {
       const zoneSets = mxZoneMode === "each"

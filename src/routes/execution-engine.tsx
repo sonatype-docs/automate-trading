@@ -10,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, Gauge, Layers, Loader2 } from "lucide-react";
-import { runExecutionEngine, type RunExecutionResult } from "@/lib/execution-engine.functions";
+import { runExecutionEngine, submitExecutionEngineJob, type RunExecutionResult } from "@/lib/execution-engine.functions";
+import { getComputeJob, getComputeArtifactUrl } from "@/lib/compute.functions";
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, DEFAULT_RISK_USD_PER_TRADE } from "@/lib/execution-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
+import { RouteLoadError } from "@/components/route-load-error";
 
 const ALL_TFS: Timeframe[] = ["1m", "3m", "5m", "15m", "30m", "1h"];
 const ALL_STRATEGY_PRESETS = Object.keys(STRATEGY_PRESETS);
@@ -37,6 +39,7 @@ type BatchRow = {
 };
 
 export const Route = createFileRoute("/execution-engine")({
+  errorComponent: RouteLoadError,
   head: () => ({
     meta: [
       { title: "Universal Execution Engine — Realistic Fill Simulation" },
@@ -73,6 +76,9 @@ function ExecutionEnginePage() {
   const [mode, setMode] = useState<"historical" | "live" | "replay" | "paper">("historical");
 
   const runner = useServerFn(runExecutionEngine);
+  const submitJob = useServerFn(submitExecutionEngineJob);
+  const getJob = useServerFn(getComputeJob);
+  const getArtifact = useServerFn(getComputeArtifactUrl);
   const mut = useMutation<RunExecutionResult>({
     mutationFn: async () => {
       const toMs = now;
@@ -98,6 +104,7 @@ function ExecutionEnginePage() {
   const [mxModes, setMxModes] = useState<string[]>([mode]);
   const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  const [batchStatus, setBatchStatus] = useState<string | null>(null);
   const abortRef = useRef(false);
 
   // Slim persisted shape: drop bulky arrays so localStorage stays small.
@@ -143,43 +150,82 @@ function ExecutionEnginePage() {
     const fromMs = toMs - daysUsed * 86_400_000;
     const rows: BatchRow[] = [...seedRows];
     setBatchProgress({ done: startAt, total: combos.length });
+    setBatchStatus(startAt >= combos.length ? null : "Preparing AWS compute queue…");
     saveProgress(combos, startAt, rows);
     abortRef.current = false;
     for (let i = startAt; i < combos.length; i++) {
       if (abortRef.current) break;
       const c = combos[i];
       let row: BatchRow | null = null;
-      // Retry transient failures (network / worker OOM) up to 2 times with backoff.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await runner({
-            data: {
-              source: c.src as "yahoo" | "shark", symbol: c.sym, timeframe: c.tf,
-              displayTimezone: c.dtz as Timezone, strategyTimezone: c.tz as Timezone,
-              fromMs, toMs, strategyPresetId: c.sp, execPresetId: c.ep, mode: c.md as typeof mode,
-              riskUsdOverride: riskUsd,
-            },
-          });
-          row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, result: res };
-          break;
-        } catch (e) {
-          if (attempt === 2) {
-            row = { source: c.src, symbol: c.sym, strategyPresetId: c.sp, execPresetId: c.ep, tf: c.tf, stratTz: c.tz, displayTz: c.dtz, mode: c.md, error: e instanceof Error ? e.message : String(e) };
-          } else {
-            await new Promise((r) => setTimeout(r, 750 * (attempt + 1)));
+      try {
+        const queued = await submitJob({
+          data: {
+            source: c.src as "yahoo" | "shark",
+            symbol: c.sym,
+            timeframe: c.tf,
+            displayTimezone: c.dtz as Timezone,
+            strategyTimezone: c.tz as Timezone,
+            fromMs,
+            toMs,
+            strategyPresetId: c.sp,
+            execPresetId: c.ep,
+            mode: c.md as typeof mode,
+            riskUsdOverride: riskUsd,
+          },
+        });
+        setBatchStatus("AWS queued · " + (i + 1) + "/" + combos.length + " · " + queued.job_id.slice(0, 12));
+        for (let attempt = 0; attempt < 900; attempt++) {
+          if (abortRef.current) break;
+          const job = await getJob({ data: { job_id: queued.job_id } }) as { status: string; result?: unknown; error?: string | null };
+          setBatchStatus("AWS " + job.status + " · " + (i + 1) + "/" + combos.length);
+          if (job.status === "failed") throw new Error(job.error || "Execution matrix job failed");
+          if (job.status === "succeeded") {
+            let result = job.result;
+            const artifact = (result as { artifact?: { s3_key?: string } } | null)?.artifact;
+            if (artifact?.s3_key) {
+              const signed = await getArtifact({ data: { job_id: queued.job_id } });
+              const response = await fetch(signed.url);
+              if (!response.ok) throw new Error("Execution matrix artifact download failed: " + response.status);
+              result = await response.json();
+            }
+            row = {
+              source: c.src,
+              symbol: c.sym,
+              strategyPresetId: c.sp,
+              execPresetId: c.ep,
+              tf: c.tf,
+              stratTz: c.tz,
+              displayTz: c.dtz,
+              mode: c.md,
+              result: result as RunExecutionResult,
+            };
+            break;
           }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
+        if (!row && !abortRef.current) throw new Error("Execution matrix job timed out after 30 minutes");
+      } catch (e) {
+        row = {
+          source: c.src,
+          symbol: c.sym,
+          strategyPresetId: c.sp,
+          execPresetId: c.ep,
+          tf: c.tf,
+          stratTz: c.tz,
+          displayTz: c.dtz,
+          mode: c.md,
+          error: e instanceof Error ? e.message : String(e),
+        };
       }
       if (row) rows.push(row);
       setBatchRows([...rows]);
       const done = i + 1;
       setBatchProgress({ done, total: combos.length });
-      // Persist after EVERY combo so a crash never loses more than one run's worth.
+      setBatchStatus(abortRef.current ? "Stopped at " + done + "/" + combos.length : "Completed " + done + "/" + combos.length);
       saveProgress(combos, done, rows);
     }
     return rows;
   };
-
   const batch = useMutation({
     mutationFn: async () => {
       const combos: Combo[] = [];

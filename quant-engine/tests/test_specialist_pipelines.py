@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import math
 
 from app.models import Bar
 from app.orderflow import Aggressor
@@ -14,7 +15,7 @@ def make_pair_bars(count: int = 140) -> tuple[list[Bar], list[Bar]]:
     for i in range(count):
         ts = start + timedelta(minutes=15 * i)
         y = 100.0 + i * 0.1
-        spread = 2.8 * __import__("math").sin(i / 4.0)
+        spread = 8.0 * math.sin(i / 4.0)
         x = 200.0 + i * 0.2 + spread
         y_bars.append(Bar(timestamp=ts, open=y, high=y + 0.2, low=y - 0.2, close=y, volume=1000))
         x_bars.append(Bar(timestamp=ts, open=x, high=x + 0.3, low=x - 0.3, close=x, volume=1000))

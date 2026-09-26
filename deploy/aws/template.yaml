@@ -466,7 +466,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: quant-api
           HealthCheck:
-            Command: [CMD-SHELL, "wget -q -O /dev/null http://localhost:8080/health || exit 1"]
+            Command: [CMD-SHELL, "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)\""]
             Interval: 30
             Timeout: 5
             Retries: 3

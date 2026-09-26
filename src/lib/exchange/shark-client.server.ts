@@ -596,9 +596,9 @@ export function createSharkClient(): ExchangeClient {
     },
 
     async getKlinesRange(symbol, interval, fromMs, toMs) {
-      // SharkExchange returns at most 1500 bars per call and, when startTime is far
-      // in the past, silently returns only the most-recent bars anchored to endTime.
-      // So we must page BACKWARD by walking endTime toward fromMs.
+      // SharkExchange caps each response at 1500 bars. Build the requested
+      // history in bounded chunks, but treat transient provider 5xx/timeouts
+      // as gaps rather than failing the entire research request.
       const intervalMs =
         interval === "1m" ? 60_000 :
         interval === "5m" ? 5 * 60_000 :
@@ -608,38 +608,122 @@ export function createSharkClient(): ExchangeClient {
         interval === "4h" ? 4 * 3_600_000 :
         interval === "1d" ? 86_400_000 : 3_600_000;
       const PAGE = 1500;
+      const maxRequests = 12;
+      const requestTimeoutMs = 7_500;
       const out: Kline[] = [];
       const seen = new Set<number>();
       let endCursor = toMs;
-      let guard = 0;
-      while (endCursor > fromMs && guard < 50) {
-        guard++;
-        const startWindow = Math.max(fromMs, endCursor - PAGE * intervalMs);
-        const chunk = await this.getKlines(symbol, interval, PAGE, {
-          startTime: startWindow,
-          endTime: endCursor,
-        });
-        if (chunk.length === 0) break;
+      let attempts = 0;
+      let consecutiveMisses = 0;
+      let skippedRanges = 0;
+
+      while (endCursor > fromMs && attempts < maxRequests) {
+        attempts++;
+        const baseStart = Math.max(fromMs, endCursor - PAGE * intervalMs);
+        const spanBase = endCursor - baseStart;
+        const spans = [spanBase, Math.floor(spanBase / 2), Math.floor(spanBase / 4)]
+          .filter((n, i, arr) => n > 0 && arr.indexOf(n) === i);
+
+        let chunk: Kline[] | null = null;
+        let usedStart = baseStart;
+        for (const span of spans) {
+          const startTime = Math.max(fromMs, endCursor - span);
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+          try {
+            const body: Record<string, unknown> = {
+              pair: symbol.toUpperCase(),
+              interval,
+              limit: PAGE,
+              startTime,
+              endTime: endCursor,
+            };
+            const res = await fetch(BASE_URL + "/v1/market/klines", {
+              method: "POST",
+              headers: { accept: "application/json", "content-type": "application/json" },
+              body: JSON.stringify(body),
+              signal: controller.signal,
+            });
+            const text = await res.text();
+            if (!res.ok) {
+              const transient = /429|500|502|503|504/i.test(String(res.status));
+              if (!transient) throw new Error("Klines failed [" + res.status + "]: " + text.slice(0, 300));
+              continue;
+            }
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(text);
+            } catch {
+              continue;
+            }
+            const rows = (parsed as { data?: unknown[] } | null)?.data ?? parsed;
+            if (!Array.isArray(rows)) continue;
+            chunk = rows.map((r) => {
+              if (Array.isArray(r)) {
+                return {
+                  openTime: Number(r[0]), open: Number(r[1]), high: Number(r[2]),
+                  low: Number(r[3]), close: Number(r[4]), volume: Number(r[5]),
+                  closeTime: Number(r[6] ?? r[0]),
+                } as Kline;
+              }
+              const o = r as Record<string, unknown>;
+              return {
+                openTime: Number(o.openTime ?? o.startTime ?? o.t ?? o.open_time ?? 0),
+                open: Number(o.open ?? o.o), high: Number(o.high ?? o.h),
+                low: Number(o.low ?? o.l), close: Number(o.close ?? o.c),
+                volume: Number(o.volume ?? o.v ?? 0),
+                closeTime: Number(o.closeTime ?? o.endTime ?? o.T ?? o.close_time ?? 0),
+              } as Kline;
+            });
+            usedStart = startTime;
+            break;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!/AbortError|timeout|timed out|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT/i.test(message)) {
+              throw error;
+            }
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        if (!chunk || chunk.length === 0) {
+          consecutiveMisses++;
+          skippedRanges++;
+          const step = Math.max(intervalMs, Math.floor(spanBase / 2));
+          endCursor = Math.max(fromMs, endCursor - step);
+          if (consecutiveMisses >= 3) break;
+          continue;
+        }
+
+        consecutiveMisses = 0;
         let earliest = Infinity;
-        let added = 0;
         for (const k of chunk) {
-          if (k.openTime < fromMs || k.openTime > toMs) continue;
+          if (!Number.isFinite(k.openTime) || k.openTime < fromMs || k.openTime > toMs) continue;
           if (!seen.has(k.openTime)) {
             seen.add(k.openTime);
             out.push(k);
-            added++;
           }
           if (k.openTime < earliest) earliest = k.openTime;
         }
-        if (added === 0 || earliest === Infinity) break;
+        if (earliest === Infinity || earliest >= endCursor) break;
         const nextEnd = earliest - 1;
-        if (nextEnd >= endCursor) break; // no backward progress
+        if (nextEnd >= endCursor) break;
         endCursor = nextEnd;
+        if (endCursor <= usedStart && chunk.length < PAGE) {
+          endCursor = Math.max(fromMs, usedStart - 1);
+        }
       }
+
       out.sort((a, b) => a.openTime - b.openTime);
+      if (out.length === 0) {
+        throw new Error("SharkExchange returned no usable " + interval + " bars for " + symbol + " in the requested range.");
+      }
+      if (skippedRanges > 0) {
+        console.warn("[SharkExchange][getKlinesRange] " + symbol + " " + interval + ": returned " + out.length + " bars with " + skippedRanges + " skipped provider range(s)");
+      }
       return out;
     },
-
     async getLastPrice(symbol) {
       const sym = (symbol ?? "").trim().toUpperCase();
       if (!sym) throw new Error("getLastPrice: symbol is required");

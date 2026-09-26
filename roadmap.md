@@ -16,7 +16,7 @@
 - [ ] Final incremental data re-sync
 - [ ] Resume paper schedules and validate paper execution
 - [ ] Resume live trading only after explicit approval
-- [ ] Retire Lovable hosting and the old backend only after explicit approval
+- [x] Retire the legacy hosted frontend/editor integration from the repository
 
 ## Verified AWS runtime state — 2026-09-26
 
@@ -33,6 +33,8 @@
 - [x] Bedrock research analysis and queued quant research workflows are merged.
 - [x] Portfolio risk gating, market-data quality controls, broker adapter boundary, live Shark stream, and AWS alarms are merged.
 - [x] Normal releases explicitly keep paper, strategy, live, and watchdog schedules disabled.
+- [x] Legacy hosted frontend/editor build integration removed from the repository.
+- [x] AWS is the only production deployment path.
 
 ## Remaining cutover work
 
@@ -42,8 +44,8 @@
 4. Perform the final incremental data sync and record per-table counts.
 5. Enable paper schedules first and validate successful ticks.
 6. Keep live schedules disabled until explicit go-live approval.
-7. Retain Lovable as rollback until AWS cutover is accepted.
+7. Keep all production releases on the AWS path; no hosted editor/runtime is part of production.
 
 ## Historical notes
 
-The incomplete external Supabase destination is superseded by the full AWS migration. Earlier deployment failures involving IAM permissions, Docker output paths, ECS service-role creation, and RDS free-plan backup settings have been repaired.
+The incomplete external database destination is superseded by the full AWS migration. Legacy hosted editor/preview artifacts have been removed from the source tree. Earlier deployment failures involving IAM permissions, Docker output paths, ECS service-role creation, and RDS free-plan backup settings have been repaired.

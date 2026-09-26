@@ -14,3 +14,10 @@ def test_analysis_output_contracts_are_schema_safe():
     assert analyst.confidence == 0.5
     assert risk.risk_level == "MEDIUM"
     assert plan.action == "NO_TRADE"
+
+
+def test_worker_imports_analysis_pipeline_contract():
+    from app.worker import AnalystPipeline as WorkerAnalystPipeline
+    from app.analysis_pipeline import AnalystPipeline
+
+    assert WorkerAnalystPipeline is AnalystPipeline

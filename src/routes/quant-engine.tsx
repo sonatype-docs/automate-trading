@@ -330,6 +330,14 @@ function QuantEnginePage() {
           {pairResult && <PairResultView result={pairResult} />}
         </TabsContent>
 
+        <TabsContent value="orderflow" className="mt-4 space-y-4">
+          <Card><CardHeader><CardTitle className="text-sm">Order Flow / L2 Replay</CardTitle><CardDescription>Replay snapshots, book deltas and classified trades through the production order-flow feature calculator and STRAT-06 signal logic.</CardDescription></CardHeader><CardContent className="space-y-3">
+            <textarea value={orderFlowJson} onChange={(e) => setOrderFlowJson(e.target.value)} className="min-h-64 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs" spellCheck={false} />
+            <Button onClick={() => orderFlowRun.mutate()} disabled={orderFlowRun.isPending || !health.isSuccess}>{orderFlowRun.isPending ? "Replaying order flow…" : "Run order-flow replay"}</Button>
+            {orderFlowResult && <OrderFlowResultView result={orderFlowResult} />}
+          </CardContent></Card>
+        </TabsContent>
+
         <TabsContent value="walk" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Walk-Forward Validation</CardTitle><CardDescription>900-bar train / 450-bar test windows stepped by 450 bars to expose stability across time.</CardDescription></CardHeader><CardContent><Button onClick={() => walkRun.mutate()} disabled={walkRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{walkRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run walk-forward</Button></CardContent></Card>
           {walk && <WalkView rows={walk} />}
@@ -337,7 +345,7 @@ function QuantEnginePage() {
       </Tabs>
 
       <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Registry</CardTitle><CardDescription>IDs are sourced from the embedded engine, not duplicated in the UI.</CardDescription></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-2">{(strategies.data ?? []).map((s) => (
-        <div key={s.strategy_id} className="rounded border border-border p-3"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs">{s.strategy_id}</span><Badge variant={SPECIALIST_STRATEGIES.has(s.strategy_id) ? "outline" : "default"}>{SPECIALIST_STRATEGIES.has(s.strategy_id) ? "specialist" : "bar-native"}</Badge></div><p className="text-xs text-muted-foreground mt-2">{s.name} — {s.description}</p></div>
+        <div key={s.strategy_id} className="rounded border border-border p-3"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs">{s.strategy_id}</span><Badge variant={SPECIALIST_STRATEGIES.has(s.strategy_id) ? "outline" : "default"}>{SPECIALIST_STRATEGIES.has(s.strategy_id) ? "specialist" : "bar-native"}</Badge></div><p className="text-xs text-muted-foreground mt-2">{s.name} — {s.description}</p><div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-2">{s.data_mode ?? "OHLCV"} · {s.executable_via_single_symbol_bars ? "single-symbol backtest" : "specialist pipeline"}</div></div>
       ))}</CardContent></Card>
     </main>
   );
@@ -366,6 +374,22 @@ function PairResultView({ result }: { result: PairResult }) {
       <Metric label="Return" value={fmt(m.total_return_pct) + "%"} /><Metric label="Annualized" value={fmt(m.annualized_return_pct) + "%"} /><Metric label="Sharpe" value={fmt(m.sharpe)} /><Metric label="Max DD" value={fmt(m.max_drawdown_pct) + "%"} /><Metric label="PF" value={fmt(m.profit_factor)} /><Metric label="Trades" value={String(m.trade_count)} />
     </div>
     <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Direction</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Beta</th><th className="p-2 text-right">Entry Z</th><th className="p-2 text-right">PnL</th></tr></thead><tbody>{result.trades.slice().reverse().map((t, i) => <tr key={i} className="border-t border-border/60"><td className="p-2">{t.direction}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.hedge_ratio, 4)}</td><td className="p-2 text-right font-mono">{fmt(t.entry_z)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>)}</tbody></table></div>
+  </CardContent></Card>;
+}
+
+function OrderFlowResultView({ result }: { result: any }) {
+  const last = result?.last;
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  return <Card><CardHeader><CardTitle className="text-sm">Replay Result</CardTitle><CardDescription>{result?.event_count ?? rows.length} events processed · showing the most recent {rows.length}</CardDescription></CardHeader><CardContent className="space-y-3">
+    {last && <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <Metric label="Signal" value={String(last.signal)} />
+      <Metric label="Imbalance" value={fmt(last.imbalance, 4)} />
+      <Metric label="Delta" value={fmt(last.delta, 3)} />
+      <Metric label="CVD" value={fmt(last.cumulative_volume_delta, 3)} />
+      <Metric label="Spread" value={fmt(last.spread, 4)} />
+      <Metric label="Confidence" value={fmt(last.confidence, 3)} />
+    </div>}
+    {last && <div className="rounded border border-border p-3 text-xs"><div className="font-medium">{last.reason}</div><div className="mt-1 text-muted-foreground">mid {fmt(last.mid_price, 4)} · bid depth {fmt(last.bid_depth, 3)} · ask depth {fmt(last.ask_depth, 3)} · absorption {fmt(last.absorption_score, 3)}</div></div>}
   </CardContent></Card>;
 }
 

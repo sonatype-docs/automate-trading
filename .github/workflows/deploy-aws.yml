@@ -167,6 +167,18 @@ jobs:
           fi
 
       - uses: oven-sh/setup-bun@v2
+      - name: Test embedded quant engine
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run quant engine tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python -m pip install -r quant-engine/requirements.txt
+          cd quant-engine
+          PYTHONPATH=. pytest -q
+
       - name: Install and test application
         shell: bash
         env:

@@ -414,7 +414,12 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   if (stopDist <= 0) return { placed: 0, reconciled };
   const qty = Math.max(0.001, Number((Number(r.risk_usd) / stopDist).toFixed(3)));
 
-  // 4) Best-effort leverage update — ignore errors.
+  // 4) Portfolio-level risk gate. Re-evaluate immediately before any new
+  // exposure is sent to the exchange.
+  const riskGate = await evaluateLivePortfolioEntry(Number(r.risk_usd));
+  if (!riskGate.allowed) return { placed: 0, reconciled };
+
+  // 5) Best-effort leverage update — ignore errors.
   try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
 
   // 6) Place entry as LIMIT only. SL/TP exits are managed separately by the

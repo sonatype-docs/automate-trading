@@ -244,7 +244,16 @@ function QuantEnginePage() {
     onSuccess: (result) => setPairResult(result),
   });
 
-  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? loadData.error;
+  const orderFlowRun = useMutation({
+    mutationFn: async () => {
+      let payload: unknown;
+      try { payload = JSON.parse(orderFlowJson); } catch { throw new Error("Order-flow payload is not valid JSON"); }
+      return orderFlowFn({ data: payload as any }) as Promise<any>;
+    },
+    onSuccess: (result) => setOrderFlowResult(result),
+  });
+
+  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? orderFlowRun.error ?? loadData.error;
   const dateRange = loadedMeta
     ? " · " + (loadedMeta.firstTs ? new Date(loadedMeta.firstTs).toLocaleDateString() : "—") +
       " → " + (loadedMeta.lastTs ? new Date(loadedMeta.lastTs).toLocaleDateString() : "—")

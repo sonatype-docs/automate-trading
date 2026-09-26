@@ -54,21 +54,12 @@ jobs:
           done
 
       - name: Remove cleanup workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" cleanup-repo
-          cd cleanup-repo
-          git checkout main
-          rm -f .github/workflows/cleanup-stale-branches.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A .github/workflows/cleanup-stale-branches.yml
-          if git diff --cached --quiet; then
-            echo "Cleanup workflow already removed."
-            exit 0
-          fi
-          git commit -m "chore: remove one-time branch cleanup workflow"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          file=".github/workflows/cleanup-stale-branches.yml"
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${file}" -q .sha)"
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/contents/${file}"             -f message="chore: remove one-time branch cleanup workflow"             -f sha="${sha}"             -f branch=main >/dev/null
+          echo "Removed one-time cleanup workflow."

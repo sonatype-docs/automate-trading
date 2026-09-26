@@ -84,15 +84,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Dashboard — Shark Auto-Trader" },
-      { name: "description", content: "Live trading control panel." },
-      { name: "author", content: "Shark Auto-Trader" },
-      { property: "og:title", content: "Dashboard — Shark Auto-Trader" },
-      { property: "og:description", content: "Live trading control panel." },
+      { title: "QUANT-BOT — Quant Workspace" },
+      { name: "description", content: "Quantitative research, backtesting, trading and risk workspace." },
+      { name: "author", content: "QUANT-BOT" },
+      { property: "og:title", content: "QUANT-BOT — Quant Workspace" },
+      { property: "og:description", content: "Quantitative research, backtesting, trading and risk workspace." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Dashboard — Shark Auto-Trader" },
-      { name: "twitter:description", content: "Live trading control panel." },
+      { name: "twitter:title", content: "QUANT-BOT — Quant Workspace" },
+      { name: "twitter:description", content: "Quantitative research, backtesting, trading and risk workspace." },
     ],
     links: [
       {

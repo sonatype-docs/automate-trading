@@ -10,16 +10,18 @@ class StrategyDefinition:
     strategy_id: str
     name: str
     description: str
+    data_mode: str
+    executable_via_single_symbol_bars: bool
 
 STRATEGIES: tuple[StrategyDefinition, ...] = (
-    StrategyDefinition("STRAT-01-LONDON-ORB", "London ORB", "London session range breakout."),
-    StrategyDefinition("STRAT-02-TURTLE-DONCHIAN", "Turtle S1", "Donchian trend breakout."),
-    StrategyDefinition("STRAT-03-STAT-COINT", "Stat-Arb Cointegration", "Pair-spread mean reversion."),
-    StrategyDefinition("STRAT-04-BOLLINGER-SQUEEZE", "BB Squeeze", "Volatility compression/expansion."),
-    StrategyDefinition("STRAT-05-VWAP-REVERSION", "VWAP Reversion", "Volume-weighted mean reversion."),
-    StrategyDefinition("STRAT-06-ORDER-FLOW-DELTA", "Order Flow Delta", "L2 imbalance/CVD divergence."),
-    StrategyDefinition("STRAT-07-DUAL-MOMENTUM", "Dual Momentum", "Multi-timeframe momentum alignment."),
-    StrategyDefinition("STRAT-08-CHANDELIER-TRAIL", "Chandelier Trend", "ATR chandelier trend following."),
+    StrategyDefinition("STRAT-01-LONDON-ORB", "London ORB", "London session range breakout.", "OHLCV", True),
+    StrategyDefinition("STRAT-02-TURTLE-DONCHIAN", "Turtle S1", "Donchian trend breakout.", "OHLCV", True),
+    StrategyDefinition("STRAT-03-STAT-COINT", "Stat-Arb Cointegration", "Pair-spread mean reversion.", "PAIR_OHLCV", False),
+    StrategyDefinition("STRAT-04-BOLLINGER-SQUEEZE", "BB Squeeze", "Volatility compression/expansion.", "OHLCV", True),
+    StrategyDefinition("STRAT-05-VWAP-REVERSION", "VWAP Reversion", "Volume-weighted mean reversion.", "OHLCV", True),
+    StrategyDefinition("STRAT-06-ORDER-FLOW-DELTA", "Order Flow Delta", "L2 imbalance/CVD divergence.", "ORDER_FLOW", False),
+    StrategyDefinition("STRAT-07-DUAL-MOMENTUM", "Dual Momentum", "Multi-timeframe momentum alignment.", "OHLCV", True),
+    StrategyDefinition("STRAT-08-CHANDELIER-TRAIL", "Chandelier Trend", "ATR chandelier trend following.", "OHLCV", True),
 )
 _REGISTRY = {item.strategy_id: item for item in STRATEGIES}
 

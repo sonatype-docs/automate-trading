@@ -14,7 +14,7 @@ import { getQuantEngineHealth, listQuantStrategies, runQuantBacktest, runQuantSw
 import { loadEnrichedCandles } from "@/lib/market-data.functions";
 import { TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 
-type Strategy = { strategy_id: string; name: string; description: string };
+type Strategy = { strategy_id: string; name: string; description: string; data_mode?: string; executable_via_single_symbol_bars?: boolean };
 type QuantBacktestResult = {
   run_id: string;
   symbol: string;
@@ -100,8 +100,11 @@ function QuantEnginePage() {
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
   const [walk, setWalk] = useState<WalkRow[] | null>(null);
   const [pairSymbol, setPairSymbol] = useState("BTCUSDT");
+  const [pairWindow, setPairWindow] = useState(60);
+  const [pairEntryZ, setPairEntryZ] = useState(2.0);
+  const [pairExitZ, setPairExitZ] = useState(0.5);
   const [pairResult, setPairResult] = useState<PairResult | null>(null);
-  const [orderFlowJson, setOrderFlowJson] = useState("");
+  const [orderFlowJson, setOrderFlowJson] = useState(`{"snapshots":[{"timestamp_ms":1,"bids":[{"price":100,"quantity":10}],"asks":[{"price":101,"quantity":30}]}],"trades":[{"timestamp_ms":2,"price":101,"quantity":5,"aggressor":"BUY"}],"deltas":[],"imbalance_threshold":0.2}`);
   const [orderFlowResult, setOrderFlowResult] = useState<any>(null);
 
   const selectedStrategy = useMemo(
@@ -235,12 +238,22 @@ function QuantEnginePage() {
         x_bars: x.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
         y_bars: y.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
         initial_capital: capital, risk_per_trade: risk, fee_bps: feeBps, slippage_bps: slippageBps,
+        window: pairWindow, entry_z: pairEntryZ, exit_z: pairExitZ,
       } }) as Promise<PairResult>;
     },
     onSuccess: (result) => setPairResult(result),
   });
 
-  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? loadData.error;
+  const orderFlowRun = useMutation({
+    mutationFn: async () => {
+      let payload: unknown;
+      try { payload = JSON.parse(orderFlowJson); } catch { throw new Error("Order-flow payload is not valid JSON"); }
+      return orderFlowFn({ data: payload as any }) as Promise<any>;
+    },
+    onSuccess: (result) => setOrderFlowResult(result),
+  });
+
+  const runError = backtestRun.error ?? sweepRun.error ?? walkRun.error ?? pairRun.error ?? orderFlowRun.error ?? loadData.error;
   const dateRange = loadedMeta
     ? " · " + (loadedMeta.firstTs ? new Date(loadedMeta.firstTs).toLocaleDateString() : "—") +
       " → " + (loadedMeta.lastTs ? new Date(loadedMeta.lastTs).toLocaleDateString() : "—")
@@ -293,7 +306,7 @@ function QuantEnginePage() {
       </Card>
 
       <Tabs defaultValue="backtest">
-        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger><TabsTrigger value="orderflow">Order Flow Replay</TabsTrigger></TabsList>
         <TabsContent value="backtest" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Backtest</CardTitle><CardDescription>Deterministic execution with fees, slippage and risk sizing.</CardDescription></CardHeader><CardContent><Button onClick={() => backtestRun.mutate()} disabled={backtestRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{backtestRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run canonical backtest</Button></CardContent></Card>
           {backtest && <BacktestResultView result={backtest} />}
@@ -304,15 +317,25 @@ function QuantEnginePage() {
         </TabsContent>
         <TabsContent value="pair" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Pair Spread / Stat-Arb</CardTitle><CardDescription>Aligned two-symbol spread backtest using rolling hedge ratio and z-score entry/exit. This models the spread; it does not claim a formal cointegration test.</CardDescription></CardHeader><CardContent className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div><Label>Leg X</Label><Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></div>
               <div><Label>Leg Y</Label><Input value={pairSymbol} onChange={(e) => setPairSymbol(e.target.value.toUpperCase())} /></div>
-              <div><Label>Entry Z</Label><Input value="2.0" readOnly /></div>
-              <div><Label>Window</Label><Input value="60" readOnly /></div>
+              <div><Label>Entry Z</Label><Input type="number" step="0.1" min="0.1" max="10" value={pairEntryZ} onChange={(e) => setPairEntryZ(Number(e.target.value))} /></div>
+              <div><Label>Exit Z</Label><Input type="number" step="0.1" min="0" max="9.9" value={pairExitZ} onChange={(e) => setPairExitZ(Number(e.target.value))} /></div>
+              <div><Label>Window</Label><Input type="number" min="20" max="1000" value={pairWindow} onChange={(e) => setPairWindow(Math.max(20, Number(e.target.value) || 20))} /></div>
             </div>
-            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
+            <div className="text-xs text-muted-foreground">Rolling hedge ratio · z-score entry/exit · fees and slippage · window {pairWindow}, entry {pairEntryZ.toFixed(1)}, exit {pairExitZ.toFixed(1)}</div>
+            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol || pairExitZ >= pairEntryZ}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
           </CardContent></Card>
           {pairResult && <PairResultView result={pairResult} />}
+        </TabsContent>
+
+        <TabsContent value="orderflow" className="mt-4 space-y-4">
+          <Card><CardHeader><CardTitle className="text-sm">Order Flow / L2 Replay</CardTitle><CardDescription>Replay snapshots, book deltas and classified trades through the production order-flow feature calculator and STRAT-06 signal logic.</CardDescription></CardHeader><CardContent className="space-y-3">
+            <textarea value={orderFlowJson} onChange={(e) => setOrderFlowJson(e.target.value)} className="min-h-64 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs" spellCheck={false} />
+            <Button onClick={() => orderFlowRun.mutate()} disabled={orderFlowRun.isPending || !health.isSuccess}>{orderFlowRun.isPending ? "Replaying order flow…" : "Run order-flow replay"}</Button>
+            {orderFlowResult && <OrderFlowResultView result={orderFlowResult} />}
+          </CardContent></Card>
         </TabsContent>
 
         <TabsContent value="walk" className="mt-4 space-y-4">
@@ -322,7 +345,7 @@ function QuantEnginePage() {
       </Tabs>
 
       <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Registry</CardTitle><CardDescription>IDs are sourced from the embedded engine, not duplicated in the UI.</CardDescription></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-2">{(strategies.data ?? []).map((s) => (
-        <div key={s.strategy_id} className="rounded border border-border p-3"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs">{s.strategy_id}</span><Badge variant={SPECIALIST_STRATEGIES.has(s.strategy_id) ? "outline" : "default"}>{SPECIALIST_STRATEGIES.has(s.strategy_id) ? "specialist" : "bar-native"}</Badge></div><p className="text-xs text-muted-foreground mt-2">{s.name} — {s.description}</p></div>
+        <div key={s.strategy_id} className="rounded border border-border p-3"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs">{s.strategy_id}</span><Badge variant={SPECIALIST_STRATEGIES.has(s.strategy_id) ? "outline" : "default"}>{SPECIALIST_STRATEGIES.has(s.strategy_id) ? "specialist" : "bar-native"}</Badge></div><p className="text-xs text-muted-foreground mt-2">{s.name} — {s.description}</p><div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-2">{s.data_mode ?? "OHLCV"} · {s.executable_via_single_symbol_bars ? "single-symbol backtest" : "specialist pipeline"}</div></div>
       ))}</CardContent></Card>
     </main>
   );
@@ -351,6 +374,22 @@ function PairResultView({ result }: { result: PairResult }) {
       <Metric label="Return" value={fmt(m.total_return_pct) + "%"} /><Metric label="Annualized" value={fmt(m.annualized_return_pct) + "%"} /><Metric label="Sharpe" value={fmt(m.sharpe)} /><Metric label="Max DD" value={fmt(m.max_drawdown_pct) + "%"} /><Metric label="PF" value={fmt(m.profit_factor)} /><Metric label="Trades" value={String(m.trade_count)} />
     </div>
     <div className="rounded border border-border overflow-auto"><table className="w-full text-xs"><thead><tr><th className="p-2 text-left">Direction</th><th className="p-2 text-left">Entry</th><th className="p-2 text-left">Exit</th><th className="p-2 text-right">Beta</th><th className="p-2 text-right">Entry Z</th><th className="p-2 text-right">PnL</th></tr></thead><tbody>{result.trades.slice().reverse().map((t, i) => <tr key={i} className="border-t border-border/60"><td className="p-2">{t.direction}</td><td className="p-2">{new Date(t.entry_time).toLocaleString()}</td><td className="p-2">{new Date(t.exit_time).toLocaleString()}</td><td className="p-2 text-right font-mono">{fmt(t.hedge_ratio, 4)}</td><td className="p-2 text-right font-mono">{fmt(t.entry_z)}</td><td className="p-2 text-right font-mono">{fmt(t.net_pnl)}</td></tr>)}</tbody></table></div>
+  </CardContent></Card>;
+}
+
+function OrderFlowResultView({ result }: { result: any }) {
+  const last = result?.last;
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  return <Card><CardHeader><CardTitle className="text-sm">Replay Result</CardTitle><CardDescription>{result?.event_count ?? rows.length} events processed · showing the most recent {rows.length}</CardDescription></CardHeader><CardContent className="space-y-3">
+    {last && <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <Metric label="Signal" value={String(last.signal)} />
+      <Metric label="Imbalance" value={fmt(last.imbalance, 4)} />
+      <Metric label="Delta" value={fmt(last.delta, 3)} />
+      <Metric label="CVD" value={fmt(last.cumulative_volume_delta, 3)} />
+      <Metric label="Spread" value={fmt(last.spread, 4)} />
+      <Metric label="Confidence" value={fmt(last.confidence, 3)} />
+    </div>}
+    {last && <div className="rounded border border-border p-3 text-xs"><div className="font-medium">{last.reason}</div><div className="mt-1 text-muted-foreground">mid {fmt(last.mid_price, 4)} · bid depth {fmt(last.bid_depth, 3)} · ask depth {fmt(last.ask_depth, 3)} · absorption {fmt(last.absorption_score, 3)}</div></div>}
   </CardContent></Card>;
 }
 

@@ -34,8 +34,8 @@ describe("market data quality gate", () => {
   });
 
   it("keeps weekend gaps observable without making them fatal", () => {
-    const friday = 5 * 86_400_000;
-    const sunday = 7 * 86_400_000;
+    const friday = Date.parse("2026-01-02T00:00:00Z");
+    const sunday = Date.parse("2026-01-04T00:00:00Z");
     const report = runQualityChecks(
       [candle(friday), candle(sunday)],
       "1d",

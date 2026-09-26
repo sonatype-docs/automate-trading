@@ -440,7 +440,6 @@ function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
     </div>
   );
 }

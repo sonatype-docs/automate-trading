@@ -9,32 +9,11 @@ import {
 type Item = { title: string; url: string; icon: React.ComponentType<{ className?: string }> };
 
 const items: Item[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Journal", url: "/journal", icon: BookOpen },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Reports", url: "/reports", icon: FileText },
-  { title: "ORB Bot", url: "/bot", icon: Bot },
-  { title: "Pending", url: "/pending-orders", icon: ListOrdered },
-  { title: "Paper", url: "/paper-trading", icon: Activity },
-  { title: "Live", url: "/live-trading", icon: Zap },
-  { title: "Fib Zone", url: "/backtest", icon: Beaker },
-  { title: "Silver Bullet", url: "/backtest/silver-bullet", icon: Zap },
-  { title: "Asian Sweep", url: "/backtest/asian-sweep", icon: Sunrise },
-  { title: "ORB BT", url: "/backtest/orb", icon: Target },
-  { title: "PDH/PDL", url: "/backtest/pdh-pdl-sweep", icon: Target },
-  { title: "Compare", url: "/backtest/compare", icon: GitCompare },
-  { title: "Handbook", url: "/handbook", icon: BookMarked },
-  { title: "Pipeline", url: "/pipeline", icon: PlayCircle },
-  { title: "Market Data", url: "/market-data", icon: Database },
-  { title: "Strategy", url: "/strategy-engine", icon: Cpu },
-  { title: "Execution", url: "/execution-engine", icon: Zap },
-  { title: "Trade Intel", url: "/trade-intelligence", icon: Database },
-  { title: "Research", url: "/research", icon: BarChart3 },
-  { title: "Optimizer", url: "/optimizer", icon: Sparkles },
-  { title: "AI Research", url: "/ai-research", icon: Sparkles },
-  { title: "Research Lab", url: "/research-lab", icon: FlaskConical },
-  { title: "Docs", url: "/docs", icon: FileText },
-  { title: "Settings", url: "/settings", icon: SettingsIcon },
+  { title: "Home", url: "/", icon: LayoutDashboard },
+  { title: "Trade", url: "/live-trading", icon: Zap },
+  { title: "Research", url: "/research", icon: FlaskConical },
+  { title: "Activity", url: "/journal", icon: Activity },
+  { title: "More", url: "/settings", icon: SettingsIcon },
 ];
 
 function activeIndex(pathname: string) {

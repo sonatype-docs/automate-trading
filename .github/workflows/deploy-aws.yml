@@ -298,6 +298,27 @@ jobs:
               ScheduleLive="false" \
               ScheduleWatchdog="false"
 
+      - name: Run idempotent AWS database bootstrap migration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cluster="$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].Outputs[?OutputKey==`ClusterName`].OutputValue | [0]' --output text)"
+          migration_task_def="$(aws cloudformation list-stack-resources --stack-name "$STACK" --query "StackResourceSummaries[?LogicalResourceId=='MigrationTaskDefinition'].PhysicalResourceId | [0]" --output text)"
+          subnet_a="$(aws cloudformation list-stack-resources --stack-name "$STACK" --query "StackResourceSummaries[?LogicalResourceId=='PublicSubnetA'].PhysicalResourceId | [0]" --output text)"
+          subnet_b="$(aws cloudformation list-stack-resources --stack-name "$STACK" --query "StackResourceSummaries[?LogicalResourceId=='PublicSubnetB'].PhysicalResourceId | [0]" --output text)"
+          app_sg="$(aws cloudformation list-stack-resources --stack-name "$STACK" --query "StackResourceSummaries[?LogicalResourceId=='ApplicationSecurityGroup'].PhysicalResourceId | [0]" --output text)"
+          test -n "$cluster" && test "$cluster" != None
+          test -n "$migration_task_def" && test "$migration_task_def" != None
+          test -n "$subnet_a" && test "$subnet_a" != None
+          test -n "$subnet_b" && test "$subnet_b" != None
+          test -n "$app_sg" && test "$app_sg" != None
+          task_arn="$(aws ecs run-task             --cluster "$cluster"             --task-definition "$migration_task_def"             --launch-type FARGATE             --network-configuration "awsvpcConfiguration={subnets=[$subnet_a,$subnet_b],securityGroups=[$app_sg],assignPublicIp=ENABLED}"             --query 'tasks[0].taskArn' --output text)"
+          test -n "$task_arn" && test "$task_arn" != None
+          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+          exit_code="$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" --query 'tasks[0].containers[?name==`migration`].exitCode | [0]' --output text)"
+          echo "Migration task exit code: $exit_code"
+          test "$exit_code" = "0"
+
       - name: Wait for ECS, invalidate CloudFront, and verify live application
         shell: bash
         run: |

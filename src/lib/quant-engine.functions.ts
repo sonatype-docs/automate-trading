@@ -115,3 +115,12 @@ export const getQuantResearchJobResult = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .validator((input: unknown) => QuantJobInput.parse(input))
   .handler(async ({ data }) => engineFetch("/v1/research/jobs/" + encodeURIComponent(data.job_id) + "/result"));
+
+
+export const submitQuantResearchJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => BacktestInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/research/jobs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }));

@@ -86,3 +86,32 @@ export const runQuantWalkForward = createServerFn({ method: "POST" })
     body: JSON.stringify(data.request),
   }));
 
+
+
+const AnalysisInput = z.object({
+  symbol: z.string().min(1).max(32),
+  market_context: z.string().max(12000).default(""),
+  sentiment_context: z.string().max(12000).default(""),
+  technical_context: z.string().max(12000).default(""),
+  quant_context: z.string().max(12000).default(""),
+});
+
+export const submitQuantAnalysis = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => AnalysisInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/analysis/jobs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }));
+
+const QuantJobInput = z.object({ job_id: z.string().min(1).max(128) });
+
+export const getQuantResearchJob = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => QuantJobInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/research/jobs/" + encodeURIComponent(data.job_id)));
+
+export const getQuantResearchJobResult = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .validator((input: unknown) => QuantJobInput.parse(input))
+  .handler(async ({ data }) => engineFetch("/v1/research/jobs/" + encodeURIComponent(data.job_id) + "/result"));

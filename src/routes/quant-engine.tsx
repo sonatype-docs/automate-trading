@@ -238,6 +238,7 @@ function QuantEnginePage() {
         x_bars: x.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
         y_bars: y.candles.map((b) => ({ timestamp: new Date(b.ts).toISOString(), open: b.open, high: b.high, low: b.low, close: b.close, volume: Math.max(0, b.volume) })),
         initial_capital: capital, risk_per_trade: risk, fee_bps: feeBps, slippage_bps: slippageBps,
+        window: pairWindow, entry_z: pairEntryZ, exit_z: pairExitZ,
       } }) as Promise<PairResult>;
     },
     onSuccess: (result) => setPairResult(result),

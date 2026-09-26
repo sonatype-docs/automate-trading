@@ -1,5 +1,5 @@
 // Browser authentication for the AWS deployment. Cognito is the only
-// production identity provider; no hosted Supabase/Lovable session is used.
+// production identity provider.
 export const AUTH_BACKEND = "aws" as const;
 
 const POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID as string | undefined;

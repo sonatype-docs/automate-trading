@@ -340,7 +340,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ---- Global compact density ---- */
+  /* ---- QUANT-BOT workspace density ---- */
   [data-slot="card-header"] {
     padding: 0.625rem 0.875rem !important;
     gap: 0.25rem !important;
@@ -349,7 +349,7 @@
     padding: 0.625rem 0.875rem !important;
   }
   [data-slot="card-footer"] {
-    padding: 0.5rem 0.875rem !important;
+    padding: 0.75rem 1.25rem !important;
   }
   [data-slot="card-title"] {
     font-size: 0.9rem;
@@ -361,7 +361,7 @@
 
   th,
   td {
-    padding: 0.375rem 0.625rem !important;
+    padding: 0.625rem 0.75rem !important;
   }
   th {
     font-size: 0.65rem;
@@ -387,7 +387,7 @@
     padding: 2px;
   }
   [data-slot="tabs-trigger"] {
-    padding: 0.25rem 0.625rem;
+    padding: 0.375rem 0.75rem;
     font-size: 0.8125rem;
   }
 

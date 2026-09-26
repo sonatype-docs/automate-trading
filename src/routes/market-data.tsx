@@ -13,6 +13,7 @@ import { Database, Activity, Loader2, Layers } from "lucide-react";
 import { loadEnrichedCandles, type LoadEnrichedResult } from "@/lib/market-data.functions";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
+import { SharkMarketStreamCard } from "@/components/market-data/shark-market-stream-card";
 
 export const Route = createFileRoute("/market-data")({
   head: () => ({
@@ -159,6 +160,7 @@ function MarketDataPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-6 space-y-6">
+        <SharkMarketStreamCard />
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-mono tracking-widest">Data Request</CardTitle>

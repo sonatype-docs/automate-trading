@@ -306,7 +306,7 @@ function QuantEnginePage() {
       </Card>
 
       <Tabs defaultValue="backtest">
-        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="backtest">Backtest</TabsTrigger><TabsTrigger value="sweep">Parameter Sweep</TabsTrigger><TabsTrigger value="walk">Walk-Forward</TabsTrigger><TabsTrigger value="pair">Pair / Stat-Arb</TabsTrigger><TabsTrigger value="orderflow">Order Flow Replay</TabsTrigger></TabsList>
         <TabsContent value="backtest" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Canonical Strategy Backtest</CardTitle><CardDescription>Deterministic execution with fees, slippage and risk sizing.</CardDescription></CardHeader><CardContent><Button onClick={() => backtestRun.mutate()} disabled={backtestRun.isPending || !strategyId || specialistOnly || !health.isSuccess}>{backtestRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />}Run canonical backtest</Button></CardContent></Card>
           {backtest && <BacktestResultView result={backtest} />}
@@ -317,13 +317,15 @@ function QuantEnginePage() {
         </TabsContent>
         <TabsContent value="pair" className="mt-4 space-y-4">
           <Card><CardHeader><CardTitle className="text-sm">Pair Spread / Stat-Arb</CardTitle><CardDescription>Aligned two-symbol spread backtest using rolling hedge ratio and z-score entry/exit. This models the spread; it does not claim a formal cointegration test.</CardDescription></CardHeader><CardContent className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div><Label>Leg X</Label><Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></div>
               <div><Label>Leg Y</Label><Input value={pairSymbol} onChange={(e) => setPairSymbol(e.target.value.toUpperCase())} /></div>
-              <div><Label>Entry Z</Label><Input value="2.0" readOnly /></div>
-              <div><Label>Window</Label><Input value="60" readOnly /></div>
+              <div><Label>Entry Z</Label><Input type="number" step="0.1" min="0.1" max="10" value={pairEntryZ} onChange={(e) => setPairEntryZ(Number(e.target.value))} /></div>
+              <div><Label>Exit Z</Label><Input type="number" step="0.1" min="0" max="9.9" value={pairExitZ} onChange={(e) => setPairExitZ(Number(e.target.value))} /></div>
+              <div><Label>Window</Label><Input type="number" min="20" max="1000" value={pairWindow} onChange={(e) => setPairWindow(Math.max(20, Number(e.target.value) || 20))} /></div>
             </div>
-            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
+            <div className="text-xs text-muted-foreground">Rolling hedge ratio · z-score entry/exit · fees and slippage · window {pairWindow}, entry {pairEntryZ.toFixed(1)}, exit {pairExitZ.toFixed(1)}</div>
+            <Button onClick={() => pairRun.mutate()} disabled={pairRun.isPending || !health.isSuccess || !pairSymbol || pairSymbol === symbol || pairExitZ >= pairEntryZ}>{pairRun.isPending ? "Running pair backtest…" : "Run pair backtest"}</Button>
           </CardContent></Card>
           {pairResult && <PairResultView result={pairResult} />}
         </TabsContent>

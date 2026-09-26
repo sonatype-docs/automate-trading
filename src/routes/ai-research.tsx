@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, Loader2, Download, Send, RefreshCw } from "lucide-react";
 import { askResearch, runResearch, reviewOneTrade } from "@/lib/ai-research.functions";
+import { BedrockAnalysisPanel } from "@/components/quant-research/bedrock-analysis-panel";
 import type { Insight, Recommendation } from "@/lib/ai-research/types";
 import type { ResearchReport } from "@/lib/ai-research/report";
 import type { SweetSpotAnalysis, Bucket } from "@/lib/ai-research/sweet-spot";
@@ -362,6 +363,8 @@ function AiResearchPage() {
           )}
         </div>
       </header>
+
+      <BedrockAnalysisPanel quantContext={report?.markdown?.slice(0, 12000) ?? ""} />
 
       {run.error && <div className="rounded border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-400">{(run.error as Error).message}</div>}
 

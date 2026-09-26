@@ -14,6 +14,7 @@ import { runUniversalStrategy, type RunStrategyResult } from "@/lib/strategy-eng
 import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { TIMEFRAMES, TIMEZONES, type Timeframe, type Timezone } from "@/lib/market-data/types";
 import { MatrixGroup } from "@/components/matrix-picker";
+import { QuantResearchPanel } from "@/components/quant-research/quant-research-panel";
 
 export const Route = createFileRoute("/strategy-engine")({
   head: () => ({

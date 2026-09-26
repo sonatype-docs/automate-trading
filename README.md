@@ -1,26 +1,49 @@
-# PineScript V6 Helper
+# QUANT-BOT
 
-are you familiar with pinescript v6 ?
+QUANT-BOT is a quantitative research, backtesting, trading, risk, analytics, and reporting workspace.
 
-This project was built with [Lovable](https://lovable.dev).
+## Production
 
-**Live app**: https://automate-trading.lovable.app
+AWS is the only supported production runtime.
 
-## Build with Lovable
+Every push to `main` that changes the application or deployment inputs can invoke:
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/f6916707-ee15-4ce9-9999-1beab6542aaa).
+`/.github/workflows/deploy-aws.yml`
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+The production workflow builds the application and quant-engine images, publishes immutable images to Amazon ECR, updates the CloudFormation stack `shark-auto-trader-runtime`, runs the idempotent database bootstrap migration, waits for ECS stability, invalidates CloudFront, and runs live readiness/smoke checks.
 
-## Development
+Production region: **AWS Sydney (ap-southeast-2)**.
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Architecture
+
+- **Edge:** Amazon CloudFront
+- **Application:** Application Load Balancer + Amazon ECS/Fargate
+- **Database:** Amazon RDS PostgreSQL
+- **Identity:** Amazon Cognito
+- **Files and artifacts:** Amazon S3
+- **Research jobs:** Amazon SQS + DynamoDB + isolated ECS quant workers
+- **AI research:** Amazon Bedrock
+- **Monitoring:** Amazon CloudWatch
+
+The repository is the source of truth. Production releases are driven from GitHub Actions and the AWS deployment workflow.
+
+## Local development
+
+Requirements: Bun and a recent Node.js runtime.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
+```
+
+For an AWS-style production build:
+
+```sh
+bun run build:aws
+```
+
+Run tests with:
+
+```sh
+bun run test
 ```

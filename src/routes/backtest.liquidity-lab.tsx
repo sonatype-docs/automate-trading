@@ -143,6 +143,7 @@ function LabPage() {
     * mxConfSets.length * mxFilterSets.length;
 
   const [mxProgress, setMxProgress] = useState<{ done: number; total: number } | null>(null);
+  const [mxStatus, setMxStatus] = useState<string | null>(null);
   const matrixMut = useMutation({
     mutationFn: async () => {
       const zoneSets = mxZoneMode === "each"

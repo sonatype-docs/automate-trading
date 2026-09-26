@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, BookOpen, Beaker, ListOrdered, BarChart3, FileText,
-  Settings as SettingsIcon, Bot, Target, Sunrise, Zap, GitCompare,
-  BookMarked, Database, Cpu, Sparkles, FlaskConical, PlayCircle, Activity,
+  LayoutDashboard, Settings as SettingsIcon, Zap, FlaskConical, Activity,
 } from "lucide-react";
 
 type Item = { title: string; url: string; icon: React.ComponentType<{ className?: string }> };

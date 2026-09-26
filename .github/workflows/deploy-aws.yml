@@ -1,4 +1,5 @@
 # force production release after specialist quant merge
+# AWS production redeploy trigger 2026-09-26
 # specialist-quant release 2026-09-26
 name: Deploy to AWS (Sydney) # reconciled-main release trigger
 # Quant specialist research pipeline release trigger

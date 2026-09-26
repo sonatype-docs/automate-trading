@@ -83,6 +83,29 @@ Parameters:
   BedrockModelId:
     Type: String
     Default: global.anthropic.claude-sonnet-4-6
+  LiveMaxOpenPositions:
+    Type: Number
+    Default: 3
+    MinValue: 1
+    MaxValue: 20
+  LiveMaxDailyTrades:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 500
+  LiveMaxDailyLossUsd:
+    Type: Number
+    Default: 300
+    MinValue: 1
+  LiveMaxTotalRiskUsd:
+    Type: Number
+    Default: 100
+    MinValue: 1
+  LiveMaxConsecutiveLosses:
+    Type: Number
+    Default: 6
+    MinValue: 1
+    MaxValue: 100
 
 Conditions:
   EnableContainerInsightsCondition: !Equals [!Ref EnableContainerInsights, "true"]
@@ -511,6 +534,11 @@ Resources:
             - { Name: SCHEDULE_LIVE, Value: !Ref ScheduleLive }
             - { Name: SCHEDULE_WATCHDOG, Value: !Ref ScheduleWatchdog }
             - { Name: QUANT_ENGINE_URL, Value: http://127.0.0.1:8080 }
+            - { Name: LIVE_MAX_OPEN_POSITIONS, Value: !Ref LiveMaxOpenPositions }
+            - { Name: LIVE_MAX_DAILY_TRADES, Value: !Ref LiveMaxDailyTrades }
+            - { Name: LIVE_MAX_DAILY_LOSS_USD, Value: !Ref LiveMaxDailyLossUsd }
+            - { Name: LIVE_MAX_TOTAL_RISK_USD, Value: !Ref LiveMaxTotalRiskUsd }
+            - { Name: LIVE_MAX_CONSECUTIVE_LOSSES, Value: !Ref LiveMaxConsecutiveLosses }
           Secrets:
             - { Name: SHARKEXCHANGE_API_KEY, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_KEY::" }
             - { Name: SHARKEXCHANGE_API_SECRET, ValueFrom: !Sub "${ApplicationSecretArn}:SHARKEXCHANGE_API_SECRET::" }

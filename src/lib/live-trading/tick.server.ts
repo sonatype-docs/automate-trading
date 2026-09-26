@@ -13,6 +13,7 @@ import { STRATEGY_PRESETS } from "@/lib/strategy-engine/presets";
 import { EXEC_PRESETS, withRiskUsd } from "@/lib/execution-engine/presets";
 import { createSharkClient } from "@/lib/exchange/shark-client.server";
 import { getGlobalLiveTradingEnabled } from "@/lib/trading-control.server";
+import { evaluateLivePortfolioEntry } from "./risk-gate.server";
 import type { KlineSourceId } from "@/lib/exchange/kline-source.server";
 
 interface RunnerRow {
@@ -176,6 +177,8 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
         .in("status", ["open", "pending"]);
       if ((busyNow ?? 0) > 0) break;
       try {
+        const riskGate = await evaluateLivePortfolioEntry(Number(r.risk_usd));
+        if (!riskGate.allowed) break;
         try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
         const res = await client.placeOrder({
           symbol: r.symbol,
@@ -411,10 +414,15 @@ export async function tickOne(r: RunnerRow): Promise<{ placed: number; reconcile
   if (stopDist <= 0) return { placed: 0, reconciled };
   const qty = Math.max(0.001, Number((Number(r.risk_usd) / stopDist).toFixed(3)));
 
-  // 4) Best-effort leverage update — ignore errors.
+  // 4) Portfolio-level risk gate. Re-evaluate immediately before any new
+  // exposure is sent to the exchange.
+  const riskGate = await evaluateLivePortfolioEntry(Number(r.risk_usd));
+  if (!riskGate.allowed) return { placed: 0, reconciled };
+
+  // 5) Best-effort leverage update — ignore errors.
   try { await client.updateLeverage(r.symbol, r.leverage); } catch { /* ignore */ }
 
-  // 5) Place entry as LIMIT only. SL/TP exits are managed separately by the
+  // 6) Place entry as LIMIT only. SL/TP exits are managed separately by the
   // exchange reconciliation logic so entry never pays taker fees.
   let placedOk = 0;
   const insertBase = {

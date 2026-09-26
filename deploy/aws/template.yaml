@@ -404,7 +404,7 @@ Resources:
             - { Name: PGPORT, Value: "5432" }
             - { Name: PGDATABASE, Value: sharktrader }
             - { Name: FILES_BUCKET, Value: !Ref FilesBucketName }
-            - { Name: MIGRATION_ID, Value: lovable-export-2026-09-24 }
+            - { Name: MIGRATION_ID, Value: aws-runtime-2026-09-24 }
           Secrets:
             - { Name: PGUSER, ValueFrom: !Sub "${DatabaseSecretArn}:username::" }
             - { Name: PGPASSWORD, ValueFrom: !Sub "${DatabaseSecretArn}:password::" }

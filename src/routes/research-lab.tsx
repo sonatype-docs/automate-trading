@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FlaskConical, Plus, Search as SearchIcon, GitCompare, Loader2 } from "lucide-react";
 import { QuantResearchPanel } from "@/components/quant-research/quant-research-panel";
+import { RouteLoadError } from "@/components/route-load-error";
 import {
   listProjects, upsertProject,
   listExperiments, upsertExperiment, setExperimentDecision, diffExperiments,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/research-lab.functions";
 
 export const Route = createFileRoute("/research-lab")({
+  errorComponent: RouteLoadError,
   head: () => ({
     meta: [
       { title: "Quant Research Laboratory" },

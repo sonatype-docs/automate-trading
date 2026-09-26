@@ -18,8 +18,10 @@ import {
   YAxis,
 } from "recharts";
 import { RefreshCw, Download, ArrowLeft, BookOpen } from "lucide-react";
+import { RouteLoadError } from "@/components/route-load-error";
 
 export const Route = createFileRoute("/journal")({
+  errorComponent: RouteLoadError,
   head: () => ({
     meta: [
       { title: "Trading Journal — Shark Auto-Trader" },

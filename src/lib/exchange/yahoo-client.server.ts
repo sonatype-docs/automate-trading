@@ -86,13 +86,25 @@ async function fetchYahoo(
     `?interval=${yInt}&period1=${period1}&period2=${period2}` +
     `&includePrePost=false&events=div%2Csplit`;
 
-  const res = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      // Yahoo blocks blank/unknown user-agents on some POPs; identify this service.
-      "user-agent": "SharkAutoTraderBacktest/1.0",
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7_500);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "SharkAutoTraderBacktest/1.0",
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Yahoo klines timed out for ${symbol} ${interval}`);
+    }
+    throw new Error(`Yahoo klines request failed for ${symbol} ${interval}: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    clearTimeout(timer);
+  }
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`Yahoo klines failed [${res.status}]: ${text.slice(0, 300)}`);
@@ -161,47 +173,71 @@ export interface YahooKlineSource {
 export function createYahooClient(): YahooKlineSource {
   return {
     async getKlinesRange(symbol, interval, fromMs, toMs) {
-      // Per-request window cap enforced by Yahoo's chart API.
-      const perRequestMs =
-        interval === "1m" ? 7 * 86_400_000 :
-        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
-        interval === "1h" || interval === "60m" ? 729 * 86_400_000 :
-        365 * 5 * 86_400_000;
-      // Yahoo hard-limits intraday lookback by interval. Clamp the requested
-      // start before chunking so a 500-day matrix on 1m/2m does not burn time
-      // on hundreds of guaranteed-rejected windows and fail mid-run.
-      const availableHistoryMs =
-        interval === "1m" ? 7 * 86_400_000 :
-        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 60 * 86_400_000 :
-        interval === "1h" || interval === "60m" ? 729 * 86_400_000 :
-        Infinity;
-      const effectiveFromMs = Number.isFinite(availableHistoryMs)
-        ? Math.max(fromMs, toMs - availableHistoryMs)
-        : fromMs;
-      // Chunk large ranges into sequential per-request windows so lookbacks
-      // beyond the single-request cap still return data (Yahoo serves older
-      // intraday history when asked in ≤cap slices).
+      // Yahoo has short maximum lookbacks for intraday intervals. Use a
+      // deliberately conservative total window so the application remains
+      // responsive, then fetch that window in smaller chunks. If an individual
+      // chunk is rejected or times out, retry it with a smaller range and keep
+      // any data that was successfully returned.
+      const maxHistoryDays =
+        interval === "1m" ? 7 :
+        interval === "2m" ? 30 :
+        interval === "5m" ? 30 :
+        interval === "15m" ? 60 :
+        interval === "30m" ? 60 :
+        interval === "1h" || interval === "60m" || interval === "4h" ? 729 :
+        3650;
+      const maxHistoryMs = maxHistoryDays * 86_400_000;
+      const effectiveFromMs = Math.max(fromMs, toMs - maxHistoryMs);
+
+      const initialChunkMs =
+        interval === "1m" ? 2 * 86_400_000 :
+        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 10 * 86_400_000 :
+        interval === "1h" || interval === "60m" || interval === "4h" ? 90 * 86_400_000 :
+        365 * 86_400_000;
+      const minimumChunkMs =
+        interval === "1m" ? 12 * 60 * 60_000 :
+        interval === "2m" || interval === "5m" || interval === "15m" || interval === "30m" ? 3 * 86_400_000 :
+        30 * 86_400_000;
+
       const chunks: Kline[] = [];
-      let cursor = effectiveFromMs;
       const seen = new Set<number>();
+      let cursor = effectiveFromMs;
+
       while (cursor < toMs) {
-        const end = Math.min(cursor + perRequestMs, toMs);
-        try {
-          const rows = await fetchYahoo(symbol, interval, cursor, end);
-          for (const r of rows) {
-            if (!seen.has(r.openTime)) {
-              seen.add(r.openTime);
-              chunks.push(r);
+        let windowMs = Math.min(initialChunkMs, toMs - cursor);
+        let accepted = false;
+
+        while (windowMs >= minimumChunkMs) {
+          const end = Math.min(cursor + windowMs, toMs);
+          try {
+            const rows = await fetchYahoo(symbol, interval, cursor, end);
+            for (const row of rows) {
+              if (!seen.has(row.openTime)) {
+                seen.add(row.openTime);
+                chunks.push(row);
+              }
             }
+            accepted = true;
+            cursor = end;
+            break;
+          } catch {
+            windowMs = Math.floor(windowMs / 2);
           }
-        } catch {
-          // Skip window if Yahoo rejects it (e.g. data not available that far back)
-          // and continue with the next chunk instead of failing the whole run.
         }
-        if (end === toMs) break;
-        cursor = end;
+
+        if (!accepted) {
+          // The provider may have an unavailable/illiquid segment. Skip only
+          // that small segment and continue so later available data survives.
+          cursor = Math.min(cursor + minimumChunkMs, toMs);
+        }
       }
+
       chunks.sort((a, b) => a.openTime - b.openTime);
+      if (chunks.length === 0) {
+        throw new Error(
+          `Yahoo Finance returned no usable ${interval} bars for ${symbol} in the requested window. The provider may not expose that interval/history for this symbol.`,
+        );
+      }
       return chunks;
     },
     async getKlines(symbol, interval = "1h", limit = 100, opts) {

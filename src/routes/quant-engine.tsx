@@ -52,7 +52,8 @@ const SPECIALIST_STRATEGIES = new Set(["STRAT-03-STAT-COINT", "STRAT-06-ORDER-FL
 function safeHistoryDays(source: "yahoo" | "shark", timeframe: Timeframe): number {
   if (source === "yahoo") {
     if (timeframe === "1m") return 7;
-    if (["2m", "5m", "15m", "30m"].includes(timeframe)) return 60;
+    if (timeframe === "2m" || timeframe === "5m") return 30;
+    if (["15m", "30m"].includes(timeframe)) return 60;
     if (["1h", "2h", "4h"].includes(timeframe)) return 729;
     return 3650;
   }
@@ -108,7 +109,12 @@ function QuantEnginePage() {
   const [risk, setRisk] = useState(0.01);
   const [feeBps, setFeeBps] = useState(4);
   const [slippageBps, setSlippageBps] = useState(1);
-  const [loadedMeta, setLoadedMeta] = useState<{ count: number; firstTs: number | null; lastTs: number | null } | null>(null);
+  const [loadedMeta, setLoadedMeta] = useState<{
+    count: number;
+    firstTs: number | null;
+    lastTs: number | null;
+    warning?: string;
+  } | null>(null);
   const [backtest, setBacktest] = useState<QuantBacktestResult | null>(null);
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
   const [walk, setWalk] = useState<WalkRow[] | null>(null);
@@ -142,7 +148,12 @@ function QuantEnginePage() {
         maxRows: 5000,
       },
     });
-    setLoadedMeta({ count: loaded.count, firstTs: loaded.summary.firstTs, lastTs: loaded.summary.lastTs });
+    setLoadedMeta({
+      count: loaded.count,
+      firstTs: loaded.summary.firstTs,
+      lastTs: loaded.summary.lastTs,
+      warning: loaded.range?.warning,
+    });
     return {
       bars: loaded.candles.map((bar) => ({
         timestamp: new Date(bar.ts).toISOString(),
@@ -320,7 +331,12 @@ function QuantEnginePage() {
               ? `SharkExchange history is capped at ${maxHistoryDays} days for ${timeframe} so the request stays within the production API/CloudFront latency budget.`
               : `Yahoo Finance supports up to ${maxHistoryDays >= 3650 ? "long-range" : maxHistoryDays + " days"} for ${timeframe}; older intraday requests are automatically reduced to the provider-supported window.`}
           </div>
-          {loadedMeta && <div className="rounded border border-border bg-muted/20 p-3 text-xs">Loaded {loadedMeta.count.toLocaleString()} bars available to the quant run{dateRange}{/* server may safely clamp oversized provider windows */}{loadedMeta.count > 0 ? "" : " · no bars returned"}.</div>}
+          {loadedMeta && (
+            <div className="rounded border border-border bg-muted/20 p-3 text-xs">
+              Loaded {loadedMeta.count.toLocaleString()} bars available to the quant run{dateRange}.
+              {loadedMeta.warning && <div className="mt-1 text-amber-700">{loadedMeta.warning}</div>}
+            </div>
+          )}
           {runError && <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorText(runError)}</div>}
         </CardContent>
       </Card>

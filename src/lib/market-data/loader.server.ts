@@ -10,7 +10,22 @@ const NATIVE_SHARK = new Set<Timeframe>(["1m", "5m", "15m", "30m", "1h", "4h", "
 const NATIVE_YAHOO = new Set<Timeframe>(["1m", "2m", "5m", "15m", "30m", "1h", "1d", "1w", "1M"]);
 
 function maxSafeHistoryMs(source: KlineSourceId, interval: Timeframe): number {
-  if (source === "yahoo") return Number.POSITIVE_INFINITY;
+  if (source === "yahoo") {
+    const daysByInterval: Partial<Record<Timeframe, number>> = {
+      "1m": 7,
+      "2m": 30,
+      "5m": 30,
+      "15m": 60,
+      "30m": 60,
+      "1h": 729,
+      "2h": 729,
+      "4h": 729,
+      "1d": 3650,
+      "1w": 3650,
+      "1M": 3650,
+    };
+    return (daysByInterval[interval] ?? 30) * 86_400_000;
+  }
   const daysByInterval: Partial<Record<Timeframe, number>> = {
     "1m": 2,
     "5m": 40,
